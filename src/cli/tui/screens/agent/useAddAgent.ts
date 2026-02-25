@@ -54,15 +54,22 @@ export type AddAgentOutcome = AddAgentCreateResult | AddAgentByoResult | AddAgen
  * Maps AddAgentConfig (from BYO wizard) to v2 AgentEnvSpec for schema persistence.
  */
 export function mapByoConfigToAgent(config: AddAgentConfig): AgentEnvSpec {
-  return {
+  const agent: AgentEnvSpec = {
     type: 'AgentCoreRuntime',
     name: config.name,
     build: config.buildType,
     entrypoint: config.entrypoint as FilePath,
     codeLocation: config.codeLocation as DirectoryPath,
     runtimeVersion: config.pythonVersion,
-    networkMode: 'PUBLIC',
+    networkMode: config.networkMode ?? 'PUBLIC',
   };
+  if (config.networkMode === 'VPC' && config.subnets && config.securityGroups) {
+    agent.networkConfig = {
+      subnets: config.subnets,
+      securityGroups: config.securityGroups,
+    };
+  }
+  return agent;
 }
 
 /**
@@ -76,6 +83,9 @@ function mapAddAgentConfigToGenerateConfig(config: AddAgentConfig): GenerateConf
     modelProvider: config.modelProvider,
     memory: config.memory,
     language: config.language,
+    networkMode: config.networkMode,
+    subnets: config.subnets,
+    securityGroups: config.securityGroups,
   };
 }
 
