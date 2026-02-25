@@ -2,13 +2,17 @@ import os
 from agents import Agent, Runner, function_tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
 
+{{#unless isVpc}}
 # Get MCP Server
 mcp_server = get_streamable_http_mcp_client()
+{{/unless}}
 
 _credentials_loaded = False
 
@@ -26,6 +30,7 @@ def add_numbers(a: int, b: int) -> int:
     return a + b
 
 
+{{#unless isVpc}}
 # Define the agent execution
 async def main(query):
     ensure_credentials_loaded()
@@ -43,6 +48,22 @@ async def main(query):
     except Exception as e:
         log.error(f"Error during agent execution: {e}", exc_info=True)
         raise e
+{{else}}
+# Define the agent execution
+async def main(query):
+    ensure_credentials_loaded()
+    try:
+        agent = Agent(
+            name="{{ name }}",
+            model="gpt-4.1",
+            tools=[add_numbers]
+        )
+        result = await Runner.run(agent, query)
+        return result
+    except Exception as e:
+        log.error(f"Error during agent execution: {e}", exc_info=True)
+        raise e
+{{/unless}}
 
 
 @app.entrypoint

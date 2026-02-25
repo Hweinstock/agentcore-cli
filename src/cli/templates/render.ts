@@ -43,8 +43,14 @@ export async function copyDir(src: string, dest: string): Promise<void> {
 
 /**
  * Recursively copies a directory, rendering Handlebars templates.
+ * @param skipDirs - Optional set of directory names to skip (top-level only)
  */
-export async function copyAndRenderDir<T extends object>(src: string, dest: string, data: T): Promise<void> {
+export async function copyAndRenderDir<T extends object>(
+  src: string,
+  dest: string,
+  data: T,
+  skipDirs?: Set<string>
+): Promise<void> {
   await fs.mkdir(dest, { recursive: true });
   const entries = await fs.readdir(src, { withFileTypes: true });
 
@@ -54,6 +60,7 @@ export async function copyAndRenderDir<T extends object>(src: string, dest: stri
     const destPath = path.join(dest, destName);
 
     if (entry.isDirectory()) {
+      if (skipDirs?.has(entry.name)) continue;
       await copyAndRenderDir(srcPath, destPath, data);
     } else {
       const content = await fs.readFile(srcPath, 'utf-8');

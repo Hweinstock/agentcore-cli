@@ -9,6 +9,9 @@ export type GenerateStep =
   | 'modelProvider'
   | 'apiKey'
   | 'memory'
+  | 'networkMode'
+  | 'subnets'
+  | 'securityGroups'
   | 'confirm';
 
 export type MemoryOption = 'none' | 'shortTerm' | 'longAndShortTerm';
@@ -49,6 +52,9 @@ export const STEP_LABELS: Record<GenerateStep, string> = {
   modelProvider: 'Model',
   apiKey: 'API Key',
   memory: 'Memory',
+  networkMode: 'Network',
+  subnets: 'Subnets',
+  securityGroups: 'Sec Groups',
   confirm: 'Confirm',
 };
 
@@ -87,6 +93,11 @@ export function getModelProviderOptionsForSdk(sdk: SDKFramework) {
   const supportedProviders = getSupportedModelProviders(sdk);
   return MODEL_PROVIDER_OPTIONS.filter(option => supportedProviders.includes(option.id));
 }
+
+export const NETWORK_MODE_OPTIONS = [
+  { id: 'PUBLIC', title: 'Public', description: 'Agent runs with public internet access (default)' },
+  { id: 'VPC', title: 'VPC', description: 'Agent runs inside your VPC subnets' },
+] as const;
 
 export const MEMORY_OPTIONS = [
   { id: 'none', title: 'None', description: 'No memory' },

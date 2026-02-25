@@ -321,6 +321,11 @@ export function InvokeScreen({
         </Box>
       )}
       {logFilePath && <LogLink filePath={logFilePath} />}
+      {mode !== 'select-agent' && agent?.networkMode === 'VPC' && (
+        <Text color="yellow">
+          This agent uses VPC network mode. Network behavior may differ if VPC endpoints are not configured.
+        </Text>
+      )}
     </Box>
   );
 

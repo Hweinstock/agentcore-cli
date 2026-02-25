@@ -5,7 +5,9 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -22,8 +24,10 @@ def add_numbers(a: int, b: int) -> int:
     return a + b
 
 
+{{#unless isVpc}}
 # Get MCP Toolset
 mcp_toolset = [get_streamable_http_mcp_client()]
+{{/unless}}
 
 _credentials_loaded = False
 
@@ -40,7 +44,11 @@ agent = Agent(
     name="{{ name }}",
     description="Agent to answer questions",
     instruction="I can answer your questions using the knowledge I have!",
+{{#unless isVpc}}
     tools=mcp_toolset + [add_numbers],
+{{else}}
+    tools=[add_numbers],
+{{/unless}}
 )
 
 

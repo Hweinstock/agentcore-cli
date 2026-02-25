@@ -1,4 +1,11 @@
-import type { BuildType, ModelProvider, PythonRuntime, SDKFramework, TargetLanguage } from '../../../../schema';
+import type {
+  BuildType,
+  ModelProvider,
+  NetworkMode,
+  PythonRuntime,
+  SDKFramework,
+  TargetLanguage,
+} from '../../../../schema';
 import { DEFAULT_MODEL_IDS, getSupportedModelProviders } from '../../../../schema';
 import type { MemoryOption } from '../generate/types';
 
@@ -35,6 +42,9 @@ export type AddAgentStep =
   | 'modelProvider'
   | 'apiKey'
   | 'memory'
+  | 'networkMode'
+  | 'subnets'
+  | 'securityGroups'
   | 'confirm';
 
 export interface AddAgentConfig {
@@ -54,6 +64,12 @@ export interface AddAgentConfig {
   pythonVersion: PythonRuntime;
   /** Memory option (create path only) */
   memory: MemoryOption;
+  /** Network mode for the agent runtime */
+  networkMode: NetworkMode;
+  /** VPC subnet IDs (required when networkMode is VPC) */
+  subnets?: string[];
+  /** VPC security group IDs (required when networkMode is VPC) */
+  securityGroups?: string[];
 }
 
 export const ADD_AGENT_STEP_LABELS: Record<AddAgentStep, string> = {
@@ -66,6 +82,9 @@ export const ADD_AGENT_STEP_LABELS: Record<AddAgentStep, string> = {
   modelProvider: 'Model',
   apiKey: 'API Key',
   memory: 'Memory',
+  networkMode: 'Network',
+  subnets: 'Subnets',
+  securityGroups: 'Sec Groups',
   confirm: 'Confirm',
 };
 
@@ -100,6 +119,11 @@ export const MODEL_PROVIDER_OPTIONS = [
   },
   { id: 'OpenAI', title: `OpenAI (${DEFAULT_MODEL_IDS.OpenAI})`, description: 'GPT models via OpenAI API' },
   { id: 'Gemini', title: `Google Gemini (${DEFAULT_MODEL_IDS.Gemini})`, description: 'Gemini models via Google API' },
+] as const;
+
+export const NETWORK_MODE_OPTIONS = [
+  { id: 'PUBLIC', title: 'Public', description: 'Agent runs with public internet access (default)' },
+  { id: 'VPC', title: 'VPC', description: 'Agent runs inside your VPC subnets' },
 ] as const;
 
 /**

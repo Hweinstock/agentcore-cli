@@ -3,7 +3,9 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_core.tools import FunctionTool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_tools
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -27,14 +29,20 @@ tools = [add_numbers_tool]
 async def invoke(payload, context):
     log.info("Invoking Agent.....")
 
+{{#unless isVpc}}
     # Get MCP Tools
     mcp_tools = await get_streamable_http_mcp_tools()
 
+{{/unless}}
     # Define an AssistantAgent with the model and tools
     agent = AssistantAgent(
         name="{{ name }}",
         model_client=load_model(),
+{{#unless isVpc}}
         tools=tools + mcp_tools,
+{{else}}
+        tools=tools,
+{{/unless}}
         system_message="You are a helpful assistant. Use tools when appropriate.",
     )
 

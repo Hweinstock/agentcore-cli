@@ -29,6 +29,8 @@ export interface AgentRenderConfig {
   modelProvider: ModelProvider;
   hasMemory: boolean;
   hasIdentity: boolean;
+  /** Whether the agent uses VPC network mode (disables public MCP endpoints) */
+  isVpc: boolean;
   /** Build type: CodeZip (default) or Container */
   buildType?: BuildType;
   /** Memory providers for template rendering */

@@ -45,9 +45,10 @@ export abstract class BaseRenderer {
       hasMcp: false, // MCP is configured separately
     };
 
-    // Always render base template
+    // Always render base template (skip mcp_client for VPC - no public internet for external MCP servers)
     const baseDir = path.join(templateDir, 'base');
-    await copyAndRenderDir(baseDir, projectDir, templateData);
+    const skipDirs = this.config.isVpc ? new Set(['mcp_client']) : undefined;
+    await copyAndRenderDir(baseDir, projectDir, templateData, skipDirs);
 
     // Render capability templates based on config
     // Only render if the capability directory exists (not all SDKs have all capabilities)

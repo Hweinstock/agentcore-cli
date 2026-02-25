@@ -1,7 +1,9 @@
 from strands import Agent, tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 {{#if hasMemory}}
 from memory.session import get_memory_session_manager
 {{/if}}
@@ -9,8 +11,10 @@ from memory.session import get_memory_session_manager
 app = BedrockAgentCoreApp()
 log = app.logger
 
+{{#unless isVpc}}
 # Define a Streamable HTTP MCP Client
 mcp_client = get_streamable_http_mcp_client()
+{{/unless}}
 
 # Define a collection of tools used by the model
 tools = []
@@ -36,7 +40,11 @@ def agent_factory():
                 system_prompt="""
                     You are a helpful assistant. Use tools when appropriate.
                 """,
+{{#unless isVpc}}
                 tools=tools+[mcp_client]
+{{else}}
+                tools=tools
+{{/unless}}
             )
         return cache[key]
     return get_or_create_agent
@@ -52,7 +60,11 @@ def get_or_create_agent():
             system_prompt="""
                 You are a helpful assistant. Use tools when appropriate.
             """,
+{{#unless isVpc}}
             tools=tools+[mcp_client]
+{{else}}
+            tools=tools
+{{/unless}}
         )
     return _agent
 {{/if}}
