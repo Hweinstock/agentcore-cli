@@ -904,7 +904,9 @@ from autogen_agentchat.agents import AssistantAgent
 from autogen_core.tools import FunctionTool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_tools
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -928,14 +930,20 @@ tools = [add_numbers_tool]
 async def invoke(payload, context):
     log.info("Invoking Agent.....")
 
+{{#unless isVpc}}
     # Get MCP Tools
     mcp_tools = await get_streamable_http_mcp_tools()
 
+{{/unless}}
     # Define an AssistantAgent with the model and tools
     agent = AssistantAgent(
         name="{{ name }}",
         model_client=load_model(),
+{{#unless isVpc}}
         tools=tools + mcp_tools,
+{{else}}
+        tools=tools,
+{{/unless}}
         system_message="You are a helpful assistant. Use tools when appropriate.",
     )
 
@@ -1584,7 +1592,9 @@ from google.adk.sessions import InMemorySessionService
 from google.genai import types
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -1601,8 +1611,10 @@ def add_numbers(a: int, b: int) -> int:
     return a + b
 
 
+{{#unless isVpc}}
 # Get MCP Toolset
 mcp_toolset = [get_streamable_http_mcp_client()]
+{{/unless}}
 
 _credentials_loaded = False
 
@@ -1619,7 +1631,11 @@ agent = Agent(
     name="{{ name }}",
     description="Agent to answer questions",
     instruction="I can answer your questions using the knowledge I have!",
+{{#unless isVpc}}
     tools=mcp_toolset + [add_numbers],
+{{else}}
+    tools=[add_numbers],
+{{/unless}}
 )
 
 
@@ -1864,7 +1880,9 @@ from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -1893,14 +1911,20 @@ tools = [add_numbers]
 async def invoke(payload, context):
     log.info("Invoking Agent.....")
 
+{{#unless isVpc}}
     # Get MCP Client
     mcp_client = get_streamable_http_mcp_client()
 
     # Load MCP Tools
     mcp_tools = await mcp_client.get_tools()
 
+{{/unless}}
     # Define the agent using create_react_agent
+{{#unless isVpc}}
     graph = create_react_agent(get_or_create_model(), tools=mcp_tools + tools)
+{{else}}
+    graph = create_react_agent(get_or_create_model(), tools=tools)
+{{/unless}}
 
     # Process the user prompt
     prompt = payload.get("prompt", "What can you help me with?")
@@ -2210,13 +2234,17 @@ exports[`Assets Directory Snapshots > Python framework assets > python/python/op
 from agents import Agent, Runner, function_tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
 
+{{#unless isVpc}}
 # Get MCP Server
 mcp_server = get_streamable_http_mcp_client()
+{{/unless}}
 
 _credentials_loaded = False
 
@@ -2234,6 +2262,7 @@ def add_numbers(a: int, b: int) -> int:
     return a + b
 
 
+{{#unless isVpc}}
 # Define the agent execution
 async def main(query):
     ensure_credentials_loaded()
@@ -2251,6 +2280,22 @@ async def main(query):
     except Exception as e:
         log.error(f"Error during agent execution: {e}", exc_info=True)
         raise e
+{{else}}
+# Define the agent execution
+async def main(query):
+    ensure_credentials_loaded()
+    try:
+        agent = Agent(
+            name="{{ name }}",
+            model="gpt-4.1",
+            tools=[add_numbers]
+        )
+        result = await Runner.run(agent, query)
+        return result
+    except Exception as e:
+        log.error(f"Error during agent execution: {e}", exc_info=True)
+        raise e
+{{/unless}}
 
 
 @app.entrypoint
@@ -2455,7 +2500,9 @@ exports[`Assets Directory Snapshots > Python framework assets > python/python/st
 "from strands import Agent, tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 {{#if hasMemory}}
 from memory.session import get_memory_session_manager
 {{/if}}
@@ -2463,8 +2510,10 @@ from memory.session import get_memory_session_manager
 app = BedrockAgentCoreApp()
 log = app.logger
 
+{{#unless isVpc}}
 # Define a Streamable HTTP MCP Client
 mcp_client = get_streamable_http_mcp_client()
+{{/unless}}
 
 # Define a collection of tools used by the model
 tools = []
@@ -2490,7 +2539,11 @@ def agent_factory():
                 system_prompt="""
                     You are a helpful assistant. Use tools when appropriate.
                 """,
+{{#unless isVpc}}
                 tools=tools+[mcp_client]
+{{else}}
+                tools=tools
+{{/unless}}
             )
         return cache[key]
     return get_or_create_agent
@@ -2506,7 +2559,11 @@ def get_or_create_agent():
             system_prompt="""
                 You are a helpful assistant. Use tools when appropriate.
             """,
+{{#unless isVpc}}
             tools=tools+[mcp_client]
+{{else}}
+            tools=tools
+{{/unless}}
         )
     return _agent
 {{/if}}

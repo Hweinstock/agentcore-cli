@@ -4,7 +4,9 @@ from langgraph.prebuilt import create_react_agent
 from langchain.tools import tool
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
+{{#unless isVpc}}
 from mcp_client.client import get_streamable_http_mcp_client
+{{/unless}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -33,14 +35,20 @@ tools = [add_numbers]
 async def invoke(payload, context):
     log.info("Invoking Agent.....")
 
+{{#unless isVpc}}
     # Get MCP Client
     mcp_client = get_streamable_http_mcp_client()
 
     # Load MCP Tools
     mcp_tools = await mcp_client.get_tools()
 
+{{/unless}}
     # Define the agent using create_react_agent
+{{#unless isVpc}}
     graph = create_react_agent(get_or_create_model(), tools=mcp_tools + tools)
+{{else}}
+    graph = create_react_agent(get_or_create_model(), tools=tools)
+{{/unless}}
 
     # Process the user prompt
     prompt = payload.get("prompt", "What can you help me with?")

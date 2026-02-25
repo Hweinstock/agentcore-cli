@@ -202,6 +202,7 @@ export function mapGenerateConfigToRenderConfig(
     modelProvider: config.modelProvider,
     hasMemory: config.memory !== 'none',
     hasIdentity: identityProviders.length > 0,
+    isVpc: config.networkMode === 'VPC',
     buildType: config.buildType,
     memoryProviders: mapMemoryOptionToMemoryProviders(config.memory, config.projectName),
     identityProviders,
