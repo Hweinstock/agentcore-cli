@@ -10,6 +10,8 @@ import type {
   ModelProvider,
 } from '../../../../schema';
 import { DEFAULT_STRATEGY_NAMESPACES } from '../../../../schema';
+import { GatewayPrimitive } from '../../../primitives/GatewayPrimitive';
+import { computeDefaultCredentialEnvVarName } from '../../../primitives/credential-utils';
 import type {
   AgentRenderConfig,
   GatewayProviderRenderConfig,
@@ -23,8 +25,6 @@ import {
   DEFAULT_PYTHON_VERSION,
 } from '../../../tui/screens/generate/defaults';
 import type { GenerateConfig, MemoryOption } from '../../../tui/screens/generate/types';
-import { computeDefaultCredentialEnvVarName } from '../../identity/create-identity';
-import { computeDefaultGatewayEnvVarName } from '../../mcp/create-mcp';
 
 /**
  * Result of mapping GenerateConfig to v2 schema.
@@ -193,7 +193,7 @@ async function mapMcpGatewaysToGatewayProviders(): Promise<GatewayProviderRender
     return mcpSpec.agentCoreGateways.map(gateway => {
       const config: GatewayProviderRenderConfig = {
         name: gateway.name,
-        envVarName: computeDefaultGatewayEnvVarName(gateway.name),
+        envVarName: GatewayPrimitive.computeDefaultGatewayEnvVarName(gateway.name),
         authType: gateway.authorizerType,
       };
 
