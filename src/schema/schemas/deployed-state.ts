@@ -120,16 +120,6 @@ export const CredentialDeployedStateSchema = z.object({
 export type CredentialDeployedState = z.infer<typeof CredentialDeployedStateSchema>;
 
 // ============================================================================
-// Observability State
-// ============================================================================
-
-export const ObservabilityStateSchema = z.object({
-  transactionSearchEnabled: z.boolean(),
-});
-
-export type ObservabilityState = z.infer<typeof ObservabilityStateSchema>;
-
-// ============================================================================
 // Deployed Resource State
 // ============================================================================
 
@@ -141,7 +131,6 @@ export const DeployedResourceStateSchema = z.object({
   credentials: z.record(z.string(), CredentialDeployedStateSchema).optional(),
   stackName: z.string().optional(),
   identityKmsKeyArn: z.string().optional(),
-  observability: ObservabilityStateSchema.optional(),
 });
 
 export type DeployedResourceState = z.infer<typeof DeployedResourceStateSchema>;
