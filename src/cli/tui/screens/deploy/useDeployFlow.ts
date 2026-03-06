@@ -9,7 +9,7 @@ import {
 } from '../../../cloudformation';
 import { getErrorMessage, isChangesetInProgressError, isExpiredTokenError } from '../../../errors';
 import { ExecLogger } from '../../../logging';
-import { performStackTeardown } from '../../../operations/deploy';
+import { performStackTeardown, setupTransactionSearch } from '../../../operations/deploy';
 import { getGatewayTargetStatuses } from '../../../operations/deploy/gateway-status';
 import {
   type StackDiffSummary,
@@ -372,6 +372,28 @@ export function useDeployFlow(options: DeployFlowOptions = {}): DeployFlowState 
             const message = error instanceof Error ? error.message : 'Unknown error';
             logger.log(`Failed to persist deployed state: ${message}`, 'warn');
           }
+
+          // Post-deploy: Enable CloudWatch Transaction Search (non-blocking)
+          const agentNames = context?.projectSpec.agents?.map((a: { name: string }) => a.name) ?? [];
+          const targetRegion = context?.awsTargets[0]?.region;
+          if (agentNames.length > 0 && targetRegion) {
+            try {
+              const tsResult = await setupTransactionSearch({
+                region: targetRegion,
+                agentNames,
+                autoConfirm: true,
+              });
+              if (tsResult.error) {
+                logger.log(`Transaction search setup warning: ${tsResult.error}`, 'warn');
+              }
+              if (tsResult.consoleUrl) {
+                logger.log(`Transaction search enabled: ${tsResult.consoleUrl}`);
+              }
+            } catch (error) {
+              const message = error instanceof Error ? error.message : 'Unknown error';
+              logger.log(`Transaction search setup failed: ${message}`, 'warn');
+            }
+          }
         }
 
         logger.endStep('success');
@@ -433,6 +455,7 @@ export function useDeployFlow(options: DeployFlowOptions = {}): DeployFlowState 
     switchableIoHost,
     context?.isTeardownDeploy,
     context?.awsTargets,
+    context?.projectSpec.agents,
     diffMode,
   ]);
 

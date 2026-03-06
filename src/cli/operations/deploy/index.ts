@@ -42,6 +42,13 @@ export {
   type StackTeardownResult,
 } from './teardown';
 
+// Post-deploy observability setup
+export {
+  setupTransactionSearch,
+  type TransactionSearchSetupOptions,
+  type TransactionSearchSetupResult,
+} from './post-deploy-observability';
+
 // Re-export external requirements for convenience
 export {
   checkDependencyVersions,
