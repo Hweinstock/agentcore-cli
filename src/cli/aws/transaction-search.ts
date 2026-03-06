@@ -6,7 +6,6 @@ import {
   PutResourcePolicyCommand,
 } from '@aws-sdk/client-cloudwatch-logs';
 import {
-  GetIndexingRulesCommand,
   GetTraceSegmentDestinationCommand,
   UpdateIndexingRuleCommand,
   UpdateTraceSegmentDestinationCommand,
@@ -102,21 +101,14 @@ export async function enableTransactionSearch(
     return { success: false, error: `Failed to configure trace destination: ${message}` };
   }
 
-  // Step 4: Set indexing to 100%
+  // Step 4: Set indexing to 100% on the built-in Default rule (always exists, idempotent)
   try {
-    const rulesResult = await xrayClient.send(new GetIndexingRulesCommand({}));
-    const rules = rulesResult.IndexingRules ?? [];
-    for (const rule of rules) {
-      const currentPercentage = rule.Rule?.Probabilistic?.DesiredSamplingPercentage;
-      if (currentPercentage !== undefined && currentPercentage < 100) {
-        await xrayClient.send(
-          new UpdateIndexingRuleCommand({
-            Name: rule.Name!,
-            Rule: { Probabilistic: { DesiredSamplingPercentage: 100 } },
-          })
-        );
-      }
-    }
+    await xrayClient.send(
+      new UpdateIndexingRuleCommand({
+        Name: 'Default',
+        Rule: { Probabilistic: { DesiredSamplingPercentage: 100 } },
+      })
+    );
   } catch (err: unknown) {
     const code = (err as { name?: string })?.name;
     const message = (err as { message?: string })?.message ?? 'Unknown error';
