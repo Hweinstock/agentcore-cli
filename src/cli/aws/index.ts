@@ -14,7 +14,11 @@ export {
   type GetAgentRuntimeStatusOptions,
 } from './agentcore-control';
 export { streamLogs, searchLogs, type LogEvent, type StreamLogsOptions, type SearchLogsOptions } from './cloudwatch';
-export { enableTransactionSearch, type TransactionSearchEnableResult } from './transaction-search';
+export {
+  enableTransactionSearch,
+  type TransactionSearchEnableOptions,
+  type TransactionSearchEnableResult,
+} from './transaction-search';
 export {
   DEFAULT_RUNTIME_USER_ID,
   invokeAgentRuntime,

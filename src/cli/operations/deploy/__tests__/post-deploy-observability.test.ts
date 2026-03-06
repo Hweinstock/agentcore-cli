@@ -28,8 +28,24 @@ describe('setupTransactionSearch', () => {
       agentNames: ['my-agent'],
     });
 
-    expect(mockEnableTransactionSearch).toHaveBeenCalledWith('us-west-2', '111222333444');
+    expect(mockEnableTransactionSearch).toHaveBeenCalledWith('us-west-2', '111222333444', {
+      indexingPercentage: undefined,
+    });
     expect(result).toEqual({ success: true });
+  });
+
+  it('passes configured indexing percentage to enableTransactionSearch', async () => {
+    mockReadCliConfig.mockReturnValue({ transactionSearchIndexingPercentage: 50 });
+
+    await setupTransactionSearch({
+      region: 'us-east-1',
+      accountId: '123456789012',
+      agentNames: ['agent-1'],
+    });
+
+    expect(mockEnableTransactionSearch).toHaveBeenCalledWith('us-east-1', '123456789012', {
+      indexingPercentage: 50,
+    });
   });
 
   it('skips when agentNames is empty', async () => {

@@ -12,26 +12,33 @@ import {
   XRayClient,
 } from '@aws-sdk/client-xray';
 
+export interface TransactionSearchEnableOptions {
+  indexingPercentage?: number;
+}
+
 export interface TransactionSearchEnableResult {
   success: boolean;
   error?: string;
 }
 
 const RESOURCE_POLICY_NAME = 'TransactionSearchXRayAccess';
+const DEFAULT_INDEXING_PERCENTAGE = 100;
 
 /**
  * Enable CloudWatch Transaction Search:
  * 1. Start Application Signals discovery (idempotent)
  * 2. Create CloudWatch Logs resource policy for X-Ray access (if needed)
  * 3. Set trace segment destination to CloudWatchLogs
- * 4. Set indexing to 100%
+ * 4. Set indexing percentage (default 100%)
  *
  * All operations are idempotent — safe to call on every deploy.
  */
 export async function enableTransactionSearch(
   region: string,
-  accountId: string
+  accountId: string,
+  options?: TransactionSearchEnableOptions
 ): Promise<TransactionSearchEnableResult> {
+  const indexingPercentage = options?.indexingPercentage ?? DEFAULT_INDEXING_PERCENTAGE;
   const credentials = getCredentialProvider();
 
   // Step 1: Enable Application Signals (creates service-linked role, idempotent)
@@ -106,7 +113,7 @@ export async function enableTransactionSearch(
     await xrayClient.send(
       new UpdateIndexingRuleCommand({
         Name: 'Default',
-        Rule: { Probabilistic: { DesiredSamplingPercentage: 100 } },
+        Rule: { Probabilistic: { DesiredSamplingPercentage: indexingPercentage } },
       })
     );
   } catch (err: unknown) {
