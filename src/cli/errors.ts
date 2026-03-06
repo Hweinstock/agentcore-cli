@@ -36,6 +36,17 @@ const EXPIRED_TOKEN_ERROR_CODES = new Set([
 ]);
 
 /**
+ * Checks if an error is an AWS AccessDenied or AccessDeniedException error.
+ */
+export function isAccessDeniedError(err: unknown): boolean {
+  if (!err || typeof err !== 'object') {
+    return false;
+  }
+  const name = (err as { name?: string }).name;
+  return name === 'AccessDeniedException' || name === 'AccessDenied';
+}
+
+/**
  * Checks if an error is due to missing AWS credentials (not configured at all).
  * Returns true for errors that indicate no credentials are available.
  */
