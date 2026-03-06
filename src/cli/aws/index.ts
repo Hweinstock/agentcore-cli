@@ -15,10 +15,8 @@ export {
 } from './agentcore-control';
 export { streamLogs, searchLogs, type LogEvent, type StreamLogsOptions, type SearchLogsOptions } from './cloudwatch';
 export {
-  checkTransactionSearchEnabled,
   enableTransactionSearch,
   buildTransactionSearchConsoleUrl,
-  type TransactionSearchStatus,
   type TransactionSearchEnableResult,
 } from './transaction-search';
 export {

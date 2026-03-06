@@ -7,6 +7,7 @@ const CONFIG_FILE = join(homedir(), '.agentcore', 'config.json');
 export interface CliConfig {
   uvDefaultIndex?: string;
   uvIndex?: string;
+  disableTransactionSearch?: boolean;
 }
 
 /**
@@ -20,6 +21,8 @@ export function readCliConfig(): CliConfig {
     const config: CliConfig = {};
     if (typeof parsed.uvDefaultIndex === 'string') config.uvDefaultIndex = parsed.uvDefaultIndex;
     if (typeof parsed.uvIndex === 'string') config.uvIndex = parsed.uvIndex;
+    if (typeof parsed.disableTransactionSearch === 'boolean')
+      config.disableTransactionSearch = parsed.disableTransactionSearch;
     return config;
   } catch {
     return {};

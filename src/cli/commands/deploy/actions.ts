@@ -416,29 +416,19 @@ export async function handleDeploy(options: ValidatedDeployOptions): Promise<Dep
 
     endStep('success');
 
-    // Post-deploy: Enable CloudWatch Transaction Search (non-blocking)
+    // Post-deploy: Enable CloudWatch Transaction Search (non-blocking, silent)
     const nextSteps = agentNames.length > 0 ? [...AGENT_NEXT_STEPS] : [...MEMORY_ONLY_NEXT_STEPS];
     if (agentNames.length > 0) {
       try {
-        startStep('Enable transaction search');
-        const tsResult = await setupTransactionSearch({
-          region: target.region,
-          agentNames,
-          autoConfirm: options.autoConfirm,
-        });
+        const tsResult = await setupTransactionSearch({ region: target.region, accountId: target.account, agentNames });
         if (tsResult.error) {
           logger.log(`Transaction search setup warning: ${tsResult.error}`, 'warn');
         }
         if (tsResult.consoleUrl) {
           nextSteps.push(`View traces: ${tsResult.consoleUrl}`);
         }
-        if (tsResult.skipped) {
-          logger.log('Transaction search setup skipped (use --yes to auto-enable)', 'info');
-        }
-        endStep('success');
       } catch (err: unknown) {
         logger.log(`Transaction search setup failed: ${getErrorMessage(err)}`, 'warn');
-        endStep('success'); // Non-blocking: don't mark as error
       }
     }
 

@@ -373,15 +373,16 @@ export function useDeployFlow(options: DeployFlowOptions = {}): DeployFlowState 
             logger.log(`Failed to persist deployed state: ${message}`, 'warn');
           }
 
-          // Post-deploy: Enable CloudWatch Transaction Search (non-blocking)
+          // Post-deploy: Enable CloudWatch Transaction Search (non-blocking, silent)
           const agentNames = context?.projectSpec.agents?.map((a: { name: string }) => a.name) ?? [];
           const targetRegion = context?.awsTargets[0]?.region;
-          if (agentNames.length > 0 && targetRegion) {
+          const targetAccount = context?.awsTargets[0]?.account;
+          if (agentNames.length > 0 && targetRegion && targetAccount) {
             try {
               const tsResult = await setupTransactionSearch({
                 region: targetRegion,
+                accountId: targetAccount,
                 agentNames,
-                autoConfirm: true,
               });
               if (tsResult.error) {
                 logger.log(`Transaction search setup warning: ${tsResult.error}`, 'warn');

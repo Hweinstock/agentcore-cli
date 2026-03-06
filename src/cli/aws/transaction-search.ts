@@ -1,71 +1,132 @@
 import { getCredentialProvider } from './account';
+import { ApplicationSignalsClient, StartDiscoveryCommand } from '@aws-sdk/client-application-signals';
 import {
-  ApplicationSignalsClient,
-  StartDiscoveryCommand,
-} from '@aws-sdk/client-application-signals';
-import { GetGroupsCommand, XRayClient } from '@aws-sdk/client-xray';
-
-export interface TransactionSearchStatus {
-  enabled: boolean;
-  error?: string;
-}
+  CloudWatchLogsClient,
+  DescribeResourcePoliciesCommand,
+  PutResourcePolicyCommand,
+} from '@aws-sdk/client-cloudwatch-logs';
+import {
+  GetIndexingRulesCommand,
+  GetTraceSegmentDestinationCommand,
+  UpdateIndexingRuleCommand,
+  UpdateTraceSegmentDestinationCommand,
+  XRayClient,
+} from '@aws-sdk/client-xray';
 
 export interface TransactionSearchEnableResult {
   success: boolean;
   error?: string;
 }
 
-/**
- * Check if CloudWatch Application Signals (which powers transaction search) is enabled
- * by attempting to list X-Ray groups. If X-Ray is accessible, the account has tracing active.
- * We also try StartDiscovery as an idempotent check — if it succeeds, it was either already
- * enabled or is now enabled.
- */
-export async function checkTransactionSearchEnabled(region: string): Promise<TransactionSearchStatus> {
-  try {
-    const xrayClient = new XRayClient({
-      region,
-      credentials: getCredentialProvider(),
-    });
-    await xrayClient.send(new GetGroupsCommand({}));
-    return { enabled: true };
-  } catch (err: unknown) {
-    const code = (err as { name?: string })?.name;
-    if (code === 'AccessDeniedException' || code === 'AccessDenied') {
-      return { enabled: false, error: 'Insufficient permissions to check X-Ray status' };
-    }
-    // If the call fails for other reasons, assume not enabled / unknown
-    return { enabled: false };
-  }
-}
+const RESOURCE_POLICY_NAME = 'TransactionSearchXRayAccess';
 
 /**
- * Enable CloudWatch Application Signals by calling StartDiscovery.
- * This creates the AWSServiceRoleForCloudWatchApplicationSignals service-linked role
- * and enables transaction search in the CloudWatch console.
+ * Enable CloudWatch Transaction Search:
+ * 1. Start Application Signals discovery (idempotent)
+ * 2. Create CloudWatch Logs resource policy for X-Ray access (if needed)
+ * 3. Set trace segment destination to CloudWatchLogs
+ * 4. Set indexing to 100%
  *
- * This is an idempotent operation — calling it when already enabled is a no-op.
+ * All operations are idempotent — safe to call on every deploy.
  */
-export async function enableTransactionSearch(region: string): Promise<TransactionSearchEnableResult> {
+export async function enableTransactionSearch(
+  region: string,
+  accountId: string
+): Promise<TransactionSearchEnableResult> {
+  const credentials = getCredentialProvider();
+
+  // Step 1: Enable Application Signals (creates service-linked role, idempotent)
   try {
-    const client = new ApplicationSignalsClient({
-      region,
-      credentials: getCredentialProvider(),
-    });
-    await client.send(new StartDiscoveryCommand({}));
-    return { success: true };
+    const appSignalsClient = new ApplicationSignalsClient({ region, credentials });
+    await appSignalsClient.send(new StartDiscoveryCommand({}));
   } catch (err: unknown) {
     const code = (err as { name?: string })?.name;
     const message = (err as { message?: string })?.message ?? 'Unknown error';
-
     if (code === 'AccessDeniedException' || code === 'AccessDenied') {
-      return {
-        success: false,
-        error: `Insufficient IAM permissions to enable Application Signals. Required: application-signals:StartDiscovery. ${message}`,
-      };
+      return { success: false, error: `Insufficient permissions to enable Application Signals: ${message}` };
     }
     return { success: false, error: `Failed to enable Application Signals: ${message}` };
   }
+
+  // Step 2: Create CloudWatch Logs resource policy for X-Ray (if needed)
+  try {
+    const logsClient = new CloudWatchLogsClient({ region, credentials });
+    const policiesResult = await logsClient.send(new DescribeResourcePoliciesCommand({}));
+    const hasPolicy = policiesResult.resourcePolicies?.some(p => p.policyName === RESOURCE_POLICY_NAME);
+
+    if (!hasPolicy) {
+      const policyDocument = JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Sid: 'TransactionSearchXRayAccess',
+            Effect: 'Allow',
+            Principal: { Service: 'xray.amazonaws.com' },
+            Action: 'logs:PutLogEvents',
+            Resource: [
+              `arn:aws:logs:${region}:${accountId}:log-group:aws/spans:*`,
+              `arn:aws:logs:${region}:${accountId}:log-group:/aws/application-signals/data:*`,
+            ],
+            Condition: {
+              ArnLike: { 'aws:SourceArn': `arn:aws:xray:${region}:${accountId}:*` },
+              StringEquals: { 'aws:SourceAccount': accountId },
+            },
+          },
+        ],
+      });
+      await logsClient.send(new PutResourcePolicyCommand({ policyName: RESOURCE_POLICY_NAME, policyDocument }));
+    }
+  } catch (err: unknown) {
+    const code = (err as { name?: string })?.name;
+    const message = (err as { message?: string })?.message ?? 'Unknown error';
+    if (code === 'AccessDeniedException' || code === 'AccessDenied') {
+      return { success: false, error: `Insufficient permissions to configure CloudWatch Logs policy: ${message}` };
+    }
+    return { success: false, error: `Failed to configure CloudWatch Logs policy: ${message}` };
+  }
+
+  const xrayClient = new XRayClient({ region, credentials });
+
+  // Step 3: Set trace segment destination to CloudWatchLogs
+  try {
+    const destResult = await xrayClient.send(new GetTraceSegmentDestinationCommand({}));
+    if (destResult.Destination !== 'CloudWatchLogs') {
+      await xrayClient.send(new UpdateTraceSegmentDestinationCommand({ Destination: 'CloudWatchLogs' }));
+    }
+  } catch (err: unknown) {
+    const code = (err as { name?: string })?.name;
+    const message = (err as { message?: string })?.message ?? 'Unknown error';
+    if (code === 'AccessDeniedException' || code === 'AccessDenied') {
+      return { success: false, error: `Insufficient permissions to configure trace destination: ${message}` };
+    }
+    return { success: false, error: `Failed to configure trace destination: ${message}` };
+  }
+
+  // Step 4: Set indexing to 100%
+  try {
+    const rulesResult = await xrayClient.send(new GetIndexingRulesCommand({}));
+    const rules = rulesResult.IndexingRules ?? [];
+    for (const rule of rules) {
+      const currentPercentage = rule.Rule?.Probabilistic?.DesiredSamplingPercentage;
+      if (currentPercentage !== undefined && currentPercentage < 100) {
+        await xrayClient.send(
+          new UpdateIndexingRuleCommand({
+            Name: rule.Name!,
+            Rule: { Probabilistic: { DesiredSamplingPercentage: 100 } },
+          })
+        );
+      }
+    }
+  } catch (err: unknown) {
+    const code = (err as { name?: string })?.name;
+    const message = (err as { message?: string })?.message ?? 'Unknown error';
+    if (code === 'AccessDeniedException' || code === 'AccessDenied') {
+      return { success: false, error: `Insufficient permissions to configure indexing rules: ${message}` };
+    }
+    return { success: false, error: `Failed to configure indexing rules: ${message}` };
+  }
+
+  return { success: true };
 }
 
 /**

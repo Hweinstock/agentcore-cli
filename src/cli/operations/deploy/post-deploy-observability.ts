@@ -1,70 +1,49 @@
-import {
-  buildTransactionSearchConsoleUrl,
-  checkTransactionSearchEnabled,
-  enableTransactionSearch,
-} from '../../aws/transaction-search';
+import { readCliConfig } from '../../../lib/schemas/io/cli-config';
+import { buildTransactionSearchConsoleUrl, enableTransactionSearch } from '../../aws/transaction-search';
 
 export interface TransactionSearchSetupOptions {
   region: string;
+  accountId: string;
   agentNames: string[];
-  autoConfirm?: boolean;
 }
 
 export interface TransactionSearchSetupResult {
   success: boolean;
-  enabled: boolean;
-  skipped: boolean;
   consoleUrl?: string;
   error?: string;
 }
 
 /**
- * Post-deploy step: check if CloudWatch Transaction Search is enabled, and enable it if not.
+ * Post-deploy step: enable CloudWatch Transaction Search (Application Signals +
+ * resource policy + CloudWatchLogs destination + 100% indexing).
+ * All operations are idempotent.
+ *
+ * Can be disabled via ~/.agentcore/config.json: { "disableTransactionSearch": true }
+ *
  * This is a non-blocking best-effort operation — failures do not fail the deploy.
  */
 export async function setupTransactionSearch(
   options: TransactionSearchSetupOptions
 ): Promise<TransactionSearchSetupResult> {
-  const { region, agentNames, autoConfirm } = options;
+  const { region, accountId, agentNames } = options;
 
   if (agentNames.length === 0) {
-    return { success: true, enabled: false, skipped: true };
+    return { success: true };
   }
 
-  // Check current status
-  const status = await checkTransactionSearchEnabled(region);
-
-  if (status.enabled) {
-    return {
-      success: true,
-      enabled: true,
-      skipped: false,
-      consoleUrl: buildTransactionSearchConsoleUrl(region),
-    };
+  const config = readCliConfig();
+  if (config.disableTransactionSearch) {
+    return { success: true };
   }
 
-  // Not enabled — attempt to enable if autoConfirm is set
-  // In the CLI (non-TUI) path, autoConfirm corresponds to --yes flag
-  // In the TUI path, we always attempt since the user has already confirmed deploy
-  if (!autoConfirm) {
-    return { success: true, enabled: false, skipped: true };
-  }
+  const result = await enableTransactionSearch(region, accountId);
 
-  const enableResult = await enableTransactionSearch(region);
-
-  if (!enableResult.success) {
-    return {
-      success: false,
-      enabled: false,
-      skipped: false,
-      error: enableResult.error,
-    };
+  if (!result.success) {
+    return { success: false, error: result.error };
   }
 
   return {
     success: true,
-    enabled: true,
-    skipped: false,
     consoleUrl: buildTransactionSearchConsoleUrl(region),
   };
 }
