@@ -1,5 +1,5 @@
 import { readCliConfig } from '../../../lib/schemas/io/cli-config';
-import { buildTransactionSearchConsoleUrl, enableTransactionSearch } from '../../aws/transaction-search';
+import { enableTransactionSearch } from '../../aws/transaction-search';
 
 export interface TransactionSearchSetupOptions {
   region: string;
@@ -9,7 +9,6 @@ export interface TransactionSearchSetupOptions {
 
 export interface TransactionSearchSetupResult {
   success: boolean;
-  consoleUrl?: string;
   error?: string;
 }
 
@@ -42,8 +41,5 @@ export async function setupTransactionSearch(
     return { success: false, error: result.error };
   }
 
-  return {
-    success: true,
-    consoleUrl: buildTransactionSearchConsoleUrl(region),
-  };
+  return { success: true };
 }

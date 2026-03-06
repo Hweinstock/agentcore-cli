@@ -424,9 +424,6 @@ export async function handleDeploy(options: ValidatedDeployOptions): Promise<Dep
         if (tsResult.error) {
           logger.log(`Transaction search setup warning: ${tsResult.error}`, 'warn');
         }
-        if (tsResult.consoleUrl) {
-          nextSteps.push(`View traces: ${tsResult.consoleUrl}`);
-        }
       } catch (err: unknown) {
         logger.log(`Transaction search setup failed: ${getErrorMessage(err)}`, 'warn');
       }

@@ -120,10 +120,3 @@ export async function enableTransactionSearch(
 
   return { success: true };
 }
-
-/**
- * Build a deep-link URL to the CloudWatch Transaction Search console page.
- */
-export function buildTransactionSearchConsoleUrl(region: string): string {
-  return `https://${region}.console.aws.amazon.com/cloudwatch/home?region=${region}#xray:traces/query`;
-}

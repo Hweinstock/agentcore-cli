@@ -387,9 +387,6 @@ export function useDeployFlow(options: DeployFlowOptions = {}): DeployFlowState 
               if (tsResult.error) {
                 logger.log(`Transaction search setup warning: ${tsResult.error}`, 'warn');
               }
-              if (tsResult.consoleUrl) {
-                logger.log(`Transaction search enabled: ${tsResult.consoleUrl}`);
-              }
             } catch (error) {
               const message = error instanceof Error ? error.message : 'Unknown error';
               logger.log(`Transaction search setup failed: ${message}`, 'warn');
