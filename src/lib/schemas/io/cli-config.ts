@@ -21,8 +21,7 @@ export function readCliConfig(): CliConfig {
     const config: CliConfig = {};
     if (typeof parsed.uvDefaultIndex === 'string') config.uvDefaultIndex = parsed.uvDefaultIndex;
     if (typeof parsed.uvIndex === 'string') config.uvIndex = parsed.uvIndex;
-    if (typeof parsed.disableTransactionSearch === 'boolean')
-      config.disableTransactionSearch = parsed.disableTransactionSearch;
+    if (parsed.disableTransactionSearch === true) config.disableTransactionSearch = true;
     return config;
   } catch {
     return {};
