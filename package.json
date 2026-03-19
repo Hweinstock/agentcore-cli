@@ -132,11 +132,11 @@
   },
   "overridesComments": {
     "minimatch": "GHSA-7r86-cg39-jmmj, GHSA-23c5-xmqv-rm74: minimatch 10.0.0-10.2.2 has ReDoS vulnerabilities. Multiple transitive deps (eslint, typescript-eslint, eslint-plugin-import, eslint-plugin-react, prettier-plugin-sort-imports, aws-cdk-lib) pin older versions. Remove this override once upstream packages update their minimatch dependency to >=10.2.3.",
-    "fast-xml-parser": "GHSA-fj3w-jwp8-x2g3: fast-xml-parser <5.3.8 has stack overflow in XMLBuilder. Transitive via @aws-sdk/xml-builder. Remove this override once @aws-sdk updates to fast-xml-parser >=5.3.8."
+    "fast-xml-parser": "GHSA-8gc5-j5rx-235r, GHSA-jp2q-39xq-3w4g: fast-xml-parser <=5.5.6 has entity expansion bypass (CVE-2026-33036, CVE-2026-33349). Transitive via @aws-sdk/xml-builder. Remove once @aws-sdk updates to fast-xml-parser >=5.5.7."
   },
   "overrides": {
     "minimatch": "10.2.4",
-    "fast-xml-parser": "5.3.9"
+    "fast-xml-parser": "5.5.7"
   },
   "engines": {
     "node": ">=20"
