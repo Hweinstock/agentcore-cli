@@ -1,0 +1,15 @@
+name: Debug PR Tarball Condition
+on:
+  pull_request_target:
+    branches: [main]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Print author_association
+        run: |
+          echo "author_association: ${{ github.event.pull_request.author_association }}"
+          echo "author: ${{ github.event.pull_request.user.login }}"
+          echo "event_name: ${{ github.event_name }}"
+          echo "action: ${{ github.event.action }}"
