@@ -10,31 +10,51 @@ permissions:
 jobs:
   pr-tarball:
     runs-on: ubuntu-latest
-    if: >-
-      github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association ==
-      'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR'
     steps:
+      - name: Check author association
+        id: auth
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          ASSOCIATION=$(gh api repos/${{ github.repository }}/pulls/${PR_NUMBER} --jq '.author_association')
+          echo "association=$ASSOCIATION"
+          if [[ "$ASSOCIATION" =~ ^(OWNER|MEMBER|COLLABORATOR)$ ]]; then
+            echo "authorized=true" >> $GITHUB_OUTPUT
+          else
+            echo "⏭️ Author association '$ASSOCIATION' not authorized — skipping."
+            echo "authorized=false" >> $GITHUB_OUTPUT
+          fi
       - uses: actions/checkout@v6
+        if: steps.auth.outputs.authorized == 'true'
         with:
           ref: ${{ github.event.pull_request.head.sha }}
       - uses: actions/setup-node@v6
+        if: steps.auth.outputs.authorized == 'true'
         with:
           node-version: '20.x'
           cache: 'npm'
       - name: Configure git
+        if: steps.auth.outputs.authorized == 'true'
         run: |
           git config --global user.email "bedrock-agentcore-npm+ci@amazon.com"
           git config --global user.name "CI"
       - uses: astral-sh/setup-uv@v7
+        if: steps.auth.outputs.authorized == 'true'
       - run: npm ci
+        if: steps.auth.outputs.authorized == 'true'
       - run: npm run build --if-present
+        if: steps.auth.outputs.authorized == 'true'
       - run: npm pack
+        if: steps.auth.outputs.authorized == 'true'
       - name: Get tarball info
+        if: steps.auth.outputs.authorized == 'true'
         id: tarball
         run: |
           TARBALL_NAME=$(ls *.tgz | head -1 | xargs basename)
           echo "name=$TARBALL_NAME" >> $GITHUB_OUTPUT
       - name: Create or update PR release
+        if: steps.auth.outputs.authorized == 'true'
         id: release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -57,6 +77,7 @@ jobs:
           DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${TAG}/${TARBALL_NAME}"
           echo "url=$DOWNLOAD_URL" >> $GITHUB_OUTPUT
       - name: Comment on PR
+        if: steps.auth.outputs.authorized == 'true'
         uses: marocchino/sticky-pull-request-comment@v3
         with:
           header: tarball
