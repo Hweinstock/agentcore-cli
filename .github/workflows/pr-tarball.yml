@@ -11,7 +11,8 @@ jobs:
   pr-tarball:
     runs-on: ubuntu-latest
     if: >-
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+      github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association ==
+      'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR'
     steps:
       - uses: actions/checkout@v6
         with:
