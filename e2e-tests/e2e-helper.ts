@@ -92,6 +92,14 @@ export function createE2ESuite(cfg: E2EConfig) {
       const region = process.env.AWS_REGION ?? 'us-east-1';
       const awsTargetsPath = join(projectPath, 'agentcore', 'aws-targets.json');
       await writeFile(awsTargetsPath, JSON.stringify([{ name: 'default', account, region }]));
+
+      // Override @aws/agentcore-cdk with a local tarball if provided (for cross-package testing)
+      if (process.env.CDK_TARBALL) {
+        execSync(`npm install -f ${process.env.CDK_TARBALL}`, {
+          cwd: join(projectPath, 'agentcore', 'cdk'),
+          stdio: 'pipe',
+        });
+      }
     }, 300000);
 
     afterAll(async () => {
