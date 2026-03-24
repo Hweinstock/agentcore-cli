@@ -10,6 +10,24 @@ export { createTestProject, type TestProject, type CreateTestProjectOptions } fr
 export { readProjectConfig } from './config-reader.js';
 
 /**
+ * Retry an async function up to `times` attempts with a delay between retries.
+ */
+export async function retry<T>(fn: () => Promise<T>, times: number, delayMs: number): Promise<T> {
+  let lastError: unknown;
+  for (let i = 0; i < times; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      if (i < times - 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * Strip ANSI escape codes from a string.
  */
 export function stripAnsi(str: string): string {
