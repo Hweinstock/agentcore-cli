@@ -3,6 +3,7 @@ import {
   hasAwsCredentials,
   parseJsonOutput,
   prereqs,
+  retry,
   spawnAndCollect,
 } from '../src/test-utils/index.js';
 import {
@@ -32,24 +33,6 @@ interface E2EConfig {
   modelProvider: string;
   requiredEnvVar?: string;
   build?: string;
-}
-
-/**
- * Retry an async function up to `times` attempts with a delay between retries.
- */
-async function retry<T>(fn: () => Promise<T>, times: number, delayMs: number): Promise<T> {
-  let lastError: unknown;
-  for (let i = 0; i < times; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastError = err;
-      if (i < times - 1) {
-        await new Promise(resolve => setTimeout(resolve, delayMs));
-      }
-    }
-  }
-  throw lastError;
 }
 
 export function createE2ESuite(cfg: E2EConfig) {
