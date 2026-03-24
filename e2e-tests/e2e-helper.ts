@@ -205,10 +205,17 @@ export function createE2ESuite(cfg: E2EConfig) {
     );
 
     // ── Post-deploy observability tests ──────────────────────────────
+    // Use spawnAndCollect directly to avoid TypeScript inference depth limits
+    // in the describe.sequential callback.
+    const run = (args: string[]) => spawnAndCollect('agentcore', args, projectPath);
+
+    // Track the runtime ID across status tests
+    let runtimeId: string;
+
     it.skipIf(!canRun)(
       'status shows the deployed agent',
       async () => {
-        const result = await runCLI(['status', '--json'], projectPath, false);
+        const result = await run(['status', '--json']);
 
         expect(result.exitCode, `Status failed: ${result.stderr}`).toBe(0);
 
@@ -227,6 +234,30 @@ export function createE2ESuite(cfg: E2EConfig) {
         expect(agent, `Agent "${agentName}" should appear in status`).toBeDefined();
         expect(agent!.deploymentState).toBe('deployed');
         expect(agent!.identifier, 'Deployed agent should have a runtime ARN').toBeTruthy();
+
+        // Extract runtime ID from ARN (e.g. arn:aws:...:agent-runtime/XXXXX → XXXXX)
+        runtimeId = agent!.identifier!.split('/').pop()!;
+      },
+      120000
+    );
+
+    it.skipIf(!canRun)(
+      'status looks up agent runtime by ID',
+      async () => {
+        expect(runtimeId, 'Runtime ID should have been extracted from status').toBeTruthy();
+
+        const result = await run(['status', '--agent-runtime-id', runtimeId, '--json']);
+
+        expect(result.exitCode, `Runtime lookup failed: ${result.stderr}`).toBe(0);
+
+        const json = parseJsonOutput(result.stdout) as {
+          success: boolean;
+          runtimeId?: string;
+          runtimeStatus?: string;
+        };
+        expect(json.success).toBe(true);
+        expect(json.runtimeId).toBe(runtimeId);
+        expect(json.runtimeStatus).toBeTruthy();
       },
       120000
     );
@@ -237,7 +268,7 @@ export function createE2ESuite(cfg: E2EConfig) {
         await retry(
           async () => {
             // --since 1h triggers search mode (avoids live tail)
-            const result = await runCLI(['logs', '--agent', agentName, '--since', '1h', '--json'], projectPath, false);
+            const result = await run(['logs', '--agent', agentName, '--since', '1h', '--json']);
 
             expect(result.exitCode, `Logs failed: ${result.stderr}`).toBe(0);
 
@@ -261,12 +292,23 @@ export function createE2ESuite(cfg: E2EConfig) {
     );
 
     it.skipIf(!canRun)(
+      'logs supports level filtering',
+      async () => {
+        // --level error should succeed even if no error-level logs exist
+        const result = await run(['logs', '--agent', agentName, '--since', '1h', '--level', 'error', '--json']);
+
+        expect(result.exitCode, `Logs --level failed: ${result.stderr}`).toBe(0);
+      },
+      120000
+    );
+
+    it.skipIf(!canRun)(
       'traces list succeeds after invocation',
       async () => {
         // traces list has no --json flag — verify exit code and non-empty output
         await retry(
           async () => {
-            const result = await runCLI(['traces', 'list', '--agent', agentName, '--since', '1h'], projectPath, false);
+            const result = await run(['traces', 'list', '--agent', agentName, '--since', '1h']);
 
             expect(result.exitCode, `Traces list failed (stderr: ${result.stderr})`).toBe(0);
             expect(result.stdout.length, 'Traces list should produce output').toBeGreaterThan(0);
