@@ -20,14 +20,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 const hasAws = hasAwsCredentials();
 const baseCanRun = prereqs.npm && prereqs.git && prereqs.uv && hasAws;
 
-/**
- * Run the globally installed `agentcore` CLI.
- * E2E tests use the packaged binary to validate the published artifact.
- */
-async function runAgentCore(args: string[], cwd: string): Promise<RunResult> {
-  return spawnAndCollect('agentcore', args, cwd);
-}
-
 interface E2EConfig {
   framework: string;
   modelProvider: string;
@@ -76,52 +68,19 @@ export function createE2ESuite(cfg: E2EConfig) {
         createArgs.push('--api-key', apiKey);
       }
 
-      const result = await runAgentCore(createArgs, testDir);
+      const result = await runAgentCoreCLI(createArgs, testDir);
 
       expect(result.exitCode, `Create failed: ${result.stderr}`).toBe(0);
       const json = parseJsonOutput(result.stdout) as { projectPath: string };
       projectPath = json.projectPath;
 
-      // TODO: Replace with `agentcore add target` once the CLI command is re-introduced
-      const account =
-        process.env.AWS_ACCOUNT_ID ??
-        execSync('aws sts get-caller-identity --query Account --output text').toString().trim();
-      const region = process.env.AWS_REGION ?? 'us-east-1';
-      const awsTargetsPath = join(projectPath, 'agentcore', 'aws-targets.json');
-      await writeFile(awsTargetsPath, JSON.stringify([{ name: 'default', account, region }]));
-
-      // Override @aws/agentcore-cdk with a local tarball if provided (for cross-package testing)
-      if (process.env.CDK_TARBALL) {
-        execSync(`npm install -f ${process.env.CDK_TARBALL}`, {
-          cwd: join(projectPath, 'agentcore', 'cdk'),
-          stdio: 'pipe',
-        });
-      }
+      await writeAwsTargets(projectPath);
+      installCdkTarball(projectPath);
     }, 300000);
 
     afterAll(async () => {
       if (projectPath && hasAws) {
-        await runAgentCore(['remove', 'all', '--json'], projectPath);
-        const result = await runAgentCore(['deploy', '--yes', '--json'], projectPath);
-
-        if (result.exitCode !== 0) {
-          console.log('Teardown stdout:', result.stdout);
-          console.log('Teardown stderr:', result.stderr);
-        }
-
-        // Delete the API key credential provider from the account.
-        // These are created as a pre-deploy step outside CDK and are not
-        // cleaned up by stack teardown, so we must delete them explicitly.
-        if (cfg.modelProvider !== 'Bedrock' && agentName) {
-          const providerName = `${agentName}${cfg.modelProvider}`;
-          const region = process.env.AWS_REGION ?? 'us-east-1';
-          try {
-            const client = new BedrockAgentCoreControlClient({ region });
-            await client.send(new DeleteApiKeyCredentialProviderCommand({ name: providerName }));
-          } catch {
-            // Best-effort cleanup — don't fail the test if deletion fails
-          }
-        }
+        await teardownE2EProject(projectPath, agentName, cfg.modelProvider);
       }
       if (testDir) await rm(testDir, { recursive: true, force: true, maxRetries: 3, retryDelay: 1000 });
     }, 600000);
@@ -138,7 +97,7 @@ export function createE2ESuite(cfg: E2EConfig) {
 
         await retry(
           async () => {
-            const result = await runAgentCore(['deploy', '--yes', '--json'], projectPath);
+            const result = await runAgentCoreCLI(['deploy', '--yes', '--json'], projectPath);
 
             if (result.exitCode !== 0) {
               console.log('Deploy stdout:', result.stdout);
@@ -165,7 +124,7 @@ export function createE2ESuite(cfg: E2EConfig) {
         // Retry invoke to handle cold-start / runtime initialization delays
         await retry(
           async () => {
-            const result = await runAgentCore(
+            const result = await runAgentCoreCLI(
               ['invoke', '--prompt', 'Say hello', '--agent', agentName, '--json'],
               projectPath
             );
@@ -303,4 +262,50 @@ export function createE2ESuite(cfg: E2EConfig) {
       120000
     );
   });
+}
+
+export { hasAws, baseCanRun };
+
+export function runAgentCoreCLI(args: string[], cwd: string): Promise<RunResult> {
+  return spawnAndCollect('agentcore', args, cwd);
+}
+
+// TODO: Replace with `agentcore add target` once the CLI command is re-introduced
+export async function writeAwsTargets(projectPath: string): Promise<void> {
+  const account =
+    process.env.AWS_ACCOUNT_ID ??
+    execSync('aws sts get-caller-identity --query Account --output text').toString().trim();
+  const region = process.env.AWS_REGION ?? 'us-east-1';
+  await writeFile(
+    join(projectPath, 'agentcore', 'aws-targets.json'),
+    JSON.stringify([{ name: 'default', account, region }])
+  );
+}
+
+export function installCdkTarball(projectPath: string): void {
+  if (process.env.CDK_TARBALL) {
+    execSync(`npm install -f ${process.env.CDK_TARBALL}`, {
+      cwd: join(projectPath, 'agentcore', 'cdk'),
+      stdio: 'pipe',
+    });
+  }
+}
+
+export async function teardownE2EProject(projectPath: string, agentName: string, modelProvider: string): Promise<void> {
+  await spawnAndCollect('agentcore', ['remove', 'all', '--json'], projectPath);
+  const result = await spawnAndCollect('agentcore', ['deploy', '--yes', '--json'], projectPath);
+  if (result.exitCode !== 0) {
+    console.log('Teardown stdout:', result.stdout);
+    console.log('Teardown stderr:', result.stderr);
+  }
+  if (modelProvider !== 'Bedrock' && agentName) {
+    const providerName = `${agentName}${modelProvider}`;
+    const region = process.env.AWS_REGION ?? 'us-east-1';
+    try {
+      const client = new BedrockAgentCoreControlClient({ region });
+      await client.send(new DeleteApiKeyCredentialProviderCommand({ name: providerName }));
+    } catch {
+      // Best-effort cleanup
+    }
+  }
 }
