@@ -96,6 +96,8 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+      - name: Install CLI globally
+        run: npm install -g "$(npm pack | tail -1)"
       - name: Run E2E tests (${{ matrix.cdk-source }})
         env:
           AWS_ACCOUNT_ID: ${{ steps.aws.outputs.account_id }}
