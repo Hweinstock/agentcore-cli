@@ -8,10 +8,27 @@ permissions:
   pull-requests: write
 
 jobs:
-  pr-tarball:
+  authorize:
     runs-on: ubuntu-latest
-    if: >-
-      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.pull_request.author_association)
+    outputs:
+      is_authorized: ${{ steps.check.outputs.is_authorized }}
+    steps:
+      - name: Check authorization
+        id: check
+        run: |
+          AUTHORIZED_USERS="${{ secrets.AUTHORIZED_USERS }}"
+          if [[ ",$AUTHORIZED_USERS," == *",${{ github.actor }},"* ]]; then
+            echo "✅ User ${{ github.actor }} is authorized"
+            echo "is_authorized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⏭️ User ${{ github.actor }} is not in AUTHORIZED_USERS — skipping."
+            echo "is_authorized=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  pr-tarball:
+    needs: authorize
+    if: needs.authorize.outputs.is_authorized == 'true'
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
         with:
