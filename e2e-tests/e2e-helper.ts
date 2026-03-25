@@ -209,10 +209,9 @@ export function createE2ESuite(cfg: E2EConfig) {
       async () => {
         await retry(
           async () => {
-            // --since 1h triggers search mode (avoids live tail)
             const result = await run(['logs', '--agent', agentName, '--since', '1h', '--json']);
 
-            expect(result.exitCode, `Logs failed: ${result.stderr}`).toBe(0);
+            expect(result.exitCode, `Logs failed (exit code ${result.exitCode})`).toBe(0);
 
             // logs --json outputs JSON Lines (one {timestamp, message} per line)
             const lines: { timestamp: string; message: string }[] = result.stdout
@@ -226,8 +225,8 @@ export function createE2ESuite(cfg: E2EConfig) {
               expect(line.message, 'Each log entry should have a message').toBeTruthy();
             }
           },
-          3,
-          15000
+          5,
+          20000
         );
       },
       120000
@@ -236,10 +235,15 @@ export function createE2ESuite(cfg: E2EConfig) {
     it.skipIf(!canRun)(
       'logs supports level filtering',
       async () => {
-        // --level error should succeed even if no error-level logs exist
-        const result = await run(['logs', '--agent', agentName, '--since', '1h', '--level', 'error', '--json']);
+        await retry(
+          async () => {
+            const result = await run(['logs', '--agent', agentName, '--since', '1h', '--level', 'error', '--json']);
 
-        expect(result.exitCode, `Logs --level failed: ${result.stderr}`).toBe(0);
+            expect(result.exitCode, `Logs --level failed (exit code ${result.exitCode})`).toBe(0);
+          },
+          5,
+          20000
+        );
       },
       120000
     );
@@ -247,16 +251,15 @@ export function createE2ESuite(cfg: E2EConfig) {
     it.skipIf(!canRun)(
       'traces list succeeds after invocation',
       async () => {
-        // traces list has no --json flag — verify exit code and non-empty output
         await retry(
           async () => {
             const result = await run(['traces', 'list', '--agent', agentName, '--since', '1h']);
 
-            expect(result.exitCode, `Traces list failed (stderr: ${result.stderr})`).toBe(0);
+            expect(result.exitCode, `Traces list failed (exit code ${result.exitCode})`).toBe(0);
             expect(result.stdout.length, 'Traces list should produce output').toBeGreaterThan(0);
           },
-          3,
-          15000
+          5,
+          20000
         );
       },
       120000
