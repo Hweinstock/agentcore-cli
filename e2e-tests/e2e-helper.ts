@@ -261,6 +261,79 @@ export function createE2ESuite(cfg: E2EConfig) {
       },
       120000
     );
+
+    it.skipIf(!canRun)(
+      'invoke maintains conversation continuity with session ID',
+      async () => {
+        const sessionId = `e2e-session-${randomUUID()}`;
+
+        // First turn: say something memorable
+        await retry(
+          async () => {
+            const r1 = await run([
+              'invoke',
+              '--prompt',
+              'Remember this word: pineapple',
+              '--agent',
+              agentName,
+              '--session-id',
+              sessionId,
+              '--json',
+            ]);
+            expect(r1.exitCode, `First turn failed (stdout: ${r1.stdout}, stderr: ${r1.stderr})`).toBe(0);
+          },
+          3,
+          10000
+        );
+
+        // Second turn: ask for it back
+        const r2 = await run([
+          'invoke',
+          '--prompt',
+          'What word did I ask you to remember?',
+          '--agent',
+          agentName,
+          '--session-id',
+          sessionId,
+          '--json',
+        ]);
+        expect(r2.exitCode, `Second turn failed: ${r2.stderr}`).toBe(0);
+
+        const json = parseJsonOutput(r2.stdout) as { success: boolean; response?: string };
+        expect(json.success).toBe(true);
+        expect(json.response?.toLowerCase(), 'Response should reference the word from the first turn').toContain(
+          'pineapple'
+        );
+      },
+      180000
+    );
+
+    it.skipIf(!canRun)(
+      'deploy --plan does not deploy pending changes',
+      async () => {
+        // Add a resource so there's a pending change
+        const addResult = await run(['add', 'memory', '--name', 'PlanTestMemory', '--json']);
+        expect(addResult.exitCode, `Add memory failed: ${addResult.stdout}`).toBe(0);
+
+        // Run plan — should succeed without deploying
+        const planResult = await run(['deploy', '--plan', '--json']);
+        expect(planResult.exitCode, `Deploy --plan failed: ${planResult.stderr}`).toBe(0);
+
+        // Verify the memory is still local-only (not deployed)
+        const statusResult = await run(['status', '--type', 'memory', '--json']);
+        expect(statusResult.exitCode).toBe(0);
+        const json = parseJsonOutput(statusResult.stdout) as {
+          resources: { name: string; deploymentState: string }[];
+        };
+        const memory = json.resources.find(r => r.name === 'PlanTestMemory');
+        expect(memory, 'Memory should appear in status').toBeDefined();
+        expect(memory!.deploymentState, 'Memory should still be local-only after --plan').toBe('local-only');
+
+        // Clean up: remove the memory so it doesn't affect teardown
+        await run(['remove', 'memory', '--name', 'PlanTestMemory', '--json']);
+      },
+      120000
+    );
   });
 }
 
