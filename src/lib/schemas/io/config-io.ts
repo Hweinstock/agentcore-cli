@@ -21,6 +21,8 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import { type ZodType } from 'zod';
 
+const SCHEMA_URL = 'https://raw.githubusercontent.com/aws/agentcore-cli/main/schemas/agentcore.schema.v1.json';
+
 /**
  * Manages reading, writing, and validation of AgentCore configuration files
  */
@@ -103,7 +105,10 @@ export class ConfigIO {
    */
   async writeProjectSpec(data: AgentCoreProjectSpec): Promise<void> {
     const filePath = this.pathResolver.getAgentConfigPath();
-    await this.validateAndWrite(filePath, 'AgentCore Project Config', AgentCoreProjectSpecSchema, data);
+    await this.validateAndWrite(filePath, 'AgentCore Project Config', AgentCoreProjectSpecSchema, {
+      ...data,
+      $schema: SCHEMA_URL,
+    });
   }
 
   /**

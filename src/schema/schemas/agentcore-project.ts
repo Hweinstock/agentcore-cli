@@ -175,6 +175,7 @@ const ARN_PREFIX = 'arn:';
 
 export const AgentCoreProjectSpecSchema = z
   .object({
+    $schema: z.string().optional(),
     name: ProjectNameSchema,
     version: z.number().int().min(1),
     managedBy: ManagedBySchema,
