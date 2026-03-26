@@ -292,20 +292,23 @@ export function installCdkTarball(projectPath: string): void {
 }
 
 export async function teardownE2EProject(projectPath: string, agentName: string, modelProvider: string): Promise<void> {
-  await spawnAndCollect('agentcore', ['remove', 'all', '--json'], projectPath);
-  const result = await spawnAndCollect('agentcore', ['deploy', '--yes', '--json'], projectPath);
-  if (result.exitCode !== 0) {
-    console.log('Teardown stdout:', result.stdout);
-    console.log('Teardown stderr:', result.stderr);
-  }
+  // Delete credential provider first — it's not a CFN resource, so deleting it
+  // before stack teardown is safe and avoids leaking providers when stack
+  // destruction times out or fails.
   if (modelProvider !== 'Bedrock' && agentName) {
     const providerName = `${agentName}${modelProvider}`;
     const region = process.env.AWS_REGION ?? 'us-east-1';
     try {
       const client = new BedrockAgentCoreControlClient({ region });
       await client.send(new DeleteApiKeyCredentialProviderCommand({ name: providerName }));
-    } catch {
-      // Best-effort cleanup
+    } catch (err) {
+      console.warn(`Failed to delete credential provider ${providerName}:`, err);
     }
+  }
+  await spawnAndCollect('agentcore', ['remove', 'all', '--json'], projectPath);
+  const result = await spawnAndCollect('agentcore', ['deploy', '--yes', '--json'], projectPath);
+  if (result.exitCode !== 0) {
+    console.log('Teardown stdout:', result.stdout);
+    console.log('Teardown stderr:', result.stderr);
   }
 }
