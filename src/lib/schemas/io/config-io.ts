@@ -21,7 +21,7 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import { type ZodType } from 'zod';
 
-const SCHEMA_URL = 'https://raw.githubusercontent.com/aws/agentcore-cli/main/schemas/agentcore.schema.v1.json';
+const SCHEMA_URL = 'https://schema.agentcore.aws.dev/v1/agentcore.json';
 
 /**
  * Manages reading, writing, and validation of AgentCore configuration files

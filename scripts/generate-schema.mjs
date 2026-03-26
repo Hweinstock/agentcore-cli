@@ -17,9 +17,6 @@ const { AgentCoreProjectSpecSchema } = await import('../dist/schema/schemas/agen
 
 const schema = z.toJSONSchema(AgentCoreProjectSpecSchema, { target: 'draft-07' });
 
-// Allow $schema field alongside the strict properties
-schema.properties.$schema = { type: 'string' };
-
 // Fields with defaults should not be required — Zod's toJSONSchema marks them required anyway
 if (schema.required && schema.properties) {
   schema.required = schema.required.filter(field => !('default' in schema.properties[field]));
