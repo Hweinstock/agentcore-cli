@@ -29,6 +29,7 @@ vi.mock('../../../../lib/index.js', () => ({
     }
     readProjectSpec = mockReadProjectSpec;
     readAWSDeploymentTargets = mockReadAWSDeploymentTargets;
+    resolveAWSDeploymentTargets = mockReadAWSDeploymentTargets;
     readDeployedState = mockReadDeployedState;
     configExists = mockConfigExists;
   },
