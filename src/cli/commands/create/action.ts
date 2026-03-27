@@ -1,6 +1,5 @@
 import { APP_DIR, CONFIG_DIR, ConfigIO, setEnvVar, setSessionProjectRoot } from '../../../lib';
 import type {
-  AgentCoreProjectSpec,
   BuildType,
   DeployedState,
   ModelProvider,
@@ -19,29 +18,11 @@ import {
 } from '../../operations/agent/generate';
 import { executeImportAgent } from '../../operations/agent/import';
 import { credentialPrimitive } from '../../primitives/registry';
+import { createDefaultProjectSpec } from '../../project';
 import { CDKRenderer, createRenderer } from '../../templates';
 import type { CreateResult } from './types';
 import { mkdir } from 'fs/promises';
 import { join } from 'path';
-
-function createDefaultProjectSpec(projectName: string): AgentCoreProjectSpec {
-  return {
-    name: projectName,
-    version: 1,
-    managedBy: 'CDK' as const,
-    agents: [],
-    memories: [],
-    credentials: [],
-    evaluators: [],
-    onlineEvalConfigs: [],
-    agentCoreGateways: [],
-    policyEngines: [],
-    tags: {
-      'agentcore:created-by': 'agentcore-cli',
-      'agentcore:project-name': projectName,
-    },
-  };
-}
 
 function createDefaultDeployedState(): DeployedState {
   return { targets: {} };

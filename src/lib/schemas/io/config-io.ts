@@ -21,6 +21,13 @@ import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
 import { type ZodType } from 'zod';
 
+/** Supported schema versions. Extend this union as new versions are published. */
+type SchemaVersion = 1;
+
+export function getSchemaUrlForVersion(version: SchemaVersion): string {
+  return `https://schema.agentcore.aws.dev/v${version}/agentcore.json`;
+}
+
 /**
  * Manages reading, writing, and validation of AgentCore configuration files
  */

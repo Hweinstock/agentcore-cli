@@ -17,13 +17,23 @@ const { AgentCoreProjectSpecSchema } = await import('../dist/schema/schemas/agen
 
 const schema = z.toJSONSchema(AgentCoreProjectSpecSchema, { target: 'draft-07' });
 
-// Allow $schema field alongside the strict properties
-schema.properties.$schema = { type: 'string' };
-
-// Fields with defaults should not be required — Zod's toJSONSchema marks them required anyway
-if (schema.required && schema.properties) {
-  schema.required = schema.required.filter(field => !('default' in schema.properties[field]));
+// Fields with defaults should not be required — Zod's toJSONSchema marks them required anyway.
+// Walk the entire schema tree so nested objects are fixed too.
+function stripDefaultsFromRequired(node) {
+  if (typeof node !== 'object' || node === null) return;
+  if (Array.isArray(node)) {
+    node.forEach(stripDefaultsFromRequired);
+    return;
+  }
+  if (Array.isArray(node.required) && node.properties) {
+    node.required = node.required.filter(field => !('default' in (node.properties[field] ?? {})));
+    if (node.required.length === 0) delete node.required;
+  }
+  for (const value of Object.values(node)) {
+    stripDefaultsFromRequired(value);
+  }
 }
+stripDefaultsFromRequired(schema);
 
 mkdirSync(dirname(outPath), { recursive: true });
 writeFileSync(outPath, JSON.stringify(schema, null, 2) + '\n');

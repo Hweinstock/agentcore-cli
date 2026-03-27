@@ -1,7 +1,7 @@
 import { ConfigIO, getWorkingDirectory } from '../../../../lib';
-import type { AgentCoreProjectSpec } from '../../../../schema';
 import { findStack } from '../../../cloudformation/stack-discovery';
 import { getErrorMessage } from '../../../errors';
+import { createDefaultProjectSpec } from '../../../project';
 import { type Step, areStepsComplete, hasStepError } from '../../components';
 import { withMinDuration } from '../../utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -25,21 +25,6 @@ interface RemoveFlowState {
 
 function getRemoveSteps(): Step[] {
   return [{ label: 'Reset project schemas', status: 'pending' }];
-}
-
-function createDefaultProjectSpec(projectName: string): AgentCoreProjectSpec {
-  return {
-    name: projectName,
-    version: 1,
-    managedBy: 'CDK' as const,
-    agents: [],
-    memories: [],
-    credentials: [],
-    evaluators: [],
-    onlineEvalConfigs: [],
-    agentCoreGateways: [],
-    policyEngines: [],
-  };
 }
 
 export function useRemoveFlow({ force, dryRun }: RemoveFlowOptions): RemoveFlowState {

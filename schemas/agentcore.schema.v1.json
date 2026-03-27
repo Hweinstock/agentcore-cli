@@ -2,6 +2,9 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "type": "object",
   "properties": {
+    "$schema": {
+      "type": "string"
+    },
     "name": {
       "type": "string",
       "minLength": 1,
@@ -12,6 +15,11 @@
       "type": "integer",
       "minimum": 1,
       "maximum": 9007199254740991
+    },
+    "managedBy": {
+      "default": "CDK",
+      "type": "string",
+      "enum": ["CDK"]
     },
     "tags": {
       "type": "object",
@@ -124,7 +132,6 @@
                 "type": "boolean"
               }
             },
-            "required": ["enableOtel"],
             "additionalProperties": false
           },
           "modelProvider": {
@@ -142,6 +149,103 @@
               "type": "string"
             }
           },
+          "authorizerType": {
+            "type": "string",
+            "enum": ["AWS_IAM", "CUSTOM_JWT"]
+          },
+          "authorizerConfiguration": {
+            "type": "object",
+            "properties": {
+              "customJwtAuthorizer": {
+                "type": "object",
+                "properties": {
+                  "discoveryUrl": {
+                    "type": "string",
+                    "format": "uri"
+                  },
+                  "allowedAudience": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "allowedClients": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "allowedScopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    }
+                  },
+                  "customClaims": {
+                    "minItems": 1,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "inboundTokenClaimName": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "pattern": "^[A-Za-z0-9_.:-]+$"
+                        },
+                        "inboundTokenClaimValueType": {
+                          "type": "string",
+                          "enum": ["STRING", "STRING_ARRAY"]
+                        },
+                        "authorizingClaimMatchValue": {
+                          "type": "object",
+                          "properties": {
+                            "claimMatchOperator": {
+                              "type": "string",
+                              "enum": ["EQUALS", "CONTAINS", "CONTAINS_ANY"]
+                            },
+                            "claimMatchValue": {
+                              "type": "object",
+                              "properties": {
+                                "matchValueString": {
+                                  "type": "string",
+                                  "minLength": 1,
+                                  "maxLength": 255,
+                                  "pattern": "^[A-Za-z0-9_.-]+$"
+                                },
+                                "matchValueStringList": {
+                                  "minItems": 1,
+                                  "maxItems": 255,
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string",
+                                    "minLength": 1,
+                                    "maxLength": 255,
+                                    "pattern": "^[A-Za-z0-9_.-]+$"
+                                  }
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "required": ["claimMatchOperator", "claimMatchValue"],
+                          "additionalProperties": false
+                        }
+                      },
+                      "required": ["inboundTokenClaimName", "inboundTokenClaimValueType", "authorizingClaimMatchValue"],
+                      "additionalProperties": false
+                    }
+                  }
+                },
+                "required": ["discoveryUrl"],
+                "additionalProperties": false
+              }
+            },
+            "additionalProperties": false
+          },
           "tags": {
             "type": "object",
             "propertyNames": {
@@ -155,6 +259,22 @@
               "maxLength": 256,
               "pattern": "^[\\p{L}\\p{N}\\s_.:/=+\\-@]*$"
             }
+          },
+          "lifecycleConfiguration": {
+            "type": "object",
+            "properties": {
+              "idleRuntimeSessionTimeout": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 28800
+              },
+              "maxLifetime": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 28800
+              }
+            },
+            "additionalProperties": false
           }
         },
         "required": ["type", "name", "build", "entrypoint", "codeLocation", "runtimeVersion"],
@@ -190,7 +310,7 @@
               "properties": {
                 "type": {
                   "type": "string",
-                  "enum": ["SEMANTIC", "SUMMARIZATION", "USER_PREFERENCE"]
+                  "enum": ["SEMANTIC", "SUMMARIZATION", "USER_PREFERENCE", "EPISODIC"]
                 },
                 "name": {
                   "type": "string",
@@ -202,6 +322,12 @@
                   "type": "string"
                 },
                 "namespaces": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "reflectionNamespaces": {
                   "type": "array",
                   "items": {
                     "type": "string"
@@ -227,7 +353,7 @@
             }
           }
         },
-        "required": ["type", "name", "eventExpiryDuration", "strategies"],
+        "required": ["type", "name", "eventExpiryDuration"],
         "additionalProperties": false
       }
     },
@@ -288,7 +414,7 @@
                 "enum": ["inbound", "outbound"]
               }
             },
-            "required": ["type", "name", "discoveryUrl", "vendor"],
+            "required": ["type", "name"],
             "additionalProperties": false
           }
         ]
@@ -645,7 +771,6 @@
                                   "type": "boolean"
                                 }
                               },
-                              "required": ["enableOtel"],
                               "additionalProperties": false
                             },
                             "networkMode": {
@@ -657,14 +782,7 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "artifact",
-                            "pythonVersion",
-                            "name",
-                            "entrypoint",
-                            "codeLocation",
-                            "networkMode"
-                          ],
+                          "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation"],
                           "additionalProperties": false
                         },
                         "iamPolicy": {
@@ -710,7 +828,6 @@
                       }
                     }
                   },
-                  "required": ["type"],
                   "additionalProperties": false
                 },
                 "apiGateway": {
@@ -985,7 +1102,7 @@
             }
           }
         },
-        "required": ["name", "targets", "authorizerType", "enableSemanticSearch", "exceptionLevel"],
+        "required": ["name", "targets"],
         "additionalProperties": false
       }
     },
@@ -1084,7 +1201,6 @@
                         "type": "boolean"
                       }
                     },
-                    "required": ["enableOtel"],
                     "additionalProperties": false
                   },
                   "networkMode": {
@@ -1096,7 +1212,7 @@
                     "type": "string"
                   }
                 },
-                "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation", "networkMode"],
+                "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation"],
                 "additionalProperties": false
               },
               "iamPolicy": {
@@ -1308,7 +1424,6 @@
                             "type": "boolean"
                           }
                         },
-                        "required": ["enableOtel"],
                         "additionalProperties": false
                       },
                       "networkMode": {
@@ -1320,7 +1435,7 @@
                         "type": "string"
                       }
                     },
-                    "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation", "networkMode"],
+                    "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation"],
                     "additionalProperties": false
                   },
                   "iamPolicy": {
@@ -1366,7 +1481,6 @@
                 }
               }
             },
-            "required": ["type"],
             "additionalProperties": false
           },
           "apiGateway": {
@@ -1568,17 +1682,14 @@
                   "enum": ["FAIL_ON_ANY_FINDINGS", "IGNORE_ALL_FINDINGS"]
                 }
               },
-              "required": ["name", "statement", "validationMode"],
+              "required": ["name", "statement"],
               "additionalProperties": false
             }
           }
         },
-        "required": ["name", "policies"],
+        "required": ["name"],
         "additionalProperties": false
       }
-    },
-    "$schema": {
-      "type": "string"
     }
   },
   "required": ["name", "version"],
