@@ -1,5 +1,5 @@
 import { APP_DIR, CONFIG_DIR, ConfigIO, findConfigRoot, setEnvVar, setSessionProjectRoot } from '../../../../lib';
-import type { AgentCoreProjectSpec, DeployedState } from '../../../../schema';
+import type { DeployedState } from '../../../../schema';
 import { getErrorMessage } from '../../../errors';
 import { CreateLogger } from '../../../logging';
 import { initGitRepo, setupPythonProject, writeEnvFile, writeGitignore } from '../../../operations';
@@ -13,6 +13,7 @@ import { executeImportAgent } from '../../../operations/agent/import';
 import { createManagedOAuthCredential } from '../../../primitives/auth-utils';
 import { computeDefaultCredentialEnvVarName } from '../../../primitives/credential-utils';
 import { credentialPrimitive } from '../../../primitives/registry';
+import { createDefaultProjectSpec } from '../../../project';
 import { CDKRenderer, createRenderer } from '../../../templates';
 import { type Step, areStepsComplete, hasStepError } from '../../components';
 import { withMinDuration } from '../../utils';
@@ -67,25 +68,6 @@ function getCreateSteps(projectName: string, agentConfig: AddAgentConfig | null)
   steps.push({ label: 'Initialize git repository', status: 'pending' });
 
   return steps;
-}
-
-function createDefaultProjectSpec(projectName: string): AgentCoreProjectSpec {
-  return {
-    name: projectName,
-    version: 1,
-    managedBy: 'CDK' as const,
-    tags: {
-      'agentcore:created-by': 'agentcore-cli',
-      'agentcore:project-name': projectName,
-    },
-    agents: [],
-    memories: [],
-    credentials: [],
-    evaluators: [],
-    onlineEvalConfigs: [],
-    agentCoreGateways: [],
-    policyEngines: [],
-  };
 }
 
 function createDefaultDeployedState(): DeployedState {

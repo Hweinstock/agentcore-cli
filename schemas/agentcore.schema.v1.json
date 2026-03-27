@@ -16,6 +16,11 @@
       "minimum": 1,
       "maximum": 9007199254740991
     },
+    "managedBy": {
+      "default": "CDK",
+      "type": "string",
+      "enum": ["CDK"]
+    },
     "tags": {
       "type": "object",
       "propertyNames": {
@@ -127,7 +132,6 @@
                 "type": "boolean"
               }
             },
-            "required": ["enableOtel"],
             "additionalProperties": false
           },
           "modelProvider": {
@@ -349,7 +353,7 @@
             }
           }
         },
-        "required": ["type", "name", "eventExpiryDuration", "strategies"],
+        "required": ["type", "name", "eventExpiryDuration"],
         "additionalProperties": false
       }
     },
@@ -410,7 +414,7 @@
                 "enum": ["inbound", "outbound"]
               }
             },
-            "required": ["type", "name", "vendor"],
+            "required": ["type", "name"],
             "additionalProperties": false
           }
         ]
@@ -767,7 +771,6 @@
                                   "type": "boolean"
                                 }
                               },
-                              "required": ["enableOtel"],
                               "additionalProperties": false
                             },
                             "networkMode": {
@@ -779,14 +782,7 @@
                               "type": "string"
                             }
                           },
-                          "required": [
-                            "artifact",
-                            "pythonVersion",
-                            "name",
-                            "entrypoint",
-                            "codeLocation",
-                            "networkMode"
-                          ],
+                          "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation"],
                           "additionalProperties": false
                         },
                         "iamPolicy": {
@@ -832,7 +828,6 @@
                       }
                     }
                   },
-                  "required": ["type"],
                   "additionalProperties": false
                 },
                 "apiGateway": {
@@ -1107,7 +1102,7 @@
             }
           }
         },
-        "required": ["name", "targets", "authorizerType", "enableSemanticSearch", "exceptionLevel"],
+        "required": ["name", "targets"],
         "additionalProperties": false
       }
     },
@@ -1206,7 +1201,6 @@
                         "type": "boolean"
                       }
                     },
-                    "required": ["enableOtel"],
                     "additionalProperties": false
                   },
                   "networkMode": {
@@ -1218,7 +1212,7 @@
                     "type": "string"
                   }
                 },
-                "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation", "networkMode"],
+                "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation"],
                 "additionalProperties": false
               },
               "iamPolicy": {
@@ -1430,7 +1424,6 @@
                             "type": "boolean"
                           }
                         },
-                        "required": ["enableOtel"],
                         "additionalProperties": false
                       },
                       "networkMode": {
@@ -1442,7 +1435,7 @@
                         "type": "string"
                       }
                     },
-                    "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation", "networkMode"],
+                    "required": ["artifact", "pythonVersion", "name", "entrypoint", "codeLocation"],
                     "additionalProperties": false
                   },
                   "iamPolicy": {
@@ -1488,7 +1481,6 @@
                 }
               }
             },
-            "required": ["type"],
             "additionalProperties": false
           },
           "apiGateway": {
@@ -1690,12 +1682,12 @@
                   "enum": ["FAIL_ON_ANY_FINDINGS", "IGNORE_ALL_FINDINGS"]
                 }
               },
-              "required": ["name", "statement", "validationMode"],
+              "required": ["name", "statement"],
               "additionalProperties": false
             }
           }
         },
-        "required": ["name", "policies"],
+        "required": ["name"],
         "additionalProperties": false
       }
     }
