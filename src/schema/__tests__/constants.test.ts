@@ -39,13 +39,14 @@ describe('matchEnumValue', () => {
 });
 
 describe('SDKFrameworkSchema', () => {
-  it.each(['Strands', 'LangChain_LangGraph', 'CrewAI', 'GoogleADK', 'OpenAIAgents'])('accepts "%s"', framework => {
+  it.each(['Strands', 'LangChain_LangGraph', 'GoogleADK', 'OpenAIAgents'])('accepts "%s"', framework => {
     expect(SDKFrameworkSchema.safeParse(framework).success).toBe(true);
   });
 
   it('rejects invalid framework', () => {
     expect(SDKFrameworkSchema.safeParse('AutoGen').success).toBe(false);
     expect(SDKFrameworkSchema.safeParse('strands').success).toBe(false); // case-sensitive
+    expect(SDKFrameworkSchema.safeParse('CrewAI').success).toBe(false); // hidden until verified
   });
 });
 
@@ -167,9 +168,9 @@ describe('PROTOCOL_FRAMEWORK_MATRIX', () => {
     expect(Object.keys(PROTOCOL_FRAMEWORK_MATRIX)).toHaveLength(3);
   });
 
-  it('HTTP supports all frameworks', () => {
+  it('HTTP supports all visible frameworks', () => {
     expect(PROTOCOL_FRAMEWORK_MATRIX.HTTP).toEqual(
-      expect.arrayContaining(['Strands', 'LangChain_LangGraph', 'CrewAI', 'GoogleADK', 'OpenAIAgents'])
+      expect.arrayContaining(['Strands', 'LangChain_LangGraph', 'GoogleADK', 'OpenAIAgents'])
     );
   });
 
@@ -177,10 +178,9 @@ describe('PROTOCOL_FRAMEWORK_MATRIX', () => {
     expect(PROTOCOL_FRAMEWORK_MATRIX.MCP).toEqual([]);
   });
 
-  it('A2A includes Strands and GoogleADK but not CrewAI or OpenAIAgents', () => {
+  it('A2A includes Strands and GoogleADK but not OpenAIAgents', () => {
     expect(PROTOCOL_FRAMEWORK_MATRIX.A2A).toContain('Strands');
     expect(PROTOCOL_FRAMEWORK_MATRIX.A2A).toContain('GoogleADK');
-    expect(PROTOCOL_FRAMEWORK_MATRIX.A2A).not.toContain('CrewAI');
     expect(PROTOCOL_FRAMEWORK_MATRIX.A2A).not.toContain('OpenAIAgents');
   });
 });
@@ -189,7 +189,6 @@ describe('getSupportedFrameworksForProtocol', () => {
   it('returns all frameworks for HTTP', () => {
     const frameworks = getSupportedFrameworksForProtocol('HTTP');
     expect(frameworks).toContain('Strands');
-    expect(frameworks).toContain('CrewAI');
     expect(frameworks.length).toBeGreaterThan(0);
   });
 
@@ -213,16 +212,12 @@ describe('isFrameworkSupportedForProtocol', () => {
     expect(isFrameworkSupportedForProtocol('A2A', 'Strands')).toBe(true);
   });
 
-  it('returns false for CrewAI + A2A', () => {
-    expect(isFrameworkSupportedForProtocol('A2A', 'CrewAI')).toBe(false);
-  });
-
   it('returns false for OpenAIAgents + A2A', () => {
     expect(isFrameworkSupportedForProtocol('A2A', 'OpenAIAgents')).toBe(false);
   });
 
   it('returns false for any framework + MCP', () => {
     expect(isFrameworkSupportedForProtocol('MCP', 'Strands')).toBe(false);
-    expect(isFrameworkSupportedForProtocol('MCP', 'CrewAI')).toBe(false);
+    expect(isFrameworkSupportedForProtocol('MCP', 'OpenAIAgents')).toBe(false);
   });
 });

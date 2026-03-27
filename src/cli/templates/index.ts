@@ -1,5 +1,5 @@
 import type { BaseRenderer } from './BaseRenderer';
-import { CrewAIRenderer } from './CrewAIRenderer';
+// CrewAI hidden — uncomment when re-enabling: import { CrewAIRenderer } from './CrewAIRenderer';
 import { GoogleADKRenderer } from './GoogleADKRenderer';
 import { LangGraphRenderer } from './LangGraphRenderer';
 import { McpRenderer } from './McpRenderer';
@@ -30,8 +30,6 @@ export function createRenderer(config: AgentRenderConfig): BaseRenderer {
   switch (config.sdkFramework) {
     case 'Strands':
       return new StrandsRenderer(config);
-    case 'CrewAI':
-      return new CrewAIRenderer(config);
     case 'GoogleADK':
       return new GoogleADKRenderer(config);
     case 'LangChain_LangGraph':

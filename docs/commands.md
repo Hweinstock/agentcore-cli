@@ -72,7 +72,7 @@ agentcore create \
 | `--no-agent`              | Skip agent creation                                                                                            |
 | `--type <type>`           | `create` (default) or `import`                                                                                 |
 | `--language <lang>`       | `Python` (default)                                                                                             |
-| `--framework <fw>`        | `Strands`, `LangChain_LangGraph`, `CrewAI`, `GoogleADK`, `OpenAIAgents`                                        |
+| `--framework <fw>`        | `Strands`, `LangChain_LangGraph`, `GoogleADK`, `OpenAIAgents`                                                  |
 | `--model-provider <p>`    | `Bedrock`, `Anthropic`, `OpenAI`, `Gemini`                                                                     |
 | `--build <type>`          | `CodeZip` (default) or `Container` (see [Container Builds](container-builds.md))                               |
 | `--api-key <key>`         | API key for non-Bedrock providers                                                                              |
@@ -199,7 +199,7 @@ agentcore add agent \
 | `--type <type>`           | `create` (default), `byo`, or `import`                                                                                            |
 | `--build <type>`          | `CodeZip` (default) or `Container` (see [Container Builds](container-builds.md))                                                  |
 | `--language <lang>`       | `Python` (create); `Python`, `TypeScript`, `Other` (BYO)                                                                          |
-| `--framework <fw>`        | `Strands`, `LangChain_LangGraph`, `CrewAI`, `GoogleADK`, `OpenAIAgents`                                                           |
+| `--framework <fw>`        | `Strands`, `LangChain_LangGraph`, `GoogleADK`, `OpenAIAgents`                                                                     |
 | `--model-provider <p>`    | `Bedrock`, `Anthropic`, `OpenAI`, `Gemini`                                                                                        |
 | `--api-key <key>`         | API key for non-Bedrock providers                                                                                                 |
 | `--memory <opt>`          | `none`, `shortTerm`, `longAndShortTerm` (create and import; see [Memory Shorthand Mapping](memory.md#--memory-shorthand-mapping)) |

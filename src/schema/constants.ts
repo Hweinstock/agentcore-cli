@@ -4,7 +4,9 @@ import { z } from 'zod';
 // Feature Constants (shared across all schemas)
 // ============================================================================
 
-export const SDKFrameworkSchema = z.enum(['Strands', 'LangChain_LangGraph', 'CrewAI', 'GoogleADK', 'OpenAIAgents']);
+// CrewAI: hidden until platform compatibility is verified (lancedb transitive dep requires newer glibc).
+// Templates and renderer are preserved — re-add 'CrewAI' here to re-enable.
+export const SDKFrameworkSchema = z.enum(['Strands', 'LangChain_LangGraph', 'GoogleADK', 'OpenAIAgents']);
 export type SDKFramework = z.infer<typeof SDKFrameworkSchema>;
 
 export const TargetLanguageSchema = z.enum(['Python', 'TypeScript', 'Other']);
@@ -45,7 +47,7 @@ export const DEFAULT_MODEL_IDS: Record<ModelProvider, string> = {
 export const SDK_MODEL_PROVIDER_MATRIX: Record<SDKFramework, readonly ModelProvider[]> = {
   Strands: ['Bedrock', 'Anthropic', 'OpenAI', 'Gemini'] as const,
   LangChain_LangGraph: ['Bedrock', 'Anthropic', 'OpenAI', 'Gemini'] as const,
-  CrewAI: ['Bedrock', 'Anthropic', 'OpenAI', 'Gemini'] as const,
+  // CrewAI: ['Bedrock', 'Anthropic', 'OpenAI', 'Gemini'] as const, // hidden — re-add when re-enabling CrewAI
   GoogleADK: ['Gemini'] as const,
   OpenAIAgents: ['OpenAI'] as const,
 };
@@ -165,7 +167,7 @@ export type ProtocolMode = z.infer<typeof ProtocolModeSchema>;
  * MCP is a standalone tool server with no framework.
  */
 export const PROTOCOL_FRAMEWORK_MATRIX: Record<ProtocolMode, readonly SDKFramework[]> = {
-  HTTP: ['Strands', 'LangChain_LangGraph', 'CrewAI', 'GoogleADK', 'OpenAIAgents'] as const,
+  HTTP: ['Strands', 'LangChain_LangGraph', 'GoogleADK', 'OpenAIAgents'] as const, // CrewAI hidden — re-add when re-enabling
   MCP: [] as const,
   A2A: ['Strands', 'GoogleADK', 'LangChain_LangGraph'] as const,
 };
