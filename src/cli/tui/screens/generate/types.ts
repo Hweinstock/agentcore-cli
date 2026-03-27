@@ -122,7 +122,7 @@ export const SDK_OPTIONS = [
  */
 export function getSDKOptionsForProtocol(protocol: ProtocolMode) {
   const supportedFrameworks = PROTOCOL_FRAMEWORK_MATRIX[protocol];
-  return SDK_OPTIONS.filter(option => supportedFrameworks.includes(option.id as SDKFramework));
+  return SDK_OPTIONS.filter(option => supportedFrameworks.includes(option.id));
 }
 
 export const MODEL_PROVIDER_OPTIONS = [

@@ -46,7 +46,6 @@ describe('SDKFrameworkSchema', () => {
   it('rejects invalid framework', () => {
     expect(SDKFrameworkSchema.safeParse('AutoGen').success).toBe(false);
     expect(SDKFrameworkSchema.safeParse('strands').success).toBe(false); // case-sensitive
-    expect(SDKFrameworkSchema.safeParse('CrewAI').success).toBe(false); // hidden until verified
   });
 });
 

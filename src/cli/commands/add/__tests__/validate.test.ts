@@ -1141,20 +1141,6 @@ describe('validate', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('A2A: fails with --framework CrewAI (hidden framework)', () => {
-      const result = validateAddAgentOptions({
-        name: 'A2aAgent',
-        type: 'byo',
-        language: 'Python',
-        protocol: 'A2A',
-        framework: 'CrewAI' as never,
-        modelProvider: 'Bedrock',
-        codeLocation: '/path/to/code',
-      });
-      expect(result.valid).toBe(false);
-      expect(result.error).toContain('Invalid framework');
-    });
-
     it('A2A: fails with --framework OpenAIAgents', () => {
       const result = validateAddAgentOptions({
         name: 'A2aAgent',

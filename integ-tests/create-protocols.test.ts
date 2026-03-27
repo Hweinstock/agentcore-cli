@@ -142,31 +142,6 @@ describe.skipIf(!prereqs.npm || !prereqs.git)('integration: create with protocol
 
     expect(result.exitCode).not.toBe(0);
   });
-
-  it('rejects A2A with unsupported framework (CrewAI)', async () => {
-    const name = `A2aCrew${Date.now().toString().slice(-6)}`;
-    const result = await runCLI(
-      [
-        'create',
-        '--name',
-        name,
-        '--language',
-        'Python',
-        '--protocol',
-        'A2A',
-        '--framework',
-        'CrewAI',
-        '--model-provider',
-        'Bedrock',
-        '--memory',
-        'none',
-        '--json',
-      ],
-      testDir
-    );
-
-    expect(result.exitCode).not.toBe(0);
-  });
 });
 
 describe.skipIf(!prereqs.npm || !prereqs.git)('integration: add agent with protocol modes', () => {

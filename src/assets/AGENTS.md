@@ -12,7 +12,6 @@ assets/
 ├── python/              # Framework templates (one per SDK)
 │   ├── strands/
 │   ├── langchain_langgraph/
-│   ├── crewai/
 │   ├── googleadk/
 │   ├── openaiagents/
 │   └── autogen/
