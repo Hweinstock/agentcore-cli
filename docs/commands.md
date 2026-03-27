@@ -195,7 +195,7 @@ agentcore add agent \
 
 | Flag                      | Description                                                                                                                       |
 | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| `--name <name>`           | Agent name (alphanumeric, starts with letter, max 64 chars)                                                                       |
+| `--name <name>`           | Agent name (alphanumeric + underscores, starts with letter, max 48 chars)                                                         |
 | `--type <type>`           | `create` (default), `byo`, or `import`                                                                                            |
 | `--build <type>`          | `CodeZip` (default) or `Container` (see [Container Builds](container-builds.md))                                                  |
 | `--language <lang>`       | `Python` (create); `Python`, `TypeScript`, `Other` (BYO)                                                                          |

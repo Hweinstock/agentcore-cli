@@ -272,7 +272,7 @@ Strategy configuration:
 | Field  | Required | Description                         |
 | ------ | -------- | ----------------------------------- |
 | `type` | Yes      | Always `"ApiKeyCredentialProvider"` |
-| `name` | Yes      | Credential name (3-255 chars)       |
+| `name` | Yes      | Credential name (1-128 chars)       |
 
 ### OAuth Credential
 
@@ -288,7 +288,7 @@ Strategy configuration:
 | Field          | Required | Description                                            |
 | -------------- | -------- | ------------------------------------------------------ |
 | `type`         | Yes      | Always `"OAuthCredentialProvider"`                     |
-| `name`         | Yes      | Credential name (3-255 chars)                          |
+| `name`         | Yes      | Credential name (1-128 chars)                          |
 | `discoveryUrl` | Yes      | OIDC discovery URL (must be a valid URL)               |
 | `scopes`       | No       | Array of OAuth scopes                                  |
 | `vendor`       | No       | Credential provider vendor (default: `"CustomOauth2"`) |

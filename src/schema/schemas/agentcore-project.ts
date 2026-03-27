@@ -56,6 +56,8 @@ export { AgentCoreGatewaySchema, AgentCoreGatewayTargetSchema, AgentCoreMcpRunti
 // Project Name Schema
 // ============================================================================
 
+// Project name is a CLI-only concept (combined with agent name to form the runtime name).
+// Max 23 so that projectName + "_" + agentName fits within the 48-char runtime name limit.
 export const ProjectNameSchema = z
   .string()
   .min(1, 'Project name is required')
@@ -75,6 +77,8 @@ export const ProjectNameSchema = z
 export const MemoryTypeSchema = z.literal('AgentCoreMemory');
 export type MemoryType = z.infer<typeof MemoryTypeSchema>;
 
+// Memory names follow the same constraints as agent runtime names.
+// https://docs.aws.amazon.com/bedrock-agentcore-control/latest/APIReference/API_CreateMemory.html
 export const MemoryNameSchema = z
   .string()
   .min(1, 'Name is required')
@@ -108,14 +112,12 @@ export type Memory = z.infer<typeof MemorySchema>;
 // Credential Schema
 // ============================================================================
 
+// https://docs.aws.amazon.com/bedrock-agentcore-control/latest/APIReference/API_CreateApiKeyCredentialProvider.html
 export const CredentialNameSchema = z
   .string()
-  .min(3, 'Credential name must be at least 3 characters')
-  .max(255)
-  .regex(
-    /^[A-Za-z0-9_.-]+$/,
-    'Must contain only alphanumeric characters, underscores, dots, and hyphens (3-255 chars)'
-  );
+  .min(1, 'Credential name is required')
+  .max(128, 'Credential name must be 128 characters or less')
+  .regex(/^[a-zA-Z0-9\-_]+$/, 'Must contain only alphanumeric characters, hyphens, and underscores (1-128 chars)');
 
 export const CredentialTypeSchema = z.enum(['ApiKeyCredentialProvider', 'OAuthCredentialProvider']);
 export type CredentialType = z.infer<typeof CredentialTypeSchema>;

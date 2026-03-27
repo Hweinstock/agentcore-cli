@@ -91,5 +91,5 @@ interface MemoryStrategy {
 
 interface Credential {
   type: 'ApiKeyCredentialProvider';
-  name: string; // @regex ^[A-Za-z0-9_.-]+$ @min 3 @max 255
+  name: string; // @regex ^[a-zA-Z0-9\-_]+$ @min 1 @max 128
 }

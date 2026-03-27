@@ -44,7 +44,7 @@ Incorrect enums or regex will cause agents to generate invalid JSON that fails v
 ### Constraint Comments
 
 ```typescript
-name: string; // @regex ^[a-zA-Z][a-zA-Z0-9]{0,63}$ @max 64
+name: string; // @regex ^[a-zA-Z][a-zA-Z0-9]{0,63}$ @max 48
 eventExpiryDuration: number; // @min 7 @max 365 (days)
 targets: Target[]; // @min 1 - at least one required
 ```

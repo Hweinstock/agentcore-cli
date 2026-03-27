@@ -22,6 +22,7 @@ export type { PythonRuntime, NodeRuntime, RuntimeVersion, NetworkMode, ProtocolM
 // Name Schemas
 // ============================================================================
 
+// https://docs.aws.amazon.com/bedrock-agentcore-control/latest/APIReference/API_CreateAgentRuntime.html
 export const AgentNameSchema = z
   .string()
   .min(1, 'Name is required')
@@ -40,6 +41,7 @@ export const EnvVarNameSchema = z
     'Must start with a letter or underscore, contain only letters, digits, and underscores'
   );
 
+// https://docs.aws.amazon.com/bedrock-agentcore-control/latest/APIReference/API_CreateGateway.html
 export const GatewayNameSchema = z
   .string()
   .min(1)

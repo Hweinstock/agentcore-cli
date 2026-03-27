@@ -224,17 +224,25 @@ describe('MemorySchema', () => {
 describe('CredentialNameSchema', () => {
   it('accepts valid credential names', () => {
     expect(CredentialNameSchema.safeParse('MyProjectGemini').success).toBe(true);
-    expect(CredentialNameSchema.safeParse('api-key.v2').success).toBe(true);
+    expect(CredentialNameSchema.safeParse('api-key-v2').success).toBe(true);
     expect(CredentialNameSchema.safeParse('my_cred_123').success).toBe(true);
   });
 
-  it('rejects names shorter than 3 characters', () => {
-    expect(CredentialNameSchema.safeParse('ab').success).toBe(false);
-    expect(CredentialNameSchema.safeParse('a').success).toBe(false);
+  it('accepts single character name (min 1)', () => {
+    expect(CredentialNameSchema.safeParse('a').success).toBe(true);
   });
 
-  it('accepts name with exactly 3 characters', () => {
-    expect(CredentialNameSchema.safeParse('abc').success).toBe(true);
+  it('rejects empty name', () => {
+    expect(CredentialNameSchema.safeParse('').success).toBe(false);
+  });
+
+  it('rejects names longer than 128 characters', () => {
+    expect(CredentialNameSchema.safeParse('a'.repeat(128)).success).toBe(true);
+    expect(CredentialNameSchema.safeParse('a'.repeat(129)).success).toBe(false);
+  });
+
+  it('rejects names with dots', () => {
+    expect(CredentialNameSchema.safeParse('api-key.v2').success).toBe(false);
   });
 
   it('rejects names with spaces', () => {
