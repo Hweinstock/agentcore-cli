@@ -78,6 +78,7 @@ function buildPrompts(mode, issueId, isPullRequest, command, branchName, inputs)
     implementer: '.github/agent-sops/task-implementer.sop.md',
     reviewer: '.github/agent-sops/task-reviewer.sop.md',
     refiner: '.github/agent-sops/task-refiner.sop.md',
+    tester: '.github/agent-sops/task-tester.sop.md',
   };
   const scriptFile = sopFiles[mode] || sopFiles.refiner;
 
@@ -94,11 +95,13 @@ module.exports = async (context, github, core, inputs) => {
     const { issueId, command, issue } = await getIssueInfo(github, context, inputs);
 
     const isPullRequest = !!issue.data.pull_request;
-    const mode = command.startsWith('review')
-      ? 'reviewer'
-      : isPullRequest || command.startsWith('implement')
-        ? 'implementer'
-        : 'refiner';
+    const mode = command.startsWith('test')
+      ? 'tester'
+      : command.startsWith('review')
+        ? 'reviewer'
+        : isPullRequest || command.startsWith('implement')
+          ? 'implementer'
+          : 'refiner';
     console.log(`Is PR: ${isPullRequest}, Mode: ${mode}`);
 
     const branchName = await determineBranch(github, context, issueId, mode, isPullRequest);
@@ -113,6 +116,7 @@ module.exports = async (context, github, core, inputs) => {
     core.setOutput('session_id', sessionId);
     core.setOutput('system_prompt', systemPrompt);
     core.setOutput('prompt', prompt);
+    core.setOutput('mode', mode);
   } catch (error) {
     const errorMsg = `Failed: ${error.message}`;
     console.error(errorMsg);

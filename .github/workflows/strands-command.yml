@@ -94,6 +94,21 @@ jobs:
             };
             await processInputs(context, github, core, inputs);
 
+      - name: Setup Node.js (tester mode)
+        if: steps.process-inputs.outputs.mode == 'tester'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Build CLI and TUI harness (tester mode)
+        if: steps.process-inputs.outputs.mode == 'tester'
+        run: |
+          npm ci
+          npm run build
+          npm run build:harness
+          npm install -g "$(npm pack | tail -1)"
+
       - name: Run Strands Agent
         uses: ./.github/actions/strands-action
         with:
@@ -102,6 +117,9 @@ jobs:
           provider: 'bedrock'
           model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
           tools: 'strands_tools:shell,retrieve'
+          mcp_servers:
+            ${{ steps.process-inputs.outputs.mode == 'tester' &&
+            '{"mcpServers":{"tui-harness":{"command":"node","args":["dist/mcp-harness/index.mjs"]}}}' || '' }}
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
           aws_region: 'us-west-2'
           pat_token: ${{ secrets.GITHUB_TOKEN }}
