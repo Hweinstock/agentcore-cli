@@ -86,6 +86,10 @@ export class CDKRenderer {
     }
     logger?.logSubStep(`npm install completed (${(installDuration / 1000).toFixed(1)}s)`);
 
+    // If the CLI was built with a bundled CDK constructs tarball (via npm run bundle),
+    // install it to override the registry version. This is a no-op for normal builds.
+    await this.installBundledCdkIfPresent(outputDir, logger);
+
     // Format the CDK project files
     logger?.logSubStep('Running npm run format...');
     logger?.logCommand('npm', ['run', 'format']);
@@ -114,6 +118,39 @@ export class CDKRenderer {
     const readmeSrc = path.join(this.assetsDir, 'README.md');
     const readmeDest = path.join(projectRoot, 'README.md');
     await fs.copyFile(readmeSrc, readmeDest);
+  }
+
+  private async installBundledCdkIfPresent(cdkProjectDir: string, logger?: CreateLogger): Promise<void> {
+    const bundledTarball = path.join(this.assetsDir, 'bundled-agentcore-cdk.tgz');
+
+    try {
+      await fs.access(bundledTarball);
+    } catch {
+      // No bundled tarball — normal build, nothing to do
+      return;
+    }
+
+    // Copy tarball into the CDK project so npm resolves a clean local path
+    const localTarball = path.join(cdkProjectDir, 'bundled-agentcore-cdk.tgz');
+    await fs.copyFile(bundledTarball, localTarball);
+
+    logger?.logSubStep('Installing bundled @aws/agentcore-cdk override...');
+    const result = await runSubprocessCapture('npm', ['install', './bundled-agentcore-cdk.tgz'], {
+      cwd: cdkProjectDir,
+    });
+    if (result.stdout) {
+      logger?.logCommandOutput(result.stdout);
+    }
+    if (result.stderr) {
+      logger?.logCommandOutput(result.stderr);
+    }
+    if (result.code !== 0) {
+      throw new Error(`Failed to install bundled @aws/agentcore-cdk: ${result.stderr}`);
+    }
+
+    // Keep the tarball in the project so the file: reference in package.json
+    // stays valid for future npm install runs.
+    logger?.logSubStep('Bundled @aws/agentcore-cdk installed');
   }
 
   private async writeLlmContext(configDir: string): Promise<void> {
