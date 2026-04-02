@@ -115,12 +115,14 @@ jobs:
           npm run build
           npm run build:harness
           npm install -g "$(npm pack | tail -1)"
-          cp dist/mcp-harness/index.mjs /tmp/mcp-harness.mjs
+          mkdir -p /tmp/mcp-harness
+          cp dist/mcp-harness/index.mjs /tmp/mcp-harness/index.mjs
+          cd /tmp/mcp-harness && npm init -y && npm install node-pty @xterm/headless express
 
       - name: Set MCP harness path
         if: steps.process-inputs.outputs.mode == 'tester'
         id: mcp-config
-        run: echo "mcp_servers={\"mcpServers\":{\"tui-harness\":{\"command\":\"node\",\"args\":[\"/tmp/mcp-harness.mjs\"]}}}" >> "$GITHUB_OUTPUT"
+        run: echo "mcp_servers={\"mcpServers\":{\"tui-harness\":{\"command\":\"node\",\"args\":[\"/tmp/mcp-harness/index.mjs\"]}}}" >> "$GITHUB_OUTPUT"
 
       - name: Run Strands Agent
         uses: ./.github/actions/strands-action
