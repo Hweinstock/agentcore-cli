@@ -14,6 +14,9 @@ You have TUI harness MCP tools: `tui_launch`, `tui_send_keys`, `tui_action`, `tu
 
 You also have `shell` for setup commands and GitHub tools for posting comments.
 
+**Important:** Always use `aws/agentcore-cli` as the repository for all GitHub API calls (get PR, post comments, etc.),
+not the fork repository.
+
 ## Steps
 
 ### 1. Setup

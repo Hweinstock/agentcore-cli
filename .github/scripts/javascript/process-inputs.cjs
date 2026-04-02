@@ -85,7 +85,9 @@ function buildPrompts(mode, issueId, isPullRequest, command, branchName, inputs)
   const systemPrompt = fs.readFileSync(scriptFile, 'utf8');
 
   let prompt = isPullRequest ? 'The pull request id is:' : 'The issue id is:';
-  prompt += `${issueId}\n${command}\nreview and continue`;
+  prompt += `${issueId}\n`;
+  prompt += `The repository is: aws/agentcore-cli\n`;
+  prompt += `${command}\nreview and continue`;
 
   return { sessionId, systemPrompt, prompt };
 }
