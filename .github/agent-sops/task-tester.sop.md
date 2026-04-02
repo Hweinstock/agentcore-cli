@@ -35,21 +35,19 @@ For each flow in the test spec:
 3. Follow the flow steps: use `tui_action` (preferred — combines send + wait + read in one call) or `tui_wait_for` +
    `tui_send_keys` for multi-step interactions
 4. Verify each expectation against the screen content
-5. On **pass**: use `tui_screenshot` with `format: "svg"` and `savePath: "/tmp/tui-screenshots/<flow-name>-pass.svg"` to
-   capture the final state, then record the flow name as passed
-6. On **failure**: use `tui_screenshot` with `format: "svg"` and `savePath: "/tmp/tui-screenshots/<flow-name>-fail.svg"`
-   to capture the terminal state, also take a text screenshot for the PR comment, record the flow name, expected
-   behavior, actual behavior, and the screenshot text
+5. **MUST** take a screenshot before closing every session: call `tui_screenshot` with `sessionId`, `format: "svg"`, and
+   `savePath: "/tmp/tui-screenshots/<flow-name>.svg"` (use kebab-case for flow names, e.g. `help-text.svg`,
+   `create-wizard.svg`). This is required for both pass and fail.
+6. On **failure**: also take a text-format screenshot for the PR comment body. Record the flow name, expected behavior,
+   actual behavior, and the text screenshot.
 7. Always `tui_close` the session when done, even on failure
 
 **Constraints:**
 
-- Create `/tmp/tui-screenshots/` at the start before running any flows
+- Run `mkdir -p /tmp/tui-screenshots` via `shell` as your very first action
+- Every flow MUST produce an SVG file in `/tmp/tui-screenshots/` — if a flow has no screenshot, it is considered
+  incomplete
 - Use `timeoutMs: 10000` (10 seconds) minimum for all `tui_wait_for` and `tui_action` pattern waits
-- Use small terminal dimensions: `cols: 100, rows: 24`
-- If a wait times out, retry once before declaring failure
-- Use text format screenshots only (not SVG)
-- Keep terminal dimensions consistent across all flows
 
 ### 3. Post Results
 
