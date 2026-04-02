@@ -178,10 +178,12 @@ export type LifecycleConfiguration = z.infer<typeof LifecycleConfigurationSchema
 export const AgentEnvSpecSchema = z
   .object({
     name: AgentNameSchema,
+    /** Optional description for the runtime. */
+    description: z.string().max(200).optional(),
     build: BuildTypeSchema,
     entrypoint: EntrypointSchema,
     codeLocation: DirectoryPathSchema,
-    runtimeVersion: RuntimeVersionSchemaFromConstants,
+    runtimeVersion: RuntimeVersionSchemaFromConstants.optional(),
     /** Environment variables to set on the runtime */
     envVars: z.array(EnvVarSchema).optional(),
     /** Network mode for the runtime. Defaults to PUBLIC. */

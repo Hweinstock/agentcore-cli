@@ -84,3 +84,28 @@ export interface ImportResult {
   stackName?: string;
   logPath?: string;
 }
+
+/**
+ * Result for single-resource import (runtime or memory).
+ */
+export interface ImportResourceResult {
+  success: boolean;
+  error?: string;
+  resourceType: 'runtime' | 'memory';
+  resourceName: string;
+  resourceId?: string;
+  logPath?: string;
+}
+
+/**
+ * Options shared across import subcommands.
+ */
+export interface ImportResourceOptions {
+  arn?: string;
+  code?: string;
+  target?: string;
+  name?: string;
+  entrypoint?: string;
+  yes?: boolean;
+  onProgress?: (message: string) => void;
+}
