@@ -116,6 +116,11 @@ jobs:
           npm run build:harness
           npm install -g "$(npm pack | tail -1)"
 
+      - name: Set MCP harness path
+        if: steps.process-inputs.outputs.mode == 'tester'
+        id: mcp-config
+        run: echo "mcp_servers={\"mcpServers\":{\"tui-harness\":{\"command\":\"node\",\"args\":[\"${{ github.workspace }}/dist/mcp-harness/index.mjs\"]}}}" >> "$GITHUB_OUTPUT"
+
       - name: Run Strands Agent
         uses: ./.github/actions/strands-action
         with:
@@ -124,9 +129,7 @@ jobs:
           provider: 'bedrock'
           model: 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'
           tools: 'strands_tools:shell,retrieve'
-          mcp_servers:
-            ${{ steps.process-inputs.outputs.mode == 'tester' &&
-            format('{"mcpServers":{"tui-harness":{"command":"node","args":["{0}/dist/mcp-harness/index.mjs"]}}}', github.workspace) || '' }}
+          mcp_servers: ${{ steps.mcp-config.outputs.mcp_servers || '' }}
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
           aws_region: 'us-west-2'
           pat_token: ${{ secrets.GITHUB_TOKEN }}
