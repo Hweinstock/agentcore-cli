@@ -141,6 +141,14 @@ jobs:
           S3_SESSION_BUCKET: ${{ secrets.AGENT_SESSIONS_BUCKET }}
           BRANCH_NAME: ${{ steps.process-inputs.outputs.branch_name }}
 
+      - name: Upload TUI screenshots
+        if: always() && steps.process-inputs.outputs.mode == 'tester'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tui-screenshots
+          path: /tmp/tui-screenshots/
+          if-no-files-found: ignore
+
       - name: Remove strands-running label
         if: always()
         uses: actions/github-script@v8
