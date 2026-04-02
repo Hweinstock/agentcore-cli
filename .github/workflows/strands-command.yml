@@ -70,6 +70,7 @@ jobs:
           fetch-depth: 0
 
       - name: Add strands-running label
+        continue-on-error: true
         uses: actions/github-script@v8
         with:
           script: |
@@ -86,6 +87,10 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
+            // When dispatched from a fork, point API calls at the upstream repo
+            if (context.eventName === 'workflow_dispatch' && context.repo.owner !== 'aws') {
+              context.repo = { owner: 'aws', repo: 'agentcore-cli' };
+            }
             const processInputs = require('./.github/scripts/javascript/process-inputs.cjs');
             const inputs = {
               issue_id: '${{ inputs.issue_id }}',
