@@ -87,9 +87,11 @@ jobs:
         uses: actions/github-script@v8
         with:
           script: |
-            // When dispatched from a fork, point API calls at the upstream repo
+            // When dispatched from a fork, override the repo getter to point at upstream
             if (context.eventName === 'workflow_dispatch' && context.repo.owner !== 'aws') {
-              context.repo = { owner: 'aws', repo: 'agentcore-cli' };
+              Object.defineProperty(context, 'repo', {
+                get: () => ({ owner: 'aws', repo: 'agentcore-cli' })
+              });
             }
             const processInputs = require('./.github/scripts/javascript/process-inputs.cjs');
             const inputs = {
