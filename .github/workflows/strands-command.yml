@@ -126,7 +126,7 @@ jobs:
           tools: 'strands_tools:shell,retrieve'
           mcp_servers:
             ${{ steps.process-inputs.outputs.mode == 'tester' &&
-            '{"mcpServers":{"tui-harness":{"command":"node","args":["dist/mcp-harness/index.mjs"]}}}' || '' }}
+            format('{"mcpServers":{"tui-harness":{"command":"node","args":["{0}/dist/mcp-harness/index.mjs"]}}}', github.workspace) || '' }}
           aws_role_arn: ${{ secrets.AWS_ROLE_ARN }}
           aws_region: 'us-west-2'
           pat_token: ${{ secrets.GITHUB_TOKEN }}
