@@ -98,4 +98,4 @@ Do not rely solely on what the TUI displays. Confirm the CLI actually did what i
 - Do NOT run git commands (add, commit, push)
 - Do NOT create or update branches
 - Do NOT approve or merge the pull request
-- Do NOT deploy or create AWS resources
+- Do NOT deploy or create AWS resources unless the test flow explicitly requires it
