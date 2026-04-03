@@ -35,27 +35,40 @@ Check the command text in the prompt:
   the appropriate `args`.
 - For non-interactive commands (e.g., `--json` output), prefer `shell` over `tui_launch`.
 
-### 2. Run Test Flows
+### 3. Run Test Flows
 
-For each flow in the test spec:
+For each flow:
 
 1. Create any required setup (e.g., temp directories, minimal projects) using `shell`
 2. Use `tui_launch` to start the CLI with the specified arguments and `cwd`
 3. Follow the flow steps: use `tui_action` (preferred — combines send + wait + read in one call) or `tui_wait_for` +
    `tui_send_keys` for multi-step interactions
 4. Verify each expectation against the screen content
-5. **MUST** take a screenshot before closing every session: call `tui_screenshot` with `sessionId`, `format: "svg"`, and
-   `savePath: "/tmp/tui-screenshots/<flow-name>.svg"` (use kebab-case for flow names, e.g. `help-text.svg`,
-   `create-wizard.svg`). This is required for both pass and fail.
-6. On **failure**: also take a text-format screenshot for the PR comment body. Record the flow name, expected behavior,
-   actual behavior, and the text screenshot.
+5. Take a screenshot — see Screenshot Rules below
+6. On **failure**: also read the screen text for the PR comment body. Record the flow name, expected behavior, actual
+   behavior, and the screen text.
 7. Always `tui_close` the session when done, even on failure
+
+### Screenshot Rules
+
+**NEVER save .txt files. ONLY save .svg files.**
+
+Every flow MUST produce exactly one SVG screenshot saved to `/tmp/tui-screenshots/`. Use this exact tool call pattern:
+
+```
+tui_screenshot(sessionId=<id>, format="svg", savePath="/tmp/tui-screenshots/<flow-name>.svg")
+```
+
+- File extension MUST be `.svg`, NEVER `.txt` or `.png`
+- The `format` parameter MUST be `"svg"`, NEVER `"text"`
+- Take the screenshot WHILE the TUI session is still alive (before the process exits)
+- For commands that exit immediately (like `--help`): take the screenshot right after `tui_wait_for` succeeds
+- For interactive wizards: take the screenshot at the most interesting step before pressing the final Enter
+- If a session has already exited, that flow's screenshot is skipped — do NOT save a text file as a substitute
 
 **Constraints:**
 
 - Run `mkdir -p /tmp/tui-screenshots` via `shell` as your very first action
-- Every flow MUST produce an SVG file in `/tmp/tui-screenshots/` — if a flow has no screenshot, it is considered
-  incomplete
 - Use `timeoutMs: 10000` (10 seconds) minimum for all `tui_wait_for` and `tui_action` pattern waits
 
 ### 3. Post Results
