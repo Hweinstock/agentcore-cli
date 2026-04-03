@@ -122,7 +122,10 @@ jobs:
       - name: Set MCP harness path
         if: steps.process-inputs.outputs.mode == 'tester'
         id: mcp-config
-        run: echo "mcp_servers={\"mcpServers\":{\"tui-harness\":{\"command\":\"node\",\"args\":[\"/tmp/mcp-harness/index.mjs\"]}}}" >> "$GITHUB_OUTPUT"
+        run:
+          echo
+          "mcp_servers={\"mcpServers\":{\"tui-harness\":{\"command\":\"node\",\"args\":[\"/tmp/mcp-harness/index.mjs\"]}}}"
+          >> "$GITHUB_OUTPUT"
 
       - name: Run Strands Agent
         uses: ./.github/actions/strands-action
