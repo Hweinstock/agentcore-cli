@@ -87,7 +87,18 @@ function buildPrompts(mode, issueId, isPullRequest, command, branchName, inputs)
   let prompt = isPullRequest ? 'The pull request id is:' : 'The issue id is:';
   prompt += `${issueId}\n`;
   prompt += `The repository is: aws/agentcore-cli\n`;
-  prompt += `${command}\nreview and continue`;
+
+  if (mode === 'tester') {
+    const flowDescription = command.replace(/^test\s*/, '').trim();
+    if (flowDescription) {
+      prompt += `Run this ad-hoc test flow: ${flowDescription}\n`;
+    } else {
+      prompt += `Run all predefined test flows from .github/agent-sops/tui-test-flows.md\n`;
+    }
+  } else {
+    prompt += `${command}\n`;
+  }
+  prompt += 'review and continue';
 
   return { sessionId, systemPrompt, prompt };
 }

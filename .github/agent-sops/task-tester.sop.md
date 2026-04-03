@@ -19,9 +19,18 @@ not the fork repository.
 
 ## Steps
 
-### 1. Setup
+### 1. Determine Mode
 
-- Read the test spec file at `.github/agent-sops/tui-test-flows.md`
+Check the command text in the prompt:
+
+- If the command is just `test` (no additional text): run **all predefined flows** from
+  `.github/agent-sops/tui-test-flows.md`
+- If the command is `test <description>` (has text after "test"): run **only the described ad-hoc flow**. The text after
+  "test" describes what to test. Design the flow yourself using the TUI harness tools, following the same patterns as
+  the predefined flows.
+
+### 2. Setup
+
 - The CLI is installed globally as `agentcore`. Launch TUI sessions using `tui_launch` with `command: "agentcore"` and
   the appropriate `args`.
 - For non-interactive commands (e.g., `--json` output), prefer `shell` over `tui_launch`.
