@@ -108,13 +108,11 @@ module.exports = async (context, github, core, inputs) => {
     const { issueId, command, issue } = await getIssueInfo(github, context, inputs);
 
     const isPullRequest = !!issue.data.pull_request;
-    const mode = command.startsWith('test')
-      ? 'tester'
-      : command.startsWith('review')
-        ? 'reviewer'
-        : isPullRequest || command.startsWith('implement')
-          ? 'implementer'
-          : 'refiner';
+
+    const COMMAND_MODES = { test: 'tester', review: 'reviewer', implement: 'implementer' };
+    const mode =
+      Object.entries(COMMAND_MODES).find(([prefix]) => command.startsWith(prefix))?.[1] ??
+      (isPullRequest ? 'implementer' : 'refiner');
     console.log(`Is PR: ${isPullRequest}, Mode: ${mode}`);
 
     const branchName = await determineBranch(github, context, issueId, mode, isPullRequest);
