@@ -31,7 +31,7 @@ export const COMMAND_DESCRIPTIONS = {
   /** Main program description */
   program: 'Build and deploy Agentic AI applications on AgentCore',
   /** Command descriptions */
-  add: 'Add resources (agent, evaluator, online-eval, memory, credential, target)',
+  add: 'Add resources to project config.',
   create: 'Create a new AgentCore project',
   deploy: 'Deploy project infrastructure to AWS via CDK.',
   dev: 'Launch local dev server, or invoke an agent locally.',
