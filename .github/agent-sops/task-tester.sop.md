@@ -66,14 +66,31 @@ Post a single PR comment:
 **Expected:** what should have happened **Actual:** what happened
 
 <details>
-<summary>Screenshot</summary>
+<summary>Terminal output</summary>
+```
 
-(paste screen text here)
+(paste tui_read_screen text output here)
+
+```
 
 </details>
 ```
 
 If all flows pass, omit the Failed section.
+
+For failures, use `tui_read_screen` to capture the terminal text and paste it in the comment. SVG screenshots are
+uploaded as workflow artifacts separately — do not try to embed them in the comment.
+
+## Verification
+
+After each flow completes, verify the side effects — not just the TUI output:
+
+- If a project was created: use `shell` to check the directory exists and contains expected files (e.g.
+  `agentcore.json`)
+- If a resource was added: use `shell` to check the config file was updated
+- If a command produced output: verify the output matches expectations
+
+Do not rely solely on what the TUI displays. Confirm the CLI actually did what it claimed.
 
 ## Forbidden Actions
 
