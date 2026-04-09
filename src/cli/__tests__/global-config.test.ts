@@ -1,4 +1,9 @@
-import { getOrCreateInstallationId, readGlobalConfig, updateGlobalConfig } from '../global-config';
+import {
+  getOrCreateInstallationId,
+  readGlobalConfig,
+  readGlobalConfigSync,
+  updateGlobalConfig,
+} from '../../lib/schemas/io/global-config';
 import { createTempConfig } from './helpers/temp-config';
 import { readFile, writeFile } from 'fs/promises';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -36,6 +41,21 @@ describe('global-config', () => {
       const config = await readGlobalConfig(tmp.configFile);
 
       expect(config).toEqual(full);
+    });
+  });
+
+  describe('readGlobalConfigSync', () => {
+    it('returns parsed config when file exists', async () => {
+      await writeFile(tmp.configFile, JSON.stringify({ telemetry: { enabled: false } }));
+
+      expect(readGlobalConfigSync(tmp.configFile)).toEqual({ telemetry: { enabled: false } });
+    });
+
+    it('returns empty object when file is missing or invalid', async () => {
+      expect(readGlobalConfigSync(tmp.testDir + '/nonexistent.json')).toEqual({});
+
+      await writeFile(tmp.configFile, 'not json');
+      expect(readGlobalConfigSync(tmp.configFile)).toEqual({});
     });
   });
 

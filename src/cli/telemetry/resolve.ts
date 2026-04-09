@@ -1,4 +1,4 @@
-import { readGlobalConfig } from '../global-config.js';
+import { readGlobalConfig } from '../../lib/schemas/io/global-config.js';
 
 export interface TelemetryPreference {
   enabled: boolean;
