@@ -9,7 +9,6 @@
  * --snapshot  Append the short git commit hash to the version (e.g. 0.8.0-sha.abc1234)
  *             so pre-release tarballs are traceable to a specific commit.
  */
-
 import { execSync } from 'node:child_process';
 import { readFileSync, writeFileSync } from 'node:fs';
 

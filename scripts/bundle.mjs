@@ -81,17 +81,18 @@ function resolveCdkPath() {
 
 log('Starting bundle process...');
 
-const timestamp = Math.floor(Date.now() / 1000);
-log(`Bundle timestamp: ${timestamp}`);
+function getCommitHash(cwd) {
+  return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { cwd, encoding: 'utf-8' }).trim();
+}
 
-// Helper to bump a package version with a unique e2e timestamp tag.
 // Saves the original version so it can be restored after packing.
 function bumpVersion(pkgDir) {
   const pkgJsonPath = path.join(pkgDir, 'package.json');
   const pkg = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf8'));
   const originalVersion = pkg.version;
   const baseVersion = originalVersion.split('-')[0];
-  pkg.version = `${baseVersion}-${timestamp}`;
+  const hash = getCommitHash(pkgDir);
+  pkg.version = `${baseVersion}-sha.${hash}`;
   fs.writeFileSync(pkgJsonPath, JSON.stringify(pkg, null, 2) + '\n');
   log(`Bumped ${pkg.name} version: ${originalVersion} -> ${pkg.version}`);
   return { pkgJsonPath, originalVersion, bumpedVersion: pkg.version };
