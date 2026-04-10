@@ -43,8 +43,7 @@ jobs:
           git config --global user.name "CI"
       - uses: astral-sh/setup-uv@v7
       - run: npm ci
-      - run: npm run build --if-present
-      - run: npm pack
+      - run: npm run package -- --snapshot
       - name: Get tarball info
         id: tarball
         run: |

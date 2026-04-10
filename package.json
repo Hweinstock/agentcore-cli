@@ -57,6 +57,7 @@
     "lint:fix": "eslint src/ --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "package": "node scripts/package.mjs",
     "secrets:check": "secretlint '**/*'",
     "security:audit": "npm audit --audit-level=high --omit=dev",
     "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
