@@ -520,50 +520,55 @@ export function computePage(
 ): PageData {
   const items: (Issue | PullRequest)[] = pageConfig.dataSource === 'issues' ? issues : prs;
 
-  const sections: SectionData[] = pageConfig.sections.map((sec): SectionData => {
-    switch (sec.type) {
-      case 'stats': {
-        const result: SectionData = { config: sec, stats: computeStats(sec.metrics, items) };
-        if (sec.windows) {
-          const now = new Date();
-          result.windowedStats = Object.fromEntries(
-            sec.windows.map(w => {
-              const cutoff = new Date(now.getTime() - w.days * MS_PER_DAY);
-              const filtered = items.filter(i => i.created >= cutoff);
-              return [w.label, computeStats(sec.metrics, filtered)];
-            })
-          );
+  function computeSections(sectionItems: (Issue | PullRequest)[]): SectionData[] {
+    return pageConfig.sections.map((sec): SectionData => {
+      switch (sec.type) {
+        case 'stats':
+          return { config: sec, stats: computeStats(sec.metrics, sectionItems) };
+        case 'timeline':
+          return { config: sec, timeline: computeTimeline(sec.bucket, sec.series, sectionItems) };
+        case 'distribution':
+          return { config: sec, chart: computeDistribution(sec.field, sectionItems) };
+        case 'histogram': {
+          const h = computeHistogram(sec.field, sec.buckets, sectionItems, sec.groupBy);
+          return { config: sec, ...h };
         }
-        return result;
+        case 'table':
+          return { config: sec, table: computeTable(sec, sectionItems) };
+        case 'termFrequency': {
+          const tf = computeTermFrequency(sec.filter, sec.minCount, sectionItems.filter(isIssue));
+          return { config: sec, terms: tf.terms, unusedLabels: tf.unusedLabels };
+        }
+        case 'ci':
+          return { config: sec, ci: computeCI(ciRuns ?? []) };
+        case 'trend':
+          return { config: sec, trend: computeTrend(sec.fields, sec.aggregate, sectionItems) };
+        case 'weeklyTable':
+          return { config: sec, weeklyTable: computeWeeklyTable(sec.metrics, sec.weeks, sectionItems) };
       }
-      case 'timeline':
-        return { config: sec, timeline: computeTimeline(sec.bucket, sec.series, items) };
-      case 'distribution':
-        return { config: sec, chart: computeDistribution(sec.field, items) };
-      case 'histogram': {
-        const h = computeHistogram(sec.field, sec.buckets, items, sec.groupBy);
-        return { config: sec, ...h };
-      }
-      case 'table':
-        return { config: sec, table: computeTable(sec, items) };
-      case 'termFrequency': {
-        const tf = computeTermFrequency(sec.filter, sec.minCount, items.filter(isIssue));
-        return { config: sec, terms: tf.terms, unusedLabels: tf.unusedLabels };
-      }
-      case 'ci':
-        return { config: sec, ci: computeCI(ciRuns ?? []) };
-      case 'trend':
-        return { config: sec, trend: computeTrend(sec.fields, sec.aggregate, items) };
-      case 'weeklyTable':
-        return { config: sec, weeklyTable: computeWeeklyTable(sec.metrics, sec.weeks, items) };
-    }
-  });
+    });
+  }
+
+  const sections = computeSections(items);
+
+  let windowedSections: Record<string, SectionData[]> | undefined;
+  if (pageConfig.windows) {
+    const now = new Date();
+    windowedSections = Object.fromEntries(
+      pageConfig.windows.map(w => {
+        const cutoff = new Date(now.getTime() - w.days * MS_PER_DAY);
+        const filtered = items.filter(i => i.created >= cutoff);
+        return [w.label, computeSections(filtered)];
+      })
+    );
+  }
 
   return {
     id: pageConfig.id,
     title: pageConfig.title,
     generatedAt: new Date().toISOString(),
     sections,
+    windowedSections,
   };
 }
 

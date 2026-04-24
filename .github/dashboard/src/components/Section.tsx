@@ -120,7 +120,7 @@ function WeeklyTable({ data }: { data: { weeks: string[]; rows: Record<string, (
 function SectionContent({ sectionData, index, repo }: { sectionData: SectionData; index: number; repo: string }) {
   const type = sectionData.config.type;
   if (type === 'stats' && sectionData.stats) {
-    return <StatsSection stats={sectionData.stats} windowedStats={sectionData.windowedStats} />;
+    return <StatsSection stats={sectionData.stats} />;
   }
   if (type === 'timeline' || type === 'distribution' || type === 'histogram') {
     return <ChartSection sectionData={sectionData} index={index} />;

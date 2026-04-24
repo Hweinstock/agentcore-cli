@@ -1,5 +1,5 @@
 import { PALETTE } from '../palette.js';
-import type { DashboardConfig, PageData } from '../types.js';
+import type { DashboardConfig, PageData, SectionData } from '../types.js';
 import Section from './Section.js';
 import React from 'react';
 
@@ -63,6 +63,50 @@ document.querySelectorAll('.copy-btn').forEach(function(btn){
 });
 `;
 
+const GLOBAL_TAB_SCRIPT = `
+(function(){
+  var container = document.querySelector('[data-global-tabs]');
+  if (!container) return;
+  container.querySelectorAll('.tab').forEach(function(btn){
+    btn.onclick = function(){
+      container.querySelectorAll('.tab').forEach(function(b){ b.classList.remove('active'); });
+      btn.classList.add('active');
+      document.querySelectorAll('[data-window-panel]').forEach(function(p){ p.style.display = 'none'; });
+      var target = document.querySelector('[data-window-panel="' + btn.dataset.idx + '"]');
+      if (target) target.style.display = '';
+    };
+  });
+})();
+`;
+
+function WindowedSections({ page, repo }: { page: PageData; repo: string }) {
+  const windows = page.windowedSections ?? {};
+  const tabs = ['All Time', ...Object.keys(windows)];
+  const allSections: Record<string, SectionData[]> = { 'All Time': page.sections, ...windows };
+
+  return (
+    <>
+      <div data-global-tabs="" className="tabs" style={{ marginBottom: 16 }}>
+        {tabs.map((t, j) => (
+          <button key={t} className={`tab${j === 0 ? ' active' : ''}`} data-idx={j}>
+            {t}
+          </button>
+        ))}
+      </div>
+      {tabs.map((t, j) => (
+        <div key={t} data-window-panel={j} style={j > 0 ? { display: 'none' } : undefined}>
+          <div className="grid">
+            {allSections[t].map((s, i) => (
+              <Section key={`${t}-${i}`} sectionData={s} index={j * 100 + i} repo={repo} />
+            ))}
+          </div>
+        </div>
+      ))}
+      <script dangerouslySetInnerHTML={{ __html: GLOBAL_TAB_SCRIPT }} />
+    </>
+  );
+}
+
 export default function Page({ page, config }: { page: PageData; config: DashboardConfig }) {
   const repoName = config.repo.split('/')[1];
   return (
@@ -87,11 +131,15 @@ export default function Page({ page, config }: { page: PageData; config: Dashboa
             </a>
           ))}
         </nav>
-        <div className="grid">
-          {page.sections.map((s, i) => (
-            <Section key={i} sectionData={s} index={i} repo={config.repo} />
-          ))}
-        </div>
+        {page.windowedSections ? (
+          <WindowedSections page={page} repo={config.repo} />
+        ) : (
+          <div className="grid">
+            {page.sections.map((s, i) => (
+              <Section key={i} sectionData={s} index={i} repo={config.repo} />
+            ))}
+          </div>
+        )}
         <footer>Data fetched live from GitHub API</footer>
         <script dangerouslySetInnerHTML={{ __html: COPY_SCRIPT }} />
       </body>

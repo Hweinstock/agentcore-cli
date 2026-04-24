@@ -8,6 +8,11 @@ export const config: DashboardConfig = {
       id: 'issues',
       title: 'Issues',
       dataSource: 'issues',
+      windows: [
+        { label: 'Past 24h', days: 1 },
+        { label: 'Past 7 days', days: 7 },
+        { label: 'Past 30 days', days: 30 },
+      ],
       sections: [
         {
           type: 'stats',
@@ -24,11 +29,6 @@ export const config: DashboardConfig = {
             'completed',
             'notPlanned',
             'duplicates',
-          ],
-          windows: [
-            { label: 'Past 24h', days: 1 },
-            { label: 'Past 7 days', days: 7 },
-            { label: 'Past 30 days', days: 30 },
           ],
         },
         { type: 'timeline', bucket: 'week', series: ['opened', 'closed', 'cumulativeOpen'] },
@@ -76,6 +76,11 @@ export const config: DashboardConfig = {
       id: 'prs',
       title: 'Pull Requests',
       dataSource: 'prs',
+      windows: [
+        { label: 'Past 24h', days: 1 },
+        { label: 'Past 7 days', days: 7 },
+        { label: 'Past 30 days', days: 30 },
+      ],
       sections: [
         {
           type: 'stats',
@@ -92,11 +97,6 @@ export const config: DashboardConfig = {
             'medianTTM',
             'avgTTM',
             'p90TTM',
-          ],
-          windows: [
-            { label: 'Past 24h', days: 1 },
-            { label: 'Past 7 days', days: 7 },
-            { label: 'Past 30 days', days: 30 },
           ],
         },
         { type: 'timeline', bucket: 'week', series: ['opened', 'merged', 'cumulativeOpen'] },

@@ -11,6 +11,7 @@ export interface PageConfig {
   title: string;
   dataSource: 'issues' | 'prs' | 'ci';
   sections: SectionConfig[];
+  windows?: StatsWindow[];
 }
 
 export type SectionConfig =
@@ -51,7 +52,6 @@ export type MetricKey =
 export interface StatsSection {
   type: 'stats';
   metrics: MetricKey[];
-  windows?: StatsWindow[];
 }
 
 export interface StatsWindow {
@@ -234,7 +234,6 @@ export interface TermCount {
 export interface SectionData {
   config: SectionConfig;
   stats?: StatValue[];
-  windowedStats?: Record<string, StatValue[]>;
   timeline?: WeekBucket[];
   chart?: ChartData;
   histogram?: HistogramBucket[];
@@ -252,6 +251,7 @@ export interface PageData {
   title: string;
   generatedAt: string;
   sections: SectionData[];
+  windowedSections?: Record<string, SectionData[]>;
 }
 
 // ── CI types ────────────────────────────────────────────────────────
