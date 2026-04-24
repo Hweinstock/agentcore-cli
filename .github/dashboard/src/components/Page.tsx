@@ -58,7 +58,7 @@ document.querySelectorAll('.copy-btn').forEach(function(btn){
       var rows=[].slice.call(table.querySelectorAll('tr'));
       text=rows.map(function(r){return [].slice.call(r.querySelectorAll('th,td')).map(function(c){return c.textContent.trim()}).join(' | ')}).join('\\n');
     }else{text=card.textContent.replace(/📋/g,'').trim()}
-    navigator.clipboard.writeText(text).then(function(){btn.textContent='✓';btn.classList.add('copied');setTimeout(function(){btn.textContent='📋';btn.classList.remove('copied')},1500)});
+    navigator.clipboard.writeText(text).then(function(){btn.textContent='✓';btn.classList.add('copied');setTimeout(function(){btn.textContent='📋';btn.classList.remove('copied')},1500)}).catch(function(){});
   };
 });
 `;

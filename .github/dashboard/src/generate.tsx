@@ -2,6 +2,7 @@ import { Page } from './components/index.js';
 import { config } from './config.js';
 import { fetchCIRuns, fetchIssues, fetchPRs } from './github.js';
 import { computePage, parseIssues, parsePRs } from './transform.js';
+import { transformSync } from 'esbuild';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,15 +20,8 @@ function main(): void {
   copyFileSync(chartSrc, join(outDir, 'chart.js'));
 
   const chartsClientSrc = join(__dirname, '..', 'src', 'charts.ts');
-  const chartsClient = readFileSync(chartsClientSrc, 'utf-8')
-    // Strip the declare block
-    .replace(/^declare const Chart:[\s\S]*?;\n\n/, '')
-    // Strip generic type params: <HTMLCanvasElement>, <HTMLElement>, etc.
-    .replace(/<\w+>/g, '')
-    // Strip type annotations: `: unknown`, `: string`
-    .replace(/: (unknown|string)/g, '')
-    // Strip `void` before expressions (used for floating promises)
-    .replace(/void /g, '');
+  const chartsTs = readFileSync(chartsClientSrc, 'utf-8').replace(/\/\* @strip \*\/[\s\S]*?\/\* @strip \*\/\n?/g, '');
+  const chartsClient = transformSync(chartsTs, { loader: 'ts', target: 'es2020' }).code;
   writeFileSync(join(outDir, 'charts.js'), chartsClient);
 
   const rawIssues = fetchIssues(config.repo);

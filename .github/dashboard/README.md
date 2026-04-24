@@ -5,7 +5,7 @@
 ```bash
 cd .github/dashboard
 npm install
-npx tsx src/generate.ts
+npx tsx src/generate.tsx
 npx serve site -l 8901
 ```
 

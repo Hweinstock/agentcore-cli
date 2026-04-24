@@ -18,6 +18,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -30,7 +31,7 @@ jobs:
         working-directory: .github/dashboard
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx tsx src/generate.ts
+        run: npx tsx src/generate.tsx
       - uses: actions/upload-pages-artifact@v3
         with:
           path: .github/dashboard/site

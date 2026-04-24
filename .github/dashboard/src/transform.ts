@@ -460,7 +460,6 @@ const STOP_WORDS = new Set([
 ]);
 
 function computeTermFrequency(
-  _field: string,
   filter: { labeled: boolean },
   minCount: number,
   items: Issue[]
@@ -527,7 +526,7 @@ export function computePage(
       case 'table':
         return { config: sec, table: computeTable(sec, items) };
       case 'termFrequency': {
-        const tf = computeTermFrequency(sec.field, sec.filter, sec.minCount, items as Issue[]);
+        const tf = computeTermFrequency(sec.filter, sec.minCount, items.filter(isIssue));
         return { config: sec, terms: tf.terms, unusedLabels: tf.unusedLabels };
       }
       case 'ci':
