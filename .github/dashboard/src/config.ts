@@ -133,6 +133,7 @@ export const config: DashboardConfig = {
           type: 'ci',
           workflows: ['Build and Test', 'E2E Tests (Full Suite)', 'E2E Tests'],
           branch: 'main',
+          // 900 runs ÷ 3 workflows = 300 per workflow, ~120 failed-run job fetches
           maxRuns: 900,
         },
       ],

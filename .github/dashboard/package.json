@@ -3,11 +3,14 @@
   "type": "module",
   "scripts": {
     "generate": "tsx src/generate.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "devDependencies": {
-    "tsx": "^4.19.0",
-    "typescript": "^5.5.0"
+    "@types/node": "20.17.57",
+    "tsx": "4.19.4",
+    "typescript": "5.8.3",
+    "vitest": "3.2.1"
   },
   "dependencies": {
     "chart.js": "4.5.1"

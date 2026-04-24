@@ -20,13 +20,13 @@ import type {
 const MS_PER_HOUR = 3_600_000;
 const MS_PER_DAY = 86_400_000;
 
-function formatHours(h: number): string {
+export function formatHours(h: number): string {
   if (h < 1) return `${Math.round(h * 60)}m`;
   if (h < 24) return `${h.toFixed(1)}h`;
   return `${(h / 24).toFixed(1)}d`;
 }
 
-function percentiles(vals: number[]): { median: number; avg: number; p90: number } {
+export function percentiles(vals: number[]): { median: number; avg: number; p90: number } {
   if (vals.length === 0) return { median: 0, avg: 0, p90: 0 };
   const sorted = [...vals].sort((a, b) => a - b);
   const median = sorted[Math.floor(sorted.length / 2)] ?? 0;
@@ -139,7 +139,7 @@ export function parsePRs(raw: GHPullRequestNode[]): PullRequest[] {
 
 // ── Stats ───────────────────────────────────────────────────────────
 
-function computeStats(metrics: string[], items: (Issue | PullRequest)[]): StatValue[] {
+export function computeStats(metrics: string[], items: (Issue | PullRequest)[]): StatValue[] {
   const issues = items.filter(isIssue);
   const prs = items.filter((i): i is PullRequest => !isIssue(i));
 
@@ -300,12 +300,12 @@ function extractNumericField(field: string, item: Issue | PullRequest): number |
   return null;
 }
 
-function bucketLabel(low: number, high: number | undefined): string {
+export function bucketLabel(low: number, high: number | undefined): string {
   if (high === undefined) return `>${formatHours(low)}`;
   return `${formatHours(low)}-${formatHours(high)}`;
 }
 
-function buildHistogram(values: number[], buckets: number[]): HistogramBucket[] {
+export function buildHistogram(values: number[], buckets: number[]): HistogramBucket[] {
   return buckets.map((low, i) => {
     const high = buckets[i + 1];
     const label = i === 0 ? `<${formatHours(high ?? low)}` : bucketLabel(low, high);

@@ -1,6 +1,7 @@
 import type { GHIssue, GHPullRequestNode, RunConclusion, WorkflowJob, WorkflowRun } from './types.js';
 import { execFileSync } from 'node:child_process';
 
+// 50MB buffer handles large paginated API responses (~10MB typical for 900 CI runs)
 const EXEC_OPTS = { encoding: 'utf-8' as const, maxBuffer: 50 * 1024 * 1024 };
 
 function ghApi(...args: string[]): string {
@@ -100,7 +101,13 @@ export function fetchCIRuns(repo: string, workflowNames: string[], branch: strin
     'fetchCIRuns workflows'
   );
   const matched = wfList.filter(w => workflowNames.includes(w.name));
+  if (matched.length === 0) {
+    throw new Error(
+      `No workflows found matching: ${workflowNames.join(', ')}\nAvailable: ${wfList.map(w => w.name).join(', ')}`
+    );
+  }
   const runs: WorkflowRun[] = [];
+  // Distribute maxRuns evenly across workflows, staying under GitHub API rate limit (5000/hour)
   const perWf = Math.ceil(maxRuns / matched.length);
 
   for (const wf of matched) {

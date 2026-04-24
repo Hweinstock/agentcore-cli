@@ -1,6 +1,6 @@
 /* eslint-disable */
 // @ts-nocheck
-// Client-side dashboard rendering. Injected placeholders: __DATA__, __REPO__, __CHART_COLORS__, __PALETTE__
+// Client-side dashboard rendering. Placeholders are injected at build time.
 
 const D = __DATA__;
 const REPO = __REPO__;
