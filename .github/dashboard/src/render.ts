@@ -108,7 +108,7 @@ export function renderPage(page: PageData, config: DashboardConfig): string {
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${page.title} — ${config.repo} Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4">${SCRIPT_CLOSE}
+<script src="chart.js">${SCRIPT_CLOSE}
 ${renderCSS()}</head><body>
 <h1>📊 ${config.repo.split('/')[1]} Dashboard</h1>
 <p class="sub">Generated: ${page.generatedAt} · <a href="https://github.com/${config.repo}">${config.repo}</a></p>

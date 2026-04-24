@@ -1,8 +1,8 @@
-import { computePage, parseIssues, parsePRs } from './transform.js';
 import { config } from './config.js';
 import { fetchCIRuns, fetchIssues, fetchPRs } from './github.js';
 import { renderPage } from './render.js';
-import { mkdirSync, writeFileSync } from 'fs';
+import { computePage, parseIssues, parsePRs } from './transform.js';
+import { copyFileSync, mkdirSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -11,6 +11,10 @@ const outDir = join(__dirname, '..', config.outputDir);
 
 function main(): void {
   mkdirSync(outDir, { recursive: true });
+
+  // Copy chart.js to site/ for self-contained output
+  const chartSrc = join(__dirname, '..', 'node_modules', 'chart.js', 'dist', 'chart.umd.js');
+  copyFileSync(chartSrc, join(outDir, 'chart.js'));
 
   const rawIssues = fetchIssues(config.repo);
   const issues = parseIssues(rawIssues);
