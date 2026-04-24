@@ -1,21 +1,35 @@
 import type { DashboardConfig, PageData, SectionData } from './types.js';
 
-export function renderPage(page: PageData, config: DashboardConfig): string {
-  const nav = config.pages
-    .map(p => `<a href="${p.id}.html"${p.id === page.id ? ' class="active"' : ''}>${p.title}</a>`)
-    .join('');
+const PALETTE = {
+  bg: '#0d1117',
+  card: '#161b22',
+  text: '#e6edf3',
+  border: '#30363d',
+  dim: '#8b949e',
+  accent: '#58a6ff',
+  green: '#3fb950',
+  red: '#f85149',
+  yellow: '#d29922',
+  purple: '#bc8cff',
+} as const;
+const CHART_COLORS = [
+  PALETTE.accent,
+  PALETTE.green,
+  PALETTE.red,
+  PALETTE.yellow,
+  PALETTE.purple,
+  '#f778ba',
+  '#79c0ff',
+  '#7ee787',
+  '#ffa657',
+  '#ff7b72',
+];
 
-  const sections = page.sections.map((s, i) => renderSection(s, i)).join('\n');
+const SCRIPT_CLOSE = '<' + '/script>';
 
-  return (
-    `<!DOCTYPE html>
-<html lang="en"><head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${page.title} — ${config.repo} Dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></` +
-    `script>
-<style>
-:root{--bg:#0d1117;--card:#161b22;--text:#e6edf3;--border:#30363d;--dim:#8b949e;--accent:#58a6ff;--green:#3fb950;--red:#f85149;--yellow:#d29922;--purple:#bc8cff}
+function renderCSS(): string {
+  return `<style>
+:root{--bg:${PALETTE.bg};--card:${PALETTE.card};--text:${PALETTE.text};--border:${PALETTE.border};--dim:${PALETTE.dim};--accent:${PALETTE.accent};--green:${PALETTE.green};--red:${PALETTE.red};--yellow:${PALETTE.yellow};--purple:${PALETTE.purple}}
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:14px;padding:24px;max-width:1400px;margin:0 auto}
 h1{font-size:22px;margin-bottom:4px}
@@ -26,7 +40,7 @@ nav a:hover{color:var(--text);background:rgba(255,255,255,.04)}
 nav a.active{color:var(--accent);background:rgba(31,111,235,.12)}
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;margin-bottom:16px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px}
-.card h2{font-size:14px;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.card h2{font-size:14px;color:var(--accent);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border);position:relative}
 .wide{grid-column:1/-1}
 .row{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:10px}
 .st{text-align:center;flex:1;min-width:90px;padding:8px 4px}
@@ -48,7 +62,6 @@ a{color:var(--accent);text-decoration:none}
 .b-purple{background:rgba(188,140,255,.15);color:var(--purple)}
 footer{text-align:center;color:#484f58;font-size:12px;margin-top:24px;padding:16px}
 canvas{max-height:300px}
-.card h2{position:relative}
 .copy-btn{position:absolute;right:0;top:-2px;background:none;border:none;color:var(--dim);cursor:pointer;font-size:14px;padding:4px 8px;border-radius:4px}
 .copy-btn:hover{color:var(--text);background:rgba(255,255,255,.06)}
 .copied{color:var(--green)!important}
@@ -58,68 +71,70 @@ canvas{max-height:300px}
 .tab.active{color:var(--accent);background:rgba(31,111,235,.12)}
 .extra{margin-top:12px}
 .extra h4{font-size:13px;color:var(--dim);margin-bottom:8px}
-</style></head><body>
-<h1>📊 ${config.repo.split('/')[1]} Dashboard</h1>
-<p class="sub">Generated: ${page.generatedAt} · <a href="https://github.com/${config.repo}">${config.repo}</a></p>
-<nav>${nav}</nav>
-<div class="grid">${sections}</div>
-<footer>Data fetched live from GitHub API</footer>
-<script>
+</style>`;
+}
+
+function renderClientJS(page: PageData, config: DashboardConfig): string {
+  return `<script>
 const D=${JSON.stringify(page.sections)};
 const REPO="https://github.com/${config.repo}";
-const CL=['#58a6ff','#3fb950','#f85149','#d29922','#bc8cff','#f778ba','#79c0ff','#7ee787','#ffa657','#ff7b72'];
-const COL={accent:'#58a6ff',green:'#3fb950',red:'#f85149',yellow:'#d29922',purple:'#bc8cff',dim:'#484f58'};
-Chart.defaults.color='#8b949e';
-Chart.defaults.borderColor='#30363d';
+const CL=${JSON.stringify(CHART_COLORS)};
+const COL={accent:'${PALETTE.accent}',green:'${PALETTE.green}',red:'${PALETTE.red}',yellow:'${PALETTE.yellow}',purple:'${PALETTE.purple}',dim:'#484f58'};
+Chart.defaults.color='${PALETTE.dim}';
+Chart.defaults.borderColor='${PALETTE.border}';
 
-D.forEach((s,i)=>{
-  const el=document.getElementById('s'+i);
+function rateColor(pct){return pct>=90?COL.green:pct>=70?COL.yellow:COL.red;}
+
+function makeTabs(container,tabNames,renderFn){
+  let tabHtml='<div class="tabs">';
+  tabNames.forEach(function(t,j){tabHtml+='<button class="tab'+(j===0?' active':'')+'" data-idx="'+j+'">'+t+'</button>';});
+  tabHtml+='</div>';
+  let panelsHtml='';
+  tabNames.forEach(function(t,j){panelsHtml+='<div class="tab-panel" style="'+(j>0?'display:none':'')+'" data-panel="'+j+'">'+renderFn(t)+'</div>';});
+  container.innerHTML=tabHtml+panelsHtml;
+  container.querySelectorAll('.tab').forEach(function(btn){
+    btn.onclick=function(){
+      container.querySelectorAll('.tab').forEach(function(b){b.classList.remove('active');});
+      btn.classList.add('active');
+      container.querySelectorAll('.tab-panel').forEach(function(p){p.style.display='none';});
+      container.querySelector('[data-panel="'+btn.dataset.idx+'"]').style.display='';
+    };
+  });
+}
+
+D.forEach(function(s,i){
+  var el=document.getElementById('s'+i);
   if(!el)return;
-  const c=s.config;
+  var c=s.config;
 
   if(c.type==='stats'&&s.stats){
-    const primary=s.stats.slice(0,6);
-    const secondary=s.stats.slice(6);
     function renderRow(items,cls){
-      return '<div class="row'+(cls?' '+cls:'')+'">'+items.map(st=>{
-        const col=st.color?COL[st.color]||'var(--text)':'var(--text)';
+      return '<div class="row'+(cls?' '+cls:'')+'">'+items.map(function(st){
+        var col=st.color?COL[st.color]||'var(--text)':'var(--text)';
         return '<div class="st"><div class="v" style="color:'+col+'">'+st.value+'</div><div class="l">'+st.key+(st.sublabel?' ('+st.sublabel+')':'')+'</div></div>';
       }).join('')+'</div>';
     }
     function renderStats(stats){
-      const p=stats.slice(0,6),sc=stats.slice(6);
+      var p=stats.slice(0,6),sc=stats.slice(6);
       return renderRow(p,'')+renderRow(sc,'sm');
     }
-    const windows=s.windowedStats||{};
-    const tabs=['All Time',...Object.keys(windows)];
-    const allData={'All Time':s.stats,...windows};
-    let tabHtml='<div class="tabs">';
-    tabs.forEach((t,j)=>{tabHtml+='<button class="tab'+(j===0?' active':'')+'" data-idx="'+j+'">'+t+'</button>';});
-    tabHtml+='</div>';
-    let panelsHtml='';
-    tabs.forEach((t,j)=>{panelsHtml+='<div class="tab-panel" style="'+(j>0?'display:none':'')+'" data-panel="'+j+'">'+renderStats(allData[t])+'</div>';});
-    el.innerHTML=tabHtml+panelsHtml;
-    el.querySelectorAll('.tab').forEach(btn=>{
-      btn.onclick=function(){
-        el.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        el.querySelectorAll('.tab-panel').forEach(p=>p.style.display='none');
-        el.querySelector('[data-panel="'+btn.dataset.idx+'"]').style.display='';
-      };
-    });
+    var windows=s.windowedStats||{};
+    var tabs=['All Time'].concat(Object.keys(windows));
+    var allData=Object.assign({'All Time':s.stats},windows);
+    makeTabs(el,tabs,function(t){return renderStats(allData[t]);});
   }
 
   if(c.type==='timeline'&&s.timeline){
-    const labels=s.timeline.map(b=>b.week);
-    const ds=c.series.map((k,j)=>{
-      const cum=k.startsWith('cumulative');
-      return{label:k.replace(/([A-Z])/g,' $1').trim(),data:s.timeline.map(b=>b[k]||0),
+    var labels=s.timeline.map(function(b){return b.week;});
+    var ds=c.series.map(function(k,j){
+      var cum=k.startsWith('cumulative');
+      return{label:k.replace(/([A-Z])/g,' $1').trim(),data:s.timeline.map(function(b){return b[k]||0;}),
         type:cum?'line':'bar',
         backgroundColor:cum?'transparent':j===0?'rgba(210,153,34,0.7)':'rgba(63,185,80,0.7)',
-        borderColor:cum?'#58a6ff':undefined,borderWidth:cum?2:0,pointRadius:cum?2:undefined,
+        borderColor:cum?'${PALETTE.accent}':undefined,borderWidth:cum?2:0,pointRadius:cum?2:undefined,
         yAxisID:cum?'y1':'y',order:cum?0:1,borderRadius:cum?0:3};
     });
-    new Chart(el.querySelector('canvas'),{type:'bar',data:{labels,datasets:ds},
+    new Chart(el.querySelector('canvas'),{type:'bar',data:{labels:labels,datasets:ds},
       options:{responsive:true,interaction:{mode:'index'},
         plugins:{legend:{position:'bottom',labels:{boxWidth:12,padding:16}}},
         scales:{y:{beginAtZero:true,title:{display:true,text:'Weekly'}},
@@ -140,34 +155,34 @@ D.forEach((s,i)=>{
 
   if(c.type==='histogram'){
     if(s.histogramGrouped){
-      const g=s.histogramGrouped;const keys=Object.keys(g);
-      const labels=(g[keys[0]]||[]).map(b=>b.label);
-      new Chart(el.querySelector('canvas'),{type:'bar',data:{labels,
-        datasets:keys.map((k,j)=>({label:k,data:g[k].map(b=>b.count),backgroundColor:CL[j%CL.length],borderRadius:2}))},
+      var g=s.histogramGrouped;var keys=Object.keys(g);
+      var hLabels=(g[keys[0]]||[]).map(function(b){return b.label;});
+      new Chart(el.querySelector('canvas'),{type:'bar',data:{labels:hLabels,
+        datasets:keys.map(function(k,j){return{label:k,data:g[k].map(function(b){return b.count;}),backgroundColor:CL[j%CL.length],borderRadius:2};})},
         options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},scales:{y:{beginAtZero:true}}}});
     }else if(s.histogram){
-      const n=s.histogram.length;
-      const bg=s.histogram.map((_,j)=>{const t=n>1?j/(n-1):0;
+      var n=s.histogram.length;
+      var bg=s.histogram.map(function(_,j){var t=n>1?j/(n-1):0;
         return t<0.25?'rgba(63,185,80,0.7)':t<0.5?'rgba(88,166,255,0.7)':t<0.75?'rgba(210,153,34,0.7)':'rgba(248,81,73,0.7)';});
-      new Chart(el.querySelector('canvas'),{type:'bar',data:{labels:s.histogram.map(b=>b.label),
-        datasets:[{data:s.histogram.map(b=>b.count),backgroundColor:bg,borderRadius:3}]},
+      new Chart(el.querySelector('canvas'),{type:'bar',data:{labels:s.histogram.map(function(b){return b.label;}),
+        datasets:[{data:s.histogram.map(function(b){return b.count;}),backgroundColor:bg,borderRadius:3}]},
         options:{responsive:true,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true}}}});
     }
   }
 
   if(c.type==='table'&&s.table){
-    const cols=c.columns;
-    const isPR=cols.includes('draft');
-    let h='<table><thead><tr>'+cols.map(c=>'<th>'+c+'</th>').join('')+'</tr></thead><tbody>';
-    s.table.forEach(row=>{
-      h+='<tr>'+cols.map(col=>{
-        let v=row[col];
+    var cols=c.columns;
+    var isPR=cols.includes('draft');
+    var h='<table><thead><tr>'+cols.map(function(c){return '<th>'+c+'</th>';}).join('')+'</tr></thead><tbody>';
+    s.table.forEach(function(row){
+      h+='<tr>'+cols.map(function(col){
+        var v=row[col];
         if(col==='number')v='<a href="'+REPO+(isPR?'/pull/':'/issues/')+v+'">#'+v+'</a>';
-        else if(col==='labels'&&Array.isArray(v))v=v.length?v.map(l=>'<span class="b b-blue">'+l+'</span>').join(' '):'<span class="b b-red">unlabeled</span>';
+        else if(col==='labels'&&Array.isArray(v))v=v.length?v.map(function(l){return '<span class="b b-blue">'+l+'</span>';}).join(' '):'<span class="b b-red">unlabeled</span>';
         else if(col==='state')v='<span class="b '+(v==='open'?'b-green':'b-dim')+'">'+v+'</span>';
         else if(col==='draft')v=v?'<span class="b b-purple">draft</span>':'';
-        else if(col==='priority'){const colors={'P0':'b-red','P1':'b-yellow','P2':'b-blue','bug':'b-red','enhancement':'b-blue'};v=v?'<span class="b '+(colors[v]||'b-dim')+'">'+v+'</span>':'<span class="b b-dim">—</span>';}
-        else if(col==='bucket'){const colors={'needs-re-review':'b-red','needs-initial-review':'b-yellow','waiting-on-author':'b-dim','approved':'b-green','closed':'b-dim'};v='<span class="b '+(colors[v]||'b-dim')+'">'+v+'</span>';}
+        else if(col==='priority'){var colors={'P0':'b-red','P1':'b-yellow','P2':'b-blue','bug':'b-red','enhancement':'b-blue'};v=v?'<span class="b '+(colors[v]||'b-dim')+'">'+v+'</span>':'<span class="b b-dim">—</span>';}
+        else if(col==='bucket'){var colors={'needs-re-review':'b-red','needs-initial-review':'b-yellow','waiting-on-author':'b-dim','approved':'b-green','closed':'b-dim'};v='<span class="b '+(colors[v]||'b-dim')+'">'+v+'</span>';}
         else if(col==='age')v=v+'d';
         return '<td>'+v+'</td>';
       }).join('')+'</tr>';
@@ -177,129 +192,116 @@ D.forEach((s,i)=>{
 
   if(c.type==='termFrequency'){
     if(s.terms&&s.terms.length){
-      let h='<table><thead><tr><th>Term</th><th>Occurrences in Unlabeled Issues</th></tr></thead><tbody>';
-      s.terms.forEach(t=>{h+='<tr><td><span class="b b-blue">'+t.term+'</span></td><td>'+t.count+'</td></tr>';});
-      el.querySelector('.tbl').innerHTML=h+'</tbody></table>';
+      var th='<table><thead><tr><th>Term</th><th>Occurrences in Unlabeled Issues</th></tr></thead><tbody>';
+      s.terms.forEach(function(t){th+='<tr><td><span class="b b-blue">'+t.term+'</span></td><td>'+t.count+'</td></tr>';});
+      el.querySelector('.tbl').innerHTML=th+'</tbody></table>';
     }
     if(s.unusedLabels&&s.unusedLabels.length){
       el.querySelector('.extra').innerHTML='<h4>Defined but Unused Labels</h4><div>'+
-        s.unusedLabels.map(l=>'<span class="b b-yellow" style="margin:2px">'+l+'</span>').join(' ')+'</div>';
+        s.unusedLabels.map(function(l){return '<span class="b b-yellow" style="margin:2px">'+l+'</span>';}).join(' ')+'</div>';
     }
   }
 
   if(c.type==='ci'&&s.ci){
-    const ci=s.ci;
-    // Pass rate cards with tabs
+    var ci=s.ci;
     function renderCIStats(overall,perWf){
-      let h='<div class="row"><div class="st"><div class="v" style="color:'+(overall>=90?COL.green:overall>=70?COL.yellow:COL.red)+'">'+overall+'%</div><div class="l">Overall Pass Rate</div></div>';
-      Object.entries(perWf).forEach(([wf,rate])=>{
-        const col=rate>=90?COL.green:rate>=70?COL.yellow:COL.red;
-        h+='<div class="st"><div class="v" style="color:'+col+'">'+rate+'%</div><div class="l">'+wf+'</div></div>';
+      var h='<div class="row"><div class="st"><div class="v" style="color:'+rateColor(overall)+'">'+overall+'%</div><div class="l">Overall Pass Rate</div></div>';
+      Object.entries(perWf).forEach(function(e){
+        h+='<div class="st"><div class="v" style="color:'+rateColor(e[1])+'">'+e[1]+'%</div><div class="l">'+e[0]+'</div></div>';
       });
       return h+'</div>';
     }
-    const windows=ci.windows||{};
-    const tabs=['All Time',...Object.keys(windows)];
-    let tabHtml='<div class="tabs">';
-    tabs.forEach((t,j)=>{tabHtml+='<button class="tab'+(j===0?' active':'')+'" data-idx="'+j+'">'+t+'</button>';});
-    tabHtml+='</div>';
-    let panelsHtml='';
-    tabs.forEach((t,j)=>{
-      const data=t==='All Time'?{overallPassRate:ci.overallPassRate,passRate:ci.passRate}:windows[t];
-      panelsHtml+='<div class="tab-panel" style="'+(j>0?'display:none':'')+'" data-panel="'+j+'">'+renderCIStats(data.overallPassRate,data.passRate)+'</div>';
-    });
-    el.querySelector('.ci-stats').innerHTML=tabHtml+panelsHtml;
-    el.querySelectorAll('.ci-stats .tab').forEach(btn=>{
-      btn.onclick=function(){
-        el.querySelectorAll('.ci-stats .tab').forEach(b=>b.classList.remove('active'));
-        btn.classList.add('active');
-        el.querySelectorAll('.ci-stats .tab-panel').forEach(p=>p.style.display='none');
-        el.querySelector('.ci-stats [data-panel="'+btn.dataset.idx+'"]').style.display='';
-      };
-    });
+    var ciWindows=ci.windows||{};
+    var ciTabs=['All Time'].concat(Object.keys(ciWindows));
+    var ciAllData=Object.assign({'All Time':{overallPassRate:ci.overallPassRate,passRate:ci.passRate}},ciWindows);
+    makeTabs(el.querySelector('.ci-stats'),ciTabs,function(t){var d=ciAllData[t];return renderCIStats(d.overallPassRate,d.passRate);});
 
-    // Timeline
     new Chart(el.querySelector('.ci-timeline canvas'),{type:'bar',data:{
-      labels:ci.timeline.map(w=>w.week),
+      labels:ci.timeline.map(function(w){return w.week;}),
       datasets:[
-        {label:'Pass',data:ci.timeline.map(w=>w.pass),backgroundColor:'rgba(63,185,80,0.7)',borderRadius:3},
-        {label:'Fail',data:ci.timeline.map(w=>w.fail),backgroundColor:'rgba(248,81,73,0.7)',borderRadius:3}
+        {label:'Pass',data:ci.timeline.map(function(w){return w.pass;}),backgroundColor:'rgba(63,185,80,0.7)',borderRadius:3},
+        {label:'Fail',data:ci.timeline.map(function(w){return w.fail;}),backgroundColor:'rgba(248,81,73,0.7)',borderRadius:3}
       ]},options:{responsive:true,plugins:{legend:{position:'bottom',labels:{boxWidth:10}}},scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}}}});
 
-    // Failing jobs table
     if(ci.failingJobs.length){
-      let t='<table><thead><tr><th>Job</th><th>Failures</th><th>Total Runs</th><th>Fail Rate</th></tr></thead><tbody>';
-      ci.failingJobs.forEach(j=>{
-        const col=j.rate>=20?'b-red':j.rate>=10?'b-yellow':'b-dim';
-        t+='<tr><td>'+j.job+'</td><td>'+j.failures+'</td><td>'+j.total+'</td><td><span class="b '+col+'">'+j.rate+'%</span></td></tr>';
+      var ft='<table><thead><tr><th>Job</th><th>Failures</th><th>Total Runs</th><th>Fail Rate</th></tr></thead><tbody>';
+      ci.failingJobs.forEach(function(j){
+        var col=j.rate>=20?'b-red':j.rate>=10?'b-yellow':'b-dim';
+        ft+='<tr><td>'+j.job+'</td><td>'+j.failures+'</td><td>'+j.total+'</td><td><span class="b '+col+'">'+j.rate+'%</span></td></tr>';
       });
-      el.querySelector('.ci-failing').innerHTML=t+'</tbody></table>';
+      el.querySelector('.ci-failing').innerHTML=ft+'</tbody></table>';
     }else{el.querySelector('.ci-failing').innerHTML='<p style="color:var(--dim)">No failures!</p>';}
 
-    // Flaky
     if(ci.flaky.length){
-      let t='<table><thead><tr><th>Job</th><th>Pass/Fail Flips</th></tr></thead><tbody>';
-      ci.flaky.forEach(f=>{t+='<tr><td>'+f.job+'</td><td><span class="b b-yellow">'+f.flipCount+'</span></td></tr>';});
-      el.querySelector('.ci-flaky').innerHTML=t+'</tbody></table>';
+      var flt='<table><thead><tr><th>Job</th><th>Pass/Fail Flips</th></tr></thead><tbody>';
+      ci.flaky.forEach(function(f){flt+='<tr><td>'+f.job+'</td><td><span class="b b-yellow">'+f.flipCount+'</span></td></tr>';});
+      el.querySelector('.ci-flaky').innerHTML=flt+'</tbody></table>';
     }else{el.querySelector('.ci-flaky').innerHTML='<p style="color:var(--dim)">No flaky jobs detected (threshold: 3+ flips)</p>';}
 
-    // Recent failures
     if(ci.recentFailures.length){
-      let t='<table><thead><tr><th>Date</th><th>Workflow</th><th>Failed Jobs</th></tr></thead><tbody>';
-      ci.recentFailures.forEach(r=>{
-        t+='<tr><td>'+r.date+'</td><td>'+r.workflow+'</td><td>'+r.failedJobs.map(j=>'<span class="b b-red">'+j+'</span>').join(' ')+'</td></tr>';
+      var rt='<table><thead><tr><th>Date</th><th>Workflow</th><th>Failed Jobs</th></tr></thead><tbody>';
+      ci.recentFailures.forEach(function(r){
+        rt+='<tr><td>'+r.date+'</td><td>'+r.workflow+'</td><td>'+r.failedJobs.map(function(j){return '<span class="b b-red">'+j+'</span>';}).join(' ')+'</td></tr>';
       });
-      el.querySelector('.ci-recent').innerHTML=t+'</tbody></table>';
+      el.querySelector('.ci-recent').innerHTML=rt+'</tbody></table>';
     }
 
-    // Duration chart
-    const jobs=Object.keys(ci.avgDuration);
+    var jobs=Object.keys(ci.avgDuration);
     new Chart(el.querySelector('.ci-duration canvas'),{type:'bar',data:{
-      labels:jobs,datasets:[{data:jobs.map(j=>ci.avgDuration[j]),backgroundColor:'rgba(88,166,255,0.7)',borderRadius:3}]},
+      labels:jobs,datasets:[{data:jobs.map(function(j){return ci.avgDuration[j];}),backgroundColor:'rgba(88,166,255,0.7)',borderRadius:3}]},
       options:{indexAxis:'y',responsive:true,plugins:{legend:{display:false},title:{display:true,text:'Avg Duration (min)'}}}});
   }
 });
 
-// Copy-as-markdown for all cards
-document.querySelectorAll('.copy-btn').forEach(btn=>{
+document.querySelectorAll('.copy-btn').forEach(function(btn){
   btn.onclick=function(){
-    const card=btn.closest('.card');
-    const table=card.querySelector('table');
-    let text='';
+    var card=btn.closest('.card');
+    var table=card.querySelector('table');
+    var text='';
     if(table){
-      const rows=[...table.querySelectorAll('tr')];
-      text=rows.map(r=>[...r.querySelectorAll('th,td')].map(c=>c.textContent.trim()).join(' | ')).join('\\n');
+      var rows=[].slice.call(table.querySelectorAll('tr'));
+      text=rows.map(function(r){return [].slice.call(r.querySelectorAll('th,td')).map(function(c){return c.textContent.trim();}).join(' | ');}).join('\\n');
     }else{
       text=card.textContent.replace(/📋/g,'').trim();
     }
-    navigator.clipboard.writeText(text).then(()=>{
+    navigator.clipboard.writeText(text).then(function(){
       btn.textContent='✓';
       btn.classList.add('copied');
-      setTimeout(()=>{btn.textContent='📋';btn.classList.remove('copied');},1500);
+      setTimeout(function(){btn.textContent='📋';btn.classList.remove('copied');},1500);
     });
   };
 });
-</` +
-    `script></body></html>`
-  );
+${SCRIPT_CLOSE}`;
 }
 
-function renderSection(s: SectionData, i: number): string {
-  const c = s.config;
-  const wide =
-    c.type === 'stats' || c.type === 'timeline' || c.type === 'table' || c.type === 'termFrequency' || c.type === 'ci'
-      ? ' wide'
-      : '';
-  const title = sectionTitle(s);
-  let inner: string;
-  if (c.type === 'stats') {
-    inner = `<div id="s${i}"></div>`;
-  } else if (c.type === 'timeline' || c.type === 'distribution' || c.type === 'histogram') {
-    inner = `<div id="s${i}"><canvas></canvas></div>`;
-  } else if (c.type === 'table') {
-    inner = `<div id="s${i}"><div class="tbl"></div></div>`;
-  } else if (c.type === 'ci') {
-    inner = `<div id="s${i}">
+export function renderPage(page: PageData, config: DashboardConfig): string {
+  const nav = config.pages
+    .map(p => `<a href="${p.id}.html"${p.id === page.id ? ' class="active"' : ''}>${p.title}</a>`)
+    .join('');
+
+  const sections = page.sections.map((s, i) => renderSection(s, i)).join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${page.title} — ${config.repo} Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4">${SCRIPT_CLOSE}
+${renderCSS()}</head><body>
+<h1>📊 ${config.repo.split('/')[1]} Dashboard</h1>
+<p class="sub">Generated: ${page.generatedAt} · <a href="https://github.com/${config.repo}">${config.repo}</a></p>
+<nav>${nav}</nav>
+<div class="grid">${sections}</div>
+<footer>Data fetched live from GitHub API</footer>
+${renderClientJS(page, config)}</body></html>`;
+}
+
+const SECTION_INNER: Record<string, (i: number) => string> = {
+  stats: i => `<div id="s${i}"></div>`,
+  timeline: i => `<div id="s${i}"><canvas></canvas></div>`,
+  distribution: i => `<div id="s${i}"><canvas></canvas></div>`,
+  histogram: i => `<div id="s${i}"><canvas></canvas></div>`,
+  table: i => `<div id="s${i}"><div class="tbl"></div></div>`,
+  ci: i => `<div id="s${i}">
       <div class="ci-stats"></div>
       <div class="grid" style="margin-top:16px">
         <div class="card wide"><h2>📈 Pass/Fail Over Time</h2><div class="ci-timeline"><canvas></canvas></div></div>
@@ -312,10 +314,21 @@ function renderSection(s: SectionData, i: number): string {
         <div class="card"><h2>🕐 Avg Job Duration</h2><div class="ci-duration"><canvas></canvas></div></div>
         <div class="card"><h2>🔥 Recent Failures</h2><div class="ci-recent"></div></div>
       </div>
-    </div>`;
-  } else {
-    inner = `<div id="s${i}"><div class="tbl"></div><div class="extra"></div></div>`;
-  }
+    </div>`,
+  termFrequency: i => `<div id="s${i}"><div class="tbl"></div><div class="extra"></div></div>`,
+};
+
+function renderSection(s: SectionData, i: number): string {
+  const c = s.config;
+  const wide =
+    c.type === 'stats' || c.type === 'timeline' || c.type === 'table' || c.type === 'termFrequency' || c.type === 'ci'
+      ? ' wide'
+      : '';
+  const title = sectionTitle(s);
+  const renderInner =
+    SECTION_INNER[c.type] ??
+    ((idx: number) => `<div id="s${idx}"><div class="tbl"></div><div class="extra"></div></div>`);
+  const inner = renderInner(i);
   return `<div class="card${wide}"><h2>${title}<button class="copy-btn">📋</button></h2>${inner}</div>`;
 }
 

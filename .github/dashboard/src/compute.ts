@@ -107,9 +107,7 @@ export function parsePRs(raw: GHPullRequestNode[]): PullRequest[] {
         }
       }
     }
-    const allApproved =
-      r.reviews.nodes.filter(rv => rv.submittedAt).length > 0 &&
-      r.reviews.nodes.filter(rv => rv.submittedAt).every(rv => rv.state === 'APPROVED');
+    const allApproved = sortedReviews.length > 0 && sortedReviews.every(rv => rv.state === 'APPROVED');
     const state: 'open' | 'closed' = r.state === 'OPEN' ? 'open' : 'closed';
     let bucket: PullRequest['bucket'];
     if (state === 'closed') {
@@ -280,12 +278,12 @@ function computeDistribution(field: string, items: (Issue | PullRequest)[]): Cha
     const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
     return { labels: sorted.map(([l]) => l), values: sorted.map(([, v]) => v) };
   } else if (field === 'bucket') {
-    for (const item of items.filter(i => i.state === 'open' && !isIssue(i))) {
-      inc((item as PullRequest).bucket);
+    for (const item of items) {
+      if (item.state === 'open' && !isIssue(item)) inc(item.bucket);
     }
   } else if (field === 'linkedIssuePriority') {
-    for (const item of items.filter(i => !isIssue(i))) {
-      inc((item as PullRequest).linkedIssuePriority ?? '(none)');
+    for (const item of items) {
+      if (!isIssue(item)) inc(item.linkedIssuePriority ?? '(none)');
     }
   }
 
@@ -489,7 +487,7 @@ function computeTermFrequency(
     .slice(0, 20)
     .map(([term, count]) => ({ term, count }));
 
-  const usedLabels = new Set(items.flatMap(i => i.labels));
+  const usedLabels = new Set(filtered.flatMap(i => i.labels));
   const allLabels = new Set(items.flatMap(i => i.labels));
   const unusedLabels = [...allLabels].filter(l => !usedLabels.has(l));
 
@@ -514,7 +512,7 @@ export function computePage(
           const now = new Date();
           result.windowedStats = {};
           for (const w of sec.windows) {
-            const cutoff = new Date(now.getTime() - w.days * 24 * 60 * 60 * 1000);
+            const cutoff = new Date(now.getTime() - w.days * MS_PER_DAY);
             const filtered = items.filter(i => i.created >= cutoff);
             result.windowedStats[w.label] = computeStats(sec.metrics, filtered);
           }
@@ -548,37 +546,33 @@ export function computePage(
   };
 }
 
-function computeCI(runs: WorkflowRun[]): CIData {
-  // Pass rate helpers
-  function calcPassRates(subset: WorkflowRun[]): { overall: number; perWf: Record<string, number> } {
-    const overall =
-      subset.length > 0 ? Math.round((subset.filter(r => r.conclusion === 'success').length / subset.length) * 100) : 0;
-    const perWf: Record<string, number> = {};
-    const byW: Record<string, WorkflowRun[]> = {};
-    for (const r of subset) (byW[r.workflowName] ??= []).push(r);
-    for (const [name, wfRuns] of Object.entries(byW)) {
-      perWf[name] =
-        wfRuns.length > 0
-          ? Math.round((wfRuns.filter(r => r.conclusion === 'success').length / wfRuns.length) * 100)
-          : 0;
-    }
-    return { overall, perWf };
+function groupBy<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]> {
+  const result: Record<string, T[]> = {};
+  for (const item of items) (result[keyFn(item)] ??= []).push(item);
+  return result;
+}
+
+function calcPassRates(runs: WorkflowRun[]): { overall: number; perWf: Record<string, number> } {
+  const overall =
+    runs.length > 0 ? Math.round((runs.filter(r => r.conclusion === 'success').length / runs.length) * 100) : 0;
+  const perWf: Record<string, number> = {};
+  for (const [name, wfRuns] of Object.entries(groupBy(runs, r => r.workflowName))) {
+    perWf[name] =
+      wfRuns.length > 0 ? Math.round((wfRuns.filter(r => r.conclusion === 'success').length / wfRuns.length) * 100) : 0;
   }
+  return { overall, perWf };
+}
 
-  const allRates = calcPassRates(runs);
-  const overallPassRate = allRates.overall;
-  const passRate = allRates.perWf;
-
-  // Weekly timeline
+function buildCITimeline(runs: WorkflowRun[]): CIData['timeline'] {
   const sorted = [...runs].sort((a, b) => a.created.getTime() - b.created.getTime());
   const start =
-    sorted.length > 0 ? new Date(sorted[0].created.getTime() - sorted[0].created.getDay() * 86400000) : new Date();
+    sorted.length > 0 ? new Date(sorted[0].created.getTime() - sorted[0].created.getDay() * MS_PER_DAY) : new Date();
   start.setHours(0, 0, 0, 0);
   const end = sorted.length > 0 ? sorted[sorted.length - 1].created : new Date();
   const timeline: CIData['timeline'] = [];
   const cur = new Date(start);
   while (cur <= end) {
-    const nxt = new Date(cur.getTime() + 7 * 86400000);
+    const nxt = new Date(cur.getTime() + 7 * MS_PER_DAY);
     const weekRuns = runs.filter(r => r.created >= cur && r.created < nxt);
     timeline.push({
       week: cur.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
@@ -587,8 +581,10 @@ function computeCI(runs: WorkflowRun[]): CIData {
     });
     cur.setTime(nxt.getTime());
   }
+  return timeline;
+}
 
-  // Failing jobs — aggregate across all runs
+function findFailingJobs(runs: WorkflowRun[]): CIData['failingJobs'] {
   const jobStats: Record<string, { failures: number; total: number }> = {};
   for (const r of runs) {
     for (const j of r.jobs) {
@@ -598,16 +594,15 @@ function computeCI(runs: WorkflowRun[]): CIData {
       if (j.conclusion === 'failure') s.failures++;
     }
   }
-  const failingJobs = Object.entries(jobStats)
+  return Object.entries(jobStats)
     .filter(([, s]) => s.failures > 0)
     .map(([job, s]) => ({ job, failures: s.failures, total: s.total, rate: Math.round((s.failures / s.total) * 100) }))
     .sort((a, b) => b.failures - a.failures);
+}
 
-  // Flaky detection — jobs that flip between pass/fail across consecutive runs per workflow
+function detectFlakyJobs(runs: WorkflowRun[]): CIData['flaky'] {
   const flaky: CIData['flaky'] = [];
-  const byWf: Record<string, WorkflowRun[]> = {};
-  for (const r of runs) (byWf[r.workflowName] ??= []).push(r);
-  for (const wfRuns of Object.values(byWf)) {
+  for (const wfRuns of Object.values(groupBy(runs, r => r.workflowName))) {
     const chronological = [...wfRuns].sort((a, b) => a.created.getTime() - b.created.getTime());
     const jobHistory: Record<string, string[]> = {};
     for (const r of chronological) {
@@ -628,10 +623,11 @@ function computeCI(runs: WorkflowRun[]): CIData {
       }
     }
   }
-  flaky.sort((a, b) => b.flipCount - a.flipCount);
+  return flaky.sort((a, b) => b.flipCount - a.flipCount);
+}
 
-  // Recent failures
-  const recentFailures = runs
+function getRecentFailures(runs: WorkflowRun[]): CIData['recentFailures'] {
+  return runs
     .filter(r => r.conclusion === 'failure')
     .sort((a, b) => b.created.getTime() - a.created.getTime())
     .slice(0, 20)
@@ -641,38 +637,47 @@ function computeCI(runs: WorkflowRun[]): CIData {
       date: r.created.toISOString().slice(0, 16).replace('T', ' '),
       failedJobs: r.jobs.filter(j => j.conclusion === 'failure').map(j => j.name),
     }));
+}
 
-  // Avg duration per job
+function calcAvgDuration(runs: WorkflowRun[]): Record<string, number> {
   const jobDurations: Record<string, number[]> = {};
   for (const r of runs) {
     for (const j of r.jobs) {
       if (j.durationMin > 0) (jobDurations[j.name] ??= []).push(j.durationMin);
     }
   }
-  const avgDuration: Record<string, number> = {};
+  const result: Record<string, number> = {};
   for (const [job, durations] of Object.entries(jobDurations)) {
-    avgDuration[job] = Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10;
+    result[job] = Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10;
   }
+  return result;
+}
 
+function calcCIWindows(runs: WorkflowRun[]): CIData['windows'] {
+  return Object.fromEntries(
+    [
+      ['Past 24h', 1],
+      ['Past 7 days', 7],
+      ['Past 30 days', 30],
+    ].map(([label, days]) => {
+      const cutoff = new Date(Date.now() - (days as number) * MS_PER_DAY);
+      const subset = runs.filter(r => r.created >= cutoff);
+      const rates = calcPassRates(subset);
+      return [label, { overallPassRate: rates.overall, passRate: rates.perWf }];
+    })
+  );
+}
+
+function computeCI(runs: WorkflowRun[]): CIData {
+  const { overall: overallPassRate, perWf: passRate } = calcPassRates(runs);
   return {
     overallPassRate,
     passRate,
-    timeline,
-    failingJobs,
-    flaky,
-    recentFailures,
-    avgDuration,
-    windows: Object.fromEntries(
-      [
-        ['Past 24h', 1],
-        ['Past 7 days', 7],
-        ['Past 30 days', 30],
-      ].map(([label, days]) => {
-        const cutoff = new Date(Date.now() - (days as number) * 86400000);
-        const subset = runs.filter(r => r.created >= cutoff);
-        const rates = calcPassRates(subset);
-        return [label, { overallPassRate: rates.overall, passRate: rates.perWf }];
-      })
-    ),
+    timeline: buildCITimeline(runs),
+    failingJobs: findFailingJobs(runs),
+    flaky: detectFlakyJobs(runs),
+    recentFailures: getRecentFailures(runs),
+    avgDuration: calcAvgDuration(runs),
+    windows: calcCIWindows(runs),
   };
 }

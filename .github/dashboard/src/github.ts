@@ -1,12 +1,30 @@
-import type { GHIssue, GHPullRequestNode, WorkflowJob, WorkflowRun } from './types.js';
-import { execSync } from 'node:child_process';
+import type { GHIssue, GHPullRequestNode, RunConclusion, WorkflowJob, WorkflowRun } from './types.js';
+import { execFileSync } from 'node:child_process';
 
 const EXEC_OPTS = { encoding: 'utf-8' as const, maxBuffer: 50 * 1024 * 1024 };
 
+function ghApi(...args: string[]): string {
+  try {
+    return execFileSync('gh', ['api', ...args], EXEC_OPTS);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`gh api call failed (args: ${args.join(' ')}): ${msg}`);
+  }
+}
+
+function parseJSON<T>(raw: string, context: string): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to parse JSON (${context}): ${msg}`);
+  }
+}
+
 export function fetchIssues(repo: string): GHIssue[] {
   process.stderr.write(`Fetching issues for ${repo}...\n`);
-  const raw = execSync(`gh api --paginate '/repos/${repo}/issues?state=all&per_page=100'`, EXEC_OPTS);
-  const items = JSON.parse(raw.trim()) as GHIssue[];
+  const raw = ghApi('--paginate', `/repos/${repo}/issues?state=all&per_page=100`);
+  const items = parseJSON<GHIssue[]>(raw.trim(), 'fetchIssues');
   const issues = items.filter(i => !i.pull_request);
   process.stderr.write(`  Fetched ${issues.length} issues\n`);
   return issues;
@@ -19,8 +37,8 @@ export function fetchPRs(repo: string): GHPullRequestNode[] {
   let page = 0;
 
   const query = `
-    query($cursor: String) {
-      repository(owner: "${owner}", name: "${name}") {
+    query($owner: String!, $name: String!, $cursor: String) {
+      repository(owner: $owner, name: $name) {
         pullRequests(first: 100, after: $cursor, orderBy: {field: CREATED_AT, direction: DESC}) {
           pageInfo { hasNextPage endCursor }
           nodes {
@@ -38,9 +56,12 @@ export function fetchPRs(repo: string): GHPullRequestNode[] {
   for (;;) {
     page++;
     process.stderr.write(`Fetching PRs page ${page}...\n`);
-    const cursorArg = cursor ? `-f cursor="${cursor}"` : '';
-    const raw = execSync(`gh api graphql -f query='${query}' ${cursorArg}`, EXEC_OPTS);
-    const resp = JSON.parse(raw) as {
+    const args = ['graphql', '-F', `owner=${owner}`, '-F', `name=${name}`, '-f', `query=${query}`];
+    if (cursor) {
+      args.push('-f', `cursor=${cursor}`);
+    }
+    const raw = ghApi(...args);
+    const resp = parseJSON<{
       data: {
         repository: {
           pullRequests: {
@@ -49,7 +70,7 @@ export function fetchPRs(repo: string): GHPullRequestNode[] {
           };
         };
       };
-    };
+    }>(raw, `fetchPRs page ${page}`);
     const data = resp.data.repository.pullRequests;
     prs.push(...data.nodes);
     if (!data.pageInfo.hasNextPage) break;
@@ -66,17 +87,18 @@ interface GHWorkflow {
   name: string;
 }
 interface GHRunsResponse {
-  workflow_runs: { id: number; conclusion: string; created_at: string }[];
+  workflow_runs: { id: number; conclusion: RunConclusion | null; created_at: string }[];
 }
 interface GHJobsResponse {
-  jobs: { name: string; conclusion: string; started_at: string; completed_at: string }[];
+  jobs: { name: string; conclusion: RunConclusion | null; started_at: string; completed_at: string }[];
 }
 
 export function fetchCIRuns(repo: string, workflowNames: string[], branch: string, maxRuns: number): WorkflowRun[] {
   process.stderr.write(`Fetching CI runs for ${branch}...\n`);
-  const wfList = JSON.parse(
-    execSync(`gh api '/repos/${repo}/actions/workflows' --jq '.workflows'`, EXEC_OPTS)
-  ) as GHWorkflow[];
+  const wfList = parseJSON<GHWorkflow[]>(
+    ghApi(`/repos/${repo}/actions/workflows`, '--jq', '.workflows'),
+    'fetchCIRuns workflows'
+  );
   const matched = wfList.filter(w => workflowNames.includes(w.name));
   const runs: WorkflowRun[] = [];
   const perWf = Math.ceil(maxRuns / matched.length);
@@ -86,21 +108,19 @@ export function fetchCIRuns(repo: string, workflowNames: string[], branch: strin
     let fetched = 0;
     let page = 1;
     while (fetched < perWf) {
-      const resp = JSON.parse(
-        execSync(
-          `gh api '/repos/${repo}/actions/workflows/${wf.id}/runs?branch=${branch}&per_page=100&page=${page}'`,
-          EXEC_OPTS
-        )
-      ) as GHRunsResponse;
+      const resp = parseJSON<GHRunsResponse>(
+        ghApi(`/repos/${repo}/actions/workflows/${wf.id}/runs?branch=${branch}&per_page=100&page=${page}`),
+        `fetchCIRuns runs page ${page}`
+      );
       if (resp.workflow_runs.length === 0) break;
       for (const run of resp.workflow_runs) {
         if (fetched >= perWf) break;
-        // Only fetch job details for failed runs — success runs don't need them
         let jobs: WorkflowJob[] = [];
         if (run.conclusion === 'failure') {
-          const jobsResp = JSON.parse(
-            execSync(`gh api '/repos/${repo}/actions/runs/${run.id}/jobs'`, EXEC_OPTS)
-          ) as GHJobsResponse;
+          const jobsResp = parseJSON<GHJobsResponse>(
+            ghApi(`/repos/${repo}/actions/runs/${run.id}/jobs`),
+            `fetchCIRuns jobs for run ${run.id}`
+          );
           jobs = jobsResp.jobs.map(
             (j): WorkflowJob => ({
               name: j.name,

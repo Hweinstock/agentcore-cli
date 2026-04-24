@@ -22,9 +22,33 @@ export type SectionConfig =
   | TermFrequencySection
   | CIStatsSection;
 
+export type MetricKey =
+  | 'total'
+  | 'open'
+  | 'closed'
+  | 'weeklyRate'
+  | 'unlabeled'
+  | 'unassigned'
+  | 'medianResolution'
+  | 'avgResolution'
+  | 'p90Resolution'
+  | 'completed'
+  | 'notPlanned'
+  | 'duplicates'
+  | 'merged'
+  | 'closedNoMerge'
+  | 'drafts'
+  | 'mergeRate'
+  | 'medianTTFR'
+  | 'avgTTFR'
+  | 'p90TTFR'
+  | 'medianTTM'
+  | 'avgTTM'
+  | 'p90TTM';
+
 export interface StatsSection {
   type: 'stats';
-  metrics: string[];
+  metrics: MetricKey[];
   windows?: StatsWindow[];
 }
 
@@ -80,10 +104,31 @@ export interface TableFilter {
 
 // ── Raw GitHub API types ────────────────────────────────────────────
 
+export type AuthorAssociation =
+  | 'COLLABORATOR'
+  | 'CONTRIBUTOR'
+  | 'FIRST_TIMER'
+  | 'FIRST_TIME_CONTRIBUTOR'
+  | 'MANNEQUIN'
+  | 'MEMBER'
+  | 'NONE'
+  | 'OWNER';
+
+export type RunConclusion =
+  | 'success'
+  | 'failure'
+  | 'cancelled'
+  | 'skipped'
+  | 'timed_out'
+  | 'action_required'
+  | 'neutral'
+  | 'stale'
+  | 'in_progress';
+
 export interface GHIssue {
   number: number;
   title: string;
-  state: string;
+  state: 'open' | 'closed';
   created_at: string;
   closed_at: string | null;
   labels: { name: string }[];
@@ -92,7 +137,7 @@ export interface GHIssue {
   reactions: { total_count: number };
   state_reason: string | null;
   user: { login: string };
-  author_association: string;
+  author_association: AuthorAssociation;
   pull_request?: unknown;
 }
 
@@ -113,7 +158,7 @@ export interface GHPullRequestNode {
 
 export interface GHReviewNode {
   author: { login: string } | null;
-  state: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'DISMISSED' | 'PENDING';
   submittedAt: string | null;
 }
 
@@ -131,7 +176,7 @@ export interface Issue {
   reactions: number;
   stateReason: string | null;
   author: string;
-  authorType: string;
+  authorType: AuthorAssociation;
 }
 
 export interface PullRequest {
@@ -192,7 +237,6 @@ export interface SectionData {
   table?: TableRow[];
   terms?: TermCount[];
   unusedLabels?: string[];
-  extraHtml?: string;
   ci?: CIData;
 }
 
@@ -226,13 +270,13 @@ export interface CIData {
 export interface WorkflowRun {
   id: number;
   workflowName: string;
-  conclusion: string;
+  conclusion: RunConclusion;
   created: Date;
   jobs: WorkflowJob[];
 }
 
 export interface WorkflowJob {
   name: string;
-  conclusion: string;
+  conclusion: RunConclusion;
   durationMin: number;
 }
