@@ -337,15 +337,6 @@ export const AgentCoreProjectSpecSchema = z
             message: `Online eval config "${config.name}" references unknown evaluator "${evalName}"`,
           });
         }
-
-        // Block code-based evaluators in online eval configs
-        const evaluator = spec.evaluators.find(e => e.name === evalName);
-        if (evaluator?.config.codeBased) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message: `Online eval config "${config.name}" references code-based evaluator "${evalName}". Code-based evaluators are not supported for online evaluation.`,
-          });
-        }
       }
     }
   });
