@@ -95,18 +95,15 @@ export function parsePRs(raw: GHPullRequestNode[]): PullRequest[] {
     const lastCommitDate = lastCommitNode ? new Date(lastCommitNode.commit.committedDate) : null;
     const lastReviewDate = lastReview?.submittedAt ? new Date(lastReview.submittedAt) : null;
     const priorityRank: Record<string, number> = { P0: 0, P1: 1, P2: 2, P3: 3, bug: 4, enhancement: 5 };
-    let linkedIssuePriority: string | null = null;
-    let bestRank = Infinity;
-    for (const issue of r.closingIssuesReferences.nodes) {
-      for (const l of issue.labels.nodes) {
-        for (const [prefix, rank] of Object.entries(priorityRank)) {
-          if (l.name.startsWith(prefix) && rank < bestRank) {
-            linkedIssuePriority = l.name;
-            bestRank = rank;
-          }
-        }
-      }
-    }
+    const priorityMatch = r.closingIssuesReferences.nodes
+      .flatMap(issue => issue.labels.nodes)
+      .flatMap(l =>
+        Object.entries(priorityRank)
+          .filter(([prefix]) => l.name.startsWith(prefix))
+          .map(([, rank]) => ({ name: l.name, rank }))
+      )
+      .reduce<{ name: string; rank: number } | null>((best, cur) => (!best || cur.rank < best.rank ? cur : best), null);
+    const linkedIssuePriority = priorityMatch?.name ?? null;
     const allApproved = sortedReviews.length > 0 && sortedReviews.every(rv => rv.state === 'APPROVED');
     const state: 'open' | 'closed' = r.state === 'OPEN' ? 'open' : 'closed';
     let bucket: PullRequest['bucket'];
@@ -213,14 +210,13 @@ function computeTimeline(_bucket: 'week', series: string[], items: (Issue | Pull
   const weeks = new Map<string, WeekBucket>();
   const ensure = (w: string) => {
     if (!weeks.has(w)) {
-      const b: WeekBucket = { week: w };
-      for (const s of series) b[s] = 0;
+      const b: WeekBucket = { week: w, ...Object.fromEntries(series.map(s => [s, 0])) };
       weeks.set(w, b);
     }
     return weeks.get(w)!;
   };
 
-  for (const item of items) {
+  items.forEach(item => {
     const w = ensure(weekKey(item.created));
     if (series.includes('opened')) (w.opened as number)++;
 
@@ -232,7 +228,7 @@ function computeTimeline(_bucket: 'week', series: string[], items: (Issue | Pull
         (cw.merged as number)++;
       }
     }
-  }
+  });
 
   const sorted = [...weeks.entries()].sort(([a], [b]) => a.localeCompare(b));
   let cumulative = 0;
@@ -251,40 +247,42 @@ function computeDistribution(field: string, items: (Issue | PullRequest)[]): Cha
 
   if (field === 'labels') {
     let unlabeled = 0;
-    for (const item of items) {
+    items.forEach(item => {
       if (item.labels.length === 0) {
         unlabeled++;
-        continue;
+        return;
       }
-      for (const l of item.labels) inc(l);
-    }
+      item.labels.forEach(l => inc(l));
+    });
     if (unlabeled > 0) counts.set('(unlabeled)', unlabeled);
   } else if (field === 'age') {
     const bucketNames = ['<1d', '1-3d', '3-7d', '1-2w', '2-4w', '1-2m', '>2m'];
     const thresholds = [1, 3, 7, 14, 28, 60];
-    for (const b of bucketNames) counts.set(b, 0);
-    for (const item of items.filter(i => i.state === 'open')) {
-      const d = ageDays(item.created);
-      const idx = thresholds.findIndex(t => d < t);
-      inc(bucketNames[idx === -1 ? bucketNames.length - 1 : idx]);
-    }
+    bucketNames.forEach(b => counts.set(b, 0));
+    items
+      .filter(i => i.state === 'open')
+      .forEach(item => {
+        const d = ageDays(item.created);
+        const idx = thresholds.findIndex(t => d < t);
+        inc(bucketNames[idx === -1 ? bucketNames.length - 1 : idx]);
+      });
   } else if (field === 'sizeLabel') {
-    for (const item of items) {
+    items.forEach(item => {
       const sizeLabel = item.labels.find(l => l.startsWith('size/'));
       inc(sizeLabel ?? '(no size label)');
-    }
+    });
   } else if (field === 'author') {
-    for (const item of items) inc(item.author);
+    items.forEach(item => inc(item.author));
     const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
     return { labels: sorted.map(([l]) => l), values: sorted.map(([, v]) => v) };
   } else if (field === 'bucket') {
-    for (const item of items) {
+    items.forEach(item => {
       if (item.state === 'open' && !isIssue(item)) inc(item.bucket);
-    }
+    });
   } else if (field === 'linkedIssuePriority') {
-    for (const item of items) {
+    items.forEach(item => {
       if (!isIssue(item)) inc(item.linkedIssuePriority ?? '(none)');
-    }
+    });
   }
 
   const entries = [...counts.entries()];
@@ -308,15 +306,12 @@ function bucketLabel(low: number, high: number | undefined): string {
 }
 
 function buildHistogram(values: number[], buckets: number[]): HistogramBucket[] {
-  const result: HistogramBucket[] = [];
-  for (let i = 0; i < buckets.length; i++) {
-    const low = buckets[i];
+  return buckets.map((low, i) => {
     const high = buckets[i + 1];
     const label = i === 0 ? `<${formatHours(high ?? low)}` : bucketLabel(low, high);
     const count = values.filter(v => (high !== undefined ? v >= low && v < high : v >= low)).length;
-    result.push({ label, count });
-  }
-  return result;
+    return { label, count };
+  });
 }
 
 function autoBuckets(values: number[]): number[] {
@@ -339,20 +334,21 @@ function computeHistogram(
 ): { histogram?: HistogramBucket[]; histogramGrouped?: Record<string, HistogramBucket[]> } {
   if (groupBy) {
     const groups = new Map<string, number[]>();
-    for (const item of items) {
+    items.forEach(item => {
       const v = extractNumericField(field, item);
-      if (v === null) continue;
+      if (v === null) return;
       const key =
         groupBy === 'sizeLabel' ? getSizeLabel(item) : groupBy === 'labels' ? (item.labels[0] ?? '(unlabeled)') : 'all';
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key)!.push(v);
-    }
-    const result: Record<string, HistogramBucket[]> = {};
-    for (const [key, vals] of groups) {
-      const b = buckets === 'auto' ? autoBuckets(vals) : buckets;
-      result[key] = buildHistogram(vals, b);
-    }
-    return { histogramGrouped: result };
+    });
+    const histogramGrouped = Object.fromEntries(
+      [...groups.entries()].map(([key, vals]) => [
+        key,
+        buildHistogram(vals, buckets === 'auto' ? autoBuckets(vals) : buckets),
+      ])
+    );
+    return { histogramGrouped };
   }
 
   const values = items.map(i => extractNumericField(field, i)).filter((v): v is number => v !== null);
@@ -384,28 +380,30 @@ function computeTable(config: TableSection, items: (Issue | PullRequest)[]): Tab
   }
 
   return filtered.slice(0, config.limit ?? 20).map(item => {
-    const row: TableRow = {};
-    for (const col of config.columns) {
-      if (col === 'number') row[col] = item.number;
-      else if (col === 'title') row[col] = item.title;
-      else if (col === 'state') row[col] = item.state;
-      else if (col === 'labels') row[col] = item.labels;
-      else if (col === 'author') row[col] = item.author;
-      else if (col === 'age') row[col] = `${Math.floor(ageDays(item.created))}d`;
-      else if (col === 'comments' && isIssue(item)) row[col] = item.comments;
-      else if (col === 'reactions' && isIssue(item)) row[col] = item.reactions;
-      else if (col === 'draft' && !isIssue(item)) row[col] = item.draft;
-      else if (col === 'priority' && !isIssue(item)) row[col] = item.linkedIssuePriority ?? '';
-      else if (col === 'bucket' && !isIssue(item)) row[col] = item.bucket;
-      else if (col === 'lastActivity' && !isIssue(item)) {
+    const colValue = (col: string): string | number | boolean | string[] | undefined => {
+      if (col === 'number') return item.number;
+      if (col === 'title') return item.title;
+      if (col === 'state') return item.state;
+      if (col === 'labels') return item.labels;
+      if (col === 'author') return item.author;
+      if (col === 'age') return `${Math.floor(ageDays(item.created))}d`;
+      if (col === 'comments' && isIssue(item)) return item.comments;
+      if (col === 'reactions' && isIssue(item)) return item.reactions;
+      if (col === 'draft' && !isIssue(item)) return item.draft;
+      if (col === 'priority' && !isIssue(item)) return item.linkedIssuePriority ?? '';
+      if (col === 'bucket' && !isIssue(item)) return item.bucket;
+      if (col === 'lastActivity' && !isIssue(item)) {
         const pr = item;
         const latest = [pr.lastCommitDate, pr.lastReviewDate]
           .filter((d): d is Date => d !== null)
           .sort((a, b) => b.getTime() - a.getTime())[0];
-        row[col] = latest ? formatRelativeTime(latest) : '';
+        return latest ? formatRelativeTime(latest) : '';
       }
-    }
-    return row;
+      return undefined;
+    };
+    return Object.fromEntries(
+      config.columns.map(col => [col, colValue(col)]).filter(([, v]) => v !== undefined)
+    ) as TableRow;
   });
 }
 
@@ -470,16 +468,14 @@ function computeTermFrequency(
   const filtered = filter.labeled ? items.filter(i => i.labels.length > 0) : items.filter(i => i.labels.length === 0);
 
   const wordCounts = new Map<string, number>();
-  for (const item of filtered) {
-    const words = item.title
+  filtered.forEach(item => {
+    item.title
       .toLowerCase()
       .replace(/[^a-z0-9\s]/g, '')
-      .split(/\s+/);
-    for (const w of words) {
-      if (w.length < 3 || STOP_WORDS.has(w)) continue;
-      wordCounts.set(w, (wordCounts.get(w) ?? 0) + 1);
-    }
-  }
+      .split(/\s+/)
+      .filter(w => w.length >= 3 && !STOP_WORDS.has(w))
+      .forEach(w => wordCounts.set(w, (wordCounts.get(w) ?? 0) + 1));
+  });
 
   const terms = [...wordCounts.entries()]
     .filter(([, c]) => c >= minCount)
@@ -510,12 +506,13 @@ export function computePage(
         const result: SectionData = { config: sec, stats: computeStats(sec.metrics, items) };
         if (sec.windows) {
           const now = new Date();
-          result.windowedStats = {};
-          for (const w of sec.windows) {
-            const cutoff = new Date(now.getTime() - w.days * MS_PER_DAY);
-            const filtered = items.filter(i => i.created >= cutoff);
-            result.windowedStats[w.label] = computeStats(sec.metrics, filtered);
-          }
+          result.windowedStats = Object.fromEntries(
+            sec.windows.map(w => {
+              const cutoff = new Date(now.getTime() - w.days * MS_PER_DAY);
+              const filtered = items.filter(i => i.created >= cutoff);
+              return [w.label, computeStats(sec.metrics, filtered)];
+            })
+          );
         }
         return result;
       }
@@ -555,11 +552,12 @@ function groupBy<T>(items: T[], keyFn: (item: T) => string): Record<string, T[]>
 function calcPassRates(runs: WorkflowRun[]): { overall: number; perWf: Record<string, number> } {
   const overall =
     runs.length > 0 ? Math.round((runs.filter(r => r.conclusion === 'success').length / runs.length) * 100) : 0;
-  const perWf: Record<string, number> = {};
-  for (const [name, wfRuns] of Object.entries(groupBy(runs, r => r.workflowName))) {
-    perWf[name] =
-      wfRuns.length > 0 ? Math.round((wfRuns.filter(r => r.conclusion === 'success').length / wfRuns.length) * 100) : 0;
-  }
+  const perWf = Object.fromEntries(
+    Object.entries(groupBy(runs, r => r.workflowName)).map(([name, wfRuns]) => [
+      name,
+      wfRuns.length > 0 ? Math.round((wfRuns.filter(r => r.conclusion === 'success').length / wfRuns.length) * 100) : 0,
+    ])
+  );
   return { overall, perWf };
 }
 
@@ -586,14 +584,15 @@ function buildCITimeline(runs: WorkflowRun[]): CIData['timeline'] {
 
 function findFailingJobs(runs: WorkflowRun[]): CIData['failingJobs'] {
   const jobStats: Record<string, { failures: number; total: number }> = {};
-  for (const r of runs) {
-    for (const j of r.jobs) {
-      if (j.conclusion === 'skipped') continue;
-      const s = (jobStats[j.name] ??= { failures: 0, total: 0 });
-      s.total++;
-      if (j.conclusion === 'failure') s.failures++;
-    }
-  }
+  runs.forEach(r => {
+    r.jobs
+      .filter(j => j.conclusion !== 'skipped')
+      .forEach(j => {
+        const s = (jobStats[j.name] ??= { failures: 0, total: 0 });
+        s.total++;
+        if (j.conclusion === 'failure') s.failures++;
+      });
+  });
   return Object.entries(jobStats)
     .filter(([, s]) => s.failures > 0)
     .map(([job, s]) => ({ job, failures: s.failures, total: s.total, rate: Math.round((s.failures / s.total) * 100) }))
@@ -602,16 +601,15 @@ function findFailingJobs(runs: WorkflowRun[]): CIData['failingJobs'] {
 
 function detectFlakyJobs(runs: WorkflowRun[]): CIData['flaky'] {
   const flaky: CIData['flaky'] = [];
-  for (const wfRuns of Object.values(groupBy(runs, r => r.workflowName))) {
+  Object.values(groupBy(runs, r => r.workflowName)).forEach(wfRuns => {
     const chronological = [...wfRuns].sort((a, b) => a.created.getTime() - b.created.getTime());
     const jobHistory: Record<string, string[]> = {};
-    for (const r of chronological) {
-      for (const j of r.jobs) {
-        if (j.conclusion === 'skipped') continue;
-        (jobHistory[j.name] ??= []).push(j.conclusion);
-      }
-    }
-    for (const [job, history] of Object.entries(jobHistory)) {
+    chronological.forEach(r => {
+      r.jobs.filter(j => j.conclusion !== 'skipped').forEach(j => (jobHistory[j.name] ??= []).push(j.conclusion));
+    });
+    Object.entries(jobHistory).forEach(([job, history]) => {
+      // Stateful flip counting — each iteration depends on the previous element,
+      // so a reduce would obscure the logic without simplifying it.
       let flips = 0;
       for (let i = 1; i < history.length; i++) {
         if (history[i] !== history[i - 1]) flips++;
@@ -621,8 +619,8 @@ function detectFlakyJobs(runs: WorkflowRun[]): CIData['flaky'] {
         if (existing) existing.flipCount += flips;
         else flaky.push({ job, flipCount: flips });
       }
-    }
-  }
+    });
+  });
   return flaky.sort((a, b) => b.flipCount - a.flipCount);
 }
 
@@ -641,16 +639,15 @@ function getRecentFailures(runs: WorkflowRun[]): CIData['recentFailures'] {
 
 function calcAvgDuration(runs: WorkflowRun[]): Record<string, number> {
   const jobDurations: Record<string, number[]> = {};
-  for (const r of runs) {
-    for (const j of r.jobs) {
-      if (j.durationMin > 0) (jobDurations[j.name] ??= []).push(j.durationMin);
-    }
-  }
-  const result: Record<string, number> = {};
-  for (const [job, durations] of Object.entries(jobDurations)) {
-    result[job] = Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10;
-  }
-  return result;
+  runs.forEach(r => {
+    r.jobs.filter(j => j.durationMin > 0).forEach(j => (jobDurations[j.name] ??= []).push(j.durationMin));
+  });
+  return Object.fromEntries(
+    Object.entries(jobDurations).map(([job, durations]) => [
+      job,
+      Math.round((durations.reduce((a, b) => a + b, 0) / durations.length) * 10) / 10,
+    ])
+  );
 }
 
 function calcCIWindows(runs: WorkflowRun[]): CIData['windows'] {
