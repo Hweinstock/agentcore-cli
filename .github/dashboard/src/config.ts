@@ -2,7 +2,7 @@ import type { DashboardConfig } from './types.js';
 
 export const config: DashboardConfig = {
   repo: 'aws/agentcore-cli',
-  outputDir: 'site',
+  outputDir: 'site/dashboard',
   pages: [
     {
       id: 'issues',
