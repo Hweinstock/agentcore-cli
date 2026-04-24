@@ -80,7 +80,7 @@ canvas{max-height:300px}
 }
 
 function renderClientJS(page: PageData, config: DashboardConfig): string {
-  const clientJS = readFileSync(join(__dirname, 'client.js'), 'utf-8');
+  const clientJS = readFileSync(join(__dirname, 'client.ts'), 'utf-8');
   const paletteObj = {
     accent: PALETTE.accent,
     green: PALETTE.green,
