@@ -43,9 +43,6 @@ export const config: DashboardConfig = {
           buckets: [0, 1, 4, 8, 12, 24, 48, 72, 168, 336, 720],
           groupBy: 'labels',
         },
-        // Row: top creators + top resolvers
-        { type: 'distribution', field: 'author', chart: 'bar', orientation: 'horizontal' },
-        { type: 'distribution', field: 'resolver', chart: 'bar', orientation: 'horizontal' },
         // Tables
         {
           type: 'table',
@@ -125,9 +122,6 @@ export const config: DashboardConfig = {
           buckets: [0, 0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168],
           groupBy: 'sizeLabel',
         },
-        // Row: top authors + top reviewers
-        { type: 'distribution', field: 'author', chart: 'bar', orientation: 'horizontal' },
-        { type: 'distribution', field: 'reviewer', chart: 'bar', orientation: 'horizontal' },
         // Tables
         {
           type: 'table',
