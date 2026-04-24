@@ -73,7 +73,7 @@ const GLOBAL_TAB_SCRIPT = `
       btn.classList.add('active');
       document.querySelectorAll('[data-window-panel]').forEach(function(p){ p.style.display = 'none'; });
       var target = document.querySelector('[data-window-panel="' + btn.dataset.idx + '"]');
-      if (target) target.style.display = '';
+      if (target) { target.style.display = ''; if (window.initCharts) window.initCharts(target); }
     };
   });
 })();

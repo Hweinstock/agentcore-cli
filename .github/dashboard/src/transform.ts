@@ -5,7 +5,6 @@ import type {
   GHPullRequestNode,
   HistogramBucket,
   Issue,
-  MetricKey,
   PageConfig,
   PageData,
   PullRequest,
@@ -34,13 +33,6 @@ export function percentiles(vals: number[]): { median: number; avg: number; p90:
   const avg = sorted.reduce((s, v) => s + v, 0) / sorted.length;
   const p90 = sorted[Math.floor(sorted.length * 0.9)] ?? sorted[sorted.length - 1] ?? 0;
   return { median, avg, p90 };
-}
-
-function weekKey(d: Date): string {
-  const day = d.getDay();
-  const monday = new Date(d);
-  monday.setDate(d.getDate() - ((day + 6) % 7));
-  return monday.toISOString().slice(0, 10);
 }
 
 function ageDays(created: Date): number {
@@ -727,15 +719,6 @@ function computeCI(runs: WorkflowRun[]): CIData {
 
 // ── Trend (weekly aggregates of numeric fields over time) ──────────
 
-function getNumericField(item: Issue | PullRequest, field: string): number | null {
-  if (field === 'resolutionHours' && isIssue(item) && item.closed) {
-    return (item.closed.getTime() - item.created.getTime()) / MS_PER_HOUR;
-  }
-  if (field === 'ttfrHours' && !isIssue(item)) return item.ttfrHours;
-  if (field === 'ttmHours' && !isIssue(item)) return item.ttmHours;
-  return null;
-}
-
 function computeTrend(
   fields: string[],
   aggregate: 'median' | 'avg',
@@ -770,7 +753,7 @@ function computeTrend(
       } else {
         vals = items
           .filter(i => i.created >= cur && i.created < nxt)
-          .map(i => getNumericField(i, field))
+          .map(i => extractNumericField(field, i))
           .filter((v): v is number => v !== null);
       }
       const agg = vals.length > 0 ? (aggregate === 'median' ? percentiles(vals).median : percentiles(vals).avg) : 0;

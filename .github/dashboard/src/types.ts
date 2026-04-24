@@ -91,7 +91,6 @@ export interface TableSection {
 
 export interface TermFrequencySection {
   type: 'termFrequency';
-  field: string;
   filter: { labeled: boolean };
   minCount: number;
   title?: string;

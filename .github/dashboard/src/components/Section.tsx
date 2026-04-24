@@ -19,9 +19,6 @@ function sectionTitle(s: SectionData): string {
         labels: '🏷️ Issues by Label',
         age: '📅 Open Issue Age',
         sizeLabel: '📏 PR Size Distribution',
-        author: '👥 Top Creators',
-        reviewer: '👥 Top Reviewers',
-        resolver: '👥 Top Resolvers',
         bucket: '📊 Open PR Status',
         linkedIssuePriority: '🎯 PR Priority (from linked issues)',
       };
@@ -135,7 +132,7 @@ function SectionContent({ sectionData, index, repo }: { sectionData: SectionData
     return <TermFrequencySection terms={sectionData.terms ?? []} unusedLabels={sectionData.unusedLabels ?? []} />;
   }
   if (type === 'trend' && sectionData.trend) {
-    return <TrendChart trend={sectionData.trend} config={sectionData.config as import('../types.js').TrendSection} />;
+    return <TrendChart trend={sectionData.trend} config={sectionData.config} />;
   }
   if (type === 'weeklyTable' && sectionData.weeklyTable) {
     return <WeeklyTable data={sectionData.weeklyTable} />;

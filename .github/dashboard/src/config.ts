@@ -60,7 +60,7 @@ export const config: DashboardConfig = {
           columns: ['number', 'title', 'age', 'labels'],
           limit: 20,
         },
-        { type: 'termFrequency', field: 'title', filter: { labeled: false }, minCount: 3 },
+        { type: 'termFrequency', filter: { labeled: false }, minCount: 3 },
         {
           type: 'weeklyTable',
           title: 'Weekly Summary (recent 8 weeks)',
