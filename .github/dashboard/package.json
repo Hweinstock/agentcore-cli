@@ -2,7 +2,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "generate": "tsx src/generate.ts",
+    "generate": "tsx src/generate.tsx",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
@@ -13,6 +13,10 @@
     "vitest": "3.2.1"
   },
   "dependencies": {
-    "chart.js": "4.5.1"
+    "@types/react": "19.1.4",
+    "@types/react-dom": "19.1.5",
+    "chart.js": "4.5.1",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
   }
 }
