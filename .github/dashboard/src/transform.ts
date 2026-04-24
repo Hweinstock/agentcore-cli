@@ -215,7 +215,22 @@ export function computeStats(metrics: string[], items: (Issue | PullRequest)[]):
 
 // ── Timeline ────────────────────────────────────────────────────────
 
-function computeTimeline(_bucket: 'week', series: string[], items: (Issue | PullRequest)[]): WeekBucket[] {
+function computeTimeline(
+  _bucket: 'week',
+  series: string[],
+  items: (Issue | PullRequest)[],
+  bucketDays = 7
+): WeekBucket[] {
+  const fmt =
+    bucketDays >= 7
+      ? (d: Date) => {
+          const s = new Date(d);
+          s.setDate(s.getDate() - s.getDay());
+          return s.toISOString().slice(0, 10);
+        }
+      : bucketDays >= 1
+        ? (d: Date) => d.toISOString().slice(0, 10)
+        : (d: Date) => d.toISOString().slice(0, 13) + ':00';
   const weeks = new Map<string, WeekBucket>();
   const ensure = (w: string) => {
     if (!weeks.has(w)) {
@@ -226,12 +241,12 @@ function computeTimeline(_bucket: 'week', series: string[], items: (Issue | Pull
   };
 
   items.forEach(item => {
-    const w = ensure(weekKey(item.created));
+    const w = ensure(fmt(item.created));
     if (series.includes('opened')) (w.opened as number)++;
 
     const closedDate = isIssue(item) ? item.closed : 'merged' in item ? item.merged : null;
     if (closedDate) {
-      const cw = ensure(weekKey(closedDate));
+      const cw = ensure(fmt(closedDate));
       if (series.includes('closed')) (cw.closed as number)++;
       if (series.includes('merged') && !isIssue(item) && item.merged) {
         (cw.merged as number)++;
@@ -520,13 +535,13 @@ export function computePage(
 ): PageData {
   const items: (Issue | PullRequest)[] = pageConfig.dataSource === 'issues' ? issues : prs;
 
-  function computeSections(sectionItems: (Issue | PullRequest)[]): SectionData[] {
+  function computeSections(sectionItems: (Issue | PullRequest)[], bucketDays = 7): SectionData[] {
     return pageConfig.sections.map((sec): SectionData => {
       switch (sec.type) {
         case 'stats':
           return { config: sec, stats: computeStats(sec.metrics, sectionItems) };
         case 'timeline':
-          return { config: sec, timeline: computeTimeline(sec.bucket, sec.series, sectionItems) };
+          return { config: sec, timeline: computeTimeline(sec.bucket, sec.series, sectionItems, bucketDays) };
         case 'distribution':
           return { config: sec, chart: computeDistribution(sec.field, sectionItems) };
         case 'histogram': {
@@ -558,7 +573,9 @@ export function computePage(
       pageConfig.windows.map(w => {
         const cutoff = new Date(now.getTime() - w.days * MS_PER_DAY);
         const filtered = items.filter(i => i.created >= cutoff);
-        return [w.label, computeSections(filtered)];
+        // Adapt timeline granularity: <=1d → hourly, <=7d → daily, else weekly
+        const bucketDays = w.days <= 1 ? 1 / 24 : w.days <= 7 ? 1 : 7;
+        return [w.label, computeSections(filtered, bucketDays)];
       })
     );
   }
