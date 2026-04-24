@@ -1,4 +1,4 @@
-import { computePage, parseIssues, parsePRs } from './compute.js';
+import { computePage, parseIssues, parsePRs } from './transform.js';
 import { config } from './config.js';
 import { fetchCIRuns, fetchIssues, fetchPRs } from './github.js';
 import { renderPage } from './render.js';
