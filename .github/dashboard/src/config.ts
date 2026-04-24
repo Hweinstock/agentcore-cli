@@ -32,19 +32,26 @@ export const config: DashboardConfig = {
           ],
         },
         { type: 'timeline', bucket: 'week', series: ['opened', 'closed', 'cumulativeOpen'] },
+        // Row: label pie + age bar
         { type: 'distribution', field: 'labels', chart: 'doughnut' },
         { type: 'distribution', field: 'age', chart: 'bar', orientation: 'horizontal' },
+        // Row: open age trend + resolution histogram
+        { type: 'trend', title: 'Avg Open Issue Age Over Time (days)', fields: ['openAgeDays'], aggregate: 'avg' },
         {
           type: 'histogram',
           field: 'resolutionHours',
           buckets: [0, 1, 4, 8, 12, 24, 48, 72, 168, 336, 720],
           groupBy: 'labels',
         },
+        // Row: top creators + top resolvers
+        { type: 'distribution', field: 'author', chart: 'bar', orientation: 'horizontal' },
+        { type: 'distribution', field: 'resolver', chart: 'bar', orientation: 'horizontal' },
+        // Tables
         {
           type: 'table',
           id: 'engagement',
-          title: 'Most Discussed Issues',
-          filter: {},
+          title: 'Most Discussed Open Issues',
+          filter: { state: 'open' },
           columns: ['number', 'title', 'comments', 'reactions', 'state'],
           limit: 10,
         },
@@ -57,6 +64,12 @@ export const config: DashboardConfig = {
           limit: 20,
         },
         { type: 'termFrequency', field: 'title', filter: { labeled: false }, minCount: 3 },
+        {
+          type: 'weeklyTable',
+          title: 'Weekly Summary (recent 8 weeks)',
+          metrics: ['opened', 'closed', 'net', 'medianResolution'],
+          weeks: 8,
+        },
       ],
     },
     {
@@ -87,7 +100,10 @@ export const config: DashboardConfig = {
           ],
         },
         { type: 'timeline', bucket: 'week', series: ['opened', 'merged', 'cumulativeOpen'] },
+        // Row: PR status + open age trend
         { type: 'distribution', field: 'bucket', chart: 'doughnut' },
+        { type: 'trend', title: 'Avg Open PR Age Over Time (days)', fields: ['openAgeDays'], aggregate: 'avg' },
+        // Row: TTFR + TTM histograms
         {
           type: 'histogram',
           field: 'ttfrHours',
@@ -100,6 +116,7 @@ export const config: DashboardConfig = {
           title: 'Time to Merge',
           buckets: [0, 0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168],
         },
+        // Row: size pie + TTM by size
         { type: 'distribution', field: 'sizeLabel', chart: 'doughnut' },
         {
           type: 'histogram',
@@ -108,12 +125,10 @@ export const config: DashboardConfig = {
           buckets: [0, 0.25, 0.5, 1, 2, 4, 8, 12, 24, 48, 72, 168],
           groupBy: 'sizeLabel',
         },
-        {
-          type: 'distribution',
-          field: 'author',
-          chart: 'bar',
-          orientation: 'horizontal',
-        },
+        // Row: top authors + top reviewers
+        { type: 'distribution', field: 'author', chart: 'bar', orientation: 'horizontal' },
+        { type: 'distribution', field: 'reviewer', chart: 'bar', orientation: 'horizontal' },
+        // Tables
         {
           type: 'table',
           id: 'stale',
@@ -121,6 +136,12 @@ export const config: DashboardConfig = {
           filter: { state: 'open', minAgeDays: 7 },
           columns: ['number', 'title', 'age', 'author', 'priority', 'lastActivity', 'draft'],
           limit: 15,
+        },
+        {
+          type: 'weeklyTable',
+          title: 'Weekly Summary (recent 8 weeks)',
+          metrics: ['opened', 'merged', 'net', 'medianTTFR', 'medianTTM'],
+          weeks: 8,
         },
       ],
     },

@@ -24,6 +24,7 @@ function makeGHIssue(overrides: Partial<GHIssue> = {}): GHIssue {
     comments: 0,
     reactions: { total_count: 0 },
     state_reason: null,
+    closed_by: null,
     user: { login: 'alice' },
     author_association: 'MEMBER',
     ...overrides,
@@ -278,6 +279,7 @@ describe('computeStats', () => {
       created_at: '2026-01-01T00:00:00Z',
       closed_at: '2026-01-02T00:00:00Z',
       state_reason: 'completed',
+      closed_by: { login: 'closer' },
     }),
   ])[0];
 

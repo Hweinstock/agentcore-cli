@@ -72,6 +72,7 @@ export default function Page({ page, config }: { page: PageData; config: Dashboa
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>{`${page.title} — ${config.repo} Dashboard`}</title>
         <script src="chart.js" />
+        <script src="charts.js" />
         <style dangerouslySetInnerHTML={{ __html: CSS }} />
       </head>
       <body>

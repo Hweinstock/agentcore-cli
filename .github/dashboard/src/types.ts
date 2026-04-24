@@ -20,7 +20,9 @@ export type SectionConfig =
   | HistogramSection
   | TableSection
   | TermFrequencySection
-  | CIStatsSection;
+  | CIStatsSection
+  | TrendSection
+  | WeeklyTableSection;
 
 export type MetricKey =
   | 'total'
@@ -136,6 +138,7 @@ export interface GHIssue {
   comments: number;
   reactions: { total_count: number };
   state_reason: string | null;
+  closed_by: { login: string } | null;
   user: { login: string };
   author_association: AuthorAssociation;
   pull_request?: unknown;
@@ -175,6 +178,7 @@ export interface Issue {
   comments: number;
   reactions: number;
   stateReason: string | null;
+  closedBy: string | null;
   author: string;
   authorType: AuthorAssociation;
 }
@@ -190,6 +194,7 @@ export interface PullRequest {
   labels: string[];
   ttfrHours: number | null;
   ttmHours: number | null;
+  reviewers: string[];
   lastCommitDate: Date | null;
   lastReviewDate: Date | null;
   linkedIssuePriority: string | null;
@@ -238,6 +243,8 @@ export interface SectionData {
   terms?: TermCount[];
   unusedLabels?: string[];
   ci?: CIData;
+  trend?: { weeks: string[]; series: Record<string, number[]> };
+  weeklyTable?: { weeks: string[]; rows: Record<string, (string | number)[]> };
 }
 
 export interface PageData {
@@ -254,6 +261,20 @@ export interface CIStatsSection {
   workflows: string[];
   branch: string;
   maxRuns: number;
+}
+
+export interface TrendSection {
+  type: 'trend';
+  title: string;
+  fields: string[];
+  aggregate: 'median' | 'avg';
+}
+
+export interface WeeklyTableSection {
+  type: 'weeklyTable';
+  title: string;
+  metrics: string[];
+  weeks: number;
 }
 
 export interface CIData {

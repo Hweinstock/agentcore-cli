@@ -5,6 +5,7 @@ import type {
   GHPullRequestNode,
   HistogramBucket,
   Issue,
+  MetricKey,
   PageConfig,
   PageData,
   PullRequest,
@@ -74,6 +75,7 @@ export function parseIssues(raw: GHIssue[]): Issue[] {
       comments: r.comments,
       reactions: r.reactions.total_count,
       stateReason: r.state_reason,
+      closedBy: r.closed_by?.login ?? null,
       author: r.user.login,
       authorType: r.author_association,
     }));
@@ -129,6 +131,13 @@ export function parsePRs(raw: GHPullRequestNode[]): PullRequest[] {
       labels: r.labels.nodes.map(l => l.name),
       ttfrHours,
       ttmHours,
+      reviewers: [
+        ...new Set(
+          r.reviews.nodes
+            .filter(rv => rv.author?.login && rv.author.login !== (r.author?.login ?? 'ghost'))
+            .map(rv => rv.author!.login)
+        ),
+      ],
       lastCommitDate,
       lastReviewDate,
       linkedIssuePriority,
@@ -273,6 +282,18 @@ function computeDistribution(field: string, items: (Issue | PullRequest)[]): Cha
     });
   } else if (field === 'author') {
     items.forEach(item => inc(item.author));
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
+    return { labels: sorted.map(([l]) => l), values: sorted.map(([, v]) => v) };
+  } else if (field === 'reviewer') {
+    items.forEach(item => {
+      if (!isIssue(item)) item.reviewers.forEach(r => inc(r));
+    });
+    const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
+    return { labels: sorted.map(([l]) => l), values: sorted.map(([, v]) => v) };
+  } else if (field === 'resolver') {
+    items.forEach(item => {
+      if (isIssue(item) && item.closedBy) inc(item.closedBy);
+    });
     const sorted = [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15);
     return { labels: sorted.map(([l]) => l), values: sorted.map(([, v]) => v) };
   } else if (field === 'bucket') {
@@ -531,6 +552,10 @@ export function computePage(
       }
       case 'ci':
         return { config: sec, ci: computeCI(ciRuns ?? []) };
+      case 'trend':
+        return { config: sec, trend: computeTrend(sec.fields, sec.aggregate, items) };
+      case 'weeklyTable':
+        return { config: sec, weeklyTable: computeWeeklyTable(sec.metrics, sec.weeks, items) };
     }
   });
 
@@ -676,4 +701,130 @@ function computeCI(runs: WorkflowRun[]): CIData {
     avgDuration: calcAvgDuration(runs),
     windows: calcCIWindows(runs),
   };
+}
+
+// ── Trend (weekly aggregates of numeric fields over time) ──────────
+
+function getNumericField(item: Issue | PullRequest, field: string): number | null {
+  if (field === 'resolutionHours' && isIssue(item) && item.closed) {
+    return (item.closed.getTime() - item.created.getTime()) / MS_PER_HOUR;
+  }
+  if (field === 'ttfrHours' && !isIssue(item)) return item.ttfrHours;
+  if (field === 'ttmHours' && !isIssue(item)) return item.ttmHours;
+  return null;
+}
+
+function computeTrend(
+  fields: string[],
+  aggregate: 'median' | 'avg',
+  items: (Issue | PullRequest)[]
+): { weeks: string[]; series: Record<string, number[]> } {
+  const sorted = [...items].sort((a, b) => a.created.getTime() - b.created.getTime());
+  if (sorted.length === 0) return { weeks: [], series: {} };
+
+  const start = new Date(sorted[0].created);
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - start.getDay());
+  const end = sorted[sorted.length - 1].created;
+
+  const weeks: string[] = [];
+  const series: Record<string, number[]> = Object.fromEntries(fields.map(f => [f, []]));
+  const cur = new Date(start);
+
+  while (cur <= end) {
+    const nxt = new Date(cur.getTime() + 7 * MS_PER_DAY);
+    weeks.push(cur.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+    fields.forEach(field => {
+      let vals: number[];
+      if (field === 'openAgeDays') {
+        // For each week, compute avg age (in days) of items that were open at that point
+        const weekEnd = nxt;
+        vals = items
+          .filter(i => {
+            const closedDate = isIssue(i) ? i.closed : i.merged;
+            return i.created < weekEnd && (!closedDate || closedDate >= cur);
+          })
+          .map(i => (Math.min(weekEnd.getTime(), Date.now()) - i.created.getTime()) / MS_PER_DAY);
+      } else {
+        vals = items
+          .filter(i => i.created >= cur && i.created < nxt)
+          .map(i => getNumericField(i, field))
+          .filter((v): v is number => v !== null);
+      }
+      const agg = vals.length > 0 ? (aggregate === 'median' ? percentiles(vals).median : percentiles(vals).avg) : 0;
+      series[field].push(Math.round(agg * 10) / 10);
+    });
+    cur.setTime(nxt.getTime());
+  }
+  return { weeks, series };
+}
+
+// ── Weekly Table (recent weeks summary) ────────────────────────────
+
+function computeWeeklyTable(
+  metrics: string[],
+  numWeeks: number,
+  items: (Issue | PullRequest)[]
+): { weeks: string[]; rows: Record<string, (string | number)[]> } {
+  const now = new Date();
+  const weeks: string[] = [];
+  const rows: Record<string, (string | number)[]> = Object.fromEntries(metrics.map(m => [m, []]));
+
+  for (let w = numWeeks - 1; w >= 0; w--) {
+    const end = new Date(now.getTime() - w * 7 * MS_PER_DAY);
+    const start = new Date(end.getTime() - 7 * MS_PER_DAY);
+    weeks.push(start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }));
+
+    const created = items.filter(i => i.created >= start && i.created < end);
+    const closed = items.filter(i => {
+      const d = isIssue(i) ? i.closed : i.merged;
+      return d && d >= start && d < end;
+    });
+
+    metrics.forEach(m => {
+      switch (m) {
+        case 'opened':
+          rows[m].push(created.length);
+          break;
+        case 'closed':
+          rows[m].push(closed.length);
+          break;
+        case 'merged':
+          rows[m].push(closed.filter(i => !isIssue(i) && i.merged).length);
+          break;
+        case 'net':
+          rows[m].push(created.length - closed.length);
+          break;
+        case 'medianResolution': {
+          const hrs = closed
+            .map(i => {
+              const c = isIssue(i) ? i.closed : i.merged;
+              return c ? (c.getTime() - i.created.getTime()) / MS_PER_HOUR : null;
+            })
+            .filter((v): v is number => v !== null);
+          rows[m].push(hrs.length > 0 ? formatHours(percentiles(hrs).median) : '—');
+          break;
+        }
+        case 'medianTTFR': {
+          const vals = created
+            .filter((i): i is PullRequest => !isIssue(i))
+            .map(p => p.ttfrHours)
+            .filter((v): v is number => v !== null);
+          rows[m].push(vals.length > 0 ? formatHours(percentiles(vals).median) : '—');
+          break;
+        }
+        case 'medianTTM': {
+          const vals = closed
+            .filter((i): i is PullRequest => !isIssue(i))
+            .map(p => p.ttmHours)
+            .filter((v): v is number => v !== null);
+          rows[m].push(vals.length > 0 ? formatHours(percentiles(vals).median) : '—');
+          break;
+        }
+        default:
+          rows[m].push('—');
+      }
+    });
+  }
+  return { weeks, rows };
 }
