@@ -210,7 +210,8 @@ function computeTimeline(
   _bucket: 'week',
   series: string[],
   items: (Issue | PullRequest)[],
-  bucketDays = 7
+  bucketDays = 7,
+  allItems?: (Issue | PullRequest)[]
 ): WeekBucket[] {
   const fmt =
     bucketDays >= 7
@@ -246,7 +247,16 @@ function computeTimeline(
   });
 
   const sorted = [...weeks.entries()].sort(([a], [b]) => a.localeCompare(b));
+  // If we have allItems and a window, compute how many items were open before the first bucket
   let cumulative = 0;
+  if (allItems && sorted.length > 0) {
+    const firstBucketKey = sorted[0][0];
+    cumulative = allItems.filter(item => {
+      if (item.created >= new Date(firstBucketKey)) return false; // created within window, counted by buckets
+      const closedDate = isIssue(item) ? item.closed : 'merged' in item ? item.merged : null;
+      return !closedDate || closedDate >= new Date(firstBucketKey); // still open at window start
+    }).length;
+  }
   return sorted.map(([, b]) => {
     cumulative += ((b.opened as number) ?? 0) - ((b.closed as number) ?? 0) - ((b.merged as number) ?? 0);
     if (series.includes('cumulativeOpen')) b.cumulativeOpen = Math.max(0, cumulative);
@@ -532,7 +542,7 @@ export function computePage(
         case 'stats':
           return { config: sec, stats: computeStats(sec.metrics, sectionItems) };
         case 'timeline':
-          return { config: sec, timeline: computeTimeline(sec.bucket, sec.series, sectionItems, bucketDays) };
+          return { config: sec, timeline: computeTimeline(sec.bucket, sec.series, sectionItems, bucketDays, sectionItems !== items ? items : undefined) };
         case 'distribution':
           return { config: sec, chart: computeDistribution(sec.field, sectionItems) };
         case 'histogram': {
