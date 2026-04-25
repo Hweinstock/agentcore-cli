@@ -43,17 +43,11 @@ function main(): void {
 
     const ciPage = config.pages.find(p => p.dataSource === 'ci');
     const ciSection = ciPage?.sections.find(s => s.type === 'ci');
-    let ciRuns;
-    if (ciSection) {
-      try {
-        ciRuns = fetchCIRuns(repo, ciSection.workflows, ciSection.branch, ciSection.maxRuns);
-      } catch {
-        console.error(`  ⚠ Skipping CI for ${repo} (no matching workflows)`);
-      }
-    }
+    const ciRuns = ciSection
+      ? fetchCIRuns(repo, ciSection.workflows, ciSection.branch, ciSection.maxRuns)
+      : undefined;
 
     for (const page of config.pages) {
-      if (page.dataSource === 'ci' && !ciRuns) continue;
       const data = computePage(page, issues, prs, ciRuns);
       const file = pageFile(repo, page.id);
       const markup = String(<Page page={data} config={config} currentRepo={repo} currentPageId={page.id} />);

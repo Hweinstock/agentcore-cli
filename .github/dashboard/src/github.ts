@@ -100,7 +100,8 @@ export function fetchCIRuns(repo: string, workflowNames: string[], branch: strin
     ghApi(`/repos/${repo}/actions/workflows`, '--jq', '.workflows'),
     'fetchCIRuns workflows'
   );
-  const matched = wfList.filter(w => workflowNames.includes(w.name));
+  const matched =
+    workflowNames.length > 0 ? wfList.filter(w => workflowNames.includes(w.name)) : wfList.filter(w => w.name !== 'pages-build-deployment');
   if (matched.length === 0) {
     throw new Error(
       `No workflows found matching: ${workflowNames.join(', ')}\nAvailable: ${wfList.map(w => w.name).join(', ')}`

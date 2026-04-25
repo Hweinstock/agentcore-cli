@@ -134,7 +134,7 @@ export const config: DashboardConfig = {
       sections: [
         {
           type: 'ci',
-          workflows: ['Build and Test', 'E2E Tests (Full Suite)', 'E2E Tests'],
+          workflows: [],
           branch: 'main',
           maxRuns: 900,
         },
