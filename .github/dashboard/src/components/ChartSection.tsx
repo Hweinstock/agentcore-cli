@@ -1,6 +1,5 @@
 import { CHART_COLORS, PALETTE } from '../palette.js';
 import type { DistributionSection, SectionData, TimelineSection } from '../types.js';
-import React from 'react';
 
 function buildTimelineConfig(s: SectionData) {
   const cfg = s.config as TimelineSection;

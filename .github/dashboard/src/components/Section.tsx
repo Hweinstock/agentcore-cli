@@ -5,7 +5,6 @@ import ChartSection from './ChartSection.js';
 import StatsSection from './StatsSection.js';
 import TableSectionComponent from './TableSection.js';
 import TermFrequencySection from './TermFrequencySection.js';
-import React from 'react';
 
 function sectionTitle(s: SectionData): string {
   const c = s.config;
@@ -87,24 +86,24 @@ function TrendChart({
 
 function WeeklyTable({ data }: { data: { weeks: string[]; rows: Record<string, (string | number)[]> } }) {
   return (
-    <div className="tbl">
+    <div class="tbl">
       <table>
         <thead>
           <tr>
             <th>Metric</th>
             {data.weeks.map(w => (
-              <th key={w}>{w}</th>
+              <th>{w}</th>
             ))}
           </tr>
         </thead>
         <tbody>
           {Object.entries(data.rows).map(([metric, values]) => (
-            <tr key={metric}>
+            <tr>
               <td>
                 <strong>{metric}</strong>
               </td>
-              {values.map((v, i) => (
-                <td key={i}>{v}</td>
+              {values.map(v => (
+                <td>{v}</td>
               ))}
             </tr>
           ))}
@@ -152,10 +151,10 @@ export default function Section({
   const wide = WIDE_TYPES.has(sectionData.config.type);
   const title = sectionTitle(sectionData);
   return (
-    <div className={`card${wide ? ' wide' : ''}`}>
+    <div class={`card${wide ? ' wide' : ''}`}>
       <h2>
         {title}
-        <button className="copy-btn">📋</button>
+        <button class="copy-btn">📋</button>
       </h2>
       <SectionContent sectionData={sectionData} index={index} repo={repo} />
     </div>

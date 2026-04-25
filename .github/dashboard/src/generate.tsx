@@ -6,8 +6,6 @@ import { transformSync } from 'esbuild';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import React from 'react';
-import { renderToStaticMarkup } from 'react-dom/server';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const outDir = join(__dirname, '..', config.outputDir);
@@ -39,7 +37,7 @@ function main(): void {
 
   for (const page of config.pages) {
     const data = computePage(page, issues, prs, ciRuns);
-    const markup = renderToStaticMarkup(<Page page={data} config={config} />);
+    const markup = String(<Page page={data} config={config} />);
     const html = `<!DOCTYPE html><html lang="en">${markup}</html>`;
     const outPath = join(outDir, `${page.id}.html`);
     writeFileSync(outPath, html);

@@ -1,5 +1,4 @@
 import type { TableRow, TableSection as TableSectionConfig } from '../types.js';
-import React from 'react';
 
 const PRIORITY_COLORS: Record<string, string> = {
   P0: 'b-red',
@@ -24,11 +23,11 @@ function CellValue({ col, value, repo, isPR }: { col: string; value: unknown; re
     return <a href={url}>#{String(value)}</a>;
   }
   if (col === 'labels' && Array.isArray(value)) {
-    if (value.length === 0) return <span className="b b-red">unlabeled</span>;
+    if (value.length === 0) return <span class="b b-red">unlabeled</span>;
     return (
       <>
         {value.map((l: string) => (
-          <span key={l} className="b b-blue" style={{ marginRight: 4 }}>
+          <span class="b b-blue" style={{ marginRight: '4px' }}>
             {l}
           </span>
         ))}
@@ -37,19 +36,19 @@ function CellValue({ col, value, repo, isPR }: { col: string; value: unknown; re
   }
   if (col === 'state') {
     const cls = value === 'open' ? 'b-green' : 'b-dim';
-    return <span className={`b ${cls}`}>{str}</span>;
+    return <span class={`b ${cls}`}>{str}</span>;
   }
   if (col === 'draft') {
-    return value ? <span className="b b-purple">draft</span> : null;
+    return value ? <span class="b b-purple">draft</span> : null;
   }
   if (col === 'priority') {
-    if (!value) return <span className="b b-dim">—</span>;
+    if (!value) return <span class="b b-dim">—</span>;
     const cls = PRIORITY_COLORS[str] ?? 'b-dim';
-    return <span className={`b ${cls}`}>{str}</span>;
+    return <span class={`b ${cls}`}>{str}</span>;
   }
   if (col === 'bucket') {
     const cls = BUCKET_COLORS[str] ?? 'b-dim';
-    return <span className={`b ${cls}`}>{str}</span>;
+    return <span class={`b ${cls}`}>{str}</span>;
   }
   if (col === 'age') return <>{String(value)}d</>;
   return <>{str}</>;
@@ -66,20 +65,20 @@ export default function TableSection({
 }) {
   const isPR = config.columns.includes('draft');
   return (
-    <div className="tbl">
+    <div class="tbl">
       <table>
         <thead>
           <tr>
             {config.columns.map(c => (
-              <th key={c}>{c}</th>
+              <th>{c}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {table.map((row, i) => (
-            <tr key={i}>
+          {table.map(row => (
+            <tr>
               {config.columns.map(col => (
-                <td key={col}>
+                <td>
                   <CellValue col={col} value={row[col]} repo={repo} isPR={isPR} />
                 </td>
               ))}

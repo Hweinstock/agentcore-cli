@@ -1,6 +1,5 @@
 import { PALETTE } from '../palette.js';
 import type { StatValue } from '../types.js';
-import React from 'react';
 
 const COLOR_MAP: Record<string, string> = {
   green: PALETTE.green,
@@ -13,13 +12,13 @@ const COLOR_MAP: Record<string, string> = {
 
 function StatRow({ items, small }: { items: StatValue[]; small?: boolean }) {
   return (
-    <div className={`row${small ? ' sm' : ''}`}>
+    <div class={`row${small ? ' sm' : ''}`}>
       {items.map(st => (
-        <div key={st.key} className="st">
-          <div className="v" style={{ color: st.color ? (COLOR_MAP[st.color] ?? 'var(--text)') : 'var(--text)' }}>
+        <div class="st">
+          <div class="v" style={{ color: st.color ? (COLOR_MAP[st.color] ?? 'var(--text)') : 'var(--text)' }}>
             {st.value}
           </div>
-          <div className="l">
+          <div class="l">
             {st.key}
             {st.sublabel ? ` (${st.sublabel})` : ''}
           </div>

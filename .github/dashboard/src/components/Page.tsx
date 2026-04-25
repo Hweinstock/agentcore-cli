@@ -1,7 +1,6 @@
 import { PALETTE } from '../palette.js';
 import type { DashboardConfig, PageData, SectionData } from '../types.js';
 import Section from './Section.js';
-import React from 'react';
 
 const CSS = `
 :root{--bg:${PALETTE.bg};--card:${PALETTE.card};--text:${PALETTE.text};--border:${PALETTE.border};--dim:${PALETTE.dim};--accent:${PALETTE.accent};--green:${PALETTE.green};--red:${PALETTE.red};--yellow:${PALETTE.yellow};--purple:${PALETTE.purple}}
@@ -86,23 +85,23 @@ function WindowedSections({ page, repo }: { page: PageData; repo: string }) {
 
   return (
     <>
-      <div data-global-tabs="" className="tabs" style={{ marginBottom: 16 }}>
+      <div data-global-tabs="" class="tabs" style={{ marginBottom: '16px' }}>
         {tabs.map((t, j) => (
-          <button key={t} className={`tab${j === 0 ? ' active' : ''}`} data-idx={j}>
+          <button class={`tab${j === 0 ? ' active' : ''}`} data-idx={j}>
             {t}
           </button>
         ))}
       </div>
       {tabs.map((t, j) => (
-        <div key={t} data-window-panel={j} style={j > 0 ? { display: 'none' } : undefined}>
-          <div className="grid">
+        <div data-window-panel={j} style={j > 0 ? { display: 'none' } : undefined}>
+          <div class="grid">
             {allSections[t].map((s, i) => (
-              <Section key={`${t}-${i}`} sectionData={s} index={j * 100 + i} repo={repo} />
+              <Section sectionData={s} index={j * 100 + i} repo={repo} />
             ))}
           </div>
         </div>
       ))}
-      <script dangerouslySetInnerHTML={{ __html: GLOBAL_TAB_SCRIPT }} />
+      <script>{GLOBAL_TAB_SCRIPT}</script>
     </>
   );
 }
@@ -112,21 +111,21 @@ export default function Page({ page, config }: { page: PageData; config: Dashboa
   return (
     <>
       <head>
-        <meta charSet="utf-8" />
+        <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
         <title>{`${page.title} — ${config.repo} Dashboard`}</title>
         <script src="chart.js" />
         <script src="charts.js" />
-        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <style>{CSS}</style>
       </head>
       <body>
         <h1>📊 {repoName} Dashboard</h1>
-        <p className="sub">
+        <p class="sub">
           Generated: {page.generatedAt} · <a href={`https://github.com/${config.repo}`}>{config.repo}</a>
         </p>
         <nav>
           {config.pages.map(p => (
-            <a key={p.id} href={`${p.id}.html`} className={p.id === page.id ? 'active' : undefined}>
+            <a href={`${p.id}.html`} class={p.id === page.id ? 'active' : undefined}>
               {p.title}
             </a>
           ))}
@@ -134,14 +133,14 @@ export default function Page({ page, config }: { page: PageData; config: Dashboa
         {page.windowedSections ? (
           <WindowedSections page={page} repo={config.repo} />
         ) : (
-          <div className="grid">
+          <div class="grid">
             {page.sections.map((s, i) => (
-              <Section key={i} sectionData={s} index={i} repo={config.repo} />
+              <Section sectionData={s} index={i} repo={config.repo} />
             ))}
           </div>
         )}
         <footer>Data fetched live from GitHub API</footer>
-        <script dangerouslySetInnerHTML={{ __html: COPY_SCRIPT }} />
+        <script>{COPY_SCRIPT}</script>
       </body>
     </>
   );

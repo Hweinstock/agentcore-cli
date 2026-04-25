@@ -1,6 +1,5 @@
 import { PALETTE } from '../palette.js';
 import type { CIData } from '../types.js';
-import React from 'react';
 
 function rateColor(pct: number): string {
   return pct >= 90 ? PALETTE.green : pct >= 70 ? PALETTE.yellow : PALETTE.red;
@@ -8,19 +7,19 @@ function rateColor(pct: number): string {
 
 function PassRateCards({ overall, passRate }: { overall: number; passRate: Record<string, number> }) {
   return (
-    <div className="row">
-      <div className="st">
-        <div className="v" style={{ color: rateColor(overall) }}>
+    <div class="row">
+      <div class="st">
+        <div class="v" style={{ color: rateColor(overall) }}>
           {overall}%
         </div>
-        <div className="l">Overall Pass Rate</div>
+        <div class="l">Overall Pass Rate</div>
       </div>
       {Object.entries(passRate).map(([name, rate]) => (
-        <div key={name} className="st">
-          <div className="v" style={{ color: rateColor(rate) }}>
+        <div class="st">
+          <div class="v" style={{ color: rateColor(rate) }}>
             {rate}%
           </div>
-          <div className="l">{name}</div>
+          <div class="l">{name}</div>
         </div>
       ))}
     </div>
@@ -103,9 +102,9 @@ export default function CISection({ ci }: { ci: CIData }) {
   return (
     <>
       <div data-ci-tabs="">
-        <div className="tabs">
+        <div class="tabs">
           {tabs.map((t, j) => (
-            <button key={t} className={`tab${j === 0 ? ' active' : ''}`} data-idx={j}>
+            <button class={`tab${j === 0 ? ' active' : ''}`} data-idx={j}>
               {t}
             </button>
           ))}
@@ -113,23 +112,23 @@ export default function CISection({ ci }: { ci: CIData }) {
         {tabs.map((t, j) => {
           const d = allData[t];
           return (
-            <div key={t} className="tab-panel" style={j > 0 ? { display: 'none' } : undefined} data-panel={j}>
+            <div class="tab-panel" style={j > 0 ? { display: 'none' } : undefined} data-panel={j}>
               {d && <PassRateCards overall={d.overallPassRate} passRate={d.passRate} />}
             </div>
           );
         })}
-        <script dangerouslySetInnerHTML={{ __html: CI_TAB_SCRIPT }} />
+        <script>{CI_TAB_SCRIPT}</script>
       </div>
 
-      <div className="grid" style={{ marginTop: 16 }}>
-        <div className="card wide">
+      <div class="grid" style={{ marginTop: '16px' }}>
+        <div class="card wide">
           <h2>📈 Pass/Fail Over Time</h2>
           <canvas data-chart={JSON.stringify(buildTimelineChart(ci))} />
         </div>
       </div>
 
-      <div className="grid" style={{ marginTop: 16 }}>
-        <div className="card">
+      <div class="grid" style={{ marginTop: '16px' }}>
+        <div class="card">
           <h2>❌ Most Failing Jobs</h2>
           {ci.failingJobs.length > 0 ? (
             <table>
@@ -145,12 +144,12 @@ export default function CISection({ ci }: { ci: CIData }) {
                 {ci.failingJobs.map(j => {
                   const cls = j.rate >= 20 ? 'b-red' : j.rate >= 10 ? 'b-yellow' : 'b-dim';
                   return (
-                    <tr key={j.job}>
+                    <tr>
                       <td>{j.job}</td>
                       <td>{j.failures}</td>
                       <td>{j.total}</td>
                       <td>
-                        <span className={`b ${cls}`}>{j.rate}%</span>
+                        <span class={`b ${cls}`}>{j.rate}%</span>
                       </td>
                     </tr>
                   );
@@ -161,7 +160,7 @@ export default function CISection({ ci }: { ci: CIData }) {
             <p style={{ color: 'var(--dim)' }}>No failures!</p>
           )}
         </div>
-        <div className="card">
+        <div class="card">
           <h2>🔄 Flaky Jobs (pass↔fail flips)</h2>
           {ci.flaky.length > 0 ? (
             <table>
@@ -173,10 +172,10 @@ export default function CISection({ ci }: { ci: CIData }) {
               </thead>
               <tbody>
                 {ci.flaky.map(f => (
-                  <tr key={f.job}>
+                  <tr>
                     <td>{f.job}</td>
                     <td>
-                      <span className="b b-yellow">{f.flipCount}</span>
+                      <span class="b b-yellow">{f.flipCount}</span>
                     </td>
                   </tr>
                 ))}
@@ -188,12 +187,12 @@ export default function CISection({ ci }: { ci: CIData }) {
         </div>
       </div>
 
-      <div className="grid" style={{ marginTop: 16 }}>
-        <div className="card">
+      <div class="grid" style={{ marginTop: '16px' }}>
+        <div class="card">
           <h2>🕐 Avg Job Duration</h2>
           <canvas data-chart={JSON.stringify(buildDurationChart(ci))} />
         </div>
-        <div className="card">
+        <div class="card">
           <h2>🔥 Recent Failures</h2>
           {ci.recentFailures.length > 0 ? (
             <table>
@@ -206,12 +205,12 @@ export default function CISection({ ci }: { ci: CIData }) {
               </thead>
               <tbody>
                 {ci.recentFailures.map(r => (
-                  <tr key={r.id}>
+                  <tr>
                     <td>{r.date}</td>
                     <td>{r.workflow}</td>
                     <td>
                       {r.failedJobs.map(j => (
-                        <span key={j} className="b b-red" style={{ marginRight: 4 }}>
+                        <span class="b b-red" style={{ marginRight: '4px' }}>
                           {j}
                         </span>
                       ))}
