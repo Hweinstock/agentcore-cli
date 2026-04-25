@@ -117,6 +117,7 @@ export function parsePRs(raw: GHPullRequestNode[]): PullRequest[] {
       state,
       created,
       merged: r.mergedAt ? new Date(r.mergedAt) : null,
+      closed: r.closedAt ? new Date(r.closedAt) : null,
       draft: r.isDraft,
       author: r.author?.login ?? 'ghost',
       labels: r.labels.nodes.map(l => l.name),
@@ -236,13 +237,15 @@ function computeTimeline(
     const w = ensure(fmt(item.created));
     if (series.includes('opened')) (w.opened as number)++;
 
-    const closedDate = isIssue(item) ? item.closed : 'merged' in item ? item.merged : null;
+    const closedDate = item.closed;
     if (closedDate) {
       const cw = ensure(fmt(closedDate));
       if (series.includes('closed')) (cw.closed as number)++;
       if (series.includes('merged') && !isIssue(item) && item.merged) {
         (cw.merged as number)++;
       }
+      // Always track closures for cumulative calculation
+      (cw._leftOpen as number) = ((cw._leftOpen as number) ?? 0) + 1;
     }
   });
 
@@ -252,14 +255,14 @@ function computeTimeline(
   if (allItems && sorted.length > 0) {
     const firstBucketKey = sorted[0][0];
     cumulative = allItems.filter(item => {
-      if (item.created >= new Date(firstBucketKey)) return false; // created within window, counted by buckets
-      const closedDate = isIssue(item) ? item.closed : 'merged' in item ? item.merged : null;
-      return !closedDate || closedDate >= new Date(firstBucketKey); // still open at window start
+      if (item.created >= new Date(firstBucketKey)) return false;
+      return !item.closed || item.closed >= new Date(firstBucketKey);
     }).length;
   }
   return sorted.map(([, b]) => {
-    cumulative += ((b.opened as number) ?? 0) - ((b.closed as number) ?? 0) - ((b.merged as number) ?? 0);
+    cumulative += ((b.opened as number) ?? 0) - ((b._leftOpen as number) ?? 0);
     if (series.includes('cumulativeOpen')) b.cumulativeOpen = Math.max(0, cumulative);
+    delete b._leftOpen;
     return b;
   });
 }
