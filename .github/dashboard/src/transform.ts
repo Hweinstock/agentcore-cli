@@ -69,7 +69,6 @@ export function parseIssues(raw: GHIssue[]): Issue[] {
       stateReason: r.state_reason,
       closedBy: r.closed_by?.login ?? null,
       author: r.user.login,
-      authorType: r.author_association,
     }));
 }
 

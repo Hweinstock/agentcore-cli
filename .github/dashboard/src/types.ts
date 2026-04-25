@@ -179,7 +179,6 @@ export interface Issue {
   stateReason: string | null;
   closedBy: string | null;
   author: string;
-  authorType: AuthorAssociation;
 }
 
 export interface PullRequest {
