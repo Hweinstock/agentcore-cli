@@ -1,7 +1,7 @@
 // ── Config types ────────────────────────────────────────────────────
 
 export interface DashboardConfig {
-  repo: string;
+  repos: string[];
   outputDir: string;
   pages: PageConfig[];
 }

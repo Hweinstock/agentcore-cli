@@ -106,36 +106,70 @@ function WindowedSections({ page, repo }: { page: PageData; repo: string }) {
   );
 }
 
-export default function Page({ page, config }: { page: PageData; config: DashboardConfig }) {
-  const repoName = config.repo.split('/')[1];
+export default function Page({
+  page,
+  config,
+  currentRepo,
+  currentPageId,
+}: {
+  page: PageData;
+  config: DashboardConfig;
+  currentRepo: string;
+  currentPageId: string;
+}) {
+  const repoName = currentRepo.split('/')[1];
+
+  /** e.g. ('aws/agentcore-cli', 'issues') → 'agentcore-cli-issues' */
+  function pageFile(repo: string, pageId: string): string {
+    return `${repo.split('/')[1]}-${pageId}`;
+  }
+
   return (
     <>
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
-        <title>{`${page.title} — ${config.repo} Dashboard`}</title>
+        <title>{`${page.title} — ${currentRepo} Dashboard`}</title>
         <script src="chart.js" />
         <script src="charts.js" />
         <style>{CSS}</style>
       </head>
       <body>
-        <h1>📊 {repoName} Dashboard</h1>
+        <h1>📊 Dashboard</h1>
         <p class="sub">
-          Generated: {page.generatedAt} · <a href={`https://github.com/${config.repo}`}>{config.repo}</a>
+          Generated: {page.generatedAt}
         </p>
+        {config.repos.length > 1 && (
+          <nav>
+            {config.repos.map(r => (
+              <a
+                href={`${pageFile(r, currentPageId)}.html`}
+                class={r === currentRepo ? 'active' : undefined}
+              >
+                {r.split('/')[1]}
+              </a>
+            ))}
+          </nav>
+        )}
         <nav>
           {config.pages.map(p => (
-            <a href={`${p.id}.html`} class={p.id === page.id ? 'active' : undefined}>
+            <a
+              href={`${pageFile(currentRepo, p.id)}.html`}
+              class={p.id === currentPageId ? 'active' : undefined}
+            >
               {p.title}
             </a>
           ))}
+          <span style={{ marginLeft: 'auto', color: 'var(--dim)', fontSize: '12px', padding: '6px 8px' }}>
+            <a href={`https://github.com/${currentRepo}`}>{currentRepo}</a>
+          </span>
         </nav>
         {page.windowedSections ? (
-          <WindowedSections page={page} repo={config.repo} />
+          <WindowedSections page={page} repo={currentRepo} />
         ) : (
           <div class="grid">
             {page.sections.map((s, i) => (
-              <Section sectionData={s} index={i} repo={config.repo} />
+              <Section sectionData={s} index={i} repo={currentRepo} />
             ))}
           </div>
         )}
