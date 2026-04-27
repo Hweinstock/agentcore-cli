@@ -67,6 +67,7 @@ ProtocolTesting/
 
 # Auto-cloned CDK constructs (from scripts/bundle.mjs)
 .cdk-constructs-clone/
+.omc/
 
 # Browser tests
 browser-tests/.browser-test-env
