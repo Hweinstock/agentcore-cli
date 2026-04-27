@@ -275,7 +275,7 @@ function computeDistribution(field: string, items: (Issue | PullRequest)[]): Cha
 
   if (field === 'labels') {
     let unlabeled = 0;
-    items.forEach(item => {
+    items.filter(i => i.state === 'open').forEach(item => {
       if (item.labels.length === 0) {
         unlabeled++;
         return;
