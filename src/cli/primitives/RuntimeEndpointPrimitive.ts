@@ -4,6 +4,7 @@ import { RuntimeEndpointSchema } from '../../schema';
 import type { ResourceType } from '../commands/remove/types';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
 import { BasePrimitive } from './BasePrimitive';
 import { SOURCE_CODE_NOTE } from './constants';
 import type { AddResult, AddScreenComponent, RemovableResource } from './types';
@@ -254,22 +255,28 @@ export class RuntimeEndpointPrimitive extends BasePrimitive<AddRuntimeEndpointOp
               process.exit(1);
             }
 
-            const result = await this.add({
-              runtime: cliOptions.runtime,
-              endpoint: cliOptions.endpoint,
-              version: cliOptions.version,
-              description: cliOptions.description,
+            const client = await TelemetryClientAccessor.get();
+            await client.withCommandRun('add.runtime-endpoint', async () => {
+              const result = await this.add({
+                runtime: cliOptions.runtime,
+                endpoint: cliOptions.endpoint,
+                version: cliOptions.version,
+                description: cliOptions.description,
+              });
+
+              if (!result.success) {
+                throw new Error(result.error);
+              }
+
+              if (cliOptions.json) {
+                console.log(JSON.stringify(result));
+              } else {
+                console.log(`Added runtime endpoint '${cliOptions.endpoint}' to runtime '${cliOptions.runtime}'`);
+              }
+
+              return {};
             });
-
-            if (cliOptions.json) {
-              console.log(JSON.stringify(result));
-            } else if (result.success) {
-              console.log(`Added runtime endpoint '${cliOptions.endpoint}' to runtime '${cliOptions.runtime}'`);
-            } else {
-              console.error(result.error);
-            }
-
-            process.exit(result.success ? 0 : 1);
+            process.exit(0);
           } catch (error) {
             if (cliOptions.json) {
               console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));

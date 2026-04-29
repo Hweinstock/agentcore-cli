@@ -12,6 +12,8 @@ import type { AddGatewayOptions as CLIAddGatewayOptions } from '../commands/add/
 import { validateAddGatewayOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { AuthorizerType, PolicyEngineMode, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import type { AddGatewayConfig } from '../tui/screens/mcp/types';
 import { BasePrimitive } from './BasePrimitive';
@@ -188,48 +190,61 @@ export class GatewayPrimitive extends BasePrimitive<AddGatewayOptions, Removable
             process.exit(1);
           }
 
-          const validation = validateAddGatewayOptions(cliOptions);
-          if (!validation.valid) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: validation.error }));
-            } else {
-              console.error(validation.error);
+          const client = await TelemetryClientAccessor.get();
+          await client.withCommandRun('add.gateway', async () => {
+            const validation = validateAddGatewayOptions(cliOptions);
+            if (!validation.valid) {
+              throw new Error(validation.error);
             }
-            process.exit(1);
-          }
 
-          // Parse custom claims JSON if provided (already validated)
-          const parsedCustomClaims = cliOptions.customClaims
-            ? (JSON.parse(cliOptions.customClaims) as CustomClaimValidation[])
-            : undefined;
+            // Parse custom claims JSON if provided (already validated)
+            const parsedCustomClaims = cliOptions.customClaims
+              ? (JSON.parse(cliOptions.customClaims) as CustomClaimValidation[])
+              : undefined;
 
-          const result = await this.add({
-            name: cliOptions.name!,
-            description: cliOptions.description,
-            authorizerType: cliOptions.authorizerType ?? 'NONE',
-            discoveryUrl: cliOptions.discoveryUrl,
-            allowedAudience: cliOptions.allowedAudience,
-            allowedClients: cliOptions.allowedClients,
-            allowedScopes: cliOptions.allowedScopes,
-            customClaims: parsedCustomClaims,
-            clientId: cliOptions.clientId,
-            clientSecret: cliOptions.clientSecret,
-            runtimes: cliOptions.runtimes,
-            enableSemanticSearch: cliOptions.semanticSearch !== false,
-            exceptionLevel: cliOptions.exceptionLevel,
-            policyEngine: cliOptions.policyEngine,
-            policyEngineMode: cliOptions.policyEngineMode,
+            const result = await this.add({
+              name: cliOptions.name!,
+              description: cliOptions.description,
+              authorizerType: cliOptions.authorizerType ?? 'NONE',
+              discoveryUrl: cliOptions.discoveryUrl,
+              allowedAudience: cliOptions.allowedAudience,
+              allowedClients: cliOptions.allowedClients,
+              allowedScopes: cliOptions.allowedScopes,
+              customClaims: parsedCustomClaims,
+              clientId: cliOptions.clientId,
+              clientSecret: cliOptions.clientSecret,
+              runtimes: cliOptions.runtimes,
+              enableSemanticSearch: cliOptions.semanticSearch !== false,
+              exceptionLevel: cliOptions.exceptionLevel,
+              policyEngine: cliOptions.policyEngine,
+              policyEngineMode: cliOptions.policyEngineMode,
+            });
+
+            if (!result.success) {
+              throw new Error(result.error);
+            }
+
+            if (cliOptions.json) {
+              console.log(JSON.stringify(result));
+            } else {
+              console.log(`Added gateway '${result.gatewayName}'`);
+            }
+
+            const runtimeCount = cliOptions.runtimes
+              ? cliOptions.runtimes
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(Boolean).length
+              : 0;
+            return {
+              authorizer_type: standardize(AuthorizerType, cliOptions.authorizerType ?? 'NONE'),
+              has_policy_engine: !!cliOptions.policyEngine,
+              policy_engine_mode: standardize(PolicyEngineMode, cliOptions.policyEngineMode ?? 'log_only'),
+              semantic_search: cliOptions.semanticSearch !== false,
+              runtime_count: runtimeCount,
+            };
           });
-
-          if (cliOptions.json) {
-            console.log(JSON.stringify(result));
-          } else if (result.success) {
-            console.log(`Added gateway '${result.gatewayName}'`);
-          } else {
-            console.error(result.error);
-          }
-
-          process.exit(result.success ? 0 : 1);
+          process.exit(0);
         } catch (error) {
           if (cliOptions.json) {
             console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));

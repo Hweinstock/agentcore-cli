@@ -5,6 +5,8 @@ import { detectRegion } from '../aws';
 import { getPolicyGeneration, startPolicyGeneration } from '../aws/policy-generation';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { ValidationMode, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
 import { SOURCE_CODE_NOTE } from './constants';
@@ -305,44 +307,49 @@ export class PolicyPrimitive extends BasePrimitive<AddPolicyOptions, RemovablePo
               cliOptions.generate ||
               cliOptions.json
             ) {
-              if (!cliOptions.name) {
-                if (cliOptions.json) {
-                  console.log(JSON.stringify({ success: false, error: '--name is required' }));
-                } else {
-                  console.error('--name is required');
+              const client = await TelemetryClientAccessor.get();
+              await client.withCommandRun('add.policy', async () => {
+                if (!cliOptions.name) {
+                  throw new Error('--name is required');
                 }
-                process.exit(1);
-              }
-              if (!cliOptions.engine) {
-                if (cliOptions.json) {
-                  console.log(JSON.stringify({ success: false, error: '--engine is required' }));
-                } else {
-                  console.error('--engine is required');
+                if (!cliOptions.engine) {
+                  throw new Error('--engine is required');
                 }
-                process.exit(1);
-              }
 
-              const result = await this.add({
-                name: cliOptions.name,
-                engine: cliOptions.engine,
-                description: cliOptions.description,
-                source: cliOptions.source,
-                statement: cliOptions.statement,
-                generate: cliOptions.generate,
-                gateway: cliOptions.gateway,
-                validationMode: cliOptions.validationMode
-                  ? ValidationModeSchema.parse(cliOptions.validationMode)
-                  : undefined,
+                const result = await this.add({
+                  name: cliOptions.name,
+                  engine: cliOptions.engine,
+                  description: cliOptions.description,
+                  source: cliOptions.source,
+                  statement: cliOptions.statement,
+                  generate: cliOptions.generate,
+                  gateway: cliOptions.gateway,
+                  validationMode: cliOptions.validationMode
+                    ? ValidationModeSchema.parse(cliOptions.validationMode)
+                    : undefined,
+                });
+
+                if (!result.success) {
+                  throw new Error(result.error);
+                }
+
+                if (cliOptions.json) {
+                  console.log(JSON.stringify(result));
+                } else {
+                  console.log(`Added policy '${result.policyName}' to engine '${result.engineName}'`);
+                }
+
+                const sourceType: 'file' | 'statement' | 'generate' = cliOptions.source
+                  ? 'file'
+                  : cliOptions.generate
+                    ? 'generate'
+                    : 'statement';
+                return {
+                  source_type: sourceType,
+                  validation_mode: standardize(ValidationMode, cliOptions.validationMode ?? 'FAIL_ON_ANY_FINDINGS'),
+                };
               });
-
-              if (cliOptions.json) {
-                console.log(JSON.stringify(result));
-              } else if (result.success) {
-                console.log(`Added policy '${result.policyName}' to engine '${result.engineName}'`);
-              } else {
-                console.error(result.error);
-              }
-              process.exit(result.success ? 0 : 1);
+              process.exit(0);
             } else {
               requireTTY();
               const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
