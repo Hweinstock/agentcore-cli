@@ -3,7 +3,7 @@ import type { OnlineEvalConfig } from '../../schema';
 import { OnlineEvalConfigSchema } from '../../schema';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
-import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
 import type { AddResult, AddScreenComponent, RemovableResource } from './types';
@@ -122,83 +122,72 @@ export class OnlineEvalConfigPrimitive extends BasePrimitive<AddOnlineEvalConfig
           enableOnCreate?: boolean;
           json?: boolean;
         }) => {
-          try {
-            if (!findConfigRoot()) {
-              console.error('No agentcore project found. Run `agentcore create` first.');
-              process.exit(1);
-            }
-
-            if (cliOptions.name || cliOptions.json) {
-              // Merge --evaluator and --evaluator-arn into a single list
-              const allEvaluators = [...(cliOptions.evaluator ?? []), ...(cliOptions.evaluatorArn ?? [])];
-
-              const client = await TelemetryClientAccessor.get();
-              await client.withCommandRun('add.online-eval', async () => {
-                if (!cliOptions.name || !cliOptions.runtime || allEvaluators.length === 0 || !cliOptions.samplingRate) {
-                  throw new Error(
-                    '--name, --runtime, --evaluator (and/or --evaluator-arn), and --sampling-rate are all required in non-interactive mode'
-                  );
-                }
-
-                // Sampling rate as a percentage of requests to evaluate (0.01% to 100%)
-                const samplingRate = parseFloat(cliOptions.samplingRate);
-                if (isNaN(samplingRate) || samplingRate < 0.01 || samplingRate > 100) {
-                  throw new Error(
-                    `Invalid --sampling-rate "${cliOptions.samplingRate}". Must be a percentage between 0.01 and 100`
-                  );
-                }
-
-                const result = await this.add({
-                  name: cliOptions.name,
-                  agent: cliOptions.runtime,
-                  evaluators: allEvaluators,
-                  samplingRate,
-                  enableOnCreate: cliOptions.enableOnCreate,
-                });
-
-                if (!result.success) {
-                  throw new Error(result.error);
-                }
-
-                if (cliOptions.json) {
-                  console.log(JSON.stringify(result));
-                } else {
-                  console.log(`Added online eval config '${result.configName}'`);
-                }
-
-                return {
-                  evaluator_count: allEvaluators.length,
-                  enable_on_create: cliOptions.enableOnCreate ?? false,
-                };
-              });
-              process.exit(0);
-            } else {
-              // TUI fallback
-              requireTTY();
-              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-                import('ink'),
-                import('react'),
-                import('../tui/screens/add/AddFlow'),
-              ]);
-              const { clear, unmount } = render(
-                React.createElement(AddFlow, {
-                  isInteractive: false,
-                  initialResource: 'online-eval',
-                  onExit: () => {
-                    clear();
-                    unmount();
-                    process.exit(0);
-                  },
-                })
-              );
-            }
-          } catch (error) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-            } else {
-              console.error(getErrorMessage(error));
-            }
+          if (!findConfigRoot()) {
+            console.error('No agentcore project found. Run `agentcore create` first.');
             process.exit(1);
+          }
+
+          if (cliOptions.name || cliOptions.json) {
+            // Merge --evaluator and --evaluator-arn into a single list
+            const allEvaluators = [...(cliOptions.evaluator ?? []), ...(cliOptions.evaluatorArn ?? [])];
+
+            await cliCommandRun('add.online-eval', !!cliOptions.json, async () => {
+              if (!cliOptions.name || !cliOptions.runtime || allEvaluators.length === 0 || !cliOptions.samplingRate) {
+                throw new Error(
+                  '--name, --runtime, --evaluator (and/or --evaluator-arn), and --sampling-rate are all required in non-interactive mode'
+                );
+              }
+
+              // Sampling rate as a percentage of requests to evaluate (0.01% to 100%)
+              const samplingRate = parseFloat(cliOptions.samplingRate);
+              if (isNaN(samplingRate) || samplingRate < 0.01 || samplingRate > 100) {
+                throw new Error(
+                  `Invalid --sampling-rate "${cliOptions.samplingRate}". Must be a percentage between 0.01 and 100`
+                );
+              }
+
+              const result = await this.add({
+                name: cliOptions.name,
+                agent: cliOptions.runtime,
+                evaluators: allEvaluators,
+                samplingRate,
+                enableOnCreate: cliOptions.enableOnCreate,
+              });
+
+              if (!result.success) {
+                throw new Error(result.error);
+              }
+
+              if (cliOptions.json) {
+                console.log(JSON.stringify(result));
+              } else {
+                console.log(`Added online eval config '${result.configName}'`);
+              }
+
+              return {
+                evaluator_count: allEvaluators.length,
+                enable_on_create: cliOptions.enableOnCreate ?? false,
+              };
+            });
+          } else {
+            // TUI fallback
+            requireTTY();
+            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+              import('ink'),
+              import('react'),
+              import('../tui/screens/add/AddFlow'),
+            ]);
+            const { clear, unmount } = render(
+              React.createElement(AddFlow, {
+                isInteractive: false,
+                initialResource: 'online-eval',
+                onExit: () => {
+                  clear();
+                  unmount();
+                  process.exit(0);
+                },
+              })
+            );
           }
         }
       );

@@ -12,7 +12,7 @@ import type { AddGatewayOptions as CLIAddGatewayOptions } from '../commands/add/
 import { validateAddGatewayOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
-import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
 import { AuthorizerType, PolicyEngineMode, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import type { AddGatewayConfig } from '../tui/screens/mcp/types';
@@ -184,75 +184,63 @@ export class GatewayPrimitive extends BasePrimitive<AddGatewayOptions, Removable
       .option('--json', 'Output as JSON [non-interactive]')
       .action(async (rawOptions: Record<string, string | boolean | undefined>) => {
         const cliOptions = rawOptions as unknown as CLIAddGatewayOptions;
-        try {
-          if (!findConfigRoot()) {
-            console.error('No agentcore project found. Run `agentcore create` first.');
-            process.exit(1);
-          }
-
-          const client = await TelemetryClientAccessor.get();
-          await client.withCommandRun('add.gateway', async () => {
-            const validation = validateAddGatewayOptions(cliOptions);
-            if (!validation.valid) {
-              throw new Error(validation.error);
-            }
-
-            // Parse custom claims JSON if provided (already validated)
-            const parsedCustomClaims = cliOptions.customClaims
-              ? (JSON.parse(cliOptions.customClaims) as CustomClaimValidation[])
-              : undefined;
-
-            const result = await this.add({
-              name: cliOptions.name!,
-              description: cliOptions.description,
-              authorizerType: cliOptions.authorizerType ?? 'NONE',
-              discoveryUrl: cliOptions.discoveryUrl,
-              allowedAudience: cliOptions.allowedAudience,
-              allowedClients: cliOptions.allowedClients,
-              allowedScopes: cliOptions.allowedScopes,
-              customClaims: parsedCustomClaims,
-              clientId: cliOptions.clientId,
-              clientSecret: cliOptions.clientSecret,
-              runtimes: cliOptions.runtimes,
-              enableSemanticSearch: cliOptions.semanticSearch !== false,
-              exceptionLevel: cliOptions.exceptionLevel,
-              policyEngine: cliOptions.policyEngine,
-              policyEngineMode: cliOptions.policyEngineMode,
-            });
-
-            if (!result.success) {
-              throw new Error(result.error);
-            }
-
-            if (cliOptions.json) {
-              console.log(JSON.stringify(result));
-            } else {
-              console.log(`Added gateway '${result.gatewayName}'`);
-            }
-
-            const runtimeCount = cliOptions.runtimes
-              ? cliOptions.runtimes
-                  .split(',')
-                  .map(s => s.trim())
-                  .filter(Boolean).length
-              : 0;
-            return {
-              authorizer_type: standardize(AuthorizerType, cliOptions.authorizerType ?? 'NONE'),
-              has_policy_engine: !!cliOptions.policyEngine,
-              policy_engine_mode: standardize(PolicyEngineMode, cliOptions.policyEngineMode ?? 'log_only'),
-              semantic_search: cliOptions.semanticSearch !== false,
-              runtime_count: runtimeCount,
-            };
-          });
-          process.exit(0);
-        } catch (error) {
-          if (cliOptions.json) {
-            console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-          } else {
-            console.error(`Error: ${getErrorMessage(error)}`);
-          }
+        if (!findConfigRoot()) {
+          console.error('No agentcore project found. Run `agentcore create` first.');
           process.exit(1);
         }
+        await cliCommandRun('add.gateway', !!cliOptions.json, async () => {
+          const validation = validateAddGatewayOptions(cliOptions);
+          if (!validation.valid) {
+            throw new Error(validation.error);
+          }
+
+          // Parse custom claims JSON if provided (already validated)
+          const parsedCustomClaims = cliOptions.customClaims
+            ? (JSON.parse(cliOptions.customClaims) as CustomClaimValidation[])
+            : undefined;
+
+          const result = await this.add({
+            name: cliOptions.name!,
+            description: cliOptions.description,
+            authorizerType: cliOptions.authorizerType ?? 'NONE',
+            discoveryUrl: cliOptions.discoveryUrl,
+            allowedAudience: cliOptions.allowedAudience,
+            allowedClients: cliOptions.allowedClients,
+            allowedScopes: cliOptions.allowedScopes,
+            customClaims: parsedCustomClaims,
+            clientId: cliOptions.clientId,
+            clientSecret: cliOptions.clientSecret,
+            runtimes: cliOptions.runtimes,
+            enableSemanticSearch: cliOptions.semanticSearch !== false,
+            exceptionLevel: cliOptions.exceptionLevel,
+            policyEngine: cliOptions.policyEngine,
+            policyEngineMode: cliOptions.policyEngineMode,
+          });
+
+          if (!result.success) {
+            throw new Error(result.error);
+          }
+
+          if (cliOptions.json) {
+            console.log(JSON.stringify(result));
+          } else {
+            console.log(`Added gateway '${result.gatewayName}'`);
+          }
+
+          const runtimeCount = cliOptions.runtimes
+            ? cliOptions.runtimes
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean).length
+            : 0;
+          return {
+            authorizer_type: standardize(AuthorizerType, cliOptions.authorizerType ?? 'NONE'),
+            has_policy_engine: !!cliOptions.policyEngine,
+            policy_engine_mode: standardize(PolicyEngineMode, cliOptions.policyEngineMode ?? 'log_only'),
+            semantic_search: cliOptions.semanticSearch !== false,
+            runtime_count: runtimeCount,
+          };
+        });
       });
 
     removeCmd

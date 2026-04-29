@@ -4,7 +4,7 @@ import { RuntimeEndpointSchema } from '../../schema';
 import type { ResourceType } from '../commands/remove/types';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
-import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
 import { BasePrimitive } from './BasePrimitive';
 import { SOURCE_CODE_NOTE } from './constants';
 import type { AddResult, AddScreenComponent, RemovableResource } from './types';
@@ -249,42 +249,31 @@ export class RuntimeEndpointPrimitive extends BasePrimitive<AddRuntimeEndpointOp
           description?: string;
           json?: boolean;
         }) => {
-          try {
-            if (!findConfigRoot()) {
-              console.error('No agentcore project found. Run `agentcore create` first.');
-              process.exit(1);
-            }
-
-            const client = await TelemetryClientAccessor.get();
-            await client.withCommandRun('add.runtime-endpoint', async () => {
-              const result = await this.add({
-                runtime: cliOptions.runtime,
-                endpoint: cliOptions.endpoint,
-                version: cliOptions.version,
-                description: cliOptions.description,
-              });
-
-              if (!result.success) {
-                throw new Error(result.error);
-              }
-
-              if (cliOptions.json) {
-                console.log(JSON.stringify(result));
-              } else {
-                console.log(`Added runtime endpoint '${cliOptions.endpoint}' to runtime '${cliOptions.runtime}'`);
-              }
-
-              return {};
-            });
-            process.exit(0);
-          } catch (error) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-            } else {
-              console.error(`Error: ${getErrorMessage(error)}`);
-            }
+          if (!findConfigRoot()) {
+            console.error('No agentcore project found. Run `agentcore create` first.');
             process.exit(1);
           }
+
+          await cliCommandRun('add.runtime-endpoint', !!cliOptions.json, async () => {
+            const result = await this.add({
+              runtime: cliOptions.runtime,
+              endpoint: cliOptions.endpoint,
+              version: cliOptions.version,
+              description: cliOptions.description,
+            });
+
+            if (!result.success) {
+              throw new Error(result.error);
+            }
+
+            if (cliOptions.json) {
+              console.log(JSON.stringify(result));
+            } else {
+              console.log(`Added runtime endpoint '${cliOptions.endpoint}' to runtime '${cliOptions.runtime}'`);
+            }
+
+            return {};
+          });
         }
       );
 

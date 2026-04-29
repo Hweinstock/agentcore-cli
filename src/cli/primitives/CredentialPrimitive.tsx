@@ -4,7 +4,7 @@ import { CredentialSchema } from '../../schema';
 import { validateAddCredentialOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
-import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
 import { CredentialType, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
@@ -275,102 +275,91 @@ export class CredentialPrimitive extends BasePrimitive<AddCredentialOptions, Rem
           clientSecret?: string;
           scopes?: string;
         }) => {
-          try {
-            if (!findConfigRoot()) {
-              console.error('No agentcore project found. Run `agentcore create` first.');
-              process.exit(1);
-            }
-
-            if (
-              cliOptions.name ||
-              cliOptions.apiKey ||
-              cliOptions.json ||
-              cliOptions.type ||
-              cliOptions.discoveryUrl ||
-              cliOptions.clientId ||
-              cliOptions.clientSecret ||
-              cliOptions.scopes
-            ) {
-              // CLI mode
-              const client = await TelemetryClientAccessor.get();
-              await client.withCommandRun('add.credential', async () => {
-                const validation = validateAddCredentialOptions({
-                  name: cliOptions.name,
-                  type: cliOptions.type as 'api-key' | 'oauth' | undefined,
-                  apiKey: cliOptions.apiKey,
-                  discoveryUrl: cliOptions.discoveryUrl,
-                  clientId: cliOptions.clientId,
-                  clientSecret: cliOptions.clientSecret,
-                  scopes: cliOptions.scopes,
-                });
-
-                if (!validation.valid) {
-                  throw new Error(validation.error);
-                }
-
-                const addOptions =
-                  cliOptions.type === 'oauth'
-                    ? {
-                        authorizerType: 'OAuthCredentialProvider' as const,
-                        name: cliOptions.name!,
-                        discoveryUrl: cliOptions.discoveryUrl!,
-                        clientId: cliOptions.clientId!,
-                        clientSecret: cliOptions.clientSecret!,
-                        scopes: cliOptions.scopes
-                          ?.split(',')
-                          .map(s => s.trim())
-                          .filter(Boolean),
-                      }
-                    : {
-                        authorizerType: 'ApiKeyCredentialProvider' as const,
-                        name: cliOptions.name!,
-                        apiKey: cliOptions.apiKey!,
-                      };
-
-                const result = await this.add(addOptions);
-
-                if (!result.success) {
-                  throw new Error(result.error);
-                }
-
-                if (cliOptions.json) {
-                  console.log(JSON.stringify(result));
-                } else {
-                  console.log(`Added credential '${result.credentialName}'`);
-                }
-
-                return {
-                  credential_type: standardize(CredentialType, cliOptions.type ?? 'api-key'),
-                };
-              });
-              process.exit(0);
-            } else {
-              // TUI fallback — dynamic imports to avoid pulling ink (async) into registry
-              requireTTY();
-              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-                import('ink'),
-                import('react'),
-                import('../tui/screens/add/AddFlow'),
-              ]);
-              const { clear, unmount } = render(
-                React.createElement(AddFlow, {
-                  isInteractive: false,
-                  initialResource: 'credential',
-                  onExit: () => {
-                    clear();
-                    unmount();
-                    process.exit(0);
-                  },
-                })
-              );
-            }
-          } catch (error) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-            } else {
-              console.error(getErrorMessage(error));
-            }
+          if (!findConfigRoot()) {
+            console.error('No agentcore project found. Run `agentcore create` first.');
             process.exit(1);
+          }
+
+          if (
+            cliOptions.name ||
+            cliOptions.apiKey ||
+            cliOptions.json ||
+            cliOptions.type ||
+            cliOptions.discoveryUrl ||
+            cliOptions.clientId ||
+            cliOptions.clientSecret ||
+            cliOptions.scopes
+          ) {
+            // CLI mode
+            await cliCommandRun('add.credential', !!cliOptions.json, async () => {
+              const validation = validateAddCredentialOptions({
+                name: cliOptions.name,
+                type: cliOptions.type as 'api-key' | 'oauth' | undefined,
+                apiKey: cliOptions.apiKey,
+                discoveryUrl: cliOptions.discoveryUrl,
+                clientId: cliOptions.clientId,
+                clientSecret: cliOptions.clientSecret,
+                scopes: cliOptions.scopes,
+              });
+
+              if (!validation.valid) {
+                throw new Error(validation.error);
+              }
+
+              const addOptions =
+                cliOptions.type === 'oauth'
+                  ? {
+                      authorizerType: 'OAuthCredentialProvider' as const,
+                      name: cliOptions.name!,
+                      discoveryUrl: cliOptions.discoveryUrl!,
+                      clientId: cliOptions.clientId!,
+                      clientSecret: cliOptions.clientSecret!,
+                      scopes: cliOptions.scopes
+                        ?.split(',')
+                        .map(s => s.trim())
+                        .filter(Boolean),
+                    }
+                  : {
+                      authorizerType: 'ApiKeyCredentialProvider' as const,
+                      name: cliOptions.name!,
+                      apiKey: cliOptions.apiKey!,
+                    };
+
+              const result = await this.add(addOptions);
+
+              if (!result.success) {
+                throw new Error(result.error);
+              }
+
+              if (cliOptions.json) {
+                console.log(JSON.stringify(result));
+              } else {
+                console.log(`Added credential '${result.credentialName}'`);
+              }
+
+              return {
+                credential_type: standardize(CredentialType, cliOptions.type ?? 'api-key'),
+              };
+            });
+          } else {
+            // TUI fallback — dynamic imports to avoid pulling ink (async) into registry
+            requireTTY();
+            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+              import('ink'),
+              import('react'),
+              import('../tui/screens/add/AddFlow'),
+            ]);
+            const { clear, unmount } = render(
+              React.createElement(AddFlow, {
+                isInteractive: false,
+                initialResource: 'credential',
+                onExit: () => {
+                  clear();
+                  unmount();
+                  process.exit(0);
+                },
+              })
+            );
           }
         }
       );
