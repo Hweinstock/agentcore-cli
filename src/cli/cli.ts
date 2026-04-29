@@ -21,6 +21,7 @@ import { registerValidate } from './commands/validate';
 import { PACKAGE_VERSION } from './constants';
 import { getOrCreateInstallationId } from './global-config';
 import { ALL_PRIMITIVES } from './primitives';
+import { TelemetryClientAccessor } from './telemetry';
 import { App } from './tui/App';
 import { LayoutProvider } from './tui/context';
 import { COMMAND_DESCRIPTIONS } from './tui/copy';
@@ -222,7 +223,12 @@ export const main = async (argv: string[]) => {
     printTelemetryNotice();
   }
 
-  await program.parseAsync(argv);
+  TelemetryClientAccessor.init(args[0] ?? 'unknown');
+  try {
+    await program.parseAsync(argv);
+  } finally {
+    await TelemetryClientAccessor.shutdown();
+  }
 
   // Telemetry notice already printed above; only run update check here.
   await printPostCommandNotices(false, updateCheck);

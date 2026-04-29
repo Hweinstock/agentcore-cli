@@ -1,6 +1,6 @@
 import { createTempConfig } from '../../__tests__/helpers/temp-config';
 import { resolveAuditFilePath } from '../config';
-import { FilesystemSink } from '../sinks/filesystem-sink';
+import { FileSystemSink } from '../sinks/filesystem-sink';
 import { readFile } from 'fs/promises';
 import { join } from 'node:path';
 import { afterAll, beforeEach, describe, expect, it } from 'vitest';
@@ -10,7 +10,7 @@ const outputDir = join(tmp.configDir, 'telemetry');
 
 function createSink(opts: { dir?: string; log?: (msg: string) => void } = {}) {
   const filePath = join(opts.dir ?? outputDir, 'test-session.json');
-  return new FilesystemSink({ filePath, log: opts.log });
+  return new FileSystemSink({ filePath, log: opts.log });
 }
 
 function readJsonl(path: string): Promise<unknown[]> {
@@ -22,7 +22,7 @@ function readJsonl(path: string): Promise<unknown[]> {
   );
 }
 
-describe('FilesystemSink', () => {
+describe('FileSystemSink', () => {
   beforeEach(() => tmp.setup());
   afterAll(() => tmp.cleanup());
 
@@ -54,7 +54,7 @@ describe('FilesystemSink', () => {
   it('creates output directory if it does not exist', async () => {
     const nested = join(tmp.testDir, 'deep', 'nested', 'telemetry');
     const filePath = join(nested, 'test.json');
-    const sink = new FilesystemSink({ filePath });
+    const sink = new FileSystemSink({ filePath });
     sink.record(1, { command_group: 'status', command: 'status' });
     await sink.flush();
 
