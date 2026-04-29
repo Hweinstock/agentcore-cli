@@ -320,24 +320,29 @@ export class EvaluatorPrimitive extends BasePrimitive<AddEvaluatorOptions, Remov
               };
             });
           } else {
-            // TUI fallback
-            requireTTY();
-            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-              import('ink'),
-              import('react'),
-              import('../tui/screens/add/AddFlow'),
-            ]);
-            const { clear, unmount } = render(
-              React.createElement(AddFlow, {
-                isInteractive: false,
-                initialResource: 'evaluator',
-                onExit: () => {
-                  clear();
-                  unmount();
-                  process.exit(0);
-                },
-              })
-            );
+            try {
+              // TUI fallback
+              requireTTY();
+              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+                import('ink'),
+                import('react'),
+                import('../tui/screens/add/AddFlow'),
+              ]);
+              const { clear, unmount } = render(
+                React.createElement(AddFlow, {
+                  isInteractive: false,
+                  initialResource: 'evaluator',
+                  onExit: () => {
+                    clear();
+                    unmount();
+                    process.exit(0);
+                  },
+                })
+              );
+            } catch (error) {
+              console.error(getErrorMessage(error));
+              process.exit(1);
+            }
           }
         }
       );

@@ -330,10 +330,10 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
 
           const cliType = cliOptions.type ?? '';
           const telemetryTargetType =
-            cliType in targetTypeMap ? targetTypeMap[cliType as TargetTypeKey] : ('mcp-server' as const);
+            cliType in targetTypeMap ? targetTypeMap[cliType as TargetTypeKey] : ('unknown' as const);
           const telemetryOutboundAuth = standardize(
             OutboundAuth,
-            (cliOptions.outboundAuthType ?? 'none').replace('_', '-')
+            (cliOptions.outboundAuthType ?? 'none').replaceAll('_', '-')
           );
           const telemetryHost = standardize(GatewayTargetHost, cliOptions.host ?? 'lambda');
 

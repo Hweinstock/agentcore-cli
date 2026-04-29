@@ -240,24 +240,29 @@ export class MemoryPrimitive extends BasePrimitive<AddMemoryOptions, RemovableMe
               };
             });
           } else {
-            // TUI fallback — dynamic imports to avoid pulling ink (async) into registry
-            requireTTY();
-            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-              import('ink'),
-              import('react'),
-              import('../tui/screens/add/AddFlow'),
-            ]);
-            const { clear, unmount } = render(
-              React.createElement(AddFlow, {
-                isInteractive: false,
-                initialResource: 'memory',
-                onExit: () => {
-                  clear();
-                  unmount();
-                  process.exit(0);
-                },
-              })
-            );
+            try {
+              // TUI fallback — dynamic imports to avoid pulling ink (async) into registry
+              requireTTY();
+              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+                import('ink'),
+                import('react'),
+                import('../tui/screens/add/AddFlow'),
+              ]);
+              const { clear, unmount } = render(
+                React.createElement(AddFlow, {
+                  isInteractive: false,
+                  initialResource: 'memory',
+                  onExit: () => {
+                    clear();
+                    unmount();
+                    process.exit(0);
+                  },
+                })
+              );
+            } catch (error) {
+              console.error(getErrorMessage(error));
+              process.exit(1);
+            }
           }
         }
       );
