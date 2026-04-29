@@ -348,23 +348,28 @@ export class PolicyPrimitive extends BasePrimitive<AddPolicyOptions, RemovablePo
               };
             });
           } else {
-            requireTTY();
-            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-              import('ink'),
-              import('react'),
-              import('../tui/screens/add/AddFlow'),
-            ]);
-            const { clear, unmount } = render(
-              React.createElement(AddFlow, {
-                isInteractive: false,
-                initialResource: 'policy',
-                onExit: () => {
-                  clear();
-                  unmount();
-                  process.exit(0);
-                },
-              })
-            );
+            try {
+              requireTTY();
+              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+                import('ink'),
+                import('react'),
+                import('../tui/screens/add/AddFlow'),
+              ]);
+              const { clear, unmount } = render(
+                React.createElement(AddFlow, {
+                  isInteractive: false,
+                  initialResource: 'policy',
+                  onExit: () => {
+                    clear();
+                    unmount();
+                    process.exit(0);
+                  },
+                })
+              );
+            } catch (error) {
+              console.error(getErrorMessage(error));
+              process.exit(1);
+            }
           }
         }
       );

@@ -47,6 +47,7 @@ export const GatewayTargetType = z.enum([
   'open-api-schema',
   'smithy-model',
   'lambda-function-arn',
+  'unknown',
 ]);
 export const Language = z.enum(['python', 'typescript', 'other']);
 export const Level = z.enum(['session', 'trace', 'tool_call']);
