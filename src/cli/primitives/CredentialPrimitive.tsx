@@ -4,6 +4,8 @@ import { CredentialSchema } from '../../schema';
 import { validateAddCredentialOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { CredentialType, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
 import { computeDefaultCredentialEnvVarName } from './credential-utils';
@@ -290,54 +292,58 @@ export class CredentialPrimitive extends BasePrimitive<AddCredentialOptions, Rem
               cliOptions.scopes
             ) {
               // CLI mode
-              const validation = validateAddCredentialOptions({
-                name: cliOptions.name,
-                type: cliOptions.type as 'api-key' | 'oauth' | undefined,
-                apiKey: cliOptions.apiKey,
-                discoveryUrl: cliOptions.discoveryUrl,
-                clientId: cliOptions.clientId,
-                clientSecret: cliOptions.clientSecret,
-                scopes: cliOptions.scopes,
-              });
+              const client = await TelemetryClientAccessor.get();
+              await client.withCommandRun('add.credential', async () => {
+                const validation = validateAddCredentialOptions({
+                  name: cliOptions.name,
+                  type: cliOptions.type as 'api-key' | 'oauth' | undefined,
+                  apiKey: cliOptions.apiKey,
+                  discoveryUrl: cliOptions.discoveryUrl,
+                  clientId: cliOptions.clientId,
+                  clientSecret: cliOptions.clientSecret,
+                  scopes: cliOptions.scopes,
+                });
 
-              if (!validation.valid) {
-                if (cliOptions.json) {
-                  console.log(JSON.stringify({ success: false, error: validation.error }));
-                } else {
-                  console.error(validation.error);
+                if (!validation.valid) {
+                  throw new Error(validation.error);
                 }
-                process.exit(1);
-              }
 
-              const addOptions =
-                cliOptions.type === 'oauth'
-                  ? {
-                      authorizerType: 'OAuthCredentialProvider' as const,
-                      name: cliOptions.name!,
-                      discoveryUrl: cliOptions.discoveryUrl!,
-                      clientId: cliOptions.clientId!,
-                      clientSecret: cliOptions.clientSecret!,
-                      scopes: cliOptions.scopes
-                        ?.split(',')
-                        .map(s => s.trim())
-                        .filter(Boolean),
-                    }
-                  : {
-                      authorizerType: 'ApiKeyCredentialProvider' as const,
-                      name: cliOptions.name!,
-                      apiKey: cliOptions.apiKey!,
-                    };
+                const addOptions =
+                  cliOptions.type === 'oauth'
+                    ? {
+                        authorizerType: 'OAuthCredentialProvider' as const,
+                        name: cliOptions.name!,
+                        discoveryUrl: cliOptions.discoveryUrl!,
+                        clientId: cliOptions.clientId!,
+                        clientSecret: cliOptions.clientSecret!,
+                        scopes: cliOptions.scopes
+                          ?.split(',')
+                          .map(s => s.trim())
+                          .filter(Boolean),
+                      }
+                    : {
+                        authorizerType: 'ApiKeyCredentialProvider' as const,
+                        name: cliOptions.name!,
+                        apiKey: cliOptions.apiKey!,
+                      };
 
-              const result = await this.add(addOptions);
+                const result = await this.add(addOptions);
 
-              if (cliOptions.json) {
-                console.log(JSON.stringify(result));
-              } else if (result.success) {
-                console.log(`Added credential '${result.credentialName}'`);
-              } else {
-                console.error(result.error);
-              }
-              process.exit(result.success ? 0 : 1);
+                if (!result.success) {
+                  throw new Error(result.error);
+                }
+
+                if (cliOptions.json) {
+                  console.log(JSON.stringify(result));
+                } else {
+                  console.log(`Added credential '${result.credentialName}'`);
+                }
+
+                return {
+                  credential_type: standardize(CredentialType, cliOptions.type ?? 'api-key'),
+                };
+              });
+              process.exit(0);
             } else {
               // TUI fallback — dynamic imports to avoid pulling ink (async) into registry
               requireTTY();

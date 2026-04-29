@@ -17,6 +17,7 @@ import {
 import { DEFAULT_DELIVERY_TYPE, validateAddMemoryOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
 import { requireTTY } from '../tui/guards/tty';
 import { DEFAULT_EVENT_EXPIRY } from '../tui/screens/memory/types';
 import { BasePrimitive } from './BasePrimitive';
@@ -191,44 +192,56 @@ export class MemoryPrimitive extends BasePrimitive<AddMemoryOptions, RemovableMe
 
             if (cliOptions.name || cliOptions.json) {
               // CLI mode
-              const expiry = cliOptions.expiry ? parseInt(cliOptions.expiry, 10) : undefined;
-              const validation = validateAddMemoryOptions({
-                name: cliOptions.name,
-                strategies: cliOptions.strategies,
-                expiry,
-                deliveryType: cliOptions.deliveryType,
-                dataStreamArn: cliOptions.dataStreamArn,
-                contentLevel: cliOptions.streamContentLevel,
-                streamDeliveryResources: cliOptions.streamDeliveryResources,
-              });
+              const client = await TelemetryClientAccessor.get();
+              await client.withCommandRun('add.memory', async () => {
+                const expiry = cliOptions.expiry ? parseInt(cliOptions.expiry, 10) : undefined;
+                const validation = validateAddMemoryOptions({
+                  name: cliOptions.name,
+                  strategies: cliOptions.strategies,
+                  expiry,
+                  deliveryType: cliOptions.deliveryType,
+                  dataStreamArn: cliOptions.dataStreamArn,
+                  contentLevel: cliOptions.streamContentLevel,
+                  streamDeliveryResources: cliOptions.streamDeliveryResources,
+                });
 
-              if (!validation.valid) {
-                if (cliOptions.json) {
-                  console.log(JSON.stringify({ success: false, error: validation.error }));
-                } else {
-                  console.error(validation.error);
+                if (!validation.valid) {
+                  throw new Error(validation.error);
                 }
-                process.exit(1);
-              }
 
-              const result = await this.add({
-                name: cliOptions.name!,
-                strategies: cliOptions.strategies,
-                expiry,
-                deliveryType: cliOptions.deliveryType,
-                dataStreamArn: cliOptions.dataStreamArn,
-                contentLevel: cliOptions.streamContentLevel,
-                streamDeliveryResources: cliOptions.streamDeliveryResources,
+                const result = await this.add({
+                  name: cliOptions.name!,
+                  strategies: cliOptions.strategies,
+                  expiry,
+                  deliveryType: cliOptions.deliveryType,
+                  dataStreamArn: cliOptions.dataStreamArn,
+                  contentLevel: cliOptions.streamContentLevel,
+                  streamDeliveryResources: cliOptions.streamDeliveryResources,
+                });
+
+                if (!result.success) {
+                  throw new Error(result.error);
+                }
+
+                if (cliOptions.json) {
+                  console.log(JSON.stringify(result));
+                } else {
+                  console.log(`Added memory '${result.memoryName}'`);
+                }
+
+                const strategyList = (cliOptions.strategies ?? '')
+                  .split(',')
+                  .map(s => s.trim().toUpperCase())
+                  .filter(Boolean);
+                return {
+                  strategy_count: strategyList.length,
+                  strategy_semantic: strategyList.includes('SEMANTIC'),
+                  strategy_summarization: strategyList.includes('SUMMARIZATION'),
+                  strategy_user_preference: strategyList.includes('USER_PREFERENCE'),
+                  strategy_episodic: strategyList.includes('EPISODIC'),
+                };
               });
-
-              if (cliOptions.json) {
-                console.log(JSON.stringify(result));
-              } else if (result.success) {
-                console.log(`Added memory '${result.memoryName}'`);
-              } else {
-                console.error(result.error);
-              }
-              process.exit(result.success ? 0 : 1);
+              process.exit(0);
             } else {
               // TUI fallback — dynamic imports to avoid pulling ink (async) into registry
               requireTTY();

@@ -3,6 +3,8 @@ import type { AgentCoreProjectSpec, PolicyEngine } from '../../schema';
 import { PolicyEngineModeSchema, PolicyEngineSchema } from '../../schema';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { AttachMode, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
 import { SOURCE_CODE_NOTE } from './constants';
@@ -228,39 +230,50 @@ export class PolicyEnginePrimitive extends BasePrimitive<AddPolicyEngineOptions,
             }
 
             if (cliOptions.name || cliOptions.description || cliOptions.encryptionKeyArn || cliOptions.json) {
-              if (!cliOptions.name) {
-                if (cliOptions.json) {
-                  console.log(JSON.stringify({ success: false, error: '--name is required' }));
-                } else {
-                  console.error('--name is required');
+              const client = await TelemetryClientAccessor.get();
+              await client.withCommandRun('add.policy-engine', async () => {
+                if (!cliOptions.name) {
+                  throw new Error('--name is required');
                 }
-                process.exit(1);
-              }
 
-              const result = await this.add({
-                name: cliOptions.name,
-                description: cliOptions.description,
-                encryptionKeyArn: cliOptions.encryptionKeyArn,
+                const result = await this.add({
+                  name: cliOptions.name,
+                  description: cliOptions.description,
+                  encryptionKeyArn: cliOptions.encryptionKeyArn,
+                });
+
+                // Attach to gateways if requested
+                if (result.success && cliOptions.attachToGateways) {
+                  const mode = PolicyEngineModeSchema.parse(cliOptions.attachMode ?? 'LOG_ONLY');
+                  const gateways = cliOptions.attachToGateways
+                    .split(',')
+                    .map(s => s.trim())
+                    .filter(Boolean);
+                  await this.attachToGateways(cliOptions.name, gateways, mode);
+                }
+
+                if (!result.success) {
+                  throw new Error(result.error);
+                }
+
+                if (cliOptions.json) {
+                  console.log(JSON.stringify(result));
+                } else {
+                  console.log(`Added policy engine '${result.engineName}'`);
+                }
+
+                const gatewayCount = cliOptions.attachToGateways
+                  ? cliOptions.attachToGateways
+                      .split(',')
+                      .map(s => s.trim())
+                      .filter(Boolean).length
+                  : 0;
+                return {
+                  attach_gateway_count: gatewayCount,
+                  attach_mode: standardize(AttachMode, cliOptions.attachMode ?? 'log_only'),
+                };
               });
-
-              // Attach to gateways if requested
-              if (result.success && cliOptions.attachToGateways) {
-                const mode = PolicyEngineModeSchema.parse(cliOptions.attachMode ?? 'LOG_ONLY');
-                const gateways = cliOptions.attachToGateways
-                  .split(',')
-                  .map(s => s.trim())
-                  .filter(Boolean);
-                await this.attachToGateways(cliOptions.name, gateways, mode);
-              }
-
-              if (cliOptions.json) {
-                console.log(JSON.stringify(result));
-              } else if (result.success) {
-                console.log(`Added policy engine '${result.engineName}'`);
-              } else {
-                console.error(result.error);
-              }
-              process.exit(result.success ? 0 : 1);
+              process.exit(0);
             } else {
               requireTTY();
               const [{ render }, { default: React }, { AddFlow }] = await Promise.all([

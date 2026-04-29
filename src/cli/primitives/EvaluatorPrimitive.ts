@@ -3,6 +3,8 @@ import type { EvaluationLevel, Evaluator, EvaluatorConfig } from '../../schema';
 import { EvaluationLevelSchema, EvaluatorSchema } from '../../schema';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { EvaluatorType, Level, standardize } from '../telemetry/schemas/common-shapes.js';
 import { renderCodeBasedEvaluatorTemplate } from '../templates/EvaluatorRenderer';
 import { requireTTY } from '../tui/guards/tty';
 import {
@@ -203,118 +205,123 @@ export class EvaluatorPrimitive extends BasePrimitive<AddEvaluatorOptions, Remov
             }
 
             if (cliOptions.name || cliOptions.json) {
-              const fail = (error: string) => {
-                if (cliOptions.json) {
-                  console.log(JSON.stringify({ success: false, error }));
+              const client = await TelemetryClientAccessor.get();
+              await client.withCommandRun('add.evaluator', async () => {
+                const fail = (error: string): never => {
+                  throw new Error(error);
+                };
+
+                if (!cliOptions.name || !cliOptions.level) {
+                  fail('--name and --level are required in non-interactive mode');
+                }
+
+                const levelResult = EvaluationLevelSchema.safeParse(cliOptions.level);
+                if (!levelResult.success) {
+                  fail(`Invalid --level "${cliOptions.level}". Must be one of: SESSION, TRACE, TOOL_CALL`);
+                }
+
+                const evalType = cliOptions.type ?? 'llm-as-a-judge';
+                if (evalType !== 'llm-as-a-judge' && evalType !== 'code-based') {
+                  fail(`Invalid --type "${evalType}". Must be one of: llm-as-a-judge, code-based`);
+                }
+
+                // Cross-validate flags against evaluator type
+                if (evalType !== 'code-based') {
+                  if (cliOptions.lambdaArn) fail('--lambda-arn requires --type code-based');
+                  if (cliOptions.timeout) fail('--timeout requires --type code-based');
+                }
+                if (evalType === 'code-based') {
+                  if (cliOptions.model) fail('--model cannot be used with --type code-based');
+                  if (cliOptions.instructions) fail('--instructions cannot be used with --type code-based');
+                  if (cliOptions.ratingScale) fail('--rating-scale cannot be used with --type code-based');
+                }
+
+                let configJson: EvaluatorConfig;
+
+                if (cliOptions.config) {
+                  const { readFileSync } = await import('fs');
+                  configJson = JSON.parse(readFileSync(cliOptions.config, 'utf-8')) as EvaluatorConfig;
+                } else if (evalType === 'code-based') {
+                  configJson = this.buildCodeBasedConfig(cliOptions.name!, cliOptions.lambdaArn, cliOptions.timeout);
                 } else {
-                  console.error(error);
-                }
-                process.exit(1);
-              };
+                  // LLM-as-a-Judge flow
+                  if (!cliOptions.model) {
+                    fail('Either --config or --model is required for LLM-as-a-Judge evaluators');
+                  }
 
-              if (!cliOptions.name || !cliOptions.level) {
-                fail('--name and --level are required in non-interactive mode');
-              }
-
-              const levelResult = EvaluationLevelSchema.safeParse(cliOptions.level);
-              if (!levelResult.success) {
-                fail(`Invalid --level "${cliOptions.level}". Must be one of: SESSION, TRACE, TOOL_CALL`);
-              }
-
-              const evalType = cliOptions.type ?? 'llm-as-a-judge';
-              if (evalType !== 'llm-as-a-judge' && evalType !== 'code-based') {
-                fail(`Invalid --type "${evalType}". Must be one of: llm-as-a-judge, code-based`);
-              }
-
-              // Cross-validate flags against evaluator type
-              if (evalType !== 'code-based') {
-                if (cliOptions.lambdaArn) fail('--lambda-arn requires --type code-based');
-                if (cliOptions.timeout) fail('--timeout requires --type code-based');
-              }
-              if (evalType === 'code-based') {
-                if (cliOptions.model) fail('--model cannot be used with --type code-based');
-                if (cliOptions.instructions) fail('--instructions cannot be used with --type code-based');
-                if (cliOptions.ratingScale) fail('--rating-scale cannot be used with --type code-based');
-              }
-
-              let configJson: EvaluatorConfig;
-
-              if (cliOptions.config) {
-                const { readFileSync } = await import('fs');
-                configJson = JSON.parse(readFileSync(cliOptions.config, 'utf-8')) as EvaluatorConfig;
-              } else if (evalType === 'code-based') {
-                configJson = this.buildCodeBasedConfig(cliOptions.name!, cliOptions.lambdaArn, cliOptions.timeout);
-              } else {
-                // LLM-as-a-Judge flow
-                if (!cliOptions.model) {
-                  fail('Either --config or --model is required for LLM-as-a-Judge evaluators');
-                }
-
-                if (!cliOptions.instructions) {
-                  const level = levelResult.data!;
-                  const placeholders = LEVEL_PLACEHOLDERS[level].map(p => `{${p}}`).join(', ');
-                  fail(
-                    `--instructions is required in non-interactive mode (or use --config). ` +
-                      `Must include at least one placeholder for ${level}: ${placeholders}`
-                  );
-                }
-
-                const placeholderCheck = validateInstructionPlaceholders(cliOptions.instructions!, levelResult.data!);
-                if (placeholderCheck !== true) {
-                  fail(placeholderCheck);
-                }
-
-                let ratingScale: NonNullable<EvaluatorConfig['llmAsAJudge']>['ratingScale'];
-                const scaleInput = cliOptions.ratingScale ?? '1-5-quality';
-
-                const preset = RATING_SCALE_PRESETS.find(p => p.id === scaleInput);
-                if (preset) {
-                  ratingScale = preset.ratingScale;
-                } else {
-                  const isNumerical = /^\d/.test(scaleInput.trim());
-                  const parsed = parseCustomRatingScale(scaleInput, isNumerical ? 'numerical' : 'categorical');
-                  if (!parsed.success) {
+                  if (!cliOptions.instructions) {
+                    const level = levelResult.data!;
+                    const placeholders = LEVEL_PLACEHOLDERS[level].map(p => `{${p}}`).join(', ');
                     fail(
-                      `Invalid --rating-scale "${scaleInput}". Use a preset (${presetIds.join(', ')}) ` +
-                        `or custom format: "1:Label:Definition, 2:Label:Definition" (numerical) ` +
-                        `or "Label:Definition, Label:Definition" (categorical)`
+                      `--instructions is required in non-interactive mode (or use --config). ` +
+                        `Must include at least one placeholder for ${level}: ${placeholders}`
                     );
                   }
-                  ratingScale = parsed.success ? parsed.ratingScale : undefined!;
+
+                  const placeholderCheck = validateInstructionPlaceholders(cliOptions.instructions!, levelResult.data!);
+                  if (placeholderCheck !== true) {
+                    fail(placeholderCheck);
+                  }
+
+                  let ratingScale: NonNullable<EvaluatorConfig['llmAsAJudge']>['ratingScale'];
+                  const scaleInput = cliOptions.ratingScale ?? '1-5-quality';
+
+                  const preset = RATING_SCALE_PRESETS.find(p => p.id === scaleInput);
+                  if (preset) {
+                    ratingScale = preset.ratingScale;
+                  } else {
+                    const isNumerical = /^\d/.test(scaleInput.trim());
+                    const parsed = parseCustomRatingScale(scaleInput, isNumerical ? 'numerical' : 'categorical');
+                    if (!parsed.success) {
+                      fail(
+                        `Invalid --rating-scale "${scaleInput}". Use a preset (${presetIds.join(', ')}) ` +
+                          `or custom format: "1:Label:Definition, 2:Label:Definition" (numerical) ` +
+                          `or "Label:Definition, Label:Definition" (categorical)`
+                      );
+                    }
+                    ratingScale = parsed.success ? parsed.ratingScale : undefined!;
+                  }
+
+                  configJson = {
+                    llmAsAJudge: {
+                      model: cliOptions.model!,
+                      instructions: cliOptions.instructions!,
+                      ratingScale,
+                    },
+                  };
                 }
 
-                configJson = {
-                  llmAsAJudge: {
-                    model: cliOptions.model!,
-                    instructions: cliOptions.instructions!,
-                    ratingScale,
-                  },
-                };
-              }
+                const result = await this.add({
+                  name: cliOptions.name!,
+                  level: levelResult.data!,
+                  config: configJson,
+                });
 
-              const result = await this.add({
-                name: cliOptions.name!,
-                level: levelResult.data!,
-                config: configJson,
-              });
+                if (!result.success) {
+                  throw new Error(result.error);
+                }
 
-              if (cliOptions.json) {
-                console.log(JSON.stringify(result));
-              } else if (result.success) {
-                if (result.codePath) {
-                  console.log(`Created evaluator '${result.evaluatorName}'`);
-                  console.log(`  Code: ${result.codePath}lambda_function.py`);
-                  console.log(`  IAM:  ${result.codePath}execution-role-policy.json`);
-                  console.log(
-                    `\n  Next: Edit lambda_function.py with your evaluation logic, then run \`agentcore deploy\``
-                  );
+                if (cliOptions.json) {
+                  console.log(JSON.stringify(result));
                 } else {
-                  console.log(`Added evaluator '${result.evaluatorName}'`);
+                  if (result.codePath) {
+                    console.log(`Created evaluator '${result.evaluatorName}'`);
+                    console.log(`  Code: ${result.codePath}lambda_function.py`);
+                    console.log(`  IAM:  ${result.codePath}execution-role-policy.json`);
+                    console.log(
+                      `\n  Next: Edit lambda_function.py with your evaluation logic, then run \`agentcore deploy\``
+                    );
+                  } else {
+                    console.log(`Added evaluator '${result.evaluatorName}'`);
+                  }
                 }
-              } else {
-                console.error(result.error);
-              }
-              process.exit(result.success ? 0 : 1);
+
+                return {
+                  evaluator_type: standardize(EvaluatorType, evalType),
+                  level: standardize(Level, levelResult.data!),
+                };
+              });
+              process.exit(0);
             } else {
               // TUI fallback
               requireTTY();

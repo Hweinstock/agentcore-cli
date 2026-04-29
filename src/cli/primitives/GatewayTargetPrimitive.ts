@@ -14,6 +14,8 @@ import { validateAddGatewayTargetOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovableGatewayTarget } from '../operations/remove/remove-gateway-target';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { GatewayTargetHost, OutboundAuth, standardize } from '../telemetry/schemas/common-shapes.js';
 import { getTemplateToolDefinitions, renderGatewayTargetTemplate } from '../templates/GatewayTargetRenderer';
 import { requireTTY } from '../tui/guards/tty';
 import type {
@@ -303,170 +305,194 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             process.exit(1);
           }
 
-          const validation = await validateAddGatewayTargetOptions(cliOptions);
-          if (!validation.valid) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: validation.error }));
-            } else {
-              console.error(validation.error);
+          const client = await TelemetryClientAccessor.get();
+          await client.withCommandRun('add.gateway-target', async () => {
+            const validation = await validateAddGatewayTargetOptions(cliOptions);
+            if (!validation.valid) {
+              throw new Error(validation.error);
             }
-            process.exit(1);
-          }
 
-          // Map CLI flag values to internal types
-          const outboundAuthMap: Record<string, 'OAUTH' | 'API_KEY' | 'NONE'> = {
-            oauth: 'OAUTH',
-            'api-key': 'API_KEY',
-            api_key: 'API_KEY',
-            none: 'NONE',
-          };
+            // Map CLI flag values to internal types
+            const outboundAuthMap: Record<string, 'OAUTH' | 'API_KEY' | 'NONE'> = {
+              oauth: 'OAUTH',
+              'api-key': 'API_KEY',
+              api_key: 'API_KEY',
+              none: 'NONE',
+            };
 
-          // Handle API Gateway targets (no code generation)
-          if (cliOptions.type === 'apiGateway') {
-            const config: ApiGatewayTargetConfig = {
-              targetType: 'apiGateway',
-              name: cliOptions.name!,
-              gateway: cliOptions.gateway!,
-              restApiId: cliOptions.restApiId!,
-              stage: cliOptions.stage!,
-              toolFilters: cliOptions.toolFilterPath
-                ? [
-                    {
-                      filterPath: cliOptions.toolFilterPath,
-                      methods: (cliOptions.toolFilterMethods?.split(',').map(m => m.trim()) ?? [
-                        'GET',
-                      ]) as ApiGatewayHttpMethod[],
-                    },
-                  ]
-                : undefined,
-              ...(cliOptions.outboundAuthType
+            // Map target type from camelCase CLI to kebab-case telemetry
+            const targetTypeMap = {
+              apiGateway: 'api-gateway',
+              openApiSchema: 'open-api-schema',
+              smithyModel: 'smithy-model',
+              lambdaFunctionArn: 'lambda-function-arn',
+              mcpServer: 'mcp-server',
+            } as const;
+            type TargetTypeKey = keyof typeof targetTypeMap;
+
+            const cliType = cliOptions.type ?? '';
+            const telemetryTargetType =
+              cliType in targetTypeMap ? targetTypeMap[cliType as TargetTypeKey] : ('mcp-server' as const);
+            const telemetryOutboundAuth = standardize(
+              OutboundAuth,
+              (cliOptions.outboundAuthType ?? 'none').replace('_', '-')
+            );
+            const telemetryHost = standardize(GatewayTargetHost, cliOptions.host ?? 'lambda');
+
+            // Handle API Gateway targets (no code generation)
+            if (cliOptions.type === 'apiGateway') {
+              const config: ApiGatewayTargetConfig = {
+                targetType: 'apiGateway',
+                name: cliOptions.name!,
+                gateway: cliOptions.gateway!,
+                restApiId: cliOptions.restApiId!,
+                stage: cliOptions.stage!,
+                toolFilters: cliOptions.toolFilterPath
+                  ? [
+                      {
+                        filterPath: cliOptions.toolFilterPath,
+                        methods: (cliOptions.toolFilterMethods?.split(',').map(m => m.trim()) ?? [
+                          'GET',
+                        ]) as ApiGatewayHttpMethod[],
+                      },
+                    ]
+                  : undefined,
+                ...(cliOptions.outboundAuthType
+                  ? {
+                      outboundAuth: {
+                        type: (outboundAuthMap[cliOptions.outboundAuthType.toLowerCase()] ?? 'NONE') as
+                          | 'API_KEY'
+                          | 'NONE',
+                        credentialName: cliOptions.credentialName,
+                      },
+                    }
+                  : {}),
+              };
+              const result = await this.createApiGatewayTarget(config);
+              const output = { success: true, toolName: result.toolName };
+              if (cliOptions.json) {
+                console.log(JSON.stringify(output));
+              } else {
+                console.log(`Added gateway target '${result.toolName}'`);
+              }
+              return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+            }
+
+            // Handle schema-based targets (OpenAPI / Smithy)
+            if ((cliOptions.type === 'openApiSchema' || cliOptions.type === 'smithyModel') && cliOptions.schema) {
+              const isS3 = cliOptions.schema.startsWith('s3://');
+              const schemaSource = isS3
                 ? {
-                    outboundAuth: {
-                      type: (outboundAuthMap[cliOptions.outboundAuthType.toLowerCase()] ?? 'NONE') as
-                        | 'API_KEY'
-                        | 'NONE',
-                      credentialName: cliOptions.credentialName,
+                    s3: {
+                      uri: cliOptions.schema,
+                      ...(cliOptions.schemaS3Account ? { bucketOwnerAccountId: cliOptions.schemaS3Account } : {}),
                     },
                   }
-                : {}),
-            };
-            const result = await this.createApiGatewayTarget(config);
-            const output = { success: true, toolName: result.toolName };
-            if (cliOptions.json) {
-              console.log(JSON.stringify(output));
-            } else {
-              console.log(`Added gateway target '${result.toolName}'`);
+                : { inline: { path: cliOptions.schema } };
+
+              const config: SchemaBasedTargetConfig = {
+                name: cliOptions.name!,
+                targetType: cliOptions.type,
+                schemaSource,
+                gateway: cliOptions.gateway!,
+                ...(cliOptions.outboundAuthType
+                  ? {
+                      outboundAuth: {
+                        type: outboundAuthMap[cliOptions.outboundAuthType.toLowerCase()] ?? 'NONE',
+                        credentialName: cliOptions.credentialName,
+                      },
+                    }
+                  : {}),
+              };
+              const result = await this.createSchemaBasedGatewayTarget(config);
+              const output = { success: true, toolName: result.toolName };
+              if (cliOptions.json) {
+                console.log(JSON.stringify(output));
+              } else {
+                console.log(`Added gateway target '${result.toolName}'`);
+              }
+              return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
             }
-            process.exit(0);
-          }
 
-          // Handle schema-based targets (OpenAPI / Smithy)
-          if ((cliOptions.type === 'openApiSchema' || cliOptions.type === 'smithyModel') && cliOptions.schema) {
-            const isS3 = cliOptions.schema.startsWith('s3://');
-            const schemaSource = isS3
-              ? {
-                  s3: {
-                    uri: cliOptions.schema,
-                    ...(cliOptions.schemaS3Account ? { bucketOwnerAccountId: cliOptions.schemaS3Account } : {}),
-                  },
-                }
-              : { inline: { path: cliOptions.schema } };
-
-            const config: SchemaBasedTargetConfig = {
-              name: cliOptions.name!,
-              targetType: cliOptions.type,
-              schemaSource,
-              gateway: cliOptions.gateway!,
-              ...(cliOptions.outboundAuthType
-                ? {
-                    outboundAuth: {
-                      type: outboundAuthMap[cliOptions.outboundAuthType.toLowerCase()] ?? 'NONE',
-                      credentialName: cliOptions.credentialName,
-                    },
-                  }
-                : {}),
-            };
-            const result = await this.createSchemaBasedGatewayTarget(config);
-            const output = { success: true, toolName: result.toolName };
-            if (cliOptions.json) {
-              console.log(JSON.stringify(output));
-            } else {
-              console.log(`Added gateway target '${result.toolName}'`);
+            // Handle Lambda Function ARN targets (no code generation)
+            if (cliOptions.type === 'lambdaFunctionArn') {
+              const config = {
+                targetType: 'lambdaFunctionArn' as const,
+                name: cliOptions.name!,
+                gateway: cliOptions.gateway!,
+                lambdaArn: cliOptions.lambdaArn!,
+                toolSchemaFile: cliOptions.toolSchemaFile!,
+              };
+              const result = await this.createLambdaFunctionArnTarget(config);
+              const output = { success: true, toolName: result.toolName };
+              if (cliOptions.json) {
+                console.log(JSON.stringify(output));
+              } else {
+                console.log(`Added gateway target '${result.toolName}'`);
+              }
+              return { target_type: telemetryTargetType, host: 'lambda', outbound_auth: telemetryOutboundAuth };
             }
-            process.exit(0);
-          }
 
-          // Handle Lambda Function ARN targets (no code generation)
-          if (cliOptions.type === 'lambdaFunctionArn') {
-            const config = {
-              targetType: 'lambdaFunctionArn' as const,
-              name: cliOptions.name!,
-              gateway: cliOptions.gateway!,
-              lambdaArn: cliOptions.lambdaArn!,
-              toolSchemaFile: cliOptions.toolSchemaFile!,
-            };
-            const result = await this.createLambdaFunctionArnTarget(config);
-            const output = { success: true, toolName: result.toolName };
-            if (cliOptions.json) {
-              console.log(JSON.stringify(output));
-            } else {
-              console.log(`Added gateway target '${result.toolName}'`);
-            }
-            process.exit(0);
-          }
-
-          // Handle MCP server targets (existing endpoint, no code generation)
-          if (cliOptions.type === 'mcpServer' && cliOptions.endpoint) {
-            const config: McpServerTargetConfig = {
-              targetType: 'mcpServer',
-              name: cliOptions.name!,
-              description: cliOptions.description ?? `Tool for ${cliOptions.name!}`,
-              endpoint: cliOptions.endpoint,
-              gateway: cliOptions.gateway!,
-              toolDefinition: {
+            // Handle MCP server targets (existing endpoint, no code generation)
+            if (cliOptions.type === 'mcpServer' && cliOptions.endpoint) {
+              const config: McpServerTargetConfig = {
+                targetType: 'mcpServer',
                 name: cliOptions.name!,
                 description: cliOptions.description ?? `Tool for ${cliOptions.name!}`,
-                inputSchema: { type: 'object' },
-              },
-              ...(cliOptions.outboundAuthType
-                ? {
-                    outboundAuth: {
-                      type: outboundAuthMap[cliOptions.outboundAuthType.toLowerCase()] ?? 'NONE',
-                      credentialName: cliOptions.credentialName,
-                    },
-                  }
-                : {}),
-            };
-            const result = await this.createExternalGatewayTarget(config);
-            const output = { success: true, toolName: result.toolName, sourcePath: result.projectPath || undefined };
+                endpoint: cliOptions.endpoint,
+                gateway: cliOptions.gateway!,
+                toolDefinition: {
+                  name: cliOptions.name!,
+                  description: cliOptions.description ?? `Tool for ${cliOptions.name!}`,
+                  inputSchema: { type: 'object' },
+                },
+                ...(cliOptions.outboundAuthType
+                  ? {
+                      outboundAuth: {
+                        type: outboundAuthMap[cliOptions.outboundAuthType.toLowerCase()] ?? 'NONE',
+                        credentialName: cliOptions.credentialName,
+                      },
+                    }
+                  : {}),
+              };
+              const result = await this.createExternalGatewayTarget(config);
+              const output = {
+                success: true,
+                toolName: result.toolName,
+                sourcePath: result.projectPath || undefined,
+              };
+              if (cliOptions.json) {
+                console.log(JSON.stringify(output));
+              } else {
+                console.log(`Added gateway target '${result.toolName}'`);
+              }
+              return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+            }
+
+            const result = await this.add({
+              name: cliOptions.name!,
+              description: cliOptions.description,
+              language: cliOptions.language ?? 'Python',
+              gateway: cliOptions.gateway,
+              host: cliOptions.host,
+            });
+
+            if (!result.success) {
+              throw new Error(result.error);
+            }
+
             if (cliOptions.json) {
-              console.log(JSON.stringify(output));
+              console.log(JSON.stringify(result));
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
+              if (result.sourcePath) {
+                console.log(`Tool code: ${result.sourcePath}`);
+              }
             }
-            process.exit(0);
-          }
 
-          const result = await this.add({
-            name: cliOptions.name!,
-            description: cliOptions.description,
-            language: cliOptions.language ?? 'Python',
-            gateway: cliOptions.gateway,
-            host: cliOptions.host,
+            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
           });
-
-          if (cliOptions.json) {
-            console.log(JSON.stringify(result));
-          } else if (result.success) {
-            console.log(`Added gateway target '${result.toolName}'`);
-            if (result.sourcePath) {
-              console.log(`Tool code: ${result.sourcePath}`);
-            }
-          } else {
-            console.error(result.error);
-          }
-
-          process.exit(result.success ? 0 : 1);
+          process.exit(0);
         } catch (error) {
           if (cliOptions.json) {
             console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));

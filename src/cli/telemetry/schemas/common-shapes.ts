@@ -8,6 +8,12 @@ export function safeSchema<T extends Record<string, SafeField>>(shape: T) {
   return z.object(shape);
 }
 
+/** Lowercase a CLI value and parse it through a Zod enum, returning the narrowed type. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function standardize<T extends z.ZodEnum<any>>(schema: T, value: string): z.infer<T> {
+  return schema.parse(value.toLowerCase()) as z.infer<T>;
+}
+
 // Primitive types
 export const Count = z.number().int().nonnegative();
 
