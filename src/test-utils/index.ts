@@ -4,6 +4,7 @@
  */
 
 export { runCLI, spawnAndCollect, cleanSpawnEnv, type RunResult } from './cli-runner.js';
+export { createAuditContext, type AuditContext, type TelemetryEntry } from './audit.js';
 export { exists } from './fs-helpers.js';
 export { hasCommand, hasAwsCredentials, prereqs } from './prereqs.js';
 export { createTestProject, type TestProject, type CreateTestProjectOptions } from './project-factory.js';
