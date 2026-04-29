@@ -1,6 +1,27 @@
 import { createTestProject, readProjectConfig, runCLI } from '../src/test-utils/index.js';
 import type { TestProject } from '../src/test-utils/index.js';
+import { globSync } from 'glob';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+const auditDir = mkdtempSync(join(tmpdir(), 'agentcore-audit-'));
+const auditEnv = { AGENTCORE_TELEMETRY_AUDIT: '1', AGENTCORE_CONFIG_DIR: auditDir };
+
+interface TelemetryEntry {
+  value: number;
+  attrs: Record<string, string | number>;
+}
+
+function readAuditEntries(): TelemetryEntry[] {
+  return globSync(join(auditDir, 'telemetry', '*.json')).flatMap(f =>
+    readFileSync(f, 'utf-8')
+      .trim()
+      .split('\n')
+      .map(line => JSON.parse(line) as TelemetryEntry)
+  );
+}
 
 describe('integration: add and remove resources', () => {
   let project: TestProject;
@@ -16,13 +37,16 @@ describe('integration: add and remove resources', () => {
 
   afterAll(async () => {
     await project.cleanup();
+    rmSync(auditDir, { recursive: true, force: true });
   });
 
   describe('memory lifecycle', () => {
     const memoryName = `IntegMem${Date.now().toString().slice(-6)}`;
 
     it('adds a memory resource', async () => {
-      const result = await runCLI(['add', 'memory', '--name', memoryName, '--json'], project.projectPath);
+      const result = await runCLI(['add', 'memory', '--name', memoryName, '--json'], project.projectPath, {
+        env: auditEnv,
+      });
 
       expect(result.exitCode, `stdout: ${result.stdout}, stderr: ${result.stderr}`).toBe(0);
       const json = JSON.parse(result.stdout);
@@ -34,6 +58,12 @@ describe('integration: add and remove resources', () => {
       expect(memories, 'memories should exist').toBeDefined();
       const found = memories!.some((m: Record<string, unknown>) => m.name === memoryName);
       expect(found, `Memory "${memoryName}" should be in config`).toBe(true);
+
+      // Verify telemetry
+      const entries = readAuditEntries();
+      expect(entries.length).toBeGreaterThan(0);
+      const last = entries[entries.length - 1]!.attrs;
+      expect(last).toMatchObject({ command: 'add.memory', exit_reason: 'success' });
     });
 
     it('adds a memory with EPISODIC strategy and verifies reflectionNamespaces', async () => {
@@ -86,7 +116,8 @@ describe('integration: add and remove resources', () => {
     it('adds a credential resource', async () => {
       const result = await runCLI(
         ['add', 'credential', '--name', credentialName, '--api-key', 'test-key-integ-123', '--json'],
-        project.projectPath
+        project.projectPath,
+        { env: auditEnv }
       );
 
       expect(result.exitCode, `stdout: ${result.stdout}, stderr: ${result.stderr}`).toBe(0);
@@ -99,6 +130,12 @@ describe('integration: add and remove resources', () => {
       expect(credentials, 'credentials should exist').toBeDefined();
       const found = credentials!.some((c: Record<string, unknown>) => c.name === credentialName);
       expect(found, `Credential "${credentialName}" should be in config`).toBe(true);
+
+      // Verify telemetry
+      const entries = readAuditEntries();
+      expect(entries.length).toBeGreaterThan(0);
+      const last = entries[entries.length - 1]!.attrs;
+      expect(last).toMatchObject({ command: 'add.credential', exit_reason: 'success', credential_type: 'api-key' });
     });
 
     it('removes the credential resource', async () => {
