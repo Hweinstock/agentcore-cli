@@ -5,7 +5,7 @@ import { detectRegion } from '../aws';
 import { getPolicyGeneration, startPolicyGeneration } from '../aws/policy-generation';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
-import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
 import { ValidationMode, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
@@ -293,89 +293,78 @@ export class PolicyPrimitive extends BasePrimitive<AddPolicyOptions, RemovablePo
           validationMode?: string;
           json?: boolean;
         }) => {
-          try {
-            if (!findConfigRoot()) {
-              console.error('No agentcore project found. Run `agentcore create` first.');
-              process.exit(1);
-            }
-
-            if (
-              cliOptions.name ||
-              cliOptions.engine ||
-              cliOptions.source ||
-              cliOptions.statement ||
-              cliOptions.generate ||
-              cliOptions.json
-            ) {
-              const client = await TelemetryClientAccessor.get();
-              await client.withCommandRun('add.policy', async () => {
-                if (!cliOptions.name) {
-                  throw new Error('--name is required');
-                }
-                if (!cliOptions.engine) {
-                  throw new Error('--engine is required');
-                }
-
-                const result = await this.add({
-                  name: cliOptions.name,
-                  engine: cliOptions.engine,
-                  description: cliOptions.description,
-                  source: cliOptions.source,
-                  statement: cliOptions.statement,
-                  generate: cliOptions.generate,
-                  gateway: cliOptions.gateway,
-                  validationMode: cliOptions.validationMode
-                    ? ValidationModeSchema.parse(cliOptions.validationMode)
-                    : undefined,
-                });
-
-                if (!result.success) {
-                  throw new Error(result.error);
-                }
-
-                if (cliOptions.json) {
-                  console.log(JSON.stringify(result));
-                } else {
-                  console.log(`Added policy '${result.policyName}' to engine '${result.engineName}'`);
-                }
-
-                const sourceType: 'file' | 'statement' | 'generate' = cliOptions.source
-                  ? 'file'
-                  : cliOptions.generate
-                    ? 'generate'
-                    : 'statement';
-                return {
-                  source_type: sourceType,
-                  validation_mode: standardize(ValidationMode, cliOptions.validationMode ?? 'FAIL_ON_ANY_FINDINGS'),
-                };
-              });
-              process.exit(0);
-            } else {
-              requireTTY();
-              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-                import('ink'),
-                import('react'),
-                import('../tui/screens/add/AddFlow'),
-              ]);
-              const { clear, unmount } = render(
-                React.createElement(AddFlow, {
-                  isInteractive: false,
-                  initialResource: 'policy',
-                  onExit: () => {
-                    clear();
-                    unmount();
-                    process.exit(0);
-                  },
-                })
-              );
-            }
-          } catch (error) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-            } else {
-              console.error(`Error: ${getErrorMessage(error)}`);
-            }
+          if (!findConfigRoot()) {
+            console.error('No agentcore project found. Run `agentcore create` first.');
             process.exit(1);
+          }
+
+          if (
+            cliOptions.name ||
+            cliOptions.engine ||
+            cliOptions.source ||
+            cliOptions.statement ||
+            cliOptions.generate ||
+            cliOptions.json
+          ) {
+            await cliCommandRun('add.policy', !!cliOptions.json, async () => {
+              if (!cliOptions.name) {
+                throw new Error('--name is required');
+              }
+              if (!cliOptions.engine) {
+                throw new Error('--engine is required');
+              }
+
+              const result = await this.add({
+                name: cliOptions.name,
+                engine: cliOptions.engine,
+                description: cliOptions.description,
+                source: cliOptions.source,
+                statement: cliOptions.statement,
+                generate: cliOptions.generate,
+                gateway: cliOptions.gateway,
+                validationMode: cliOptions.validationMode
+                  ? ValidationModeSchema.parse(cliOptions.validationMode)
+                  : undefined,
+              });
+
+              if (!result.success) {
+                throw new Error(result.error);
+              }
+
+              if (cliOptions.json) {
+                console.log(JSON.stringify(result));
+              } else {
+                console.log(`Added policy '${result.policyName}' to engine '${result.engineName}'`);
+              }
+
+              const sourceType: 'file' | 'statement' | 'generate' = cliOptions.source
+                ? 'file'
+                : cliOptions.generate
+                  ? 'generate'
+                  : 'statement';
+              return {
+                source_type: sourceType,
+                validation_mode: standardize(ValidationMode, cliOptions.validationMode ?? 'FAIL_ON_ANY_FINDINGS'),
+              };
+            });
+          } else {
+            requireTTY();
+            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+              import('ink'),
+              import('react'),
+              import('../tui/screens/add/AddFlow'),
+            ]);
+            const { clear, unmount } = render(
+              React.createElement(AddFlow, {
+                isInteractive: false,
+                initialResource: 'policy',
+                onExit: () => {
+                  clear();
+                  unmount();
+                  process.exit(0);
+                },
+              })
+            );
           }
         }
       );

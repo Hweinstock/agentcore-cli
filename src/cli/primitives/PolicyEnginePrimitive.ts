@@ -3,7 +3,7 @@ import type { AgentCoreProjectSpec, PolicyEngine } from '../../schema';
 import { PolicyEngineModeSchema, PolicyEngineSchema } from '../../schema';
 import { getErrorMessage } from '../errors';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
-import { TelemetryClientAccessor } from '../telemetry/client-accessor.js';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
 import { AttachMode, standardize } from '../telemetry/schemas/common-shapes.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
@@ -223,82 +223,71 @@ export class PolicyEnginePrimitive extends BasePrimitive<AddPolicyEngineOptions,
           attachMode?: string;
           json?: boolean;
         }) => {
-          try {
-            if (!findConfigRoot()) {
-              console.error('No agentcore project found. Run `agentcore create` first.');
-              process.exit(1);
-            }
+          if (!findConfigRoot()) {
+            console.error('No agentcore project found. Run `agentcore create` first.');
+            process.exit(1);
+          }
 
-            if (cliOptions.name || cliOptions.description || cliOptions.encryptionKeyArn || cliOptions.json) {
-              const client = await TelemetryClientAccessor.get();
-              await client.withCommandRun('add.policy-engine', async () => {
-                if (!cliOptions.name) {
-                  throw new Error('--name is required');
-                }
+          if (cliOptions.name || cliOptions.description || cliOptions.encryptionKeyArn || cliOptions.json) {
+            await cliCommandRun('add.policy-engine', !!cliOptions.json, async () => {
+              if (!cliOptions.name) {
+                throw new Error('--name is required');
+              }
 
-                const result = await this.add({
-                  name: cliOptions.name,
-                  description: cliOptions.description,
-                  encryptionKeyArn: cliOptions.encryptionKeyArn,
-                });
+              const result = await this.add({
+                name: cliOptions.name,
+                description: cliOptions.description,
+                encryptionKeyArn: cliOptions.encryptionKeyArn,
+              });
 
-                // Attach to gateways if requested
-                if (result.success && cliOptions.attachToGateways) {
-                  const mode = PolicyEngineModeSchema.parse(cliOptions.attachMode ?? 'LOG_ONLY');
-                  const gateways = cliOptions.attachToGateways
+              // Attach to gateways if requested
+              if (result.success && cliOptions.attachToGateways) {
+                const mode = PolicyEngineModeSchema.parse(cliOptions.attachMode ?? 'LOG_ONLY');
+                const gateways = cliOptions.attachToGateways
+                  .split(',')
+                  .map(s => s.trim())
+                  .filter(Boolean);
+                await this.attachToGateways(cliOptions.name, gateways, mode);
+              }
+
+              if (!result.success) {
+                throw new Error(result.error);
+              }
+
+              if (cliOptions.json) {
+                console.log(JSON.stringify(result));
+              } else {
+                console.log(`Added policy engine '${result.engineName}'`);
+              }
+
+              const gatewayCount = cliOptions.attachToGateways
+                ? cliOptions.attachToGateways
                     .split(',')
                     .map(s => s.trim())
-                    .filter(Boolean);
-                  await this.attachToGateways(cliOptions.name, gateways, mode);
-                }
-
-                if (!result.success) {
-                  throw new Error(result.error);
-                }
-
-                if (cliOptions.json) {
-                  console.log(JSON.stringify(result));
-                } else {
-                  console.log(`Added policy engine '${result.engineName}'`);
-                }
-
-                const gatewayCount = cliOptions.attachToGateways
-                  ? cliOptions.attachToGateways
-                      .split(',')
-                      .map(s => s.trim())
-                      .filter(Boolean).length
-                  : 0;
-                return {
-                  attach_gateway_count: gatewayCount,
-                  attach_mode: standardize(AttachMode, cliOptions.attachMode ?? 'log_only'),
-                };
-              });
-              process.exit(0);
-            } else {
-              requireTTY();
-              const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
-                import('ink'),
-                import('react'),
-                import('../tui/screens/add/AddFlow'),
-              ]);
-              const { clear, unmount } = render(
-                React.createElement(AddFlow, {
-                  isInteractive: false,
-                  onExit: () => {
-                    clear();
-                    unmount();
-                    process.exit(0);
-                  },
-                })
-              );
-            }
-          } catch (error) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-            } else {
-              console.error(`Error: ${getErrorMessage(error)}`);
-            }
-            process.exit(1);
+                    .filter(Boolean).length
+                : 0;
+              return {
+                attach_gateway_count: gatewayCount,
+                attach_mode: standardize(AttachMode, cliOptions.attachMode ?? 'log_only'),
+              };
+            });
+          } else {
+            requireTTY();
+            const [{ render }, { default: React }, { AddFlow }] = await Promise.all([
+              import('ink'),
+              import('react'),
+              import('../tui/screens/add/AddFlow'),
+            ]);
+            const { clear, unmount } = render(
+              React.createElement(AddFlow, {
+                isInteractive: false,
+                onExit: () => {
+                  clear();
+                  unmount();
+                  process.exit(0);
+                },
+              })
+            );
           }
         }
       );
