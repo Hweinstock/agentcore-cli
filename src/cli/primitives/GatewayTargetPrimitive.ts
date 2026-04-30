@@ -14,6 +14,8 @@ import { validateAddGatewayTargetOptions } from '../commands/add/validate';
 import { getErrorMessage } from '../errors';
 import type { RemovableGatewayTarget } from '../operations/remove/remove-gateway-target';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import { cliCommandRun } from '../telemetry/cli-command-run.js';
+import { GatewayTargetHost, OutboundAuth, standardize } from '../telemetry/schemas/common-shapes.js';
 import { getTemplateToolDefinitions, renderGatewayTargetTemplate } from '../templates/GatewayTargetRenderer';
 import { requireTTY } from '../tui/guards/tty';
 import type {
@@ -297,20 +299,15 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
           delete rawOptions.outboundAuth;
         }
         const cliOptions = rawOptions as unknown as CLIAddGatewayTargetOptions;
-        try {
-          if (!findConfigRoot()) {
-            console.error('No agentcore project found. Run `agentcore create` first.');
-            process.exit(1);
-          }
+        if (!findConfigRoot()) {
+          console.error('No agentcore project found. Run `agentcore create` first.');
+          process.exit(1);
+        }
 
+        await cliCommandRun('add.gateway-target', !!cliOptions.json, async () => {
           const validation = await validateAddGatewayTargetOptions(cliOptions);
           if (!validation.valid) {
-            if (cliOptions.json) {
-              console.log(JSON.stringify({ success: false, error: validation.error }));
-            } else {
-              console.error(validation.error);
-            }
-            process.exit(1);
+            throw new Error(validation.error);
           }
 
           // Map CLI flag values to internal types
@@ -320,6 +317,25 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             api_key: 'API_KEY',
             none: 'NONE',
           };
+
+          // Map target type from camelCase CLI to kebab-case telemetry
+          const targetTypeMap = {
+            apiGateway: 'api-gateway',
+            openApiSchema: 'open-api-schema',
+            smithyModel: 'smithy-model',
+            lambdaFunctionArn: 'lambda-function-arn',
+            mcpServer: 'mcp-server',
+          } as const;
+          type TargetTypeKey = keyof typeof targetTypeMap;
+
+          const cliType = cliOptions.type ?? '';
+          const telemetryTargetType =
+            cliType in targetTypeMap ? targetTypeMap[cliType as TargetTypeKey] : ('unknown' as const);
+          const telemetryOutboundAuth = standardize(
+            OutboundAuth,
+            (cliOptions.outboundAuthType ?? 'none').replaceAll('_', '-')
+          );
+          const telemetryHost = standardize(GatewayTargetHost, cliOptions.host ?? 'lambda');
 
           // Handle API Gateway targets (no code generation)
           if (cliOptions.type === 'apiGateway') {
@@ -357,7 +373,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            process.exit(0);
+            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
           }
 
           // Handle schema-based targets (OpenAPI / Smithy)
@@ -393,7 +409,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            process.exit(0);
+            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
           }
 
           // Handle Lambda Function ARN targets (no code generation)
@@ -412,7 +428,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            process.exit(0);
+            return { target_type: telemetryTargetType, host: 'lambda', outbound_auth: telemetryOutboundAuth };
           }
 
           // Handle MCP server targets (existing endpoint, no code generation)
@@ -438,13 +454,17 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
                 : {}),
             };
             const result = await this.createExternalGatewayTarget(config);
-            const output = { success: true, toolName: result.toolName, sourcePath: result.projectPath || undefined };
+            const output = {
+              success: true,
+              toolName: result.toolName,
+              sourcePath: result.projectPath || undefined,
+            };
             if (cliOptions.json) {
               console.log(JSON.stringify(output));
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            process.exit(0);
+            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
           }
 
           const result = await this.add({
@@ -455,26 +475,21 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             host: cliOptions.host,
           });
 
+          if (!result.success) {
+            throw new Error(result.error);
+          }
+
           if (cliOptions.json) {
             console.log(JSON.stringify(result));
-          } else if (result.success) {
+          } else {
             console.log(`Added gateway target '${result.toolName}'`);
             if (result.sourcePath) {
               console.log(`Tool code: ${result.sourcePath}`);
             }
-          } else {
-            console.error(result.error);
           }
 
-          process.exit(result.success ? 0 : 1);
-        } catch (error) {
-          if (cliOptions.json) {
-            console.log(JSON.stringify({ success: false, error: getErrorMessage(error) }));
-          } else {
-            console.error(`Error: ${getErrorMessage(error)}`);
-          }
-          process.exit(1);
-        }
+          return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+        });
       });
 
     removeCmd

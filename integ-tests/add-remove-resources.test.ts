@@ -1,6 +1,9 @@
 import { createTestProject, readProjectConfig, runCLI } from '../src/test-utils/index.js';
 import type { TestProject } from '../src/test-utils/index.js';
+import { createTelemetryHelper } from '../src/test-utils/telemetry-helper.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+
+const telemetry = createTelemetryHelper();
 
 describe('integration: add and remove resources', () => {
   let project: TestProject;
@@ -16,13 +19,16 @@ describe('integration: add and remove resources', () => {
 
   afterAll(async () => {
     await project.cleanup();
+    telemetry.destroy();
   });
 
   describe('memory lifecycle', () => {
     const memoryName = `IntegMem${Date.now().toString().slice(-6)}`;
 
     it('adds a memory resource', async () => {
-      const result = await runCLI(['add', 'memory', '--name', memoryName, '--json'], project.projectPath);
+      const result = await runCLI(['add', 'memory', '--name', memoryName, '--json'], project.projectPath, {
+        env: telemetry.env,
+      });
 
       expect(result.exitCode, `stdout: ${result.stdout}, stderr: ${result.stderr}`).toBe(0);
       const json = JSON.parse(result.stdout);
@@ -34,6 +40,9 @@ describe('integration: add and remove resources', () => {
       expect(memories, 'memories should exist').toBeDefined();
       const found = memories!.some((m: Record<string, unknown>) => m.name === memoryName);
       expect(found, `Memory "${memoryName}" should be in config`).toBe(true);
+
+      // Verify telemetry
+      telemetry.assertMetricEmitted({ command: 'add.memory', exit_reason: 'success' });
     });
 
     it('adds a memory with EPISODIC strategy and verifies reflectionNamespaces', async () => {
@@ -86,7 +95,8 @@ describe('integration: add and remove resources', () => {
     it('adds a credential resource', async () => {
       const result = await runCLI(
         ['add', 'credential', '--name', credentialName, '--api-key', 'test-key-integ-123', '--json'],
-        project.projectPath
+        project.projectPath,
+        { env: telemetry.env }
       );
 
       expect(result.exitCode, `stdout: ${result.stdout}, stderr: ${result.stderr}`).toBe(0);
@@ -99,6 +109,13 @@ describe('integration: add and remove resources', () => {
       expect(credentials, 'credentials should exist').toBeDefined();
       const found = credentials!.some((c: Record<string, unknown>) => c.name === credentialName);
       expect(found, `Credential "${credentialName}" should be in config`).toBe(true);
+
+      // Verify telemetry
+      telemetry.assertMetricEmitted({
+        command: 'add.credential',
+        exit_reason: 'success',
+        credential_type: 'api-key',
+      });
     });
 
     it('removes the credential resource', async () => {
