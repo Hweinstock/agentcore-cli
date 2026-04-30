@@ -1,6 +1,6 @@
 import { spawnAndCollect } from '../src/test-utils/cli-runner.js';
 import { runCLI } from '../src/test-utils/index.js';
-import { assertTelemetry, createTelemetryHelper } from '../src/test-utils/telemetry-helper.js';
+import { createTelemetryHelper } from '../src/test-utils/telemetry-helper.js';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -63,7 +63,7 @@ describe('help modes telemetry', () => {
 
     const entries = telemetry.readEntries();
     expect(entries).toHaveLength(1);
-    assertTelemetry(entries, {
+    telemetry.assertMetricEmitted({
       command_group: 'help',
       command: 'help.modes',
       exit_reason: 'success',

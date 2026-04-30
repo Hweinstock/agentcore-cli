@@ -16,6 +16,8 @@ export interface TelemetryHelper {
   env: { AGENTCORE_TELEMETRY_AUDIT: '1'; AGENTCORE_CONFIG_DIR: string };
   /** Read all JSONL entries from the audit telemetry directory */
   readEntries: () => TelemetryEntry[];
+  /** Assert a metric was emitted with attrs matching the given subset */
+  assertMetricEmitted: (expected: Record<string, string | number | boolean>) => void;
   /** Delete telemetry entries only (keeps the config dir) */
   clearEntries: () => void;
   /** Delete the entire config directory — call in afterAll */
@@ -24,7 +26,7 @@ export interface TelemetryHelper {
 
 export function createTelemetryHelper(): TelemetryHelper {
   const dir = mkdtempSync(join(tmpdir(), 'agentcore-audit-'));
-  return {
+  const helper: TelemetryHelper = {
     dir,
     env: { AGENTCORE_TELEMETRY_AUDIT: '1', AGENTCORE_CONFIG_DIR: dir },
     readEntries() {
@@ -35,6 +37,11 @@ export function createTelemetryHelper(): TelemetryHelper {
           .map(line => JSON.parse(line) as TelemetryEntry)
       );
     },
+    assertMetricEmitted(expected) {
+      const entries = helper.readEntries();
+      const match = entries.find(e => Object.entries(expected).every(([k, v]) => String(e.attrs[k]) === String(v)));
+      expect(match, `No telemetry entry matching ${JSON.stringify(expected)}`).toBeDefined();
+    },
     clearEntries() {
       rmSync(join(dir, 'telemetry'), { recursive: true, force: true });
     },
@@ -42,10 +49,5 @@ export function createTelemetryHelper(): TelemetryHelper {
       rmSync(dir, { recursive: true, force: true });
     },
   };
-}
-
-/** Assert that at least one telemetry entry was emitted matching the given attrs. */
-export function assertTelemetry(entries: TelemetryEntry[], expected: Record<string, string | number | boolean>): void {
-  const match = entries.find(e => Object.entries(expected).every(([k, v]) => String(e.attrs[k]) === String(v)));
-  expect(match, `No telemetry entry matching ${JSON.stringify(expected)}`).toBeDefined();
+  return helper;
 }
