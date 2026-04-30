@@ -427,7 +427,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            return { ...telemetryAttrs, host: 'lambda' };
+            return { ...telemetryAttrs };
           }
 
           // Handle MCP server targets (existing endpoint, no code generation)
