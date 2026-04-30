@@ -1,4 +1,4 @@
-import { createAuditContext } from '../src/test-utils/audit.js';
+import { assertTelemetry, createAuditContext } from '../src/test-utils/audit.js';
 import { createTestProject, readProjectConfig, runCLI } from '../src/test-utils/index.js';
 import type { TestProject } from '../src/test-utils/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -42,10 +42,7 @@ describe('integration: add and remove resources', () => {
       expect(found, `Memory "${memoryName}" should be in config`).toBe(true);
 
       // Verify telemetry
-      const entries = audit.readEntries();
-      const memEntry = entries.find(e => e.attrs.command === 'add.memory');
-      expect(memEntry).toBeDefined();
-      expect(memEntry!.attrs).toMatchObject({ command: 'add.memory', exit_reason: 'success' });
+      assertTelemetry(audit.readEntries(), { command: 'add.memory', exit_reason: 'success' });
     });
 
     it('adds a memory with EPISODIC strategy and verifies reflectionNamespaces', async () => {
@@ -114,10 +111,7 @@ describe('integration: add and remove resources', () => {
       expect(found, `Credential "${credentialName}" should be in config`).toBe(true);
 
       // Verify telemetry
-      const entries = audit.readEntries();
-      const credEntry = entries.find(e => e.attrs.command === 'add.credential');
-      expect(credEntry).toBeDefined();
-      expect(credEntry!.attrs).toMatchObject({
+      assertTelemetry(audit.readEntries(), {
         command: 'add.credential',
         exit_reason: 'success',
         credential_type: 'api-key',

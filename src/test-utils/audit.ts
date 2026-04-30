@@ -2,6 +2,7 @@ import { globSync } from 'glob';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { expect } from 'vitest';
 
 export interface TelemetryEntry {
   value: number;
@@ -41,4 +42,10 @@ export function createAuditContext(): AuditContext {
       rmSync(dir, { recursive: true, force: true });
     },
   };
+}
+
+/** Assert that at least one telemetry entry was emitted matching the given attrs. */
+export function assertTelemetry(entries: TelemetryEntry[], expected: Record<string, string | number | boolean>): void {
+  const match = entries.find(e => Object.entries(expected).every(([k, v]) => String(e.attrs[k]) === String(v)));
+  expect(match, `No telemetry entry matching ${JSON.stringify(expected)}`).toBeDefined();
 }
