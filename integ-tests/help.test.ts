@@ -1,4 +1,4 @@
-import { createAuditContext } from '../src/test-utils/audit.js';
+import { assertTelemetry, createAuditContext } from '../src/test-utils/audit.js';
 import { spawnAndCollect } from '../src/test-utils/cli-runner.js';
 import { runCLI } from '../src/test-utils/index.js';
 import { readdirSync } from 'node:fs';
@@ -63,9 +63,7 @@ describe('help modes telemetry', () => {
 
     const entries = audit.readEntries();
     expect(entries).toHaveLength(1);
-    expect(entries[0]!.attrs).toMatchObject({
-      'service.name': 'agentcore-cli',
-      'agentcore-cli.mode': 'cli',
+    assertTelemetry(entries, {
       command_group: 'help',
       command: 'help.modes',
       exit_reason: 'success',
