@@ -330,6 +330,11 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             (cliOptions.outboundAuthType ?? 'none').replaceAll('_', '-')
           );
           const telemetryHost = standardize(GatewayTargetHost, cliOptions.host ?? 'lambda');
+          const telemetryAttrs = {
+            target_type: telemetryTargetType,
+            host: telemetryHost,
+            outbound_auth: telemetryOutboundAuth,
+          };
 
           // Handle API Gateway targets (no code generation)
           if (cliOptions.type === 'apiGateway') {
@@ -367,7 +372,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+            return telemetryAttrs;
           }
 
           // Handle schema-based targets (OpenAPI / Smithy)
@@ -403,7 +408,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+            return telemetryAttrs;
           }
 
           // Handle Lambda Function ARN targets (no code generation)
@@ -422,7 +427,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            return { target_type: telemetryTargetType, host: 'lambda', outbound_auth: telemetryOutboundAuth };
+            return { ...telemetryAttrs, host: 'lambda' };
           }
 
           // Handle MCP server targets (existing endpoint, no code generation)
@@ -458,7 +463,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             } else {
               console.log(`Added gateway target '${result.toolName}'`);
             }
-            return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+            return telemetryAttrs;
           }
 
           const result = await this.add({
@@ -482,7 +487,7 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             }
           }
 
-          return { target_type: telemetryTargetType, host: telemetryHost, outbound_auth: telemetryOutboundAuth };
+          return telemetryAttrs;
         });
       });
 
