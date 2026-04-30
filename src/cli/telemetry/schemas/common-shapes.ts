@@ -28,8 +28,8 @@ export function resilientParse(
 
 /** Lowercase a CLI value and parse it through a Zod enum, returning the narrowed type. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function standardize<T extends z.ZodEnum<any>>(schema: T, value: string): z.infer<T> {
-  const lower = value.toLowerCase();
+export function standardize<T extends z.ZodEnum<any>>(schema: T, value: string | undefined): z.infer<T> {
+  const lower = (value ?? '').toLowerCase();
   const result = schema.safeParse(lower);
   // If the value doesn't match the enum, return the lowercased value anyway —
   // recordCommandRun's try/catch will silently drop the invalid metric.

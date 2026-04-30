@@ -342,9 +342,9 @@ export class AgentPrimitive extends BasePrimitive<AddAgentOptions, RemovableReso
             }
 
             return {
-              language: standardize(Language, cliOptions.language!),
-              framework: standardize(Framework, cliOptions.framework!),
-              model_provider: standardize(ModelProviderEnum, cliOptions.modelProvider!),
+              language: standardize(Language, cliOptions.language),
+              framework: standardize(Framework, cliOptions.framework),
+              model_provider: standardize(ModelProviderEnum, cliOptions.modelProvider),
               agent_type: standardize(AgentType, cliOptions.type ?? 'create'),
               build: standardize(Build, cliOptions.build ?? 'CodeZip'),
               protocol: standardize(Protocol, cliOptions.protocol ?? 'HTTP'),

@@ -1,6 +1,6 @@
 import { policyEnginePrimitive, policyPrimitive } from '../../../primitives/registry';
 import { withAddTelemetry } from '../../../telemetry/cli-command-run.js';
-import { ValidationMode, standardize } from '../../../telemetry/schemas/common-shapes.js';
+import { AttachMode, ValidationMode, standardize } from '../../../telemetry/schemas/common-shapes.js';
 import {
   ErrorPrompt,
   Panel,
@@ -133,8 +133,8 @@ export function AddPolicyFlow({ isInteractive = true, onExit, onBack, onDev, onD
     const result = await withAddTelemetry(
       'add.policy-engine',
       {
-        attach_gateway_count: 0,
-        attach_mode: 'log_only',
+        attach_gateway_count: gateways?.length ?? 0,
+        attach_mode: standardize(AttachMode, mode ?? 'log_only'),
       },
       () => policyEnginePrimitive.add({ name: engineName })
     );
@@ -167,7 +167,7 @@ export function AddPolicyFlow({ isInteractive = true, onExit, onBack, onDev, onD
     const result = await withAddTelemetry(
       'add.policy',
       {
-        source_type: config.sourceFile ? 'file' : 'statement',
+        source_type: config.sourceFile ? 'file' : config.sourceMethod === 'generate' ? 'generate' : 'statement',
         validation_mode: standardize(ValidationMode, config.validationMode ?? 'FAIL_ON_ANY_FINDINGS'),
       },
       () =>

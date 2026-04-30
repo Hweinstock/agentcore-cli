@@ -40,7 +40,10 @@ export function createTelemetryHelper(): TelemetryHelper {
     assertMetricEmitted(expected) {
       const entries = helper.readEntries();
       const match = entries.find(e => Object.entries(expected).every(([k, v]) => String(e.attrs[k]) === String(v)));
-      expect(match, `No telemetry entry matching ${JSON.stringify(expected)}`).toBeDefined();
+      expect(
+        match,
+        `No telemetry entry matching ${JSON.stringify(expected)}\nFound ${entries.length} entries:\n${entries.map(e => JSON.stringify(e.attrs)).join('\n')}`
+      ).toBeDefined();
     },
     clearEntries() {
       rmSync(join(dir, 'telemetry'), { recursive: true, force: true });

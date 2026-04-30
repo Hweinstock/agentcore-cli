@@ -61,7 +61,8 @@ export async function withAddTelemetry<C extends Command, T extends Record<strin
       return attrs;
     });
   } catch {
-    if (!result) return fn();
+    // withCommandRun re-throws after recording failure telemetry.
+    // result is set if fn() ran; if not, something unexpected happened.
   }
-  return result!;
+  return result ?? ({ success: false, error: 'Telemetry wrapper failed unexpectedly' } as AddResult<T>);
 }
