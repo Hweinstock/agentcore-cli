@@ -1,6 +1,6 @@
 import { createTestProject, readProjectConfig, runCLI } from '../src/test-utils/index.js';
 import type { TestProject } from '../src/test-utils/index.js';
-import { assertTelemetry, createTelemetryHelper } from '../src/test-utils/telemetry-helper.js';
+import { createTelemetryHelper } from '../src/test-utils/telemetry-helper.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 const telemetry = createTelemetryHelper();
@@ -42,7 +42,7 @@ describe('integration: add and remove resources', () => {
       expect(found, `Memory "${memoryName}" should be in config`).toBe(true);
 
       // Verify telemetry
-      assertTelemetry(telemetry.readEntries(), { command: 'add.memory', exit_reason: 'success' });
+      telemetry.assertMetricEmitted({ command: 'add.memory', exit_reason: 'success' });
     });
 
     it('adds a memory with EPISODIC strategy and verifies reflectionNamespaces', async () => {
@@ -111,7 +111,7 @@ describe('integration: add and remove resources', () => {
       expect(found, `Credential "${credentialName}" should be in config`).toBe(true);
 
       // Verify telemetry
-      assertTelemetry(telemetry.readEntries(), {
+      telemetry.assertMetricEmitted({
         command: 'add.credential',
         exit_reason: 'success',
         credential_type: 'api-key',
