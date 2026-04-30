@@ -1,6 +1,6 @@
-import { assertTelemetry, createAuditContext } from '../src/test-utils/audit.js';
 import { spawnAndCollect } from '../src/test-utils/cli-runner.js';
 import { runCLI } from '../src/test-utils/index.js';
+import { assertTelemetry, createTelemetryHelper } from '../src/test-utils/telemetry-helper.js';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterAll, describe, expect, it } from 'vitest';
@@ -44,15 +44,15 @@ describe('CLI help', () => {
 });
 
 describe('help modes telemetry', () => {
-  const audit = createAuditContext();
+  const telemetry = createTelemetryHelper();
   const cliPath = join(__dirname, '..', 'dist', 'cli', 'index.mjs');
 
-  afterAll(() => audit.cleanup());
+  afterAll(() => telemetry.destroy());
 
   function run(args: string[], extraEnv: Record<string, string> = {}) {
     return spawnAndCollect('node', [cliPath, ...args], process.cwd(), {
       AGENTCORE_SKIP_INSTALL: '1',
-      ...audit.env,
+      ...telemetry.env,
       ...extraEnv,
     });
   }
@@ -61,7 +61,7 @@ describe('help modes telemetry', () => {
     const result = await run(['help', 'modes']);
     expect(result.exitCode).toBe(0);
 
-    const entries = audit.readEntries();
+    const entries = telemetry.readEntries();
     expect(entries).toHaveLength(1);
     assertTelemetry(entries, {
       command_group: 'help',
@@ -74,16 +74,16 @@ describe('help modes telemetry', () => {
   });
 
   it('does not write audit file when audit is not enabled', async () => {
-    audit.clear();
+    telemetry.clearEntries();
 
     const noAuditCliPath = join(__dirname, '..', 'dist', 'cli', 'index.mjs');
     const result = await spawnAndCollect('node', [noAuditCliPath, 'help', 'modes'], process.cwd(), {
       AGENTCORE_SKIP_INSTALL: '1',
-      AGENTCORE_CONFIG_DIR: audit.dir,
+      AGENTCORE_CONFIG_DIR: telemetry.dir,
     });
     expect(result.exitCode).toBe(0);
 
-    const telemetryDir = join(audit.dir, 'telemetry');
+    const telemetryDir = join(telemetry.dir, 'telemetry');
     try {
       const files = readdirSync(telemetryDir);
       expect(files).toHaveLength(0);

@@ -9,20 +9,20 @@ export interface TelemetryEntry {
   attrs: Record<string, string | number>;
 }
 
-export interface AuditContext {
+export interface TelemetryHelper {
   /** Temp directory used as AGENTCORE_CONFIG_DIR */
   dir: string;
-  /** Env vars to pass to runCLI */
+  /** Env vars to pass to runCLI to enable audit mode */
   env: { AGENTCORE_TELEMETRY_AUDIT: '1'; AGENTCORE_CONFIG_DIR: string };
   /** Read all JSONL entries from the audit telemetry directory */
   readEntries: () => TelemetryEntry[];
-  /** Delete the telemetry subdirectory */
-  clear: () => void;
-  /** Delete the entire config directory */
-  cleanup: () => void;
+  /** Delete telemetry entries only (keeps the config dir) */
+  clearEntries: () => void;
+  /** Delete the entire config directory — call in afterAll */
+  destroy: () => void;
 }
 
-export function createAuditContext(): AuditContext {
+export function createTelemetryHelper(): TelemetryHelper {
   const dir = mkdtempSync(join(tmpdir(), 'agentcore-audit-'));
   return {
     dir,
@@ -35,10 +35,10 @@ export function createAuditContext(): AuditContext {
           .map(line => JSON.parse(line) as TelemetryEntry)
       );
     },
-    clear() {
+    clearEntries() {
       rmSync(join(dir, 'telemetry'), { recursive: true, force: true });
     },
-    cleanup() {
+    destroy() {
       rmSync(dir, { recursive: true, force: true });
     },
   };
