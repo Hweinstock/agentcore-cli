@@ -316,7 +316,7 @@ export class EvaluatorPrimitive extends BasePrimitive<AddEvaluatorOptions, Remov
 
               return {
                 evaluator_type: standardize(EvaluatorType, evalType),
-                level: standardize(Level, levelResult.data!),
+                level: standardize(Level, levelResult.data),
               };
             });
           } else {
