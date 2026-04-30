@@ -77,6 +77,15 @@ export const GatewayTargetType = z.enum([
   'lambda-function-arn',
   'unknown',
 ]);
+
+/** Map camelCase CLI target type to kebab-case telemetry enum value. */
+export const GATEWAY_TARGET_TYPE_MAP: Record<string, z.infer<typeof GatewayTargetType>> = {
+  apiGateway: 'api-gateway',
+  openApiSchema: 'open-api-schema',
+  smithyModel: 'smithy-model',
+  lambdaFunctionArn: 'lambda-function-arn',
+  mcpServer: 'mcp-server',
+};
 export const Language = z.enum(['python', 'typescript', 'other']);
 export const Level = z.enum(['session', 'trace', 'tool_call']);
 export const Memory = z.enum(['none', 'shortterm', 'longandshortterm']);

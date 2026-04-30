@@ -15,7 +15,12 @@ import { getErrorMessage } from '../errors';
 import type { RemovableGatewayTarget } from '../operations/remove/remove-gateway-target';
 import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
 import { cliCommandRun } from '../telemetry/cli-command-run.js';
-import { GatewayTargetHost, OutboundAuth, standardize } from '../telemetry/schemas/common-shapes.js';
+import {
+  GATEWAY_TARGET_TYPE_MAP,
+  GatewayTargetHost,
+  OutboundAuth,
+  standardize,
+} from '../telemetry/schemas/common-shapes.js';
 import { getTemplateToolDefinitions, renderGatewayTargetTemplate } from '../templates/GatewayTargetRenderer';
 import { requireTTY } from '../tui/guards/tty';
 import type {
@@ -318,19 +323,8 @@ export class GatewayTargetPrimitive extends BasePrimitive<AddGatewayTargetOption
             none: 'NONE',
           };
 
-          // Map target type from camelCase CLI to kebab-case telemetry
-          const targetTypeMap = {
-            apiGateway: 'api-gateway',
-            openApiSchema: 'open-api-schema',
-            smithyModel: 'smithy-model',
-            lambdaFunctionArn: 'lambda-function-arn',
-            mcpServer: 'mcp-server',
-          } as const;
-          type TargetTypeKey = keyof typeof targetTypeMap;
-
           const cliType = cliOptions.type ?? '';
-          const telemetryTargetType =
-            cliType in targetTypeMap ? targetTypeMap[cliType as TargetTypeKey] : ('unknown' as const);
+          const telemetryTargetType = GATEWAY_TARGET_TYPE_MAP[cliType] ?? ('unknown' as const);
           const telemetryOutboundAuth = standardize(
             OutboundAuth,
             (cliOptions.outboundAuthType ?? 'none').replaceAll('_', '-')
