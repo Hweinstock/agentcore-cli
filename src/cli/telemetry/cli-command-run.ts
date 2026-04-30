@@ -1,4 +1,5 @@
 import { getErrorMessage } from '../errors';
+import type { AddResult } from '../primitives/types.js';
 import { TelemetryClientAccessor } from './client-accessor.js';
 import type { Command, CommandAttrs } from './schemas/command-run.js';
 
@@ -34,4 +35,33 @@ export async function cliCommandRun<C extends Command>(
     }
     process.exit(1);
   }
+}
+
+/**
+ * Wrap a primitive .add() call with telemetry — used by TUI paths.
+ * CLI paths use {@link cliCommandRun} instead.
+ */
+export async function withAddTelemetry<C extends Command, T extends Record<string, unknown>>(
+  command: C,
+  attrs: CommandAttrs<C>,
+  fn: () => Promise<AddResult<T>>
+): Promise<AddResult<T>> {
+  let client;
+  try {
+    client = await TelemetryClientAccessor.get();
+  } catch {
+    return fn();
+  }
+
+  let result: AddResult<T> | undefined;
+  try {
+    await client.withCommandRun(command, async () => {
+      result = await fn();
+      if (!result.success) throw new Error(result.error);
+      return attrs;
+    });
+  } catch {
+    if (!result) return fn();
+  }
+  return result!;
 }
