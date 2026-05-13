@@ -1,9 +1,7 @@
+import type { Result } from '../../lib/result.js';
 import { getErrorMessage } from '../errors';
 import { TelemetryClientAccessor } from './client-accessor.js';
 import type { Command, CommandAttrs } from './schemas/command-run.js';
-
-// TODO: Replace with a generic Result<D, E> type that preserves the original error object.
-export type OperationResult = { success: true } | { success: false; error: string };
 
 async function getTelemetryClient() {
   try {
@@ -21,7 +19,7 @@ async function getTelemetryClient() {
  * is returned to the caller. If the callback throws, telemetry is recorded and
  * the exception propagates. If telemetry is unavailable, the callback runs untracked.
  */
-export async function withCommandRunTelemetry<C extends Command, R extends OperationResult>(
+export async function withCommandRunTelemetry<C extends Command, R extends Result>(
   command: C,
   attrs: CommandAttrs<C>,
   fn: () => Promise<R>
@@ -33,7 +31,7 @@ export async function withCommandRunTelemetry<C extends Command, R extends Opera
   try {
     await client.withCommandRun(command, async () => {
       result = await fn();
-      if (!result.success) throw new Error(result.error);
+      if (!result.success) throw result.error;
       return attrs;
     });
   } catch (e) {
@@ -42,7 +40,7 @@ export async function withCommandRunTelemetry<C extends Command, R extends Opera
     // If not, fn() itself threw — convert to a failure result so callers
     // that don't wrap in try/catch (e.g. TUI hooks) don't leak unhandled rejections.
     if (!result) {
-      return { success: false, error: getErrorMessage(e) } as R;
+      return { success: false, error: e } as R;
     }
   }
   return result!;

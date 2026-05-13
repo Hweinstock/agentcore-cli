@@ -1,12 +1,13 @@
-import { findConfigRoot } from '../../lib';
+import { type Result, findConfigRoot } from '../../lib';
 import type { ABTest } from '../../schema/schemas/primitives/ab-test';
 import { ABTestSchema } from '../../schema/schemas/primitives/ab-test';
 import { getErrorMessage } from '../errors';
-import type { RemovalPreview, RemovalResult, SchemaChange } from '../operations/remove/types';
+import type { RemovalPreview, SchemaChange } from '../operations/remove/types';
 import { withCommandRunTelemetry } from '../telemetry/cli-command-run.js';
 import { requireTTY } from '../tui/guards/tty';
 import { BasePrimitive } from './BasePrimitive';
-import type { AddResult, AddScreenComponent, RemovableResource } from './types';
+import type { AddScreenComponent, RemovableResource } from './types';
+import { ResourceNotFoundError, toError } from '@/lib/errors/types.js';
 import type { Command } from '@commander-js/extra-typings';
 
 export type GatewayChoice = { type: 'create-new' } | { type: 'existing-http'; name: string };
@@ -61,22 +62,22 @@ export class ABTestPrimitive extends BasePrimitive<AddABTestOptions, RemovableAB
   override readonly article = 'an';
   readonly primitiveSchema = ABTestSchema;
 
-  async add(options: AddABTestOptions): Promise<AddResult<{ abTestName: string }>> {
+  async add(options: AddABTestOptions): Promise<Result<{ abTestName: string }>> {
     try {
       const abTest = await this.createABTest(options);
       return { success: true, abTestName: abTest.name };
     } catch (err) {
-      return { success: false, error: getErrorMessage(err) };
+      return { success: false, error: toError(err) };
     }
   }
 
-  async remove(testName: string, options?: { deleteGateway?: boolean }): Promise<RemovalResult> {
+  async remove(testName: string, options?: { deleteGateway?: boolean }): Promise<Result> {
     try {
       const project = await this.readProjectSpec();
 
       const index = (project.abTests ?? []).findIndex(t => t.name === testName);
       if (index === -1) {
-        return { success: false, error: `AB test "${testName}" not found.` };
+        return { success: false, error: new ResourceNotFoundError(`AB test "${testName}" not found.`) };
       }
 
       const removedTest = project.abTests[index]!;
@@ -124,7 +125,7 @@ export class ABTestPrimitive extends BasePrimitive<AddABTestOptions, RemovableAB
 
       return { success: true };
     } catch (err) {
-      return { success: false, error: getErrorMessage(err) };
+      return { success: false, error: toError(err) };
     }
   }
 
@@ -601,12 +602,12 @@ Target-Based Mode (--mode target-based)
     return abTest;
   }
 
-  async addTargetBased(options: AddTargetBasedABTestOptions): Promise<AddResult<{ abTestName: string }>> {
+  async addTargetBased(options: AddTargetBasedABTestOptions): Promise<Result<{ abTestName: string }>> {
     try {
       const abTest = await this.createTargetBasedABTest(options);
       return { success: true, abTestName: abTest.name };
     } catch (err) {
-      return { success: false, error: getErrorMessage(err) };
+      return { success: false, error: toError(err) };
     }
   }
 
