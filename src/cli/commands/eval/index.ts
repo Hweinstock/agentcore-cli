@@ -1,1 +1,0 @@
-export { registerEval } from './command';

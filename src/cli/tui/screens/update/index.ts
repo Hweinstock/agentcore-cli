@@ -1,1 +1,0 @@
-export { UpdateScreen } from './UpdateScreen';

@@ -1,1 +1,0 @@
-export { registerLogs } from './command';

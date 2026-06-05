@@ -49,7 +49,7 @@
         "zod": "^4.3.5"
       },
       "bin": {
-        "agentcore": "dist/cli/index.mjs"
+        "agentcore": "dist/index.mjs"
       },
       "devDependencies": {
         "@aws-sdk/client-cognito-identity-provider": "^3.1018.0",

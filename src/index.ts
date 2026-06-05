@@ -1,12 +1,13 @@
-/**
- * Main entry point for the agentcore package.
- * Exports public APIs from schema and lib modules.
- *
- * For CDK constructs, use @aws/agentcore-cdk package.
- */
+#!/usr/bin/env node
+import { main } from './cli';
 
-// Schema exports (types, constants, errors)
-export * from './schema';
+function handleError(err: unknown) {
+  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+}
 
-// Lib exports (utilities, packaging, config I/O)
-export * from './lib';
+// Global safety net — prevent raw stack traces from reaching the user
+process.on('uncaughtException', handleError);
+process.on('unhandledRejection', handleError);
+
+main(process.argv).catch(handleError);

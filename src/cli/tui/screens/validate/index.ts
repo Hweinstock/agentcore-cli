@@ -1,1 +1,0 @@
-export { ValidateScreen } from './ValidateScreen';

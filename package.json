@@ -30,7 +30,7 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "bin": {
-    "agentcore": "dist/cli/index.mjs"
+    "agentcore": "dist/index.mjs"
   },
   "exports": {
     ".": {

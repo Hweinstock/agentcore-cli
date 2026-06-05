@@ -1,1 +1,0 @@
-export { registerRun } from './command';

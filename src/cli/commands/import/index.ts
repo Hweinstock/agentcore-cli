@@ -1,1 +1,0 @@
-export { registerImport } from './command';

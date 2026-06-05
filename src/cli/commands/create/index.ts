@@ -1,1 +1,0 @@
-export { registerCreate } from './command';

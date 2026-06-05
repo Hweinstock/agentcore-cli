@@ -1,1 +1,0 @@
-export { registerDataset } from './command';

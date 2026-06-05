@@ -1,1 +1,0 @@
-export { registerHelp } from './command';

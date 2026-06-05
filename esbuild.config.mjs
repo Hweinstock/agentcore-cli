@@ -22,7 +22,7 @@ const optionalDepsPlugin = {
 const textLoaderPlugin = {
   name: 'text-loader',
   setup(build) {
-    // Handle .md and .txt files as text
+    // Handle .md and .txt files as tet
     build.onLoad({ filter: /\.(md|txt)$/ }, async args => {
       const text = await fs.promises.readFile(args.path, 'utf8');
       return {
@@ -41,10 +41,10 @@ const textLoaderPlugin = {
   },
 };
 
-const outfile = process.env.ESBUILD_OUTFILE || './dist/cli/index.mjs';
+const outfile = process.env.ESBUILD_OUTFILE || './dist/index.mjs';
 
 await esbuild.build({
-  entryPoints: ['./src/cli/index.ts'],
+  entryPoints: ['./src/index.ts'],
   outfile,
   bundle: true,
   platform: 'node',

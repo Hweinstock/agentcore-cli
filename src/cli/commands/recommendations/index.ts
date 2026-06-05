@@ -1,1 +1,0 @@
-export { registerRecommendations } from './command';
