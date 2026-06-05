@@ -1,6 +1,12 @@
-interface SuccessResult<DataType extends Record<string, unknown> = {}> { success: true; data?: DataType }
+interface SuccessResult<DataType extends Record<string, unknown> = {}> {
+  success: true;
+  data?: DataType;
+}
 
-interface FailureResult<ErrorType extends Error = Error> { success: false; error: ErrorType }
+interface FailureResult<ErrorType extends Error = Error> {
+  success: false;
+  error: ErrorType;
+}
 
 export type Result<DataType extends Record<string, unknown> = {}, ErrorType extends Error = Error> =
   | SuccessResult<DataType>
@@ -65,4 +71,17 @@ export function mapResult<
     return output.then(ok).catch(err);
   }
   return ok(output);
+}
+
+export function unwrapResult<DataType extends NonNullable<Record<string, unknown>>>(
+  r: Result<DataType>,
+  fallback: DataType
+): DataType;
+export function unwrapResult<DataType extends Record<string, unknown>>(
+  r: Result<DataType>,
+  fallback?: DataType
+): DataType | undefined {
+  if (r.success) return r.data;
+  if (fallback) return fallback;
+  throw r.error;
 }

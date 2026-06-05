@@ -1,13 +1,13 @@
-import { type CommandHandler, toAction } from '..';
+import { toAction } from '..';
 import { ok } from '../../common';
-import type { AgentCoreCommand } from '../types';
+import type { AgentCoreCommand, CommandHandler } from '../types';
 import { addMemoryCommand } from './memory';
 import z from 'zod';
 
 const schema = z.object({});
 
-const handler: CommandHandler = async props => {
-  props.logger.info(`running root level add command`);
+const handler: CommandHandler = async context => {
+  context.logger.info(`running root level add command`);
   return ok();
 };
 

@@ -9,23 +9,28 @@ import {
 } from '../common';
 import { addCommand } from './add';
 import { createCommand } from './create';
-import type { CommandOptions } from './types';
+import type { BaseCommandContext, CommandHandler } from './types';
+import { getProjectBuilder } from '@/project';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
-interface CommandExecutor {
+interface CommandRouter {
   route: (args: string[]) => Promise<Result>;
 }
 
-export function getCommandExecutor(props: {
+export function getCommandRouter(context: {
   logger: Logger;
   globalConfigAccessor: GlobalConfigAccessor;
   telemetryClient: TelemetryClient;
-}): CommandExecutor {
+}): CommandRouter {
   const rootCommand = new CommanderCommand();
 
-  addCommand.register(props, rootCommand);
-  createCommand.register(props, rootCommand);
+  // TODO: define root command for entering the TUI.
+
+  const projectBuilder = getProjectBuilder(context);
+
+  addCommand.register(context, rootCommand);
+  createCommand.register({ ...context, projectBuilder }, rootCommand);
 
   return {
     route: async args => {
@@ -39,15 +44,14 @@ export function getCommandExecutor(props: {
   };
 }
 
-export type CommandHandler<InputType = {}, OutputType extends Result = Result> = (
-  props: CommandOptions,
-  input: InputType
-) => Promise<OutputType>;
-
-export function toAction<SchemaType extends z.ZodObject, OutputType extends Result>(
-  props: CommandOptions,
+export function toAction<
+  SchemaType extends z.ZodObject,
+  OutputType extends Result,
+  CommandContext extends BaseCommandContext = BaseCommandContext,
+>(
+  props: CommandContext,
   schema: SchemaType,
-  handler: CommandHandler<z.infer<SchemaType>, OutputType>
+  handler: CommandHandler<z.infer<SchemaType>, CommandContext, OutputType>
 ): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
   return async (input, _command) => {
     const parseResult = schema.safeParse(input);

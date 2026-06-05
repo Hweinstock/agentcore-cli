@@ -8,9 +8,9 @@ export interface BuildProjectOptions {
   agent?: boolean;
 }
 
-export interface Project {
+export type Project = {
   name: string;
-}
+};
 
 export interface ProjectBuilder {
   build: (options: BuildProjectOptions) => Result<Project>;

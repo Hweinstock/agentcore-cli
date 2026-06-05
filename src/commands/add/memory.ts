@@ -1,6 +1,6 @@
-import { type CommandHandler, toAction } from '..';
+import { toAction } from '..';
 import { ok } from '../../common';
-import type { AgentCoreCommand } from '../types';
+import type { AgentCoreCommand, CommandHandler } from '../types';
 import * as z from 'zod';
 
 const schema = z.object({

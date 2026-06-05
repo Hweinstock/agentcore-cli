@@ -1,25 +1,26 @@
-import { getCommandExecutor } from './commands';
+import { getCommandRouter } from './commands';
 import {
   AgentCoreError,
+  type GlobalConfig,
   type Logger,
   type Result,
   getGlobalConfigAccessor,
   getLogger,
   getTelemetryClient,
+  unwrapResult,
 } from './common';
 
 export async function main(args: string[]): Promise<void> {
-  // bootstrap shared dependencies
-  const globalConfigAccessor = getGlobalConfigAccessor();
-  const logger = getLogger();
-  const telemetry = await globalConfigAccessor.get('telemetry');
+  const config = await bootstrapConfig();
+  const logger = getLogger(config.logging ?? {});
   const telemetryClient = getTelemetryClient({
     logger,
-    config: telemetry.success ? telemetry.data?.value : undefined,
+    config: config.telemetry ?? {},
   });
-  const commandExecutor = getCommandExecutor({ globalConfigAccessor, logger, telemetryClient });
+  const globalConfigAccessor = getGlobalConfigAccessor({ logger });
+  const commandRouter = getCommandRouter({ globalConfigAccessor, logger, telemetryClient });
 
-  const result = await commandExecutor.route(args);
+  const result = await commandRouter.route(args);
 
   printPostCommandNotices(logger);
   exitProcess(result, logger);
@@ -41,4 +42,14 @@ function exitProcess(result: Result, logger: Logger): void {
 
 function printPostCommandNotices(logger: Logger): void {
   logger.info('command ran!');
+}
+
+// Load in config (without logging) to initialize the root level logging and telemetry clients.
+async function bootstrapConfig(): Promise<Pick<GlobalConfig, 'telemetry' | 'logging'>> {
+  const accessor = getGlobalConfigAccessor();
+
+  return {
+    logging: unwrapResult(await accessor.get('logging'), { value: {} }).value,
+    telemetry: unwrapResult(await accessor.get('telemetry'), { value: {} }).value,
+  };
 }

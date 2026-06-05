@@ -1,6 +1,6 @@
-import { type CommandHandler, toAction } from '..';
-import { getProjectBuilder } from '../../project';
-import type { AgentCoreCommand } from '../types';
+import { toAction } from '.';
+import { type ProjectBuilder } from '../project';
+import type { AgentCoreCommand, BaseCommandContext, CommandHandler } from './types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -12,8 +12,10 @@ const schema = z.object({
   json: z.boolean().optional(),
 });
 
-const handler: CommandHandler<z.infer<typeof schema>> = async (props, input) => {
-  const result = getProjectBuilder(props).build({
+type CommandContext = BaseCommandContext & { projectBuilder: ProjectBuilder };
+
+const handler: CommandHandler<z.infer<typeof schema>, CommandContext> = async (context, input) => {
+  const result = context.projectBuilder.build({
     name: input.name,
     projectName: input.projectName,
     language: input.language,
@@ -21,14 +23,14 @@ const handler: CommandHandler<z.infer<typeof schema>> = async (props, input) => 
     agent: input.agent,
   });
   if (result.success) {
-    if (input.json) props.logger.info(JSON.stringify(result.data));
-    else props.logger.info(`Created project ${result.data?.name}`);
+    if (input.json) context.logger.info(JSON.stringify(result.data));
+    else context.logger.info(`Created project ${result.data?.name}`);
   }
   return result;
 };
 
-export const createCommand: AgentCoreCommand = {
-  register: (props, parentCommand) => {
+export const createCommand: AgentCoreCommand<CommandContext> = {
+  register: (context, parentCommand) => {
     return parentCommand
       .command('create')
       .description('this is the create command')
@@ -40,6 +42,6 @@ export const createCommand: AgentCoreCommand = {
       .option('--framework <framework>', 'Agent framework [non-interactive]')
       .option('--no-agent', 'Skip agent creation [non-interactive]')
       .option('--json', 'Output as JSON [non-interactive]')
-      .action(toAction(props, schema, handler));
+      .action(toAction(context, schema, handler));
   },
 };

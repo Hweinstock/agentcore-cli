@@ -1,4 +1,5 @@
-import { type JsonDatastore, getJsonDatastore, jsonFileSource } from '../json-datastore';
+import { type JsonDatastore, getJsonDatastore, jsonFileSource } from './json-datastore';
+import type { Logger } from './logging';
 import { homedir } from 'os';
 import { join } from 'path';
 import { z } from 'zod';
@@ -21,6 +22,14 @@ export const globalConfigSchema = z
       })
       .strict()
       .optional(),
+    logging: z
+      .object({
+        level: z.string().optional(),
+        endpoint: z.string().optional(),
+        audit: z.boolean().optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -28,5 +37,5 @@ export type GlobalConfig = z.infer<typeof globalConfigSchema>;
 export type TelemetryConfig = NonNullable<GlobalConfig['telemetry']>;
 export type GlobalConfigAccessor = JsonDatastore<GlobalConfig>;
 
-export const getGlobalConfigAccessor = (): GlobalConfigAccessor =>
-  getJsonDatastore({ schema: globalConfigSchema, source: jsonFileSource(GLOBAL_CONFIG_FILE) });
+export const getGlobalConfigAccessor = (context?: { logger?: Logger }): GlobalConfigAccessor =>
+  getJsonDatastore(context ?? {}, { schema: globalConfigSchema, source: jsonFileSource(GLOBAL_CONFIG_FILE) });

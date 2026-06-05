@@ -1,5 +1,5 @@
 export type { Result } from './result';
-export { ok, err, wrapInResult, mapResult } from './result';
+export { ok, err, wrapInResult, mapResult, unwrapResult } from './result';
 
 export { AgentCoreError, ValidationError } from './errors';
 
@@ -9,7 +9,7 @@ export type { JsonDatastore, DataSource as DatastoreSource } from './json-datast
 export { getGlobalConfigAccessor, globalConfigSchema } from './global-config';
 export type { GlobalConfig, GlobalConfigAccessor, TelemetryConfig } from './global-config';
 
-export { getLogger } from './logging';
+export { getLogger as getLogger } from './logging';
 export type { Logger, LoggingConfig } from './logging';
 
 export { getTelemetryClient } from './telemetry';

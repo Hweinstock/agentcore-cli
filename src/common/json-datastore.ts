@@ -1,4 +1,5 @@
 import { FileSystemIOError, ValidationError } from './errors';
+import { type Logger, getNullLogger } from './logging';
 import { type Result, err, ok, wrapInResult } from './result';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
@@ -49,18 +50,29 @@ export interface JsonDatastore<T> {
  *
  * All operations return a `Result` and never throw.
  */
-export function getJsonDatastore<S extends z.ZodType>(opts: {
-  schema: S;
-  source: DataSource;
-}): JsonDatastore<z.infer<S>> {
+export function getJsonDatastore<S extends z.ZodType>(
+  context: { logger?: Logger },
+  opts: {
+    schema: S;
+    source: DataSource;
+    useCache?: boolean;
+  }
+): JsonDatastore<z.infer<S>> {
   type T = z.infer<S>;
 
+  const logger = context.logger?.child('JsonDatastore') ?? getNullLogger();
+  const useCache = opts.useCache ?? true;
+
+  let cachedConfigData: T;
+
   const load = async (): Promise<Result<{ config: T }>> => {
+    if (useCache && cachedConfigData) return ok({ config: cachedConfigData });
     const readResult = await opts.source.read();
     if (!readResult.success) return err(new FileSystemIOError(readResult.error.message));
 
     const parsed = opts.schema.safeParse(readResult.data);
     if (!parsed.success) return err(new ValidationError(parsed.error.message));
+    cachedConfigData = parsed.data as T;
     return ok({ config: parsed.data as T });
   };
 
@@ -68,6 +80,7 @@ export function getJsonDatastore<S extends z.ZodType>(opts: {
     all: load,
 
     get: async <P extends Path<T>>(path: P): Promise<Result<{ value: PathValue<T, P> }>> => {
+      logger.info(`get with path=${path}`);
       const loaded = await load();
       if (!loaded.success) return loaded;
       // `load()` validated the whole document against the schema, so the value
@@ -77,6 +90,7 @@ export function getJsonDatastore<S extends z.ZodType>(opts: {
     },
 
     set: async <P extends Path<T>>(path: P, value: PathValue<T, P>): Promise<Result<{ value: PathValue<T, P> }>> => {
+      logger.info(`set with path=${path}, value=${value}`);
       const safe = assertSafePath(path);
       if (!safe.success) return safe;
 
