@@ -27,16 +27,8 @@
     "google-adk",
     "strands"
   ],
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
   "bin": {
     "agentcore": "dist/index.mjs"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "require": "./dist/index.js"
-    }
   },
   "files": [
     "dist",
@@ -46,9 +38,8 @@
   ],
   "scripts": {
     "postinstall": "node scripts/check-old-cli.mjs",
-    "build": "npm run build:lib && npm run build:cli && npm run build:assets",
+    "build": "npm run build:cli && npm run build:assets",
     "build:schema": "node scripts/generate-schema.mjs && prettier --write schemas/",
-    "build:lib": "tsc -p tsconfig.build.json",
     "build:cli": "node esbuild.config.mjs",
     "build:assets": "node scripts/copy-assets.mjs",
     "build:preview": "BUILD_PREVIEW=1 node esbuild.config.mjs",
@@ -110,6 +101,7 @@
     "ink-spinner": "^5.0.0",
     "js-yaml": "^4.1.1",
     "react": "^19.2.3",
+    "react-router": "^7.17.0",
     "yaml": "^2.8.3",
     "zod": "^4.3.5"
   },

@@ -7,7 +7,7 @@ import z from 'zod';
 const schema = z.object({});
 
 const handler: CommandHandler = async context => {
-  context.logger.info(`running root level add command`);
+  context.consoleLogger.info(`running root level add command`);
   return ok();
 };
 

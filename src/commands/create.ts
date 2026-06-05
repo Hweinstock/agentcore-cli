@@ -15,6 +15,11 @@ const schema = z.object({
 type CommandContext = BaseCommandContext & { projectBuilder: ProjectBuilder };
 
 const handler: CommandHandler<z.infer<typeof schema>, CommandContext> = async (context, input) => {
+  // TODO: verify behavior where no-agent is present, does it open TUI.
+  if (Object.keys(input).filter(k => k !== 'agent').length === 0) {
+    return context.tuiScreenRenderer.render({ initialPath: '/create' });
+  }
+
   const result = context.projectBuilder.build({
     name: input.name,
     projectName: input.projectName,
@@ -23,8 +28,8 @@ const handler: CommandHandler<z.infer<typeof schema>, CommandContext> = async (c
     agent: input.agent,
   });
   if (result.success) {
-    if (input.json) context.logger.info(JSON.stringify(result.data));
-    else context.logger.info(`Created project ${result.data?.name}`);
+    if (input.json) context.consoleLogger.info(JSON.stringify(result.data));
+    else context.consoleLogger.info(`Created project ${result.data?.name}`);
   }
   return result;
 };

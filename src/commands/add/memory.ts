@@ -14,8 +14,8 @@ const schema = z.object({
   json: z.boolean().optional(),
 });
 
-const handler: CommandHandler<z.infer<typeof schema>> = async (props, input) => {
-  props.logger.info(`run the add memory command with ${JSON.stringify(input)}`);
+const handler: CommandHandler<z.infer<typeof schema>> = async (context, input) => {
+  context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
   return ok();
 };
 

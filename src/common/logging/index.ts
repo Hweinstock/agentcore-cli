@@ -16,24 +16,23 @@ type LogLevel = (typeof LOG_LEVEL)[keyof typeof LOG_LEVEL];
 type Log = (messasge: string, attributes?: Record<string, string>) => void;
 
 export interface Logger extends Record<LogLevel, Log> {
-  getFilePath: () => string;
   child: (prefix: string) => Logger;
 }
 
-export const getLogger = (config: LoggingConfig): Logger => ({
-  debug: console.debug,
-  info: console.info,
-  warn: console.warn,
-  error: console.error,
-  getFilePath: () => 'none',
-  child: (val: string) => getLogger({ ...config, prefix: config.prefix + `[${val}]` }),
-});
+export interface FileLogger extends Logger {
+  getFilePath: () => string;
+}
 
 export const getNullLogger = (): Logger => ({
   debug: () => {},
   info: () => {},
   warn: () => {},
   error: () => {},
-  getFilePath: () => 'none',
   child: (_val: string) => getNullLogger(),
+});
+
+// TODO: implement this as an actual file logger on top of some logging library.
+export const getFileLogger = (_config: LoggingConfig): FileLogger => ({
+  ...getNullLogger(),
+  getFilePath: () => 'none',
 });
