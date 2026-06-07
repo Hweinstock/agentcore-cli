@@ -19,7 +19,7 @@ const createCommandSpec: AgentCoreCommandSpec = {
 
     // Now we know we're in CLI so we can wrap the rest in CLI telemetry. (code paths isolated)
 
-    const result = context.projectBuilder.build({
+    const result = await context.projectBuilder.build({
       name: input.name,
       projectName: input.projectName,
       language: input.language,

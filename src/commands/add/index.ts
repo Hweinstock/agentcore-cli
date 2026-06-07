@@ -16,7 +16,6 @@ const addCommandSpec: AgentCoreCommandSpec = {
       .description('this is the add command')
       .showHelpAfterError()
       .showSuggestionAfterError();
-
     addMemoryCommand.register(context, addCommand);
     return addCommand;
   },

@@ -13,11 +13,11 @@ export type Project = {
 };
 
 export interface ProjectBuilder {
-  build: (options: BuildProjectOptions) => Result<Project>;
+  build: (options: BuildProjectOptions) => Promise<Result<Project>>;
 }
 
 export const getProjectBuilder = (props: { telemetryClient: TelemetryClient; logger: Logger }): ProjectBuilder => ({
-  build: options => {
+  build: async options => {
     const name = options.projectName ?? options.name ?? 'my-agent-project';
     props.logger.info(`building project ${name}`);
     return ok({ name });
