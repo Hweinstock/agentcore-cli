@@ -1,5 +1,5 @@
 import { useApp, useInput } from 'ink';
-import { useLocation, useNavigate } from 'react-router';
+import { type Location, type NavigateFunction, useLocation, useNavigate } from 'react-router';
 
 /**
  * Registers the Escape key to go back: navigates to the previous route, or exits the app when there
@@ -15,11 +15,15 @@ export function useBack(): void {
 
   useInput((_input, key) => {
     if (key.escape) {
-      if (location.key === 'default') {
-        exit();
-      } else {
-        void navigate(-1);
-      }
+      goBack(location, navigate, exit);
     }
   });
+}
+
+export function goBack(location: Location, navigate: NavigateFunction, exit: (error?: unknown) => void): void {
+  if (location.key === 'default') {
+    exit();
+  } else {
+    void navigate(-1);
+  }
 }

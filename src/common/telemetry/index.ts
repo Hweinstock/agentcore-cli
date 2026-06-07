@@ -1,12 +1,30 @@
 import type { TelemetryConfig } from '../global-config';
 import type { Logger } from '../logging';
+import type { Result } from '../result';
+import { type AttributeRecorder, createAttributeRecorder } from './recorder';
 
+// TODO: all types here should be generic over the metric shapes.
 export interface TelemetryClient {
   emit: (metricName: string, attributes: Record<string, string>) => void;
-  // TODO: add with to the interface for wrapping functionality.
+  withTelemetry<R extends Result>(
+    metricName: string,
+    fallbackAttributes: Record<string, string>,
+    handler: (recorder: AttributeRecorder<Record<string, string>>) => Promise<R>
+  ): Promise<R>;
+  withTelemetry<R extends Result>(
+    metricName: string,
+    fallbackAttributes: Record<string, string>,
+    handler: (recorder: AttributeRecorder<Record<string, string>>) => R
+  ): R;
+  child: (attributeName: string, attributeValue: string) => TelemetryClient;
 }
 
-export const getTelemetryClient = (props: { logger: Logger; config?: TelemetryConfig }): TelemetryClient => ({
-  emit: (metricName: string, attributes: Record<string, string>) =>
-    props.logger.info(`logging ${metricName}`, attributes),
+export const getTelemetryClient = (context: { logger: Logger; config?: TelemetryConfig }): TelemetryClient => ({
+  emit: (metricName, attributes) => context.logger.info(`logging ${metricName}`, attributes),
+  withTelemetry: (<R extends Result>(
+    _metricName: string,
+    _fallbackAttributes: Record<string, string>,
+    handler: (recorder: AttributeRecorder<Record<string, string>>) => R | Promise<R>
+  ) => handler(createAttributeRecorder())) as TelemetryClient['withTelemetry'],
+  child: (_attributeName, _attributeValue) => getTelemetryClient(context),
 });

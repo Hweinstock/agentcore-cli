@@ -1,15 +1,8 @@
-import { type GlobalConfigAccessor, type Logger, type Result, type TelemetryClient, ok } from '../../common';
-import type { ProjectBuilder } from '../../project';
+import { type Result, wrapInResult } from '../../common';
 import { App } from './App';
+import type { TuiScreenContext } from './types';
 import { render } from 'ink';
 import React from 'react';
-
-interface ScreenContext {
-  logger: Logger;
-  telemetryClient: TelemetryClient;
-  globalConfigAccessor: GlobalConfigAccessor;
-  projectBuilder: ProjectBuilder;
-}
 
 export interface RenderTUIOptions {
   /** Path to render on launch (e.g. `/add` or `/add/memory`). If omitted, shows the default home screen. */
@@ -26,17 +19,19 @@ export interface TuiScreenRenderer {
   render: (options?: RenderTUIOptions) => Promise<Result>;
 }
 
-export function getTuiScreenRenderer(context: ScreenContext): TuiScreenRenderer {
+export function getTuiScreenRenderer(context: TuiScreenContext): TuiScreenRenderer {
   return {
     render: async (options = {}) => {
-      const t = render(
+      const instance = render(
         React.createElement(App, {
           initialPath: options.initialPath ?? '/',
-          globalConfigAccessor: context.globalConfigAccessor,
+          context,
         })
       );
-      await t.waitUntilExit();
-      return ok();
+      return wrapInResult(async () => {
+        await instance.waitUntilExit();
+        return {};
+      })();
     },
   };
 }

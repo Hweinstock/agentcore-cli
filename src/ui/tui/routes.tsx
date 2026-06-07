@@ -1,15 +1,9 @@
 import type { GlobalConfigAccessor } from '../../common';
 import { useBack } from './hooks/use-back';
-import { Home } from './screens';
+import { Add, AddMemory, Home, Remove, RemoveMemory } from './screens';
+import { Create } from './screens';
+import type { RouteEntry } from './types';
 import { Text } from 'ink';
-import type { ReactElement } from 'react';
-
-interface RouteEntry {
-  name: string;
-  path: string;
-  render: () => ReactElement;
-  isEnabled?: () => boolean | Promise<boolean>;
-}
 
 function Hidden() {
   useBack();
@@ -17,30 +11,48 @@ function Hidden() {
 }
 
 export function getRoutes(_context: { globalConfigAccessor: GlobalConfigAccessor }): readonly RouteEntry[] {
+  const addRoutes: RouteEntry[] = [
+    {
+      path: '/add/memory',
+      label: 'Memory',
+      render: () => <AddMemory />,
+    },
+  ];
+
+  const removeRoutes: RouteEntry[] = [
+    {
+      path: '/remove/memory',
+      label: 'Memory',
+      render: () => <RemoveMemory />,
+    },
+  ];
+
   const topLevelRoutes: RouteEntry[] = [
     {
       path: '/add',
-      name: 'add',
-      render: () => <Hidden />,
+      label: 'add',
+      render: () => <Add childrenRoutes={addRoutes} />,
     },
     {
       path: '/remove',
-      name: 'remove',
-      render: () => <Hidden />,
+      label: 'remove',
+      render: () => <Remove childrenRoutes={removeRoutes} />,
     },
     {
       path: '/create',
-      name: 'create',
-      render: () => <Hidden />,
+      label: 'create',
+      render: () => <Create />,
     },
   ];
 
   return [
     {
       path: '/',
-      name: 'home',
-      render: () => <Home routes={topLevelRoutes} />,
+      label: 'home',
+      render: () => <Home childrenRoutes={topLevelRoutes} />,
     },
     ...topLevelRoutes,
+    ...addRoutes,
+    ...removeRoutes,
   ];
 }

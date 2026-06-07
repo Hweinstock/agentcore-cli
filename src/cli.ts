@@ -47,8 +47,8 @@ export async function main(args: string[]): Promise<void> {
   const result = await commandRouter.route(args);
 
   // Post Execute section
-  printPostCommandNotices(fileLogger);
-  exitProcess(result, fileLogger.getFilePath(), fileLogger);
+  printPostCommandNotices(consoleLogger);
+  exitProcess(result, fileLogger.getFilePath(), consoleLogger);
 }
 
 function exitProcess(result: Result, logFilePath: string, consoleLogger: Logger): void {
