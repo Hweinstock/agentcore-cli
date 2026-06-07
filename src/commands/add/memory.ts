@@ -1,27 +1,25 @@
-import { toAction } from '..';
 import { ok } from '../../common';
-import type { AgentCoreCommand, CommandHandler } from '../types';
+import { buildCommand } from '../command-builder';
+import type { AgentCoreCommandSpec } from '../types';
 import * as z from 'zod';
 
-const schema = z.object({
-  name: z.string().optional(),
-  strategies: z.string().optional(),
-  expiry: z.string().optional(),
-  deliveryType: z.string().optional(),
-  dataStreamArn: z.string().optional(),
-  streamContentLevel: z.string().optional(),
-  indexedKey: z.array(z.string()).optional(),
-  json: z.boolean().optional(),
-});
-
-const handler: CommandHandler<z.infer<typeof schema>> = async (context, input) => {
-  context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
-  return ok();
-};
-
-export const addMemoryCommand: AgentCoreCommand = {
-  register: (props, parentCommand) => {
-    return parentCommand
+const addMemoryCommandSpec: AgentCoreCommandSpec = {
+  schema: z.object({
+    name: z.string().optional(),
+    strategies: z.string().optional(),
+    expiry: z.string().optional(),
+    deliveryType: z.string().optional(),
+    dataStreamArn: z.string().optional(),
+    streamContentLevel: z.string().optional(),
+    indexedKey: z.array(z.string()).optional(),
+    json: z.boolean().optional(),
+  }),
+  handler: async (context, input) => {
+    context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
+    return ok();
+  },
+  setup: (_context, parentCommand) =>
+    parentCommand
       .command('memory')
       .description('this is the add memory command')
       .showHelpAfterError()
@@ -48,7 +46,7 @@ export const addMemoryCommand: AgentCoreCommand = {
         (val: string, acc: string[]) => [...acc, val],
         [] as string[]
       )
-      .option('--json', 'Output as JSON [non-interactive]')
-      .action(toAction(props, schema, handler));
-  },
+      .option('--json', 'Output as JSON [non-interactive]'),
 };
+
+export const addMemoryCommand = buildCommand(addMemoryCommandSpec);

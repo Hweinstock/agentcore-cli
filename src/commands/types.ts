@@ -2,6 +2,7 @@ import type { FileLogger, GlobalConfigAccessor, Logger, Result, TelemetryClient 
 import type { ProjectBuilder } from '../project';
 import type { TuiScreenRenderer } from '../ui/';
 import type { Command } from '@commander-js/extra-typings';
+import z from 'zod';
 
 export interface BaseCommandContext {
   fileLogger: FileLogger;
@@ -16,8 +17,13 @@ export interface AgentCoreCommand<CommandContext extends BaseCommandContext = Ba
   register: (context: CommandContext, parentCommand: Command) => Command;
 }
 
-export type CommandHandler<
-  InputType = {},
+const emptyZodObject = z.object({});
+
+export interface AgentCoreCommandSpec<
+  SchemaType extends z.ZodObject = typeof emptyZodObject,
   CommandContext extends BaseCommandContext = BaseCommandContext,
-  OutputType extends Result = Result,
-> = (props: CommandContext, input: InputType) => Promise<OutputType>;
+> {
+  schema: SchemaType;
+  handler: (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result>;
+  setup: (context: CommandContext, parentCommand: Command) => Command;
+}

@@ -13,6 +13,9 @@ import { getProjectBuilder } from './project';
 import { getConsoleLogger, getTuiScreenRenderer } from './ui';
 
 export async function main(args: string[]): Promise<void> {
+  // Setup Section
+
+  // We bootstrap read the config to avoid circular dependencies.
   const config = await bootstrapConfig();
   const fileLogger = getFileLogger(config.logging ?? {});
   const consoleLogger = getConsoleLogger(config.logging ?? {});
@@ -40,8 +43,10 @@ export async function main(args: string[]): Promise<void> {
     projectBuilder,
   });
 
+  // Execute Section
   const result = await commandRouter.route(args);
 
+  // Post Execute section
   printPostCommandNotices(fileLogger);
   exitProcess(result, fileLogger.getFilePath(), fileLogger);
 }
