@@ -7,5 +7,7 @@ import { useNavigate } from 'react-router';
 export function Remove({ childrenRoutes }: { childrenRoutes: readonly RouteEntry[] }): ReactElement {
   const navigate = useNavigate();
   useBack();
-  return <ListSelector id="remove" items={childrenRoutes} onSelect={item => void navigate(item.path)} />;
+
+  const items = childrenRoutes.map(r => ({ label: r.label, action: () => void navigate(r.path) }));
+  return <ListSelector id="remove" items={items} />;
 }

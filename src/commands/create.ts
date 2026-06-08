@@ -18,13 +18,13 @@ const createCommandSpec: AgentCoreCommandSpec = {
     }
 
     // Now we know we're in CLI so we can wrap the rest in CLI telemetry. (code paths isolated)
-
-    const result = await context.projectBuilder.build({
+    const result = await context.projectManager.build({
       name: input.name,
       projectName: input.projectName,
       language: input.language,
       framework: input.framework,
       agent: input.agent,
+      onProgress: _event => {},
     });
     if (result.success) {
       if (input.json) context.consoleLogger.info(JSON.stringify(result.data));

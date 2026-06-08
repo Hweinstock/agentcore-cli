@@ -1,5 +1,5 @@
 import type { FileLogger, GlobalConfigAccessor, Logger, Result, TelemetryClient } from '../common';
-import type { ProjectBuilder } from '../project';
+import type { ProjectManager } from '../project';
 import type { TuiScreenRenderer } from '../ui/';
 import type { Command } from '@commander-js/extra-typings';
 import z from 'zod';
@@ -10,7 +10,7 @@ export interface BaseCommandContext {
   telemetryClient: TelemetryClient;
   globalConfigAccessor: GlobalConfigAccessor;
   tuiScreenRenderer: TuiScreenRenderer;
-  projectBuilder: ProjectBuilder;
+  projectManager: ProjectManager;
 }
 
 export interface AgentCoreCommand<CommandContext extends BaseCommandContext = BaseCommandContext> {

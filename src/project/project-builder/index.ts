@@ -1,25 +1,27 @@
-import { type Logger, type Result, type TelemetryClient, ok } from '../../common';
+import { type GlobalConfigAccessor, type Logger, type Result, type TelemetryClient, ok } from '../../common';
 
-export interface BuildProjectOptions {
+export interface BuildProjectInput {
   name?: string;
   projectName?: string;
   language?: string;
   framework?: string;
   agent?: boolean;
+  // Send events as progress updates
+  onProgress: (event: unknown) => void;
+}
+
+interface BuildProjectContext {
+  logger: Logger;
+  telemetryClient: TelemetryClient;
+  globalConfigAccessor: GlobalConfigAccessor;
 }
 
 export type Project = {
   name: string;
 };
 
-export interface ProjectBuilder {
-  build: (options: BuildProjectOptions) => Promise<Result<Project>>;
+export async function buildProject(context: BuildProjectContext, input: BuildProjectInput): Promise<Result<Project>> {
+  const name = input.projectName ?? input.name ?? 'my-agent-project';
+  context.logger.info(`building project ${name}`);
+  return ok({ name });
 }
-
-export const getProjectBuilder = (props: { telemetryClient: TelemetryClient; logger: Logger }): ProjectBuilder => ({
-  build: async options => {
-    const name = options.projectName ?? options.name ?? 'my-agent-project';
-    props.logger.info(`building project ${name}`);
-    return ok({ name });
-  },
-});

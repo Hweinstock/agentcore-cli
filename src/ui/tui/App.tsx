@@ -1,12 +1,12 @@
 import { TuiScreenContextProvider } from './context-provider.tsx';
 import { getRoutes } from './routes';
-import type { TuiScreenContext } from './types';
+import type { TuiScreenRendererContext } from './types.ts';
 import { MemoryRouter, Route, Routes } from 'react-router';
 
 export interface AppProps {
   /** The path the in-memory router starts on. Defaults to the home screen. */
   initialPath?: string;
-  context: TuiScreenContext;
+  context: TuiScreenRendererContext;
 }
 
 export function App({ initialPath = '/', context }: AppProps) {

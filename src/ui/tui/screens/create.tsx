@@ -1,33 +1,31 @@
 import { ListSelector } from '../components';
-import { goBack, useBack } from '../hooks/use-back';
+import { useBack } from '../hooks/use-back';
 import { Box, Text, useApp } from 'ink';
 import { type ReactElement } from 'react';
-import { useLocation, useNavigate } from 'react-router';
+import { useNavigate } from 'react-router';
 
 export function Create(): ReactElement {
   const navigate = useNavigate();
   useBack();
 
-  const location = useLocation();
   const { exit } = useApp();
 
   const items = [
     {
       label: 'Add a memory',
-      path: '/add/memory',
+      action: () => navigate('/add/memory'),
     },
     {
-      label: 'Go back',
+      label: 'Exit',
+      action: () => exit(),
     },
   ];
   return (
-    <Box>
-      <Text>You have added an agent! </Text>
-      <ListSelector
-        id="create"
-        items={items}
-        onSelect={item => (item.path ? void navigate(item.path) : void goBack(location, navigate, exit))}
-      />
+    <Box flexDirection="column" gap={1}>
+      <Text>You have added an agent!</Text>
+      <Box>
+        <ListSelector id="create" items={items} />
+      </Box>
     </Box>
   );
 }

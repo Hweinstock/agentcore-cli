@@ -1,6 +1,6 @@
 import { type Result, wrapInResult } from '../../common';
 import { App } from './App';
-import type { TuiScreenContext } from './types';
+import type { TuiScreenRendererContext } from './types';
 import { render } from 'ink';
 import React from 'react';
 
@@ -19,7 +19,7 @@ export interface TuiScreenRenderer {
   render: (options?: RenderTUIOptions) => Promise<Result>;
 }
 
-export function getTuiScreenRenderer(context: TuiScreenContext): TuiScreenRenderer {
+export function getTuiScreenRenderer(context: TuiScreenRendererContext): TuiScreenRenderer {
   return {
     render: async (options = {}) => {
       const instance = render(

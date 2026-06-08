@@ -9,7 +9,7 @@ import {
   getTelemetryClient,
   unwrapResult,
 } from './common';
-import { getProjectBuilder } from './project';
+import { getProjectManager } from './project';
 import { getConsoleLogger, getTuiScreenRenderer } from './ui';
 
 export async function main(args: string[]): Promise<void> {
@@ -25,14 +25,14 @@ export async function main(args: string[]): Promise<void> {
   });
   const globalConfigAccessor = getGlobalConfigAccessor({ logger: fileLogger });
 
-  const projectBuilder = getProjectBuilder({ telemetryClient, logger: fileLogger });
+  const projectManager = getProjectManager({ telemetryClient, logger: fileLogger, globalConfigAccessor });
 
   // Leaf Nodes in the Dependency Tree.
   const tuiScreenRenderer = getTuiScreenRenderer({
     logger: fileLogger,
     telemetryClient,
     globalConfigAccessor,
-    projectBuilder,
+    projectManager,
   });
   const commandRouter = getCommandRouter({
     globalConfigAccessor,
@@ -40,7 +40,7 @@ export async function main(args: string[]): Promise<void> {
     consoleLogger,
     telemetryClient,
     tuiScreenRenderer,
-    projectBuilder,
+    projectManager,
   });
 
   // Execute Section

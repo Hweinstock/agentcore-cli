@@ -5,6 +5,7 @@ const selectionCache = new Map<string, number>();
 
 interface ListItem {
   label: string;
+  action: () => void;
 }
 
 export interface ListSelectorProps<T extends ListItem> {
@@ -12,12 +13,10 @@ export interface ListSelectorProps<T extends ListItem> {
   id: string;
   /** The items to choose from. */
   items: readonly T[];
-  /** Called with the highlighted item when the user presses Enter. */
-  onSelect: (item: T) => void;
 }
 
 /** A minimal vertical list picker: up/down to move (with wraparound), Enter to select. */
-export function ListSelector<T extends ListItem>({ id, items, onSelect }: ListSelectorProps<T>): ReactElement {
+export function ListSelector<T extends ListItem>({ id, items }: ListSelectorProps<T>): ReactElement {
   const [selected, setSelected] = useState(() => selectionCache.get(id) ?? 0);
 
   const move = (next: number) => {
@@ -32,7 +31,7 @@ export function ListSelector<T extends ListItem>({ id, items, onSelect }: ListSe
       move(selected === items.length - 1 ? 0 : selected + 1);
     } else if (key.return) {
       const item = items[selected];
-      if (item) onSelect(item);
+      if (item) item.action();
     }
   });
 
