@@ -10,9 +10,13 @@ export interface ProjectManagerContext {
 }
 
 export interface ProjectManager {
+  /* Checks if the CLI is running within a valid AgentCore Project */
   hasProject: () => boolean;
+  /* Builds a project from the templates */
   build: (input: BuildProjectInput) => Promise<Result<Project>>;
+  /* Deploys a project */
   deploy: (input: DeployProjectInput) => Promise<Result>;
+  /* Access to AgentCore schema (agentcore.json)*/
   configAccessor: ProjectConfigAccessor;
 }
 
@@ -23,7 +27,7 @@ export const getProjectManager = (context: ProjectManagerContext): ProjectManage
   };
 
   return {
-    hasProject: () => true,
+    hasProject: () => false,
     build: input => buildProject(projectContext, input),
     deploy: input => deployProject(projectContext, input),
     configAccessor: getProjectConfigAccessor(projectContext),

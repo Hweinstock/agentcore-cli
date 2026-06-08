@@ -1,12 +1,10 @@
 import { ListSelector } from '../components';
-import { useBack } from '../hooks/use-back';
 import { Box, Text, useApp } from 'ink';
 import { type ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 
 export function Create(): ReactElement {
   const navigate = useNavigate();
-  useBack();
 
   const { exit } = useApp();
 

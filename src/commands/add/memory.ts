@@ -1,11 +1,12 @@
-import { ok } from '../../common';
+import { err } from '../../common';
+import { NoProjectFoundError } from '../../common/errors';
 import { buildCommand } from '../command-builder';
 import type { AgentCoreCommandSpec } from '../types';
 import * as z from 'zod';
 
 const addMemoryCommandSpec: AgentCoreCommandSpec = {
   schema: z.object({
-    name: z.string().optional(),
+    name: z.string(),
     strategies: z.string().optional(),
     expiry: z.string().optional(),
     deliveryType: z.string().optional(),
@@ -16,7 +17,12 @@ const addMemoryCommandSpec: AgentCoreCommandSpec = {
   }),
   handler: async (context, input) => {
     context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
-    return ok();
+
+    if (!context.projectManager.hasProject()) {
+      return err(new NoProjectFoundError())
+    }
+
+    return context.projectManager.configAccessor.add('memories', input.name ?? '');
   },
   setup: (_context, parentCommand) =>
     parentCommand

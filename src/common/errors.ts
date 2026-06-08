@@ -25,3 +25,9 @@ export class FileSystemIOError extends AgentCoreError {
     super(message, { exitCode: options?.exitCode ?? 1, source: options?.source ?? 'user' });
   }
 }
+
+export class NoProjectFoundError extends AgentCoreError {
+  constructor(message?: string, options?: AgentCoreErrorOptions) {
+    super(message ?? 'No AgentCore Project Found!', { exitCode: options?.exitCode ?? 1, source: options?.source ?? 'user' });
+  }
+}

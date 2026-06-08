@@ -10,6 +10,9 @@ export const projectConfigSchema = z.object({
   harnesses: z.array(z.string()),
 });
 export type ProjectConfig = z.infer<typeof projectConfigSchema>;
+
+// The datastore already exposes list helpers (`add`/`remove`) over array-valued
+// paths, so the accessor is just a typed `JsonDatastore<ProjectConfig>`.
 export type ProjectConfigAccessor = JsonDatastore<ProjectConfig>;
 
 export const getProjectConfigAccessor = (context?: { logger?: Logger }): ProjectConfigAccessor =>
