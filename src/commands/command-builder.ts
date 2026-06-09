@@ -13,7 +13,7 @@ export function buildCommand<SchemaType extends z.ZodObject, CommandContext exte
     register: (context: CommandContext, parentCommand: CommanderCommand): CommanderCommand =>
       commandSpec
         .setup(context, parentCommand)
-        .action(toCommanderAction(context, commandSpec.schema, commandSpec.handler)),
+        .action(toCommanderAction(context, commandSpec.handler, commandSpec.schema)),
   };
 }
 
@@ -22,8 +22,8 @@ export function toCommanderAction<
   CommandContext extends BaseCommandContext = BaseCommandContext,
 >(
   context: CommandContext,
-  schema: SchemaType,
-  handler: (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result> | Result
+  handler: (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result> | Result,
+  schema: SchemaType
 ): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
   return async (input, _command) => {
     const parseResult = schema.safeParse(input);

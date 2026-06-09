@@ -1,15 +1,20 @@
 import { ok } from '../../common';
 import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandSpec } from '../types';
+import type { AgentCoreCommandHandler } from '../types';
+import { addGatewayCommand } from './gateway';
 import { addMemoryCommand } from './memory';
 import z from 'zod';
 
-const addCommandSpec: AgentCoreCommandSpec = {
-  schema: z.object({}),
-  handler: async context => {
-    context.consoleLogger.info(`running root level add command`);
-    return ok();
-  },
+const schema = z.object({});
+
+const handler: AgentCoreCommandHandler<typeof schema> = async context => {
+  context.consoleLogger.info(`running root level add command`);
+  return context.tuiScreenRenderer.render({ initialPath: '/add' });
+};
+
+export const addCommand = buildCommand({
+  schema,
+  handler,
   setup: (context, parentCommand) => {
     const addCommand = parentCommand
       .command('add')
@@ -17,8 +22,7 @@ const addCommandSpec: AgentCoreCommandSpec = {
       .showHelpAfterError()
       .showSuggestionAfterError();
     addMemoryCommand.register(context, addCommand);
+    addGatewayCommand.register(context, addCommand);
     return addCommand;
   },
-};
-
-export const addCommand = buildCommand(addCommandSpec);
+});

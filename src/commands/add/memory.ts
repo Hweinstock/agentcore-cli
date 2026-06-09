@@ -1,29 +1,33 @@
 import { err } from '../../common';
 import { NoProjectFoundError } from '../../common/errors';
 import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandSpec } from '../types';
+import type { AgentCoreCommandHandler } from '../types';
 import * as z from 'zod';
 
-const addMemoryCommandSpec: AgentCoreCommandSpec = {
-  schema: z.object({
-    name: z.string(),
-    strategies: z.string().optional(),
-    expiry: z.string().optional(),
-    deliveryType: z.string().optional(),
-    dataStreamArn: z.string().optional(),
-    streamContentLevel: z.string().optional(),
-    indexedKey: z.array(z.string()).optional(),
-    json: z.boolean().optional(),
-  }),
-  handler: async (context, input) => {
-    context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
+const schema = z.object({
+  name: z.string(),
+  strategies: z.string().optional(),
+  expiry: z.string().optional(),
+  deliveryType: z.string().optional(),
+  dataStreamArn: z.string().optional(),
+  streamContentLevel: z.string().optional(),
+  indexedKey: z.array(z.string()).optional(),
+  json: z.boolean().optional(),
+});
 
-    if (!context.projectManager.hasProject()) {
-      return err(new NoProjectFoundError())
-    }
+const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+  context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
 
-    return context.projectManager.configAccessor.add('memories', input.name ?? '');
-  },
+  if (!context.projectManager.hasProject()) {
+    return err(new NoProjectFoundError());
+  }
+
+  return context.projectManager.configAccessor.add('memories', input.name);
+};
+
+export const addMemoryCommand = buildCommand({
+  schema,
+  handler: handler,
   setup: (_context, parentCommand) =>
     parentCommand
       .command('memory')
@@ -53,6 +57,4 @@ const addMemoryCommandSpec: AgentCoreCommandSpec = {
         [] as string[]
       )
       .option('--json', 'Output as JSON [non-interactive]'),
-};
-
-export const addMemoryCommand = buildCommand(addMemoryCommandSpec);
+});

@@ -19,11 +19,16 @@ export interface AgentCoreCommand<CommandContext extends BaseCommandContext = Ba
 
 const emptyZodObject = z.object({});
 
+export type AgentCoreCommandHandler<
+  SchemaType extends z.ZodObject = typeof emptyZodObject,
+  CommandContext extends BaseCommandContext = BaseCommandContext,
+> = (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result>;
+
 export interface AgentCoreCommandSpec<
   SchemaType extends z.ZodObject = typeof emptyZodObject,
   CommandContext extends BaseCommandContext = BaseCommandContext,
 > {
   schema: SchemaType;
-  handler: (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result>;
+  handler: AgentCoreCommandHandler<SchemaType, CommandContext>;
   setup: (context: CommandContext, parentCommand: Command) => Command;
 }

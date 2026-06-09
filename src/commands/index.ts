@@ -2,6 +2,8 @@ import { type Result, err, ok } from '../common';
 import { addCommand } from './add';
 import { toCommanderAction } from './command-builder';
 import { createCommand } from './create';
+import { deployCommand } from './deploy';
+import { removeCommand } from './remove';
 import type { BaseCommandContext } from './types';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
@@ -12,11 +14,13 @@ interface CommandRouter {
 
 function getRootCommand(context: BaseCommandContext): CommanderCommand {
   const rootCommand = new CommanderCommand().action(
-    toCommanderAction(context, z.object({}), () => context.tuiScreenRenderer.render())
+    toCommanderAction(context, () => context.tuiScreenRenderer.render(), z.object({}))
   );
 
   addCommand.register(context, rootCommand);
   createCommand.register(context, rootCommand);
+  deployCommand.register(context, rootCommand);
+  removeCommand.register(context, rootCommand);
 
   return rootCommand;
 }

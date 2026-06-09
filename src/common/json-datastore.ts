@@ -19,8 +19,8 @@ function then<A, B>(value: A | Promise<A>, fn: (a: A) => B): B | Promise<B> {
  */
 type Path<T> = T extends object
   ? {
-    [K in keyof T & string]: NonNullable<T[K]> extends object ? K | `${K}.${Path<NonNullable<T[K]>>}` : K;
-  }[keyof T & string]
+      [K in keyof T & string]: NonNullable<T[K]> extends object ? K | `${K}.${Path<NonNullable<T[K]>>}` : K;
+    }[keyof T & string]
   : never;
 
 /**
@@ -29,11 +29,11 @@ type Path<T> = T extends object
  */
 type PathValue<T, P extends string> = P extends `${infer K}.${infer Rest}`
   ? K extends keyof T
-  ? PathValue<NonNullable<T[K]>, Rest> | (undefined extends T[K] ? undefined : never)
-  : never
+    ? PathValue<NonNullable<T[K]>, Rest> | (undefined extends T[K] ? undefined : never)
+    : never
   : P extends keyof T
-  ? T[P]
-  : never;
+    ? T[P]
+    : never;
 
 /** The subset of dot paths in `T` whose value is an array. */
 type ArrayPath<T> = {
@@ -207,12 +207,11 @@ export function getJsonDatastore<S extends z.ZodType>(
    * Preserves sync-ness end-to-end via `then`.
    */
   function mutateList<P extends ArrayPath<T>>(props: {
-    path: P,
-    item: ElementOf<PathValue<T, P>>,
-    op: OpOptions | undefined,
-    transform: (list: unknown[], item: unknown) => unknown[]
-  }
-  ) {
+    path: P;
+    item: ElementOf<PathValue<T, P>>;
+    op: OpOptions | undefined;
+    transform: (list: unknown[], item: unknown) => unknown[];
+  }) {
     return then(datastore.get(props.path as never, props.op as { sync: true }), got => {
       if (!got.success) return got;
       const current = Array.isArray(got.data?.value) ? (got.data.value as unknown[]) : [];

@@ -1,6 +1,6 @@
 import type { GlobalConfigAccessor } from '../../common';
 import { useBack } from './hooks/use-back';
-import { Add, AddMemory, Home, Remove, RemoveMemory } from './screens';
+import { Add, AddGateway, AddMemory, Home, Remove, RemoveGateway, RemoveMemory } from './screens';
 import { Create } from './screens';
 import type { RouteEntry } from './types';
 import { Text } from 'ink';
@@ -17,6 +17,11 @@ export function getRoutes(_context: { globalConfigAccessor: GlobalConfigAccessor
       label: 'Memory',
       render: () => <AddMemory />,
     },
+    {
+      path: '/add/gateway',
+      label: 'Gateway',
+      render: () => <AddGateway />,
+    },
   ];
 
   const removeRoutes: RouteEntry[] = [
@@ -24,6 +29,11 @@ export function getRoutes(_context: { globalConfigAccessor: GlobalConfigAccessor
       path: '/remove/memory',
       label: 'Memory',
       render: () => <RemoveMemory />,
+    },
+    {
+      path: '/remove/gateway',
+      label: 'Gateway',
+      render: () => <RemoveGateway />,
     },
   ];
 
