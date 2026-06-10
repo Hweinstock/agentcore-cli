@@ -1,4 +1,7 @@
-import type { FileLogger, GlobalConfigAccessor, Logger, Result, TelemetryClient } from '../common';
+import type { Result } from '../common';
+import type { GlobalConfigAccessor } from '../global-config';
+import type { FileLogger, Logger } from '../logging';
+import type { TelemetryClient } from '../telemetry';
 import type { ProjectManager } from '../project';
 import type { TuiScreenRenderer } from '../ui/';
 import type { Command } from '@commander-js/extra-typings';

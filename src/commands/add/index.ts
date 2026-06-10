@@ -1,4 +1,3 @@
-import { ok } from '../../common';
 import { buildCommand } from '../command-builder';
 import type { AgentCoreCommandHandler } from '../types';
 import { addGatewayCommand } from './gateway';

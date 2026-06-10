@@ -1,4 +1,4 @@
-import type { Logger, LoggingConfig } from '../common';
+import type { Logger, LoggingConfig } from '../logging';
 
 // TODO: this should handle escape codes, and common rendering patterns for printing text to the console.
 export const getConsoleLogger = (config: LoggingConfig): Logger => ({

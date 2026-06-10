@@ -1,4 +1,4 @@
-import { type JsonDatastore, getJsonDatastore, jsonFileSource } from './json-datastore';
+import { type JsonDatastore, getJsonDatastore, jsonFileSource } from './common/json-datastore';
 import type { Logger } from './logging';
 import { homedir } from 'os';
 import { join } from 'path';

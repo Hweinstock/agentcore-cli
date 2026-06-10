@@ -1,14 +1,12 @@
 import { getCommandRouter } from './commands';
 import {
   AgentCoreError,
-  type GlobalConfig,
-  type Logger,
   type Result,
-  getFileLogger,
-  getGlobalConfigAccessor,
-  getTelemetryClient,
   unwrapResult,
 } from './common';
+import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
+import { type Logger, getFileLogger } from './logging';
+import { getTelemetryClient } from './telemetry';
 import { getProjectManager } from './project';
 import { getConsoleLogger, getTuiScreenRenderer } from './ui';
 

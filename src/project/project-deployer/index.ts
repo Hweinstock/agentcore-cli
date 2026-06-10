@@ -1,4 +1,7 @@
-import { type GlobalConfigAccessor, type Logger, type Result, type TelemetryClient, ok } from '../../common';
+import { type Result, ok } from '../../common';
+import type { GlobalConfigAccessor } from '../../global-config';
+import type { Logger } from '../../logging';
+import type { TelemetryClient } from '../../telemetry';
 
 export interface DeployProjectInput {
   // send events as deployment progresses

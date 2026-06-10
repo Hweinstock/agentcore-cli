@@ -1,4 +1,7 @@
-import type { GlobalConfigAccessor, Logger, Result, TelemetryClient } from '../common';
+import type { Result } from '../common';
+import type { GlobalConfigAccessor } from '../global-config';
+import type { Logger } from '../logging';
+import type { TelemetryClient } from '../telemetry';
 import { type BuildProjectInput, type Project, buildProject } from './project-builder';
 import { type ProjectConfigAccessor, getProjectConfigAccessor } from './project-config';
 import { type DeployProjectInput, deployProject } from './project-deployer';

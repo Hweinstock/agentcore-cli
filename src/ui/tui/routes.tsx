@@ -1,4 +1,4 @@
-import type { GlobalConfigAccessor } from '../../common';
+import type { GlobalConfigAccessor } from '../../global-config';
 import { useBack } from './hooks/use-back';
 import { Add, AddGateway, AddMemory, Home, Remove, RemoveGateway, RemoveMemory } from './screens';
 import { Create } from './screens';

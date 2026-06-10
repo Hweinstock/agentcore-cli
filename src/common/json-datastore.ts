@@ -1,5 +1,5 @@
 import { FileSystemIOError, ValidationError } from './errors';
-import { type Logger, getNullLogger } from './logging';
+import { type Logger, getNullLogger } from '../logging';
 import { type Result, err, ok, wrapInResult } from './result';
 import stableStringify from 'fast-json-stable-stringify';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
