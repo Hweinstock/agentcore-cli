@@ -2,6 +2,7 @@ import type { Result } from '../common';
 import type { GlobalConfigAccessor } from '../global-config';
 import type { Logger } from '../logging';
 import type { TelemetryClient } from '../telemetry';
+import type { EnvironmentAccessor } from '../env';
 import { type BuildProjectInput, type Project, buildProject } from './project-builder';
 import { type ProjectConfigAccessor, getProjectConfigAccessor } from './project-config';
 import { type DeployProjectInput, deployProject } from './project-deployer';
@@ -10,6 +11,7 @@ export interface ProjectManagerContext {
   logger: Logger;
   telemetryClient: TelemetryClient;
   globalConfigAccessor: GlobalConfigAccessor;
+  environmentAccessor: EnvironmentAccessor;
 }
 
 export interface ProjectManager {
