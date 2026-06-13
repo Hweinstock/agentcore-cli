@@ -20,5 +20,5 @@
     "noPropertyAccessFromIndexSignature": false
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "packages", "assets", "src/assets"]
+  "exclude": ["node_modules", "dist", "packages", "assets"]
 }

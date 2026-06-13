@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const srcDir = path.join(__dirname, '..', 'src', 'assets');
+const srcDir = path.join(__dirname, '..', 'assets');
 const destDir = path.join(__dirname, '..', 'dist', 'assets');
 const inspectorSrcDir = path.join(__dirname, '..', 'node_modules', '@aws', 'agent-inspector', 'dist-assets');
 const inspectorDestDir = path.join(__dirname, '..', 'dist', 'agent-inspector');

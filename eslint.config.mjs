@@ -147,7 +147,7 @@ export default tseslint.config(
     ignores: [
       'dist',
       'node_modules',
-      'src/assets',
+      'assets',
       'src/schema/llm-compacted',
       '.agentcore',
       '**/.agentcore/**',
