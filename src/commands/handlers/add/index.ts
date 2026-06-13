@@ -1,5 +1,5 @@
-import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandHandler } from '../types';
+import { buildCommand } from '../../command-builder';
+import type { AgentCoreCommandHandler } from '../../types';
 import { addGatewayCommand } from './gateway';
 import { addMemoryCommand } from './memory';
 import z from 'zod';

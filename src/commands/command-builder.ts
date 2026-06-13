@@ -1,18 +1,18 @@
 import { type Result, ValidationError } from '../common';
 import type { AgentCoreCommand, AgentCoreCommandSpec, BaseCommandContext } from './types';
-import { Command as CommanderCommand } from '@commander-js/extra-typings';
+import { Command, Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
 /**
- * Factory function for converting CommandSpec type into Command type.
+ * Factory function for converting CommandSpec into a Command we can register with Commander.
  */
 export function buildCommand<SchemaType extends z.ZodObject, CommandContext extends BaseCommandContext>(
   commandSpec: AgentCoreCommandSpec<SchemaType, CommandContext>
 ): AgentCoreCommand<CommandContext> {
   return {
-    register: (context: CommandContext, parentCommand: CommanderCommand): CommanderCommand =>
+    register: (context: CommandContext, parentCommand?: CommanderCommand): CommanderCommand =>
       commandSpec
-        .setup(context, parentCommand)
+        .setup(context, parentCommand ?? new Command())
         .action(toCommanderAction(context, commandSpec.handler, commandSpec.schema)),
   };
 }

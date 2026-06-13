@@ -63,6 +63,7 @@
     "test:update-snapshots": "vitest run --project unit --update",
     "test:tui": "npm run build:harness && vitest run --project tui",
     "test:browser": "npx playwright test --config browser-tests/playwright.config.ts",
+    "test:manual": "npm run bundle",
     "bundle": "node scripts/bundle.mjs"
   },
   "dependencies": {

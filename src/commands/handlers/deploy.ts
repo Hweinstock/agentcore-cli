@@ -1,7 +1,7 @@
-import { err } from '../common';
-import { NoProjectFoundError } from '../common/errors';
-import { buildCommand } from './command-builder';
-import type { AgentCoreCommandHandler } from './types';
+import { err } from '../../common';
+import { NoProjectFoundError } from '../../common/errors';
+import { buildCommand } from '../command-builder';
+import type { AgentCoreCommandHandler } from '../types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -29,7 +29,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
 
   if (result.success) {
     if (input.json) context.consoleLogger.info(JSON.stringify(result.data));
-    else context.consoleLogger.info(`Deployed project ${result.data}`);
+    else context.consoleLogger.info(`Deployed project ${JSON.stringify(result.data)}`);
   }
 
   return context.projectManager.deploy({ onProgress: _event => {} });

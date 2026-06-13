@@ -1,5 +1,5 @@
-import { buildCommand } from './command-builder';
-import type { AgentCoreCommandHandler } from './types';
+import { buildCommand } from '../command-builder';
+import type { AgentCoreCommandHandler } from '../types';
 import * as z from 'zod';
 
 const schema = z.object({

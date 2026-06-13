@@ -1,7 +1,7 @@
-import { err } from '../../common';
-import { NoProjectFoundError } from '../../common/errors';
-import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandHandler } from '../types';
+import { err } from '../../../common';
+import { NoProjectFoundError } from '../../../common/errors';
+import { buildCommand } from '../../command-builder';
+import type { AgentCoreCommandHandler } from '../../types';
 import * as z from 'zod';
 
 const schema = z.object({

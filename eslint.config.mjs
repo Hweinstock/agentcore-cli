@@ -130,6 +130,7 @@ export default tseslint.config(
         },
       ],
       '@typescript-eslint/require-await': 'off',
+      '@typescript-eslint/no-empty-function': 'off',
     },
     settings: {
       react: {
