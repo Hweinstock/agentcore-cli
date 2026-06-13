@@ -1,6 +1,6 @@
+import type { Result } from '../common/result';
 import type { TelemetryConfig } from '../global-config';
 import type { Logger } from '../logging';
-import type { Result } from '../common/result';
 import { type AttributeRecorder, createAttributeRecorder } from './recorder';
 
 // TODO: all types here should be generic over the metric shapes.

@@ -1,6 +1,6 @@
-import { ok, err, type Result } from "../common";
-import type { GlobalConfigAccessor } from "../global-config";
-import type { Logger } from "../logging";
+import { type Result, err, ok } from '../common';
+import type { GlobalConfigAccessor } from '../global-config';
+import type { Logger } from '../logging';
 
 interface EnvironmentAccessorContext {
   logger: Logger;
@@ -12,8 +12,8 @@ export interface EnvironmentAccessor {
   detectAWSRegion: () => Promise<Result<{ region?: string }>>;
   readEnvVar: (key: string, fallback?: string) => Result<{ value: string }>;
 
-  validateNodeVersion: () => Promise<Result<{ satisfied: boolean, version: string }>>;
-  validateUvVersion: () => Promise<Result<{ satisfied: boolean, version: string }>>;
+  validateNodeVersion: () => Promise<Result<{ satisfied: boolean; version: string }>>;
+  validateUvVersion: () => Promise<Result<{ satisfied: boolean; version: string }>>;
 }
 
 export const getEnvironmentAccessor = (context: EnvironmentAccessorContext): EnvironmentAccessor => {
@@ -36,5 +36,5 @@ export const getEnvironmentAccessor = (context: EnvironmentAccessorContext): Env
     },
     validateNodeVersion: async () => ok({ satisfied: true, version: '20' }),
     validateUvVersion: async () => ok({ satisfied: true, version: '2' }),
-  }
-}
+  };
+};

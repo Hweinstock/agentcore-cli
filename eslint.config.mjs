@@ -129,6 +129,7 @@ export default tseslint.config(
           caughtErrorsIgnorePattern: '^_',
         },
       ],
+      '@typescript-eslint/require-await': 'off',
     },
     settings: {
       react: {
@@ -141,25 +142,6 @@ export default tseslint.config(
     },
   },
   prettier,
-  // Relaxed rules for test files
-  {
-    files: ['**/*.test.ts', '**/*.test.tsx', '**/test-utils/**', 'integ-tests/**', 'browser-tests/**'],
-    rules: {
-      'partition/no-hardcoded-arn-partition': 'off',
-      'partition/no-hardcoded-endpoint-tld': 'off',
-      '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-member-access': 'off',
-      '@typescript-eslint/no-unsafe-call': 'off',
-      '@typescript-eslint/no-unsafe-argument': 'off',
-      '@typescript-eslint/no-unsafe-return': 'off',
-      '@typescript-eslint/no-explicit-any': 'off',
-      '@typescript-eslint/prefer-nullish-coalescing': 'off',
-      '@typescript-eslint/prefer-regexp-exec': 'off',
-      'no-empty-pattern': 'off',
-      'no-empty': 'off',
-      'react-hooks/rules-of-hooks': 'off',
-    },
-  },
   {
     ignores: [
       'dist',

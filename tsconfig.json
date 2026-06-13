@@ -19,15 +19,6 @@
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
   },
-  "include": [
-    "src/**/*",
-    "integ-tests/**/*",
-    "e2e-tests/**/*",
-    "browser-tests/**/*",
-    "scripts/**/*",
-    "vitest.config.ts",
-    "vitest.integ.config.ts",
-    "vitest.unit.config.ts"
-  ],
+  "include": ["src/**/*"],
   "exclude": ["node_modules", "dist", "packages", "assets", "src/assets"]
 }
