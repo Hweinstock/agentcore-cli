@@ -27,6 +27,7 @@ export function toCommanderAction<
 ): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
   return async (input, _command) => {
     const parseResult = schema.safeParse(input);
+    // TODO: convert this to a nice user facing error msg;
     if (!parseResult.success) throw new ValidationError(parseResult.error.message);
     const handlerResult = await handler(context, parseResult.data);
     if (!handlerResult.success) throw handlerResult.error;

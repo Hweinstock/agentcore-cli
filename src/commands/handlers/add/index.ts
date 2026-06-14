@@ -8,7 +8,7 @@ const schema = z.object({});
 
 const handler: AgentCoreCommandHandler<typeof schema> = async context => {
   context.consoleLogger.info(`running root level add command`);
-  return context.tuiScreenRenderer.render({ initialPath: '/add' });
+  return context.tuiScreenRenderer.render({ initialPath: '/add', enterAltScreen: false });
 };
 
 export const addCommand = buildCommand({

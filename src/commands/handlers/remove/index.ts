@@ -6,7 +6,7 @@ import z from 'zod';
 
 const handler: AgentCoreCommandHandler = async context => {
   context.consoleLogger.info(`running root level add command`);
-  return context.tuiScreenRenderer.render({ initialPath: '/remove' });
+  return context.tuiScreenRenderer.render({ initialPath: '/remove', enterAltScreen: false });
 };
 
 export const removeCommand = buildCommand({

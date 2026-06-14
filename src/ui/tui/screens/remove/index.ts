@@ -1,3 +1,3 @@
-export { Remove } from './main';
-export { RemoveMemory } from './memory';
-export { RemoveGateway } from './gateway';
+export { RemoveScreen } from './main';
+export { RemoveMemoryScreen } from './memory';
+export { RemoveGatewayScreen } from './gateway';

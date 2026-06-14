@@ -1,8 +1,9 @@
+import { buildScreen } from '../../base-screen';
 import { useBack } from '../../hooks/use-back';
 import { Box, Text } from 'ink';
 import { type ReactElement } from 'react';
 
-export function AddGateway(): ReactElement {
+function AddGateway(): ReactElement {
   useBack();
   return (
     <Box>
@@ -10,3 +11,5 @@ export function AddGateway(): ReactElement {
     </Box>
   );
 }
+
+export const AddGatewayScreen = buildScreen(AddGateway);

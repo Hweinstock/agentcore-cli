@@ -4,12 +4,10 @@ import type { AgentCoreCommandHandler } from './types';
 import { Command } from '@commander-js/extra-typings';
 import z from 'zod';
 
-const schema = z.object({});
-
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, _input) => context.tuiScreenRenderer.render();
+const handler: AgentCoreCommandHandler = async (context, _input) => context.tuiScreenRenderer.render();
 
 export const rootCommand = buildCommand({
-  schema,
+  schema: z.object({}),
   handler,
   setup: context => {
     const rootCommand = new Command();

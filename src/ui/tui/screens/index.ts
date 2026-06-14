@@ -1,4 +1,4 @@
-export { Home } from './home';
+export { HomeScreen } from './home';
 export * from './add';
 export * from './remove';
-export { Create } from './create';
+export { CreateScreen } from './create';

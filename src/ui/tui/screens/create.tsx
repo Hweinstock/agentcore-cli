@@ -1,12 +1,15 @@
+import { buildScreen } from '../base-screen';
 import { ListSelector } from '../components';
+import { useBack } from '../hooks';
 import { Box, Text, useApp } from 'ink';
 import { type ReactElement } from 'react';
 import { useNavigate } from 'react-router';
 
-export function Create(): ReactElement {
+function Create(): ReactElement {
   const navigate = useNavigate();
 
   const { exit } = useApp();
+  useBack();
 
   const items = [
     {
@@ -27,3 +30,5 @@ export function Create(): ReactElement {
     </Box>
   );
 }
+
+export const CreateScreen = buildScreen(Create);

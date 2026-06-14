@@ -1,3 +1,3 @@
-export { Add } from './main';
-export { AddMemory } from './memory';
-export { AddGateway } from './gateway';
+export { AddScreen } from './main';
+export { AddMemoryScreen } from './memory';
+export { AddGatewayScreen } from './gateway';

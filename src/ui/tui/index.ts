@@ -1,5 +1,6 @@
 import { type Result, wrapInResult } from '../../common';
-import { App } from './App';
+import { ANSI } from './ansi-constants';
+import { App } from './app';
 import type { TuiScreenRendererContext } from './types';
 import { render } from 'ink';
 import React from 'react';
@@ -9,8 +10,6 @@ export interface RenderTUIOptions {
   initialPath?: string;
   /** Control whether TUI is rendered inline or in alternate screen. Default: true */
   enterAltScreen?: boolean;
-  /** Behavior when pressing escape/back. 'help' navigates to the help screen, 'exit' exits the app. Default: 'help' */
-  actionOnBack?: 'help' | 'exit';
   /** Whether the TUI is running in full interactive mode. When false, screens auto-exit after success. Default: true */
   isInteractive?: boolean;
 }
@@ -22,6 +21,8 @@ export interface TuiScreenRenderer {
 export function getTuiScreenRenderer(context: TuiScreenRendererContext): TuiScreenRenderer {
   return {
     render: async (options = {}) => {
+      if (options.enterAltScreen !== false) enterAltScreen();
+
       const instance = render(
         React.createElement(App, {
           initialPath: options.initialPath ?? '/',
@@ -34,4 +35,13 @@ export function getTuiScreenRenderer(context: TuiScreenRendererContext): TuiScre
       })();
     },
   };
+}
+
+function enterAltScreen() {
+  process.stdout.write(`${ANSI.ENTER_ALT_SCREEN}${ANSI.HIDE_CURSOR}`);
+
+  const exitAltScreen = () => process.stdout.write(`${ANSI.EXIT_ALT_SCREEN}${ANSI.SHOW_CURSOR}`);
+  process.on('exit', exitAltScreen);
+  process.on('SITINT', exitAltScreen);
+  process.on('SIGTERM', exitAltScreen);
 }
