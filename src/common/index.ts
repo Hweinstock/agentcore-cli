@@ -1,5 +1,5 @@
-export type { Result } from './result';
-export { ok, err, wrapInResult, mapResult, unwrapResult } from './result';
+export type { Result, ResultWrapped } from './result';
+export { ok, err, wrapInResult, unwrapResult } from './result';
 
 export * from './errors';
 

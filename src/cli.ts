@@ -1,15 +1,11 @@
 import { getCommandRouter } from './commands';
-import {
-  AgentCoreError,
-  type Result,
-  unwrapResult,
-} from './common';
+import { AgentCoreError, type Result, unwrapResult } from './common';
+import { getEnvironmentAccessor } from './env';
 import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
 import { type Logger, getFileLogger } from './logging';
-import { getTelemetryClient } from './telemetry';
 import { getProjectManager } from './project';
+import { getTelemetryClient } from './telemetry';
 import { getConsoleLogger, getTuiScreenRenderer } from './ui';
-import { getEnvironmentAccessor } from './env';
 
 export async function main(args: string[]): Promise<void> {
   // Setup Section
@@ -24,7 +20,12 @@ export async function main(args: string[]): Promise<void> {
   });
   const globalConfigAccessor = getGlobalConfigAccessor({ logger: fileLogger });
   const environmentAccessor = getEnvironmentAccessor({ logger: fileLogger, globalConfigAccessor });
-  const projectManager = getProjectManager({ telemetryClient, logger: fileLogger, globalConfigAccessor, environmentAccessor });
+  const projectManager = getProjectManager({
+    telemetryClient,
+    logger: fileLogger,
+    globalConfigAccessor,
+    env: environmentAccessor,
+  });
 
   // Leaf Nodes in the Dependency Tree.
   const tuiScreenRenderer = getTuiScreenRenderer({

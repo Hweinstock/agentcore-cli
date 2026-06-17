@@ -4,14 +4,14 @@ export interface LoggingConfig {
   prefix?: string;
 }
 
-const LOG_LEVEL = {
+const _LOG_LEVEL = {
   DEBUG: 'debug',
   INFO: 'info',
   WARN: 'warn',
   ERROR: 'error',
 } as const;
 
-type LogLevel = (typeof LOG_LEVEL)[keyof typeof LOG_LEVEL];
+type LogLevel = (typeof _LOG_LEVEL)[keyof typeof _LOG_LEVEL];
 
 type Log = (messasge: string, attributes?: Record<string, string>) => void;
 

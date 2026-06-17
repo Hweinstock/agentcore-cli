@@ -1,5 +1,5 @@
-import { FileSystemIOError, ValidationError } from './errors';
 import { type Logger, getNullLogger } from '../logging';
+import { FileSystemIOError, ValidationError } from './errors';
 import { type Result, err, ok, wrapInResult } from './result';
 import stableStringify from 'fast-json-stable-stringify';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
@@ -48,10 +48,10 @@ type ElementOf<V> = NonNullable<V> extends readonly (infer E)[] ? E : never;
  * Provides both async and sync I/O so callers can opt into synchronous access per call.
  */
 export interface DataSource {
-  read: () => Promise<Result>;
-  write: (value: unknown) => Promise<Result>;
-  readSync: () => Result;
-  writeSync: (value: unknown) => Result;
+  read: () => Promise<Result<unknown>>;
+  write: (value: unknown) => Promise<Result<void>>;
+  readSync: () => Result<unknown>;
+  writeSync: (value: unknown) => Result<void>;
 }
 
 /** Options accepted by every datastore operation. */
@@ -158,7 +158,7 @@ export function getJsonDatastore<S extends z.ZodType>(
     },
 
     set: <P extends Path<T>>(path: P, value: PathValue<T, P>, op?: OpOptions) => {
-      logger.info(`set with path=${path}, value=${value}`);
+      logger.info(`set with path=${path}, value=${String(value)}`);
       const sync = op?.sync ?? false;
 
       const safe = assertSafePath(path);
@@ -229,20 +229,18 @@ export function getJsonDatastore<S extends z.ZodType>(
  */
 export const jsonFileSource = (filePath: string): DataSource => ({
   read: wrapInResult(async () => {
-    return JSON.parse(await readFile(filePath, 'utf-8'));
+    return JSON.parse(await readFile(filePath, 'utf-8')) as unknown;
   }),
   write: wrapInResult(async (data: unknown) => {
     await mkdir(dirname(filePath), { recursive: true });
     await writeFile(filePath, JSON.stringify(data, undefined, 2));
-    return {};
   }),
   readSync: wrapInResult(() => {
-    return JSON.parse(readFileSync(filePath, 'utf-8'));
+    return JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
   }),
   writeSync: wrapInResult((data: unknown) => {
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, JSON.stringify(data, undefined, 2));
-    return {};
   }),
 });
 

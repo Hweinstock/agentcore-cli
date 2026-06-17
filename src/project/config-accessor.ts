@@ -1,5 +1,5 @@
-import { type JsonDatastore, getJsonDatastore, jsonFileSource } from '../../common';
-import type { Logger } from '../../logging';
+import { type JsonDatastore, getJsonDatastore, jsonFileSource } from '../common';
+import type { Logger } from '../logging';
 import z from 'zod';
 
 const agentCoreJsonPath = `./agentcore/agentcore.json`;

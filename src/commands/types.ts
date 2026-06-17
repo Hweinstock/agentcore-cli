@@ -24,17 +24,22 @@ export interface AgentCoreCommand<CommandContext extends BaseCommandContext = Ba
 
 const _emptyZodObject = z.object({});
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyResult = Result<any>;
+
 export type AgentCoreCommandHandler<
   SchemaType extends z.ZodObject = typeof _emptyZodObject,
   CommandContext extends BaseCommandContext = BaseCommandContext,
-> = (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result>;
+  OutputType extends AnyResult = AnyResult,
+> = (context: CommandContext, input: z.infer<SchemaType>) => Promise<OutputType>;
 
 export interface AgentCoreCommandSpec<
   SchemaType extends z.ZodObject = typeof _emptyZodObject,
   CommandContext extends BaseCommandContext = BaseCommandContext,
+  OutputType extends AnyResult = AnyResult,
 > {
   schema: SchemaType;
-  handler: AgentCoreCommandHandler<SchemaType, CommandContext>;
+  handler: AgentCoreCommandHandler<SchemaType, CommandContext, OutputType>;
   setup: (context: CommandContext, parentCommand: Command) => Command;
 }
 

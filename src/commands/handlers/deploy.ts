@@ -1,5 +1,3 @@
-import { err } from '../../common';
-import { NoProjectFoundError } from '../../common/errors';
 import { buildCommand } from '../command-builder';
 import type { AgentCoreCommandHandler } from '../types';
 import * as z from 'zod';
@@ -21,18 +19,15 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
     return context.tuiScreenRenderer.render({ initialPath: '/deploy' });
   }
 
-  if (!context.projectManager.hasProject()) {
-    return err(new NoProjectFoundError());
-  }
+  const projectLookupResult = await context.projectManager.find({});
 
-  const result = await context.projectManager.deploy({ onProgress: _event => {} });
+  if (!projectLookupResult.success) return projectLookupResult;
 
-  if (result.success) {
-    if (input.json) context.consoleLogger.info(JSON.stringify(result.data));
-    else context.consoleLogger.info(`Deployed project ${JSON.stringify(result.data)}`);
-  }
+  const project = projectLookupResult.data;
 
-  return context.projectManager.deploy({ onProgress: _event => {} });
+  const deployResult = project.deploy({});
+
+  return deployResult;
 };
 
 export const deployCommand = buildCommand({

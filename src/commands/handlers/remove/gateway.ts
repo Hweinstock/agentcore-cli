@@ -13,11 +13,12 @@ const schema = z.object({
 const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the remove gateway command with ${JSON.stringify(input)}`);
 
-  if (!context.projectManager.hasProject()) {
+  const projectResult = await context.projectManager.find({});
+  if (!projectResult.success) {
     return err(new NoProjectFoundError());
   }
 
-  return context.projectManager.configAccessor.remove('gateways', input.name);
+  return projectResult.data.config.remove('gateways', input.name);
 };
 
 export const removeGatewayCommand = buildCommand({

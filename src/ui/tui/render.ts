@@ -36,7 +36,6 @@ export function getTuiScreenRenderer(context: TuiScreenRendererContext): TuiScre
       );
       return wrapInResult(async () => {
         await instance.waitUntilExit();
-        return {};
       })();
     },
   };

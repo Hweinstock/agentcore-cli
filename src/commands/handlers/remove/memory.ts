@@ -13,11 +13,15 @@ const schema = z.object({
 const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the remove memory command with ${JSON.stringify(input)}`);
 
-  if (!context.projectManager.hasProject()) {
+  const findProjectResult = await context.projectManager.find({});
+
+  if (!findProjectResult.success) {
     return err(new NoProjectFoundError());
   }
 
-  return context.projectManager.configAccessor.remove('memories', input.name);
+  const project = findProjectResult.data;
+
+  return project.config.remove('memories', input.name);
 };
 
 export const removeMemoryCommand = buildCommand({

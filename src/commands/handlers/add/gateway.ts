@@ -26,11 +26,15 @@ const schema = z.object({
 const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the add gateway command with ${JSON.stringify(input)}`);
 
-  if (!context.projectManager.hasProject()) {
+  const findProjectResult = await context.projectManager.find({});
+
+  if (!findProjectResult.success) {
     return err(new NoProjectFoundError());
   }
 
-  return context.projectManager.configAccessor.add('gateways', input.name);
+  const project = findProjectResult.data;
+
+  return project.config.add('gateways', input.name);
 };
 
 export const addGatewayCommand = buildCommand({

@@ -2,14 +2,16 @@ import { buildCommand } from '../command-builder';
 import type { AgentCoreCommandHandler } from '../types';
 import * as z from 'zod';
 
-const schema = z.object({
-  name: z.string().optional(),
-  projectName: z.string().optional(),
-  language: z.string().optional(),
-  framework: z.string().optional(),
-  agent: z.boolean().optional(),
-  json: z.boolean().optional(),
-});
+const schema = z
+  .object({
+    name: z.string().optional(),
+    projectName: z.string().optional(),
+    language: z.string().optional(),
+    framework: z.string().optional(),
+    agent: z.boolean().optional(),
+    json: z.boolean().optional(),
+  })
+  .refine(data => data.projectName ?? data.name);
 
 const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
   // Always branch to TUI first.
@@ -17,20 +19,22 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
     return context.tuiScreenRenderer.render({ initialPath: '/create' });
   }
 
-  // Now we know we're in CLI so we can wrap the rest in CLI telemetry. (code paths isolated)
-  const result = await context.projectManager.build({
-    name: input.name,
-    projectName: input.projectName,
-    language: input.language,
-    framework: input.framework,
-    agent: input.agent,
-    onProgress: _event => {},
+  const projectCreationResult = await context.projectManager.create({
+    projectName: input.projectName ?? input.name!,
+    onProgress: e => context.consoleLogger.info(JSON.stringify(e)),
   });
-  if (result.success) {
-    if (input.json) context.consoleLogger.info(JSON.stringify(result.data));
-    else context.consoleLogger.info(`Created project ${result.data?.name}`);
+
+  if (!projectCreationResult.success) return projectCreationResult;
+
+  const project = projectCreationResult.data;
+
+  if (input.agent) {
+    const addAgentResult = await project.addAgent({});
+    if (!addAgentResult.success) return addAgentResult;
+    return addAgentResult;
   }
-  return result;
+
+  return projectCreationResult;
 };
 
 export const createCommand = buildCommand({
