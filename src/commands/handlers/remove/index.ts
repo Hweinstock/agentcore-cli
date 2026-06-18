@@ -10,6 +10,7 @@ const handler: AgentCoreCommandHandler = async context => {
 };
 
 export const removeCommand = buildCommand({
+  name: 'remove',
   schema: z.object({}),
   handler,
   setup: (context, parentCommand) => {

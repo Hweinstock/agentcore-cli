@@ -4,7 +4,7 @@ import type { DevServerRunner } from './types';
 
 export type { DevServerOptions, DevServerRunner } from './types';
 
-export function resolveRunner(context: ProjectManagerContext, language: string): DevServerRunner {
+export function resolveRunner(context: ProjectManagerContext, language: 'python' | 'typescript'): DevServerRunner {
   if (language === 'python') return pythonRunner(context);
   return typescriptRunner(context);
 }

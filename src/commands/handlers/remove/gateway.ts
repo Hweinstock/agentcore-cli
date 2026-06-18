@@ -22,6 +22,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
 };
 
 export const removeGatewayCommand = buildCommand({
+  name: 'remove.gateway',
   schema,
   handler,
   setup: (_context, parentCommand) =>

@@ -45,6 +45,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
 };
 
 export const devCommand = buildCommand({
+  name: 'dev',
   schema,
   handler,
   setup: (_context, parentCommand) =>

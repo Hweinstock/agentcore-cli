@@ -7,6 +7,7 @@ import z from 'zod';
 const handler: AgentCoreCommandHandler = async (context, _input) => context.tuiScreenRenderer.render();
 
 export const rootCommand = buildCommand({
+  name: 'root',
   schema: z.object({}),
   handler,
   setup: context => {

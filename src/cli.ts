@@ -7,20 +7,28 @@ import { getProjectManager } from './project';
 import { getTelemetryClient } from './telemetry';
 import { getConsoleLogger, getTuiScreenRenderer } from './ui';
 
+/**
+ * this is the global entrypoint where we wire up all the dependencies and create context objects to inject into modules used for different pieces of functionality.
+ */
 export async function main(args: string[]): Promise<void> {
-  // Setup Section
   const globalConstants = getGlobalConstants();
   // We bootstrap read the config to avoid circular dependencies.
   const config = await bootstrapConfig();
+
   const fileLogger = getFileLogger(config.logging ?? {});
   const consoleLogger = getConsoleLogger(config.logging ?? {});
+
   const telemetryClient = getTelemetryClient({
     logger: fileLogger,
     config: config.telemetry ?? {},
   });
+
   const globalConfigAccessor = getGlobalConfigAccessor({ logger: fileLogger });
+
   const environmentAccessor = getEnvironmentAccessor({ logger: fileLogger, globalConfigAccessor });
+
   const clientRegistry = getClientRegistry({ logger: fileLogger });
+
   const projectManager = getProjectManager({
     telemetryClient,
     logger: fileLogger,
@@ -30,7 +38,6 @@ export async function main(args: string[]): Promise<void> {
     clientRegistry,
   });
 
-  // Leaf Nodes in the Dependency Tree.
   const tuiScreenRenderer = getTuiScreenRenderer({
     logger: fileLogger,
     telemetryClient,
@@ -38,6 +45,7 @@ export async function main(args: string[]): Promise<void> {
     environmentAccessor,
     projectManager,
   });
+
   const commandRouter = getCommandRouter({
     globalConfigAccessor,
     environmentAccessor,
@@ -48,10 +56,10 @@ export async function main(args: string[]): Promise<void> {
     projectManager,
   });
 
-  // Execute Section
+  // route and execute the command
   const result = await commandRouter.route(args);
 
-  // Post Execute section
+  // post execute
   printPostCommandNotices(consoleLogger);
   exitProcess(result, fileLogger.getFilePath(), consoleLogger);
 }

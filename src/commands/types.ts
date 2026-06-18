@@ -33,16 +33,6 @@ export type AgentCoreCommandHandler<
   OutputType extends AnyResult = AnyResult,
 > = (context: CommandContext, input: z.infer<SchemaType>) => Promise<OutputType>;
 
-export interface AgentCoreCommandSpec<
-  SchemaType extends z.ZodObject = typeof _emptyZodObject,
-  CommandContext extends BaseCommandContext = BaseCommandContext,
-  OutputType extends AnyResult = AnyResult,
-> {
-  schema: SchemaType;
-  handler: AgentCoreCommandHandler<SchemaType, CommandContext, OutputType>;
-  setup: (context: CommandContext, parentCommand: Command) => Command;
-}
-
 export interface CommandRouter {
   route: (args: string[]) => Promise<Result>;
 }

@@ -30,6 +30,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
 };
 
 export const addMemoryCommand = buildCommand({
+  name: 'add.memory',
   schema,
   handler: handler,
   setup: (_context, parentCommand) =>

@@ -25,6 +25,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
 };
 
 export const removeMemoryCommand = buildCommand({
+  name: 'remove.memory',
   schema,
   handler,
   setup: (_context, parentCommand) =>
