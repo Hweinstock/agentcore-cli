@@ -6,8 +6,11 @@ const schema = z
   .object({
     name: z.string().optional(),
     projectName: z.string().optional(),
-    language: z.string().optional(),
-    framework: z.string().optional(),
+    language: z.enum(['python', 'typescript']).optional(),
+    framework: z.enum(['strands', 'vercel', 'langchain_langgraph']).optional(),
+    protocol: z.enum(['http', 'mcp']).optional(),
+    memory: z.enum(['none', 'longAndShort', 'short']).optional(),
+    buildType: z.enum(['container', 'codezip']).optional(),
     agent: z.boolean().optional(),
     json: z.boolean().optional(),
   })
@@ -29,7 +32,14 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   const project = projectCreationResult.data;
 
   if (input.agent) {
-    const addAgentResult = await project.addAgent({});
+    const addAgentResult = await project.addAgent({
+      agentName: input.name ?? input.projectName!,
+      language: input.language ?? 'python',
+      framework: input.framework ?? 'strands',
+      protocol: input.protocol ?? 'http',
+      memory: input.memory ?? 'none',
+      buildType: input.buildType ?? 'codezip',
+    });
     if (!addAgentResult.success) return addAgentResult;
     return addAgentResult;
   }

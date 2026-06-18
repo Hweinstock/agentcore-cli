@@ -1,5 +1,5 @@
 import { buildCommand } from './command-builder';
-import { addCommand, createCommand, deployCommand, removeCommand } from './handlers';
+import { addCommand, createCommand, deployCommand, devCommand, removeCommand } from './handlers';
 import type { AgentCoreCommandHandler } from './types';
 import { Command } from '@commander-js/extra-typings';
 import z from 'zod';
@@ -16,6 +16,7 @@ export const rootCommand = buildCommand({
     createCommand.register(context, rootCommand);
     deployCommand.register(context, rootCommand);
     removeCommand.register(context, rootCommand);
+    devCommand.register(context, rootCommand);
 
     return rootCommand;
   },

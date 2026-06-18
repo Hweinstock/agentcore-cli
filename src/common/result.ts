@@ -52,3 +52,12 @@ export function unwrapResult<T>(r: Result<T>, fallback?: T): T | undefined {
   if (fallback !== undefined) return fallback;
   throw r.error;
 }
+
+export function collectResults<T>(results: Result<T>[]): Result<T[]> {
+  const values: T[] = [];
+  for (const r of results) {
+    if (!r.success) return r;
+    values.push(r.data);
+  }
+  return ok(values);
+}

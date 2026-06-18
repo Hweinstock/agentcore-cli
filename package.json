@@ -44,7 +44,7 @@
     "build:assets": "node scripts/copy-assets.mjs",
     "build:preview": "BUILD_PREVIEW=1 node esbuild.config.mjs",
     "build:harness": "BUILD_HARNESS=1 node esbuild.config.mjs",
-    "cli": "npx tsx src/cli/index.ts",
+    "cli": "npx tsx src/index.ts",
     "typecheck": "tsc --noEmit --incremental",
     "lint": "eslint --cache src/",
     "lint:fix": "eslint --cache src/ --fix",

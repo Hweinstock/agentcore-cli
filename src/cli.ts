@@ -1,5 +1,5 @@
 import { getCommandRouter } from './commands';
-import { AgentCoreError, type Result, unwrapResult } from './common';
+import { AgentCoreError, type Result, getClientRegistry, getGlobalConstants, unwrapResult } from './common';
 import { getEnvironmentAccessor } from './env';
 import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
 import { type Logger, getFileLogger } from './logging';
@@ -9,7 +9,7 @@ import { getConsoleLogger, getTuiScreenRenderer } from './ui';
 
 export async function main(args: string[]): Promise<void> {
   // Setup Section
-
+  const globalConstants = getGlobalConstants();
   // We bootstrap read the config to avoid circular dependencies.
   const config = await bootstrapConfig();
   const fileLogger = getFileLogger(config.logging ?? {});
@@ -20,11 +20,14 @@ export async function main(args: string[]): Promise<void> {
   });
   const globalConfigAccessor = getGlobalConfigAccessor({ logger: fileLogger });
   const environmentAccessor = getEnvironmentAccessor({ logger: fileLogger, globalConfigAccessor });
+  const clientRegistry = getClientRegistry({ logger: fileLogger });
   const projectManager = getProjectManager({
     telemetryClient,
     logger: fileLogger,
     globalConfigAccessor,
     env: environmentAccessor,
+    constants: globalConstants,
+    clientRegistry,
   });
 
   // Leaf Nodes in the Dependency Tree.
