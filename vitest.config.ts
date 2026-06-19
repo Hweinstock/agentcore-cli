@@ -12,10 +12,10 @@ export default defineConfig({
       {
         test: {
           name: 'integ',
-          include: ['integ-tests/**/*.test.ts'],
+          include: ['test/integ-tests/**/*.test.ts'],
           testTimeout: 120_000,
           hookTimeout: 120_000,
-          globalSetup: ['integ-tests/global-setup.ts'],
+          globalSetup: ['test/integ-tests/global-setup.ts'],
         },
       },
     ],
