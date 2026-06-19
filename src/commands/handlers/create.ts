@@ -11,6 +11,7 @@ const schema = z
     memory: z.enum(['none', 'longAndShort', 'short']).optional(),
     buildType: z.enum(['container', 'codezip']).optional(),
     agent: z.boolean().optional(),
+    install: z.boolean().optional(),
     json: z.boolean().optional(),
   })
   .refine(data => data.projectName ?? data.name);
@@ -23,6 +24,7 @@ const handler: CommandHandler<typeof schema> = async (context, input) => {
 
   const projectCreationResult = await context.projectManager.create({
     projectName: input.projectName ?? input.name!,
+    noInstall: input.install === false,
     onProgress: e => context.consoleLogger.info(JSON.stringify(e)),
   });
 
@@ -61,5 +63,6 @@ export const createCommand: Command<typeof schema> = {
       .option('--language <language>', 'Target language: Python or TypeScript [non-interactive]')
       .option('--framework <framework>', 'Agent framework [non-interactive]')
       .option('--no-agent', 'Skip agent creation [non-interactive]')
+      .option('--no-install', 'Skip npm install for CDK dependencies [non-interactive]')
       .option('--json', 'Output as JSON [non-interactive]'),
 };

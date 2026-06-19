@@ -16,7 +16,7 @@ export function getCliPath(): string {
 }
 
 export function getTmpDir(): string {
-  const dir = process.env.AGENTCORE_TEST_TMPDIR ?? readFileSync(join(__dirname, '.tmp-dir'), 'utf-8').trim();
+  const dir = process.env.AGENTCORE_TEST_TMPDIR ?? readFileSync(join(__dirname, '..', '.tmp-dir'), 'utf-8').trim();
   if (!dir) throw new Error('AGENTCORE_TEST_TMPDIR not set and .tmp-dir file missing');
   return dir;
 }
@@ -36,4 +36,15 @@ export function run(args: string[], options?: { cwd?: string }): RunResult {
     stderr: result.stderr ?? '',
     exitCode: result.status ?? 1,
   };
+}
+
+/** Create a project with --no-install for fast setup in non-create tests. */
+export function createProject(
+  projectName: string,
+  options?: { runInstall?: boolean; includeAgent?: boolean }
+): RunResult {
+  const args = ['create', '--project-name', projectName];
+  if (!options?.includeAgent) args.push('--no-agent');
+  if (!options?.runInstall) args.push('--no-install');
+  return run(args);
 }

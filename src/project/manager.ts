@@ -6,6 +6,7 @@ import path from 'node:path';
 
 interface CreateProjectOptions {
   projectName: string;
+  noInstall?: boolean;
   onProgress: (event: { step: string }) => void;
 }
 
@@ -41,6 +42,7 @@ export function getProjectManager(context: ProjectManagerContext): ProjectManage
         outputDir,
         projectName: input.projectName,
         targets: [],
+        noInstall: input.noInstall,
       });
 
       if (!scaffoldResult.success) {

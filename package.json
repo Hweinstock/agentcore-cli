@@ -32,16 +32,15 @@
   },
   "files": [
     "dist",
-    "scripts",
-    "npm-shrinkwrap.json",
-    "!dist/mcp-harness"
+    "scripts/check-old-cli.mjs",
+    "scripts/check-old-cli.lib.mjs"
   ],
   "scripts": {
     "postinstall": "node scripts/check-old-cli.mjs",
     "build": "npm run build:cli && npm run build:assets",
     "build:cli": "node esbuild.config.mjs",
     "build:assets": "node scripts/copy-assets.mjs",
-    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
+    "clean": "rm -rf dist/ node_modules/",
     "typecheck": "tsc --noEmit --incremental",
     "lint": "eslint --cache src/",
     "lint:fix": "eslint --cache src/ --fix",

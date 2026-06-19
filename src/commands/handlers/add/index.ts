@@ -1,5 +1,6 @@
 import { register } from '../../command-builder';
 import type { Command, CommandHandler } from '../../types';
+import { addAgentCommand } from './agent';
 import { addGatewayCommand } from './gateway';
 import { addMemoryCommand } from './memory';
 import z from 'zod';
@@ -21,6 +22,7 @@ export const addCommand: Command<typeof schema> = {
       .description('this is the add command')
       .showHelpAfterError()
       .showSuggestionAfterError();
+    register(context, addAgentCommand, { parentCommand: addCommand });
     register(context, addMemoryCommand, { parentCommand: addCommand });
     register(context, addGatewayCommand, { parentCommand: addCommand });
     return addCommand;

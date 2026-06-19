@@ -8,6 +8,7 @@ interface ScaffoldProjectOptions {
   outputDir: string;
   projectName: string;
   targets: { account: string; region: string }[];
+  noInstall?: boolean;
 }
 
 export async function scaffoldProject(
@@ -71,11 +72,13 @@ export async function scaffoldProject(
   const renameResult = collectResults(await Promise.all(renames.map(r => context.env.fs.rename(r.from, r.to))));
   if (!renameResult.success) return renameResult;
 
-  const npmInstallStart = Date.now();
-  const npmInstallResult = await context.env.process.exec('npm', ['install'], { cwd: cdkPath });
-  context.logger.info(`npm install completed in ${Date.now() - npmInstallStart}ms`);
+  if (!options.noInstall) {
+    const npmInstallStart = Date.now();
+    const npmInstallResult = await context.env.process.exec('npm', ['install'], { cwd: cdkPath });
+    context.logger.info(`npm install completed in ${Date.now() - npmInstallStart}ms`);
 
-  if (!npmInstallResult.success) return npmInstallResult;
+    if (!npmInstallResult.success) return npmInstallResult;
+  }
 
   return ok(getProject(context, { path: options.outputDir, projectName: options.projectName }));
 }

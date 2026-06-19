@@ -1,5 +1,6 @@
 import { register } from '../../command-builder';
 import type { Command, CommandHandler } from '../../types';
+import { removeAgentCommand } from './agent';
 import { removeGatewayCommand } from './gateway';
 import { removeMemoryCommand } from './memory';
 import z from 'zod';
@@ -19,6 +20,7 @@ export const removeCommand: Command = {
       .description('this is the remove command')
       .showHelpAfterError()
       .showSuggestionAfterError();
+    register(context, removeAgentCommand, { parentCommand: removeCommand });
     register(context, removeMemoryCommand, { parentCommand: removeCommand });
     register(context, removeGatewayCommand, { parentCommand: removeCommand });
     return removeCommand;

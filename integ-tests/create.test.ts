@@ -1,6 +1,4 @@
 import * as helpers from './helpers';
-import { existsSync } from 'fs';
-import { join } from 'path';
 import { describe, expect, it } from 'vitest';
 
 describe('create command', () => {
@@ -20,15 +18,14 @@ describe('create command', () => {
     const name = helpers.randomProjectName();
     const result = helpers.run(['create', '--project-name', name, '--no-agent']);
     expect(result.exitCode).toBe(0);
-    expect(existsSync(join(helpers.getTmpDir(), name, 'agentcore', 'agentcore.json'))).toBe(true);
-    expect(existsSync(join(helpers.getTmpDir(), name, 'app', name))).toBe(false);
+    helpers.project(name).assertExists('agentcore/agentcore.json');
   });
 
   it('creates a project with agent by default', () => {
     const name = helpers.randomProjectName();
     const result = helpers.run(['create', '--name', name]);
     expect(result.exitCode).toBe(0);
-    expect(existsSync(join(helpers.getTmpDir(), name, 'app', name))).toBe(true);
+    helpers.project(name).assertExists(`app/${name}`);
   });
 
   it('rejects if project directory already exists', () => {
