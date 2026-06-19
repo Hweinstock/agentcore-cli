@@ -39,12 +39,9 @@
   "scripts": {
     "postinstall": "node scripts/check-old-cli.mjs",
     "build": "npm run build:cli && npm run build:assets",
-    "build:schema": "node scripts/generate-schema.mjs && prettier --write schemas/",
     "build:cli": "node esbuild.config.mjs",
     "build:assets": "node scripts/copy-assets.mjs",
-    "build:preview": "BUILD_PREVIEW=1 node esbuild.config.mjs",
-    "build:harness": "BUILD_HARNESS=1 node esbuild.config.mjs",
-    "cli": "npx tsx src/index.ts",
+    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
     "typecheck": "tsc --noEmit --incremental",
     "lint": "eslint --cache src/",
     "lint:fix": "eslint --cache src/ --fix",
@@ -52,19 +49,11 @@
     "format:check": "prettier --cache --check .",
     "secrets:check": "secretlint '**/*'",
     "security:audit": "npm audit --audit-level=high --omit=dev",
-    "clean": "node -e \"require('fs').rmSync('dist', {recursive: true, force: true})\"",
     "prepare": "husky",
+    "dev": "npm run build && npm pack && npm install -g ./aws-agentcore-*.tgz && rm -f ./aws-agentcore-*.tgz",
     "test": "vitest run --project unit",
-    "test:all": "vitest run",
-    "test:watch": "vitest --project unit",
-    "test:integ": "npm run build && vitest run --project integ",
-    "test:unit": "vitest run --project unit --coverage",
-    "test:e2e": "vitest run --project e2e",
-    "test:update-snapshots": "vitest run --project unit --update",
-    "test:tui": "npm run build:harness && vitest run --project tui",
-    "test:browser": "npx playwright test --config browser-tests/playwright.config.ts",
-    "test:manual": "npm run bundle",
-    "bundle": "node scripts/bundle.mjs"
+    "test:integ": "npm run dev && AGENTCORE_CLI_PATH=$(npm prefix -g)/bin/agentcore vitest run --project integ",
+    "test:update-snapshots": "vitest run --project unit --update"
   },
   "dependencies": {
     "@aws-cdk/toolkit-lib": "^1.16.0",
@@ -164,10 +153,10 @@
   },
   "lint-staged": {
     "*.{ts,tsx}": [
-      "eslint --cache --max-warnings=10"
+      "eslint --cache --max-warnings=10 --fix"
     ],
     "*.{ts,tsx,js,jsx,json,md,css,html,yml,yaml}": [
-      "prettier --cache --check"
+      "prettier --cache --write"
     ],
     "*": [
       "secretlint"

@@ -8,7 +8,7 @@ export interface GlobalConstants {
 
 export function getGlobalConstants(): GlobalConstants {
   return {
-    assetsPath: path.join(__dirname, '..', '..', 'assets'),
+    assetsPath: path.join(__dirname, 'assets'),
     invokeId: crypto.randomUUID(),
     defaultLogPath: `~/.agentcore/logs.txt`,
   };
