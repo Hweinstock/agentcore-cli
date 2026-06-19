@@ -1,5 +1,5 @@
 import { err } from '../../../common';
-import { withProject } from '../../middleware/withProject';
+import { withProject } from '../../middleware';
 import type { Command, CommandHandler } from '../../types';
 import * as z from 'zod';
 

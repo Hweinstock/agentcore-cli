@@ -19,6 +19,7 @@ export interface CommandRouterContext {
   projectManager: ProjectManager;
 }
 
+// These are fields populated by the middleware chain
 export interface CommandContext extends CommandRouterContext {
   telemetryRecorder?: AttributeRecorder<CommandRunAttributes>;
   project?: Project;
