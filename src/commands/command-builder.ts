@@ -1,4 +1,4 @@
-import { withInputValidation, withLogging } from './middleware';
+import { withInputValidation, withLogging, withTelemetry } from './middleware';
 import type { Command, CommandContext } from './types';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
@@ -6,9 +6,12 @@ import z from 'zod';
 export function register<SchemaType extends z.ZodObject>(
   context: CommandContext,
   command: Command<SchemaType>,
-  parentCommand?: CommanderCommand
+  options?: {
+    parentCommand?: CommanderCommand;
+  }
 ): CommanderCommand {
-  return command.setup(context, parentCommand ?? new CommanderCommand()).action(toCommanderAction(context, command));
+  const parentCommand = options?.parentCommand ?? new CommanderCommand();
+  return command.setup(context, parentCommand).action(toCommanderAction(context, command));
 }
 
 /**
@@ -19,12 +22,14 @@ function toCommanderAction<SchemaType extends z.ZodObject>(
   context: CommandContext,
   command: Command<SchemaType>
 ): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
-  const commonMiddleware = [withLogging, withInputValidation, ...(command.middleware ?? [])];
+  const commonMiddleware = [withLogging, withTelemetry, withInputValidation, ...(command.middleware ?? [])];
 
   const commandWithMiddleware = commonMiddleware.reduce((prev, next) => next(prev), command);
 
   return async (input: Record<string, unknown>, _command: CommanderCommand) => {
-    await commandWithMiddleware.handler(context, input as z.infer<SchemaType>);
+    const result = await commandWithMiddleware.handler(context, input as z.infer<SchemaType>);
+
+    if (!result.success) throw result.error;
     return;
   };
 }

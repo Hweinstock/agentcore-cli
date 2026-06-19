@@ -1,4 +1,5 @@
 import { ValidationError, err } from '../../common';
+import { withProject } from '../middleware/withProject';
 import type { Command, CommandHandler } from '../types';
 import * as z from 'zod';
 
@@ -12,10 +13,9 @@ const schema = z.object({
 
 const handler: CommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`running dev handler`);
-  const projectResult = await context.projectManager.find({});
-  context.consoleLogger.info(`findResult=${JSON.stringify(projectResult)}`);
-  if (!projectResult.success) return projectResult;
-  const project = projectResult.data;
+
+  if (!context.project) return err(new Error('missing project'));
+  const project = context.project;
 
   const agentsResult = await project.config.all();
   if (!agentsResult.success) return agentsResult;
@@ -47,6 +47,7 @@ export const devCommand: Command<typeof schema> = {
   name: 'dev',
   schema,
   handler,
+  middleware: [withProject],
   setup: (_context, parentCommand) =>
     parentCommand
       .command('dev')

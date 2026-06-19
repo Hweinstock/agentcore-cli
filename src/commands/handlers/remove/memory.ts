@@ -1,5 +1,5 @@
 import { err } from '../../../common';
-import { NoProjectFoundError } from '../../../common/errors';
+import { withProject } from '../../middleware/withProject';
 import type { Command, CommandHandler } from '../../types';
 import * as z from 'zod';
 
@@ -10,23 +10,16 @@ const schema = z.object({
 });
 
 const handler: CommandHandler<typeof schema> = async (context, input) => {
-  context.consoleLogger.info(`run the remove memory command with ${JSON.stringify(input)}`);
+  if (!context.project) return err(new Error('missing project'));
 
-  const findProjectResult = await context.projectManager.find({});
-
-  if (!findProjectResult.success) {
-    return err(new NoProjectFoundError());
-  }
-
-  const project = findProjectResult.data;
-
-  return project.config.remove('memories', input.name);
+  return context.project.config.remove('memories', input.name);
 };
 
 export const removeMemoryCommand: Command<typeof schema> = {
   name: 'remove.memory',
   schema,
   handler,
+  middleware: [withProject],
   setup: (_context, parentCommand) =>
     parentCommand
       .command('memory')

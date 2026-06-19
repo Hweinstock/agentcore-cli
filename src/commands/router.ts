@@ -1,9 +1,10 @@
 import { err, ok } from '../common';
+import type { ProgramConfig } from '../program-config';
 import { register } from './command-builder';
 import { rootCommand } from './root';
-import type { CommandContext, CommandRouter } from './types';
+import type { CommandRouter } from './types';
 
-export function getCommandRouter(context: CommandContext): CommandRouter {
+export function getCommandRouter(context: ProgramConfig): CommandRouter {
   const commanderEntryPoint = register(context, rootCommand);
   return {
     route: async args => {

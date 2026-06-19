@@ -19,8 +19,8 @@ export const removeCommand: Command = {
       .description('this is the remove command')
       .showHelpAfterError()
       .showSuggestionAfterError();
-    register(context, removeMemoryCommand, removeCommand);
-    register(context, removeGatewayCommand, removeCommand);
+    register(context, removeMemoryCommand, { parentCommand: removeCommand });
+    register(context, removeGatewayCommand, { parentCommand: removeCommand });
     return removeCommand;
   },
 };

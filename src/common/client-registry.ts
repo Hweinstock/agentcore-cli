@@ -1,5 +1,6 @@
 import type { Logger } from '../logging';
 import { type Result, err, ok } from './result';
+import { once } from './utils';
 
 interface ClientRegistryContext {
   logger: Logger;
@@ -20,8 +21,7 @@ export interface ClientRegistry {
 }
 
 export const getClientRegistry = (_context: ClientRegistryContext): ClientRegistry => ({
-  // TODO: memoize this
-  getHttpClient: () => ({
+  getHttpClient: once(() => ({
     postStream: async options => {
       try {
         const response = await fetch(options.url, { method: 'POST', headers: options.headers, body: options.body });
@@ -47,5 +47,5 @@ export const getClientRegistry = (_context: ClientRegistryContext): ClientRegist
         return err(e instanceof Error ? e : new Error(String(e)));
       }
     },
-  }),
+  })),
 });

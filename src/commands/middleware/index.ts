@@ -1,1 +1,1 @@
-export { withLogging, withInputValidation } from './common';
+export { withLogging, withInputValidation, withTelemetry } from './common';

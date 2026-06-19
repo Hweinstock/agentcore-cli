@@ -21,8 +21,8 @@ export const addCommand: Command<typeof schema> = {
       .description('this is the add command')
       .showHelpAfterError()
       .showSuggestionAfterError();
-    register(context, addMemoryCommand, addCommand);
-    register(context, addGatewayCommand, addCommand);
+    register(context, addMemoryCommand, { parentCommand: addCommand });
+    register(context, addGatewayCommand, { parentCommand: addCommand });
     return addCommand;
   },
 };

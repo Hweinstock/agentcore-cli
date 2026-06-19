@@ -9,12 +9,9 @@ interface CreateProjectOptions {
   onProgress: (event: { step: string }) => void;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-object-type
-interface FindProjectOptions {}
-
 export interface ProjectManager {
   create: (input: CreateProjectOptions) => Promise<Result<Project>>;
-  find: (input: FindProjectOptions) => Promise<Result<Project>>;
+  find: () => Promise<Result<Project>>;
 }
 
 export function getProjectManager(context: ProjectManagerContext): ProjectManager {
@@ -55,7 +52,7 @@ export function getProjectManager(context: ProjectManagerContext): ProjectManage
       return scaffoldResult;
     },
 
-    find: async _input => {
+    find: async () => {
       projectManagerLogger.info(`finding project`);
       const noProjectFoundResult = err(new ValidationError(`no agentcore project found`));
 

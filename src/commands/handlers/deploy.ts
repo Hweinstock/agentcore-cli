@@ -1,3 +1,5 @@
+import { err } from '../../common';
+import { withProject } from '../middleware/withProject';
 import type { Command, CommandHandler } from '../types';
 import * as z from 'zod';
 
@@ -18,21 +20,16 @@ const handler: CommandHandler<typeof schema> = async (context, input) => {
     return context.tuiScreenRenderer.render({ initialPath: '/deploy' });
   }
 
-  const projectLookupResult = await context.projectManager.find({});
+  if (!context.project) return err(new Error('missing project'));
 
-  if (!projectLookupResult.success) return projectLookupResult;
-
-  const project = projectLookupResult.data;
-
-  const deployResult = project.deploy({});
-
-  return deployResult;
+  return context.project.deploy({});
 };
 
 export const deployCommand: Command<typeof schema> = {
   name: 'deploy',
   schema,
   handler,
+  middleware: [withProject],
   setup: (_context, parentCommand) =>
     parentCommand
       .command('deploy')

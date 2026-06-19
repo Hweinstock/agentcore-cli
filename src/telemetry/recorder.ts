@@ -1,10 +1,12 @@
-export interface AttributeRecorder<AttributesShape extends Record<string, unknown>> {
+import type { CommonAttributes } from './shapes';
+
+export interface AttributeRecorder<AttributesShape extends CommonAttributes> {
   set<K extends keyof AttributesShape>(attrs: Pick<AttributesShape, K>): void;
   get(): Partial<AttributesShape>;
 }
 
 export function createAttributeRecorder<
-  AttributesShape extends Record<string, unknown>,
+  AttributesShape extends CommonAttributes,
 >(): AttributeRecorder<AttributesShape> {
   let recorded: Partial<AttributesShape> = {};
 

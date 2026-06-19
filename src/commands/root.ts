@@ -11,14 +11,13 @@ export const rootCommand: Command = {
   schema: z.object({}),
   handler,
   setup: context => {
-    const rootCommand = new CommanderCommand();
+    const parentCommand = new CommanderCommand();
+    register(context, addCommand, { parentCommand });
+    register(context, createCommand, { parentCommand });
+    register(context, deployCommand, { parentCommand });
+    register(context, devCommand, { parentCommand });
+    register(context, removeCommand, { parentCommand });
 
-    register(context, addCommand, rootCommand);
-    register(context, createCommand, rootCommand);
-    register(context, deployCommand, rootCommand);
-    register(context, devCommand, rootCommand);
-    register(context, removeCommand, rootCommand);
-
-    return rootCommand;
+    return parentCommand;
   },
 };

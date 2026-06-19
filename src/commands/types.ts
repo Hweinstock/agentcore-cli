@@ -3,12 +3,13 @@ import type { EnvironmentAccessor } from '../env';
 import type { GlobalConfigAccessor } from '../global-config';
 import type { Logger } from '../logging';
 import type { ProjectManager } from '../project';
-import type { TelemetryClient } from '../telemetry';
+import type { Project } from '../project/types';
+import type { AttributeRecorder, CommandRunAttributes, TelemetryClient } from '../telemetry';
 import type { TuiScreenRenderer } from '../ui/';
 import type { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
-export interface CommandContext {
+export interface CommandRouterContext {
   fileLogger: Logger;
   consoleLogger: Logger;
   telemetryClient: TelemetryClient;
@@ -16,6 +17,11 @@ export interface CommandContext {
   environmentAccessor: EnvironmentAccessor;
   tuiScreenRenderer: TuiScreenRenderer;
   projectManager: ProjectManager;
+}
+
+export interface CommandContext extends CommandRouterContext {
+  telemetryRecorder?: AttributeRecorder<CommandRunAttributes>;
+  project?: Project;
 }
 
 const _emptyZodObject = z.object({});

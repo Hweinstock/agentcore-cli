@@ -31,7 +31,7 @@ export async function main(args: string[]): Promise<void> {
 
   const projectManager = getProjectManager({
     telemetryClient,
-    logger: fileLogger,
+    logger: consoleLogger,
     globalConfigAccessor,
     env: environmentAccessor,
     constants: globalConstants,
@@ -47,9 +47,10 @@ export async function main(args: string[]): Promise<void> {
   });
 
   const commandRouter = getCommandRouter({
+    globalConstants,
     globalConfigAccessor,
     environmentAccessor,
-    fileLogger,
+    fileLogger: consoleLogger,
     consoleLogger,
     telemetryClient,
     tuiScreenRenderer,
@@ -71,6 +72,7 @@ function exitProcess(result: Result, logFilePath: string, consoleLogger: Logger)
   }
 
   if (!result.success) {
+    consoleLogger.error(String(result.error));
     consoleLogger.error(`Error: an unexpeected error occurred, see the logs at ${logFilePath} for more information`);
     process.exit(1);
   }
