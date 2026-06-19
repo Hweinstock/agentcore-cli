@@ -1,15 +1,15 @@
-import { buildCommand } from '../../command-builder';
-import type { AgentCoreCommandHandler } from '../../types';
+import { register } from '../../command-builder';
+import type { Command, CommandHandler } from '../../types';
 import { removeGatewayCommand } from './gateway';
 import { removeMemoryCommand } from './memory';
 import z from 'zod';
 
-const handler: AgentCoreCommandHandler = async context => {
+const handler: CommandHandler = async context => {
   context.consoleLogger.info(`running root level add command`);
   return context.tuiScreenRenderer.render({ initialPath: '/remove', enterAltScreen: false });
 };
 
-export const removeCommand = buildCommand({
+export const removeCommand: Command = {
   name: 'remove',
   schema: z.object({}),
   handler,
@@ -19,8 +19,8 @@ export const removeCommand = buildCommand({
       .description('this is the remove command')
       .showHelpAfterError()
       .showSuggestionAfterError();
-    removeMemoryCommand.register(context, removeCommand);
-    removeGatewayCommand.register(context, removeCommand);
+    register(context, removeMemoryCommand, removeCommand);
+    register(context, removeGatewayCommand, removeCommand);
     return removeCommand;
   },
-});
+};

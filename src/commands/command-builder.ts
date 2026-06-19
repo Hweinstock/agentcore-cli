@@ -1,50 +1,30 @@
-import { type Result, ValidationError } from '../common';
-import type { AgentCoreCommand, BaseCommandContext } from './types';
-import { Command, Command as CommanderCommand } from '@commander-js/extra-typings';
+import { withInputValidation, withLogging } from './middleware';
+import type { Command, CommandContext } from './types';
+import { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
-interface AgentCoreCommandSpec<
-  SchemaType extends z.ZodObject = z.ZodObject,
-  CommandContext extends BaseCommandContext = BaseCommandContext,
-> {
-  name: string;
-  schema: SchemaType;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  handler: (context: CommandContext, input: z.infer<SchemaType>) => Promise<Result<any>>;
-  setup: (context: CommandContext, parentCommand: Command) => Command;
-}
-
-/**
- * Factory function for converting CommandSpec into a Command we can register with Commander.
- */
-export function buildCommand<SchemaType extends z.ZodObject, CommandContext extends BaseCommandContext>(
-  commandSpec: AgentCoreCommandSpec<SchemaType, CommandContext>
-): AgentCoreCommand<CommandContext> {
-  return {
-    register: (context: CommandContext, parentCommand?: CommanderCommand): CommanderCommand =>
-      commandSpec.setup(context, parentCommand ?? new Command()).action(toCommanderAction(context, commandSpec)),
-  };
+export function register<SchemaType extends z.ZodObject>(
+  context: CommandContext,
+  command: Command<SchemaType>,
+  parentCommand?: CommanderCommand
+): CommanderCommand {
+  return command.setup(context, parentCommand ?? new CommanderCommand()).action(toCommanderAction(context, command));
 }
 
 /**
  * Wrapper around all commands this is where we put common middleware such as schema validation, telemetry, logging, etc.
  */
 // TODO: add telemetry for cli.command_run here
-function toCommanderAction<
-  SchemaType extends z.ZodObject,
-  CommandContext extends BaseCommandContext = BaseCommandContext,
->(
+function toCommanderAction<SchemaType extends z.ZodObject>(
   context: CommandContext,
-  options: AgentCoreCommandSpec<SchemaType, CommandContext>
+  command: Command<SchemaType>
 ): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
-  return async (input, _command) => {
-    const commandLogger = context.fileLogger.child(options.name);
-    const commandContext = { logger: commandLogger, ...context };
+  const commonMiddleware = [withLogging, withInputValidation, ...(command.middleware ?? [])];
 
-    const parseResult = options.schema.safeParse(input);
-    // TODO: convert this to a nice user facing error msg;
-    if (!parseResult.success) throw new ValidationError(parseResult.error.message);
-    const handlerResult = await options.handler(commandContext, parseResult.data);
-    if (!handlerResult.success) throw handlerResult.error;
+  const commandWithMiddleware = commonMiddleware.reduce((prev, next) => next(prev), command);
+
+  return async (input: Record<string, unknown>, _command: CommanderCommand) => {
+    await commandWithMiddleware.handler(context, input as z.infer<SchemaType>);
+    return;
   };
 }

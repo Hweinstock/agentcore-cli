@@ -61,7 +61,7 @@ export async function main(args: string[]): Promise<void> {
 
   // post execute
   printPostCommandNotices(consoleLogger);
-  exitProcess(result, fileLogger.getFilePath(), consoleLogger);
+  exitProcess(result, globalConstants.defaultLogPath, consoleLogger);
 }
 
 function exitProcess(result: Result, logFilePath: string, consoleLogger: Logger): void {

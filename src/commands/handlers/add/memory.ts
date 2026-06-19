@@ -1,7 +1,6 @@
 import { err } from '../../../common';
 import { NoProjectFoundError } from '../../../common/errors';
-import { buildCommand } from '../../command-builder';
-import type { AgentCoreCommandHandler } from '../../types';
+import type { Command, CommandHandler } from '../../types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -15,7 +14,7 @@ const schema = z.object({
   json: z.boolean().optional(),
 });
 
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+const handler: CommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the add memory command with ${JSON.stringify(input)}`);
 
   const findProjectResult = await context.projectManager.find({});
@@ -29,7 +28,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   return project.config.add('memories', input.name);
 };
 
-export const addMemoryCommand = buildCommand({
+export const addMemoryCommand: Command<typeof schema> = {
   name: 'add.memory',
   schema,
   handler: handler,
@@ -62,4 +61,4 @@ export const addMemoryCommand = buildCommand({
         [] as string[]
       )
       .option('--json', 'Output as JSON [non-interactive]'),
-});
+};

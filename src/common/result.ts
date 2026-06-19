@@ -16,6 +16,9 @@ export function ok(data?: unknown) {
   return { success: true, data };
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type AnyResult = Result<any>;
+
 export function err<E extends Error = Error>(error: E): FailureResult<E> {
   return { success: false, error };
 }

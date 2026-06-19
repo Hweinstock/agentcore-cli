@@ -1,6 +1,5 @@
 import { ValidationError, err } from '../../common';
-import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandHandler } from '../types';
+import type { Command, CommandHandler } from '../types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -11,7 +10,7 @@ const schema = z.object({
   logs: z.boolean().optional(),
 });
 
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+const handler: CommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`running dev handler`);
   const projectResult = await context.projectManager.find({});
   context.consoleLogger.info(`findResult=${JSON.stringify(projectResult)}`);
@@ -44,7 +43,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   return project.startDevServer({ agentName, port });
 };
 
-export const devCommand = buildCommand({
+export const devCommand: Command<typeof schema> = {
   name: 'dev',
   schema,
   handler,
@@ -59,4 +58,4 @@ export const devCommand = buildCommand({
       .option('-p, --port <port>', 'Port for dev server')
       .option('-s, --stream', 'Stream response when invoking')
       .option('-l, --logs', 'Run dev server with logs to stdout'),
-});
+};

@@ -8,6 +8,6 @@ export interface DevServerOptions {
 }
 
 export interface DevServerRunner {
-  install: (options: DevServerOptions) => Promise<Result>;
+  setup: (options: DevServerOptions) => Promise<Result>;
   start: (options: DevServerOptions) => ChildProcessHandle;
 }

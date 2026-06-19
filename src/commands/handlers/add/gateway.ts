@@ -1,7 +1,6 @@
 import { err } from '../../../common';
 import { NoProjectFoundError } from '../../../common/errors';
-import { buildCommand } from '../../command-builder';
-import type { AgentCoreCommandHandler } from '../../types';
+import type { Command, CommandHandler } from '../../types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -23,7 +22,7 @@ const schema = z.object({
   json: z.boolean().optional(),
 });
 
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+const handler: CommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the add gateway command with ${JSON.stringify(input)}`);
 
   const findProjectResult = await context.projectManager.find({});
@@ -37,7 +36,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   return project.config.add('gateways', input.name);
 };
 
-export const addGatewayCommand = buildCommand({
+export const addGatewayCommand: Command<typeof schema> = {
   name: 'add.gateway',
   schema,
   handler,
@@ -67,4 +66,4 @@ export const addGatewayCommand = buildCommand({
       .option('--policy-engine <name>', 'Policy engine name for Cedar-based authorization [non-interactive]')
       .option('--policy-engine-mode <mode>', 'Policy engine mode: LOG_ONLY or ENFORCE [non-interactive]')
       .option('--json', 'Output as JSON [non-interactive]'),
-});
+};

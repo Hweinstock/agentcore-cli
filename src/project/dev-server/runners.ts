@@ -4,7 +4,7 @@ import type { DevServerRunner } from './types';
 
 export function pythonRunner(context: ProjectManagerContext): DevServerRunner {
   return {
-    install: async options => {
+    setup: async options => {
       const { process, fs } = context.env;
       const venvExists = await fs.dirExists(`${options.agentDir}/.venv`);
       if (!venvExists) {
@@ -27,7 +27,7 @@ export function pythonRunner(context: ProjectManagerContext): DevServerRunner {
 
 export function typescriptRunner(context: ProjectManagerContext): DevServerRunner {
   return {
-    install: async options => {
+    setup: async options => {
       const { process, fs } = context.env;
       const nodeModulesExists = await fs.dirExists(`${options.agentDir}/node_modules`);
       if (!nodeModulesExists) {

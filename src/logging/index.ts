@@ -19,10 +19,6 @@ export interface Logger extends Record<LogLevel, Log> {
   child: (prefix: string) => Logger;
 }
 
-export interface FileLogger extends Logger {
-  getFilePath: () => string;
-}
-
 export const getNullLogger = (): Logger => ({
   debug: () => {},
   info: () => {},
@@ -32,7 +28,6 @@ export const getNullLogger = (): Logger => ({
 });
 
 // TODO: implement this as an actual file logger on top of some logging library.
-export const getFileLogger = (_config: LoggingConfig): FileLogger => ({
+export const getFileLogger = (_config: LoggingConfig): Logger => ({
   ...getNullLogger(),
-  getFilePath: () => 'none',
 });

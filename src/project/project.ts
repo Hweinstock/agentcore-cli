@@ -169,7 +169,7 @@ export function getProject(context: ProjectManagerContext, options: GetProjectOp
         const devOptions = { agentDir, port: input.port, env: {} };
 
         context.logger.debug(`running install`);
-        const installResult = await runner.install(devOptions);
+        const installResult = await runner.setup(devOptions);
         if (!installResult.success) {
           context.logger.debug(`install failed: ${installResult.error.message}`);
           return installResult;

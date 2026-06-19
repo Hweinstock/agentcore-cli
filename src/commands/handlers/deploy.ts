@@ -1,5 +1,4 @@
-import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandHandler } from '../types';
+import type { Command, CommandHandler } from '../types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -11,7 +10,7 @@ const schema = z.object({
   diff: z.boolean().optional(),
 });
 
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+const handler: CommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the deploy command with ${JSON.stringify(input)}`);
 
   // Always branch to TUI first.
@@ -30,7 +29,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   return deployResult;
 };
 
-export const deployCommand = buildCommand({
+export const deployCommand: Command<typeof schema> = {
   name: 'deploy',
   schema,
   handler,
@@ -47,4 +46,4 @@ export const deployCommand = buildCommand({
       .option('--json', 'Output as JSON [non-interactive]')
       .option('--dry-run', 'Preview deployment without deploying [non-interactive]')
       .option('--diff', 'Show CDK diff without deploying [non-interactive]'),
-});
+};

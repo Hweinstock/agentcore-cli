@@ -1,7 +1,6 @@
 import { err } from '../../../common';
 import { NoProjectFoundError } from '../../../common/errors';
-import { buildCommand } from '../../command-builder';
-import type { AgentCoreCommandHandler } from '../../types';
+import type { Command, CommandHandler } from '../../types';
 import * as z from 'zod';
 
 const schema = z.object({
@@ -10,7 +9,7 @@ const schema = z.object({
   json: z.boolean().optional(),
 });
 
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+const handler: CommandHandler<typeof schema> = async (context, input) => {
   context.consoleLogger.info(`run the remove gateway command with ${JSON.stringify(input)}`);
 
   const projectResult = await context.projectManager.find({});
@@ -21,7 +20,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   return projectResult.data.config.remove('gateways', input.name);
 };
 
-export const removeGatewayCommand = buildCommand({
+export const removeGatewayCommand: Command<typeof schema> = {
   name: 'remove.gateway',
   schema,
   handler,
@@ -34,4 +33,4 @@ export const removeGatewayCommand = buildCommand({
       .option('--name <name>', 'Name of resource to remove [non-interactive]')
       .option('-y, --yes', 'Skip confirmation prompt [non-interactive]')
       .option('--json', 'Output as JSON [non-interactive]'),
-});
+};

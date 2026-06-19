@@ -1,5 +1,4 @@
-import { buildCommand } from '../command-builder';
-import type { AgentCoreCommandHandler } from '../types';
+import type { Command, CommandHandler } from '../types';
 import * as z from 'zod';
 
 const schema = z
@@ -16,7 +15,7 @@ const schema = z
   })
   .refine(data => data.projectName ?? data.name);
 
-const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) => {
+const handler: CommandHandler<typeof schema> = async (context, input) => {
   // Always branch to TUI first.
   if (Object.keys(input).filter(k => k !== 'agent').length === 0) {
     return context.tuiScreenRenderer.render({ initialPath: '/create' });
@@ -47,7 +46,7 @@ const handler: AgentCoreCommandHandler<typeof schema> = async (context, input) =
   return projectCreationResult;
 };
 
-export const createCommand = buildCommand({
+export const createCommand: Command<typeof schema> = {
   name: 'create',
   schema,
   handler,
@@ -63,4 +62,4 @@ export const createCommand = buildCommand({
       .option('--framework <framework>', 'Agent framework [non-interactive]')
       .option('--no-agent', 'Skip agent creation [non-interactive]')
       .option('--json', 'Output as JSON [non-interactive]'),
-});
+};
