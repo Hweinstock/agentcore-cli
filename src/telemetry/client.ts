@@ -20,10 +20,11 @@ export interface TelemetryClient {
   child: (attributeName: string, attributeValue: string) => TelemetryClient;
 }
 
-export const getTelemetryClient = (context: { logger: Logger; config?: TelemetryConfig }): TelemetryClient =>
+// TODO: implement a real telemetry client.
+export const getTelemetryClient = (context: { logger: Logger }, _config?: TelemetryConfig): TelemetryClient =>
   getNullTelemetryClient(context);
 
-export const getNullTelemetryClient = (context: { logger: Logger; config?: TelemetryConfig }): TelemetryClient => ({
+export const getNullTelemetryClient = (context: { logger: Logger }, _config?: TelemetryConfig): TelemetryClient => ({
   emit: (metricName, attributes) => context.logger.info(`logging ${metricName}`, attributes),
   withTelemetry: <R extends Result, A extends CommonAttributes>(
     _metricName: string,

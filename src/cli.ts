@@ -18,10 +18,12 @@ export async function main(args: string[]): Promise<void> {
   const fileLogger = getFileLogger(config.logging ?? {});
   const consoleLogger = getConsoleLogger(config.logging ?? {});
 
-  const telemetryClient = getTelemetryClient({
-    logger: fileLogger,
-    config: config.telemetry ?? {},
-  });
+  const telemetryClient = getTelemetryClient(
+    {
+      logger: fileLogger,
+    },
+    config.telemetry ?? {}
+  );
 
   const globalConfigAccessor = getGlobalConfigAccessor({ logger: fileLogger });
 
