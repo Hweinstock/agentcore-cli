@@ -1,26 +1,12 @@
 import type { AnyResult, Result } from '../common';
-import type { EnvironmentAccessor } from '../env';
-import type { GlobalConfigAccessor } from '../global-config';
-import type { Logger } from '../logging';
-import type { ProjectManager } from '../project';
+import type { ProgramContext } from '../program-config';
 import type { Project } from '../project/types';
-import type { AttributeRecorder, CommandRunAttributes, TelemetryClient } from '../telemetry';
-import type { TuiScreenRenderer } from '../ui/';
+import type { AttributeRecorder, CommandRunAttributes } from '../telemetry';
 import type { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
-export interface CommandRouterContext {
-  fileLogger: Logger;
-  consoleLogger: Logger;
-  telemetryClient: TelemetryClient;
-  globalConfigAccessor: GlobalConfigAccessor;
-  environmentAccessor: EnvironmentAccessor;
-  tuiScreenRenderer: TuiScreenRenderer;
-  projectManager: ProjectManager;
-}
-
 // These are fields populated by the middleware chain
-export interface CommandContext extends CommandRouterContext {
+export interface CommandContext extends ProgramContext {
   telemetryRecorder?: AttributeRecorder<CommandRunAttributes>;
   project?: Project;
 }

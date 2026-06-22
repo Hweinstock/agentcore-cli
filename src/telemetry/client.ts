@@ -20,12 +20,15 @@ export interface TelemetryClient {
   child: (attributeName: string, attributeValue: string) => TelemetryClient;
 }
 
-export const getTelemetryClient = (context: { logger: Logger; config?: TelemetryConfig }): TelemetryClient => ({
+export const getTelemetryClient = (context: { logger: Logger; config?: TelemetryConfig }): TelemetryClient =>
+  getNullTelemetryClient(context);
+
+export const getNullTelemetryClient = (context: { logger: Logger; config?: TelemetryConfig }): TelemetryClient => ({
   emit: (metricName, attributes) => context.logger.info(`logging ${metricName}`, attributes),
-  withTelemetry: (<R extends Result, A extends CommonAttributes>(
+  withTelemetry: <R extends Result, A extends CommonAttributes>(
     _metricName: string,
     _fallbackAttributes: Partial<A>,
     handler: (recorder: AttributeRecorder<A>) => R | Promise<R>
-  ) => handler(createAttributeRecorder())) as TelemetryClient['withTelemetry'],
+  ) => handler(createAttributeRecorder()),
   child: (_attributeName, _attributeValue) => getTelemetryClient(context),
 });

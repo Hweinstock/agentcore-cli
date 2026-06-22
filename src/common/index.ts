@@ -3,8 +3,8 @@ export { ok, err, wrapInResult, unwrapResult, collectResults } from './result';
 
 export * from './errors';
 
-export { getJsonDatastore, jsonFileSource } from './json-datastore';
-export type { JsonDatastore, DataSource as DatastoreSource } from './json-datastore';
+export { getJsonDatastore, jsonFileSource, inMemorySource } from './datastore';
+export type { JsonDatastore, DataSource as DatastoreSource, DataSource } from './datastore';
 
 export type { GlobalConstants } from './constants';
 export { getGlobalConstants } from './constants';

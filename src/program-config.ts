@@ -6,7 +6,7 @@ import type { ProjectManager } from './project';
 import type { TelemetryClient } from './telemetry';
 import type { TuiScreenRenderer } from './ui';
 
-export interface ProgramConfig {
+export interface ProgramContext {
   globalConstants: GlobalConstants;
   consoleLogger: Logger;
   fileLogger: Logger;
