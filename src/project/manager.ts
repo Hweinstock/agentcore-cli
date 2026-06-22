@@ -4,10 +4,14 @@ import { scaffoldProject } from './scaffold';
 import type { Project, ProjectManagerContext } from './types';
 import path from 'node:path';
 
+interface OnProgressEvent {
+  step: string;
+}
+
 interface CreateProjectOptions {
   projectName: string;
   noInstall?: boolean;
-  onProgress: (event: { step: string }) => void;
+  onProgress?: (event: OnProgressEvent) => void;
 }
 
 export interface ProjectManager {
@@ -24,6 +28,8 @@ export function getProjectManager(context: ProjectManagerContext): ProjectManage
   };
   return {
     create: async input => {
+      const onProgress =
+        input.onProgress ?? ((event: OnProgressEvent) => projectManagerLogger.info(JSON.stringify(event)));
       projectManagerLogger.info(`creating project with input=${JSON.stringify(input)}`);
 
       const outputDir = path.resolve(input.projectName);
@@ -36,7 +42,7 @@ export function getProjectManager(context: ProjectManagerContext): ProjectManage
 
       if (!mkdirResult.success) return mkdirResult;
 
-      input.onProgress({ step: 'scaffold' });
+      onProgress({ step: 'scaffold' });
 
       const scaffoldResult = await scaffoldProject(newContext, {
         outputDir,
