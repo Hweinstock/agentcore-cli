@@ -8,7 +8,7 @@ import type { Project } from '../project/types';
 import { getNullTelemetryClient } from '../telemetry/client';
 import { getInMemoryProject } from './in-memory-project';
 
-export function buildProgramContext(): ProgramContext {
+export function getTestProgramContext(overrides?: Partial<ProgramContext>): ProgramContext {
   const logger = getNullLogger();
   const globalConfigAccessor = getJsonDatastore({}, { schema: globalConfigSchema, source: inMemorySource({}) });
 
@@ -40,5 +40,6 @@ export function buildProgramContext(): ProgramContext {
     environmentAccessor,
     tuiScreenRenderer: { render: () => Promise.resolve(ok()) },
     projectManager,
+    ...overrides,
   };
 }

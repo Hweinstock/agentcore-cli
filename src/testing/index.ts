@@ -1,3 +1,3 @@
-export { getInMemoryProject } from './in-memory-project';
-export { buildProgramContext } from './program-context';
+export { getInMemoryProject, type InMemoryProject } from './in-memory-project';
+export { getTestProgramContext } from './program-context';
 export { getTestCommandContext } from './command-context';

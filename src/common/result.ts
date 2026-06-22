@@ -49,8 +49,8 @@ export function wrapInResult(handler: (...args: unknown[]) => unknown) {
 }
 
 export function unwrapResult<T>(r: Result<T>, fallback: T): T;
-export function unwrapResult<T>(r: Result<T>): T | undefined;
-export function unwrapResult<T>(r: Result<T>, fallback?: T): T | undefined {
+export function unwrapResult<T>(r: Result<T>): T;
+export function unwrapResult<T>(r: Result<T>, fallback?: T): T {
   if (r.success) return r.data;
   if (fallback !== undefined) return fallback;
   throw r.error;
