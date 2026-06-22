@@ -1,8 +1,8 @@
-import type { GlobalConfigAccessor } from '../../global-config';
-import type { Logger } from '../../logging';
-import type { TelemetryClient } from '../../telemetry';
-import type { EnvironmentAccessor } from '../../env';
-import type { ProjectManager } from '../../project';
+import type { EnvironmentAccessor } from '../env';
+import type { GlobalConfigAccessor } from '../global-config';
+import type { Logger } from '../logging';
+import type { ProjectManager } from '../project';
+import type { TelemetryClient } from '../telemetry';
 import type { ReactElement } from 'react';
 
 export interface TuiScreenRendererContext {

@@ -4,7 +4,7 @@ import type { GlobalConfigAccessor } from './global-config';
 import type { Logger } from './logging';
 import type { ProjectManager } from './project';
 import type { TelemetryClient } from './telemetry';
-import type { TuiScreenRenderer } from './ui';
+import type { TuiScreenRenderer } from './tui';
 
 export interface ProgramContext {
   globalConstants: GlobalConstants;

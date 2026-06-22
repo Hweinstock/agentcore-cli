@@ -76,7 +76,7 @@ export function getJsonDatastore<S extends z.ZodType>(
 ): JsonDatastore<z.infer<S>> {
   type T = z.infer<S>;
 
-  const logger = context.logger?.child('JsonDatastore') ?? getNullLogger();
+  const logger = context.logger?.child({ module: 'JsonDatastore' }) ?? getNullLogger();
   const useCache = opts.useCache ?? true;
 
   let cachedConfigData: T;

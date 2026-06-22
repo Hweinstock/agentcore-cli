@@ -16,7 +16,7 @@ export interface ProjectManager {
 }
 
 export function getProjectManager(context: ProjectManagerContext): ProjectManager {
-  const projectManagerLogger = context.logger.child('project-manager');
+  const projectManagerLogger = context.logger.child({ module: 'project-manager' });
 
   const newContext = {
     ...context,

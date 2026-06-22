@@ -2,7 +2,7 @@ import { err, getGlobalConstants, getJsonDatastore, inMemorySource, ok } from '.
 import { getEnvironmentAccessor } from '../env/accessor';
 import { globalConfigSchema } from '../global-config';
 import { getNullLogger } from '../logging';
-import type { ProgramContext } from '../program-config';
+import type { ProgramContext } from '../program-context';
 import type { ProjectManager } from '../project';
 import type { Project } from '../project/types';
 import { getNullTelemetryClient } from '../telemetry/client';

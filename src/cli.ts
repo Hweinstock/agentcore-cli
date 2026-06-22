@@ -2,10 +2,10 @@ import { getCommandRouter } from './commands';
 import { AgentCoreError, type Result, getClientRegistry, getGlobalConstants, unwrapResult } from './common';
 import { getEnvironmentAccessor } from './env';
 import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
-import { type Logger, getFileLogger } from './logging';
+import { type Logger, getConsoleLogger, getFileLogger } from './logging';
 import { getProjectManager } from './project';
 import { getTelemetryClient } from './telemetry';
-import { getConsoleLogger, getTuiScreenRenderer } from './ui';
+import { getTuiScreenRenderer } from './tui';
 
 /**
  * this is the global entrypoint where we wire up all the dependencies and create context objects to inject into modules used for different pieces of functionality.

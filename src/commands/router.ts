@@ -1,5 +1,5 @@
 import { err, ok } from '../common';
-import type { ProgramContext } from '../program-config';
+import type { ProgramContext } from '../program-context';
 import { register } from './command-builder';
 import { rootCommand } from './root';
 import type { CommandRouter } from './types';

@@ -1,4 +1,4 @@
-import { type Result, wrapInResult } from '../../common';
+import { type Result, wrapInResult } from '../common';
 import { ANSI } from './ansi-constants';
 import type { TuiScreenRendererContext } from './types';
 

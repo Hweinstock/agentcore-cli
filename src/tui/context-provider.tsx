@@ -21,7 +21,7 @@ export const TuiScreenContextProvider: React.FC<ProviderProps> = ({ context, chi
     <TuiScreenContextStore.Provider
       value={{
         ...context,
-        logger: context.logger.child('tui'),
+        logger: context.logger.child({ module: 'tui' }),
         telemetryClient: context.telemetryClient.child('mode', 'tui'),
       }}
     >

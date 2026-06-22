@@ -5,7 +5,7 @@ import z from 'zod';
 export const withLogging = <S extends z.ZodObject>(command: Command<S>): Command<S> => ({
   ...command,
   handler: async (context, input) => {
-    const commandLogger = context.fileLogger.child(command.name);
+    const commandLogger = context.fileLogger.child({ command: command.name });
 
     commandLogger.info(`running command`);
 

@@ -1,4 +1,4 @@
-import type { GlobalConfigAccessor } from '../../global-config';
+import type { GlobalConfigAccessor } from '../global-config';
 import {
   AddGatewayScreen,
   AddMemoryScreen,
