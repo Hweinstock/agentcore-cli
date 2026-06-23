@@ -1,10 +1,11 @@
 import { register } from '../../command-builder';
+import { COMMON_FLAGS } from '../../flags';
 import type { Command, CommandFlags } from '../../types';
 import { addAgentCommand } from './agent';
 import { addGatewayCommand } from './gateway';
 import { addMemoryCommand } from './memory';
 
-const flags = {} as const satisfies CommandFlags;
+const flags = { ...COMMON_FLAGS } as const satisfies CommandFlags;
 
 export const addCommand: Command<typeof flags> = {
   name: 'add',

@@ -1,10 +1,11 @@
 import { register } from '../../command-builder';
+import { COMMON_FLAGS } from '../../flags';
 import type { Command, CommandFlags } from '../../types';
 import { removeAgentCommand } from './agent';
 import { removeGatewayCommand } from './gateway';
 import { removeMemoryCommand } from './memory';
 
-const flags = {} as const satisfies CommandFlags;
+const flags = { ...COMMON_FLAGS } as const satisfies CommandFlags;
 
 export const removeCommand: Command<typeof flags> = {
   name: 'remove',

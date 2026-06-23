@@ -1,4 +1,5 @@
 import { err } from '../../../common';
+import { AGENT_FLAGS, COMMON_FLAGS } from '../../flags';
 import { withProject } from '../../middleware';
 import type { Command, CommandFlags } from '../../types';
 import z from 'zod';
@@ -10,36 +11,8 @@ const flags = {
     description: 'Agent name',
     required: true,
   },
-  language: {
-    schema: z.enum(['python', 'typescript']).optional(),
-    usage: '--language <language>',
-    description: 'Target language',
-  },
-  framework: {
-    schema: z.enum(['strands', 'vercel', 'langchain_langgraph']).optional(),
-    usage: '--framework <framework>',
-    description: 'Agent framework',
-  },
-  protocol: {
-    schema: z.enum(['http', 'mcp']).optional(),
-    usage: '--protocol <protocol>',
-    description: 'Protocol',
-  },
-  memory: {
-    schema: z.enum(['none', 'longAndShort', 'short']).optional(),
-    usage: '--memory <memory>',
-    description: 'Memory type',
-  },
-  buildType: {
-    schema: z.enum(['container', 'codezip']).optional(),
-    usage: '--build-type <buildType>',
-    description: 'Build type',
-  },
-  debug: {
-    schema: z.boolean().optional(),
-    usage: '--debug',
-    description: 'Enable debug logging',
-  },
+  ...AGENT_FLAGS,
+  ...COMMON_FLAGS,
 } as const satisfies CommandFlags;
 
 export const addAgentCommand: Command<typeof flags> = {

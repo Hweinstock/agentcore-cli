@@ -18,6 +18,7 @@ export interface FlagDefinition<S extends z.ZodTypeAny = z.ZodTypeAny> {
   required?: boolean;
   usage: string;
   description: string;
+  hidden?: () => boolean;
 }
 
 export type CommandFlags = Record<string, FlagDefinition>;

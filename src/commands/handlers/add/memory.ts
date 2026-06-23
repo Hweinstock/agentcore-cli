@@ -1,4 +1,5 @@
 import { err } from '../../../common';
+import { COMMON_FLAGS } from '../../flags';
 import { withProject } from '../../middleware';
 import type { Command, CommandFlags } from '../../types';
 import z from 'zod';
@@ -27,7 +28,7 @@ const flags = {
     usage: '--indexed-key <key:type>',
     description: 'Indexed metadata key',
   },
-  json: { schema: z.boolean().optional(), usage: '--json', description: 'Output as JSON' },
+  ...COMMON_FLAGS,
 } as const satisfies CommandFlags;
 
 export const addMemoryCommand: Command<typeof flags> = {

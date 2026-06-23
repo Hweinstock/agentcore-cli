@@ -1,33 +1,14 @@
+import { AGENT_FLAGS, COMMON_FLAGS } from '../flags';
 import type { Command, CommandFlags } from '../types';
 import z from 'zod';
 
 const flags = {
   name: { schema: z.string().optional(), usage: '--name <name>', description: 'Resource name' },
   projectName: { schema: z.string().optional(), usage: '--project-name <name>', description: 'Project name' },
-  language: {
-    schema: z.enum(['python', 'typescript']).optional(),
-    usage: '--language <language>',
-    description: 'Target language',
-  },
-  framework: {
-    schema: z.enum(['strands', 'vercel', 'langchain_langgraph']).optional(),
-    usage: '--framework <framework>',
-    description: 'Agent framework',
-  },
-  protocol: { schema: z.enum(['http', 'mcp']).optional(), usage: '--protocol <protocol>', description: 'Protocol' },
-  memory: {
-    schema: z.enum(['none', 'longAndShort', 'short']).optional(),
-    usage: '--memory <memory>',
-    description: 'Memory type',
-  },
-  buildType: {
-    schema: z.enum(['container', 'codezip']).optional(),
-    usage: '--build-type <type>',
-    description: 'Build type',
-  },
+  ...AGENT_FLAGS,
   agent: { schema: z.boolean().optional(), usage: '--no-agent', description: 'Skip agent creation' },
   install: { schema: z.boolean().optional(), usage: '--no-install', description: 'Skip npm install' },
-  json: { schema: z.boolean().optional(), usage: '--json', description: 'Output as JSON' },
+  ...COMMON_FLAGS,
 } as const satisfies CommandFlags;
 
 export const createCommand: Command<typeof flags> = {

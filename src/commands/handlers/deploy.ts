@@ -1,15 +1,16 @@
 import { err } from '../../common';
+import { COMMON_FLAGS, CONFIRMATION_FLAGS } from '../flags';
 import { withProject } from '../middleware';
 import type { Command, CommandFlags } from '../types';
 import z from 'zod';
 
 const flags = {
   target: { schema: z.string().optional(), usage: '--target <target>', description: 'Deployment target name' },
-  yes: { schema: z.boolean().optional(), usage: '-y, --yes', description: 'Auto-confirm prompts' },
+  ...CONFIRMATION_FLAGS,
   verbose: { schema: z.boolean().optional(), usage: '-v, --verbose', description: 'Show resource-level events' },
-  json: { schema: z.boolean().optional(), usage: '--json', description: 'Output as JSON' },
   dryRun: { schema: z.boolean().optional(), usage: '--dry-run', description: 'Preview without deploying' },
   diff: { schema: z.boolean().optional(), usage: '--diff', description: 'Show CDK diff without deploying' },
+  ...COMMON_FLAGS,
 } as const satisfies CommandFlags;
 
 export const deployCommand: Command<typeof flags> = {

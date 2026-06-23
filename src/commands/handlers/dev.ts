@@ -1,4 +1,5 @@
 import { ValidationError, err } from '../../common';
+import { COMMON_FLAGS } from '../flags';
 import { withProject } from '../middleware';
 import type { Command, CommandFlags } from '../types';
 import z from 'zod';
@@ -13,6 +14,7 @@ const flags = {
   port: { schema: z.number().optional(), usage: '-p, --port <port>', description: 'Port for dev server' },
   stream: { schema: z.boolean().optional(), usage: '-s, --stream', description: 'Stream response when invoking' },
   logs: { schema: z.boolean().optional(), usage: '-l, --logs', description: 'Run dev server with logs to stdout' },
+  ...COMMON_FLAGS,
 } as const satisfies CommandFlags;
 
 export const devCommand: Command<typeof flags> = {
