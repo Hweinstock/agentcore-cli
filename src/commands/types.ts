@@ -21,24 +21,41 @@ export interface FlagDefinition<S extends z.ZodTypeAny = z.ZodTypeAny> {
   hidden?: () => boolean;
 }
 
+export interface ArgumentDefinition<S extends z.ZodTypeAny = z.ZodTypeAny> {
+  name: string;
+  schema: S;
+  description: string;
+  required?: boolean;
+}
+
 export type CommandFlags = Record<string, FlagDefinition>;
 
-export type CommandSchema<F extends CommandFlags> = z.ZodObject<{ [K in keyof F]: F[K]['schema'] }>;
+type EmptyCommandFlags = Record<never, FlagDefinition>;
+
+export type CommandArguments = ArgumentDefinition[];
+
+export type CommandSchema<
+  F extends CommandFlags = EmptyCommandFlags,
+  A extends CommandArguments = never[],
+> = z.ZodObject<{ [K in keyof F]: F[K]['schema'] } & { [E in A[number] as E['name']]: E['schema'] }>;
 
 export type CommandHandler<SchemaType extends z.ZodObject = typeof _emptyZodObject> = (
   context: CommandContext,
   input: z.infer<SchemaType>
 ) => Promise<Result<unknown>>;
 
-export interface Command<F extends CommandFlags> {
+export interface Command<F extends CommandFlags = EmptyCommandFlags, A extends CommandArguments = never[]> {
   name: string;
-  flags: F;
-  handler: CommandHandler<CommandSchema<F>>;
-  middleware?: CommandMiddleware<F>[];
+  flags?: F;
+  arguments?: A;
+  handler: CommandHandler<CommandSchema<F, A>>;
+  middleware?: CommandMiddleware<F, A>[];
   setup: (context: CommandContext, parentCommand: CommanderCommand) => CommanderCommand;
 }
 
-export type CommandMiddleware<F extends CommandFlags> = (command: Command<F>) => Command<F>;
+export type CommandMiddleware<F extends CommandFlags = EmptyCommandFlags, A extends CommandArguments = never[]> = (
+  command: Command<F, A>
+) => Command<F, A>;
 
 export interface CommandRouter {
   route: (args: string[]) => Promise<Result>;

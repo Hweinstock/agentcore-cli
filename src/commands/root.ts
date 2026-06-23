@@ -1,5 +1,5 @@
 import { register } from './command-builder';
-import { addCommand, createCommand, deployCommand, devCommand, removeCommand } from './handlers';
+import { addCommand, configCommand, createCommand, deployCommand, devCommand, removeCommand } from './handlers';
 import type { Command, CommandFlags } from './types';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 
@@ -12,6 +12,7 @@ export const rootCommand: Command<typeof flags> = {
   setup: context => {
     const parentCommand = new CommanderCommand();
     register(context, addCommand, { parentCommand });
+    register(context, configCommand, { parentCommand });
     register(context, createCommand, { parentCommand });
     register(context, deployCommand, { parentCommand });
     register(context, devCommand, { parentCommand });

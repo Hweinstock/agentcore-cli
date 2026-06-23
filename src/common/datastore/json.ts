@@ -64,6 +64,8 @@ export interface JsonDatastore<T> {
       opts: { sync: true }
     ): Result<{ value: PathValue<T, P> }>;
   };
+  isValidPath: (path: string) => path is Path<T>;
+  isValidPathValue: <P extends Path<T>>(path: P, value: unknown) => value is PathValue<T, P>;
 }
 
 export function getJsonDatastore<S extends z.ZodType>(
@@ -93,6 +95,8 @@ export function getJsonDatastore<S extends z.ZodType>(
       return ok({ config: parsed.data as T });
     });
   };
+
+  const validPaths = deriveValidPaths(opts.schema);
 
   const datastore: JsonDatastore<T> = {
     all: (op?: OpOptions) => load(op?.sync ?? false),
@@ -144,6 +148,14 @@ export function getJsonDatastore<S extends z.ZodType>(
         op,
         transform: (list, value) => list.filter(x => !itemsEqual(x, value)),
       }),
+
+    isValidPath: (path: string): path is Path<T> => validPaths.has(path),
+
+    isValidPathValue: <P extends Path<T>>(path: P, value: unknown): value is PathValue<T, P> => {
+      const subSchema = getSchemaAtPath(opts.schema, path);
+      if (!subSchema) return false;
+      return subSchema.safeParse(value).success;
+    },
   } as JsonDatastore<T>;
 
   function mutateList<P extends ArrayPath<T>>(props: {
@@ -196,4 +208,39 @@ function setAtPath(obj: Record<string, unknown>, path: string, value: unknown): 
     node = node[key] as Record<string, unknown>;
   }
   node[last] = value;
+}
+
+function deriveValidPaths(schema: z.ZodTypeAny, prefix = ''): Set<string> {
+  const paths = new Set<string>();
+  const shape = getZodShape(schema);
+  if (!shape) return paths;
+  for (const [key, value] of Object.entries(shape)) {
+    const fullPath = prefix ? `${prefix}.${key}` : key;
+    paths.add(fullPath);
+    const nested = deriveValidPaths(value as z.ZodTypeAny, fullPath);
+    for (const p of nested) paths.add(p);
+  }
+  return paths;
+}
+
+function getSchemaAtPath(schema: z.ZodTypeAny, path: string): z.ZodTypeAny | undefined {
+  const segments = path.split('.');
+  let current: z.ZodTypeAny = schema;
+  for (const seg of segments) {
+    const shape = getZodShape(current);
+    if (!shape || !(seg in shape)) return undefined;
+    current = shape[seg] as z.ZodTypeAny;
+  }
+  return current;
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type AnyZodType = z.ZodTypeAny | (z.ZodTypeAny & { shape?: any });
+
+function getZodShape(schema: AnyZodType): Record<string, AnyZodType> | undefined {
+  if (schema instanceof z.ZodObject) return schema.shape as Record<string, AnyZodType>;
+  if (schema instanceof z.ZodOptional || schema instanceof z.ZodNullable)
+    return getZodShape(schema.unwrap() as AnyZodType);
+  if (schema instanceof z.ZodDefault && 'unwrap' in schema) return getZodShape(schema.unwrap() as AnyZodType);
+  return undefined;
 }
