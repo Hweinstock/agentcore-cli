@@ -1,4 +1,4 @@
-import { type Result, ValidationError, ok, unwrapResult } from '../../common';
+import { ValidationError, ok } from '../../common';
 import { getTestCommand, getTestCommandContext } from '../../testing';
 import type { CommandContext } from '../types';
 import { withInputValidation, withLogging, withTelemetry } from './common';
@@ -64,9 +64,9 @@ describe('withInputValidation', () => {
     });
     const wrapped = withInputValidation(command);
 
-    const result: Result = await wrapped.handler(getTestCommandContext(), { name: 123 });
+    const result = await wrapped.handler(getTestCommandContext(), { name: 123 });
 
-    expect(() => unwrapResult(result)).toThrow(ValidationError);
+    expect(() => result.unwrap()).toThrow(ValidationError);
     expect(handlerCalled).toBe(false);
   });
 });

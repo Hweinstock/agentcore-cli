@@ -1,5 +1,5 @@
 import { getCommandRouter } from './commands';
-import { AgentCoreError, type Result, getClientRegistry, getGlobalConstants, unwrapResult } from './common';
+import { AgentCoreError, type Result, getClientRegistry, getGlobalConstants } from './common';
 import { getEnvironmentAccessor } from './env';
 import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
 import { type Logger, getConsoleLogger, getFileLogger } from './logging';
@@ -91,7 +91,7 @@ async function bootstrapConfig(): Promise<Pick<GlobalConfig, 'telemetry' | 'logg
   const accessor = getGlobalConfigAccessor();
 
   return {
-    logging: unwrapResult(await accessor.get('logging'), { value: {} }).value,
-    telemetry: unwrapResult(await accessor.get('telemetry'), { value: {} }).value,
+    logging: (await accessor.get('logging')).unwrapOr({ value: {} }).value,
+    telemetry: (await accessor.get('telemetry')).unwrapOr({ value: {} }).value,
   };
 }

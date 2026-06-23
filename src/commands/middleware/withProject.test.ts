@@ -1,4 +1,4 @@
-import { NoProjectFoundError, type Result, ok, unwrapResult } from '../../common';
+import { NoProjectFoundError, ok } from '../../common';
 import { getTestCommand, getTestCommandContext } from '../../testing';
 import type { CommandContext } from '../types';
 import { withProject } from './withProject';
@@ -33,9 +33,9 @@ describe('withProject', () => {
     });
     const wrapped = withProject(command);
 
-    const result: Result = await wrapped.handler(getTestCommandContext(), {});
+    const result = await wrapped.handler(getTestCommandContext(), {});
 
-    expect(() => unwrapResult(result)).toThrow(NoProjectFoundError);
+    expect(() => result.unwrap()).toThrow(NoProjectFoundError);
     expect(handlerCalled).toBe(false);
   });
 });

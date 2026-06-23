@@ -1,4 +1,3 @@
-import { unwrapResult } from '../../common';
 import { getTestCommandContext } from '../../testing';
 import { createCommand } from './create';
 import { describe, expect, it } from 'vitest';
@@ -11,8 +10,7 @@ describe('create handler', () => {
     expect(result.success).toBe(true);
 
     const projectLookup = await context.projectManager.find();
-
-    const project = unwrapResult(projectLookup);
+    const project = projectLookup.unwrap();
     expect(project).toBeDefined();
   });
 
@@ -23,11 +21,10 @@ describe('create handler', () => {
     expect(result.success).toBe(true);
 
     const projectLookup = await context.projectManager.find();
-
-    const project = unwrapResult(projectLookup);
+    const project = projectLookup.unwrap();
 
     const agentsLookup = await project.config.get('agents');
-    const agents = unwrapResult(agentsLookup);
+    const agents = agentsLookup.unwrap();
     expect(agents.value).toContain('my-project');
   });
 });

@@ -1,4 +1,4 @@
-import { type Result, collectResults, ok } from '../common';
+import { type Result, collect, ok } from '../common';
 import { getDefaultProjectConfig } from './config-accessor';
 import { getProject } from './project';
 import type { Project, ProjectManagerContext } from './types';
@@ -46,12 +46,12 @@ export async function scaffoldProject(
     },
   ];
 
-  const directoryCreationResult = collectResults(
+  const directoryCreationResult = collect(
     await Promise.all(dirs.map(d => context.env.fs.mkdir(d, { recursive: true })))
   );
   if (!directoryCreationResult.success) return directoryCreationResult;
 
-  const fileCreationResult = collectResults(
+  const fileCreationResult = collect(
     await Promise.all(files.map(f => context.env.fs.writeFile(f.path, f.content, 'utf8')))
   );
   if (!fileCreationResult.success) return fileCreationResult;
@@ -69,7 +69,7 @@ export async function scaffoldProject(
     { from: path.join(cdkPath, 'npmignore.template'), to: path.join(cdkPath, '.npmignore') },
   ];
 
-  const renameResult = collectResults(await Promise.all(renames.map(r => context.env.fs.rename(r.from, r.to))));
+  const renameResult = collect(await Promise.all(renames.map(r => context.env.fs.rename(r.from, r.to))));
   if (!renameResult.success) return renameResult;
 
   if (!options.noInstall) {

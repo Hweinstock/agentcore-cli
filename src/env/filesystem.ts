@@ -1,4 +1,4 @@
-import { type Result, type ResultWrapped, err, ok, wrapInResult } from '../common';
+import { type Result, type ResultWrapped, err, ok, wrapAsync } from '../common';
 import type { EnvironmentAccessorContext } from './accessor';
 import * as fs from 'node:fs/promises';
 
@@ -22,8 +22,8 @@ export const getFilesystemAccessor = (_context: EnvironmentAccessorContext): Fil
       return false;
     }
   },
-  mkdir: wrapInResult(fs.mkdir),
-  writeFile: wrapInResult(fs.writeFile),
+  mkdir: wrapAsync(fs.mkdir),
+  writeFile: wrapAsync(fs.writeFile),
   readFile: async (filePath, encoding) => {
     try {
       const data = await fs.readFile(filePath, encoding);
@@ -40,7 +40,7 @@ export const getFilesystemAccessor = (_context: EnvironmentAccessorContext): Fil
       return err(e instanceof Error ? e : new Error(String(e)));
     }
   },
-  cp: wrapInResult(fs.cp),
-  rename: wrapInResult(fs.rename),
-  rm: wrapInResult(fs.rm),
+  cp: wrapAsync(fs.cp),
+  rename: wrapAsync(fs.rename),
+  rm: wrapAsync(fs.rm),
 });

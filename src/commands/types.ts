@@ -1,4 +1,4 @@
-import type { AnyResult, Result } from '../common';
+import type { Result } from '../common';
 import type { ProgramContext } from '../program-context';
 import type { Project } from '../project/types';
 import type { AttributeRecorder, CommandRunAttributes } from '../telemetry';
@@ -16,7 +16,7 @@ const _emptyZodObject = z.object({});
 export type CommandHandler<SchemaType extends z.ZodObject = typeof _emptyZodObject> = (
   context: CommandContext,
   input: z.infer<SchemaType>
-) => Promise<AnyResult>;
+) => Promise<Result<unknown>>;
 
 export interface Command<SchemaType extends z.ZodObject = z.ZodObject> {
   name: string;

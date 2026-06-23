@@ -1,5 +1,5 @@
-export type { Result, ResultWrapped, AnyResult } from './result';
-export { ok, err, wrapInResult, unwrapResult, collectResults } from './result';
+export type { Result, AsyncResult, ResultWrapped } from './result';
+export { ok, err, wrap, wrapAsync, collect } from './result';
 
 export * from './errors';
 

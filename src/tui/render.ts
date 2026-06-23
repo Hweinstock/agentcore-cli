@@ -1,4 +1,4 @@
-import { type Result, wrapInResult } from '../common';
+import { type Result, wrapAsync } from '../common';
 import { ANSI } from './ansi-constants';
 import type { TuiScreenRendererContext } from './types';
 
@@ -34,7 +34,7 @@ export function getTuiScreenRenderer(context: TuiScreenRendererContext): TuiScre
           context,
         })
       );
-      return wrapInResult(async () => {
+      return wrapAsync(async () => {
         await instance.waitUntilExit();
       })();
     },

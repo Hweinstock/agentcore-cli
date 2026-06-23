@@ -1,4 +1,4 @@
-import { type Result, ok, wrapInResult } from '../result';
+import { type Result, ok, wrap, wrapAsync } from '../result';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
@@ -19,17 +19,17 @@ export interface DataSource {
  * unreadable file reads as an empty document.
  */
 export const jsonFileSource = (filePath: string): DataSource => ({
-  read: wrapInResult(async () => {
+  read: wrapAsync(async () => {
     return JSON.parse(await readFile(filePath, 'utf-8')) as unknown;
   }),
-  write: wrapInResult(async (data: unknown) => {
+  write: wrapAsync(async (data: unknown) => {
     await mkdir(dirname(filePath), { recursive: true });
     await writeFile(filePath, JSON.stringify(data, undefined, 2));
   }),
-  readSync: wrapInResult(() => {
+  readSync: wrap(() => {
     return JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
   }),
-  writeSync: wrapInResult((data: unknown) => {
+  writeSync: wrap((data: unknown) => {
     mkdirSync(dirname(filePath), { recursive: true });
     writeFileSync(filePath, JSON.stringify(data, undefined, 2));
   }),
