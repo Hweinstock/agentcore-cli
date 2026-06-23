@@ -1,68 +1,68 @@
-import type { Command, CommandHandler } from '../types';
-import * as z from 'zod';
+import type { Command, CommandFlags } from '../types';
+import z from 'zod';
 
-const schema = z
-  .object({
-    name: z.string().optional(),
-    projectName: z.string().optional(),
-    language: z.enum(['python', 'typescript']).optional(),
-    framework: z.enum(['strands', 'vercel', 'langchain_langgraph']).optional(),
-    protocol: z.enum(['http', 'mcp']).optional(),
-    memory: z.enum(['none', 'longAndShort', 'short']).optional(),
-    buildType: z.enum(['container', 'codezip']).optional(),
-    agent: z.boolean().optional(),
-    install: z.boolean().optional(),
-    json: z.boolean().optional(),
-  })
-  .refine(data => data.projectName ?? data.name);
+const flags = {
+  name: { schema: z.string().optional(), usage: '--name <name>', description: 'Resource name' },
+  projectName: { schema: z.string().optional(), usage: '--project-name <name>', description: 'Project name' },
+  language: {
+    schema: z.enum(['python', 'typescript']).optional(),
+    usage: '--language <language>',
+    description: 'Target language',
+  },
+  framework: {
+    schema: z.enum(['strands', 'vercel', 'langchain_langgraph']).optional(),
+    usage: '--framework <framework>',
+    description: 'Agent framework',
+  },
+  protocol: { schema: z.enum(['http', 'mcp']).optional(), usage: '--protocol <protocol>', description: 'Protocol' },
+  memory: {
+    schema: z.enum(['none', 'longAndShort', 'short']).optional(),
+    usage: '--memory <memory>',
+    description: 'Memory type',
+  },
+  buildType: {
+    schema: z.enum(['container', 'codezip']).optional(),
+    usage: '--build-type <type>',
+    description: 'Build type',
+  },
+  agent: { schema: z.boolean().optional(), usage: '--no-agent', description: 'Skip agent creation' },
+  install: { schema: z.boolean().optional(), usage: '--no-install', description: 'Skip npm install' },
+  json: { schema: z.boolean().optional(), usage: '--json', description: 'Output as JSON' },
+} as const satisfies CommandFlags;
 
-const handler: CommandHandler<typeof schema> = async (context, input) => {
-  // Always branch to TUI first.
-  if (Object.keys(input).filter(k => k !== 'agent').length === 0) {
-    return context.tuiScreenRenderer.render({ initialPath: '/create' });
-  }
-
-  const projectCreationResult = await context.projectManager.create({
-    projectName: input.projectName ?? input.name!,
-    noInstall: input.install === false,
-    onProgress: e => context.consoleLogger.info(JSON.stringify(e)),
-  });
-
-  if (!projectCreationResult.success) return projectCreationResult;
-
-  const project = projectCreationResult.data;
-
-  if (input.agent) {
-    const addAgentResult = await project.addAgent({
-      agentName: input.name ?? input.projectName!,
-      language: input.language ?? 'python',
-      framework: input.framework ?? 'strands',
-      protocol: input.protocol ?? 'http',
-      memory: input.memory ?? 'none',
-      buildType: input.buildType ?? 'codezip',
-    });
-    if (!addAgentResult.success) return addAgentResult;
-    return addAgentResult;
-  }
-
-  return projectCreationResult;
-};
-
-export const createCommand: Command<typeof schema> = {
+export const createCommand: Command<typeof flags> = {
   name: 'create',
-  schema,
-  handler,
+  flags,
+  handler: async (context, input) => {
+    if (Object.keys(input).filter(k => k !== 'agent').length === 0) {
+      return context.tuiScreenRenderer.render({ initialPath: '/create' });
+    }
+
+    const projectCreationResult = await context.projectManager.create({
+      projectName: input.projectName ?? input.name!,
+      noInstall: input.install === false,
+      onProgress: e => context.consoleLogger.info(JSON.stringify(e)),
+    });
+
+    if (!projectCreationResult.success) return projectCreationResult;
+
+    const project = projectCreationResult.data;
+
+    if (input.agent) {
+      const addAgentResult = await project.addAgent({
+        agentName: input.name ?? input.projectName!,
+        language: input.language ?? 'python',
+        framework: input.framework ?? 'strands',
+        protocol: input.protocol ?? 'http',
+        memory: input.memory ?? 'none',
+        buildType: input.buildType ?? 'codezip',
+      });
+      if (!addAgentResult.success) return addAgentResult;
+      return addAgentResult;
+    }
+
+    return projectCreationResult;
+  },
   setup: (_context, parentCommand) =>
-    parentCommand
-      .command('create')
-      .description('this is the create command')
-      .showHelpAfterError()
-      .showSuggestionAfterError()
-      .option('--name <name>', 'Resource name [non-interactive]')
-      .option('--project-name <name>', 'Project name [non-interactive]')
-      .option('--language <language>', 'Target language: Python or TypeScript [non-interactive]')
-      .option('--framework <framework>', 'Agent framework [non-interactive]')
-      .option('--no-agent', 'Skip agent creation [non-interactive]')
-      .option('--no-install', 'Skip npm install for CDK dependencies [non-interactive]')
-      .option('--json', 'Output as JSON [non-interactive]'),
+    parentCommand.command('create').description('Create a new AgentCore project').showHelpAfterError(),
 };

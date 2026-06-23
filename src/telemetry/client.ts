@@ -7,12 +7,12 @@ import type { CommonAttributes } from './shapes';
 // TODO: all types here should be generic over the metric shapes.
 export interface TelemetryClient {
   emit: (metricName: string, attributes: Record<string, string>) => void;
-  withTelemetry<R extends Result<unknown>, A extends CommonAttributes>(
+  withMetric<R extends Result<unknown>, A extends CommonAttributes>(
     metricName: string,
     fallbackAttributes: Partial<A>,
     handler: (recorder: AttributeRecorder<A>) => Promise<R>
   ): Promise<R>;
-  withTelemetry<R extends Result<unknown>, A extends CommonAttributes>(
+  withMetric<R extends Result<unknown>, A extends CommonAttributes>(
     metricName: string,
     fallbackAttributes: Partial<A>,
     handler: (recorder: AttributeRecorder<A>) => R
@@ -26,7 +26,7 @@ export const getTelemetryClient = (context: { logger: Logger }, _config?: Teleme
 
 export const getNullTelemetryClient = (context: { logger: Logger }, _config?: TelemetryConfig): TelemetryClient => ({
   emit: (metricName, attributes) => context.logger.info(`logging ${metricName}`, attributes),
-  withTelemetry: <R extends Result<unknown>, A extends CommonAttributes>(
+  withMetric: <R extends Result<unknown>, A extends CommonAttributes>(
     _metricName: string,
     _fallbackAttributes: Partial<A>,
     handler: (recorder: AttributeRecorder<A>) => R | Promise<R>

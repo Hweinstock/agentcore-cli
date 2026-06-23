@@ -1,28 +1,23 @@
 import { register } from '../../command-builder';
-import type { Command, CommandHandler } from '../../types';
+import type { Command, CommandFlags } from '../../types';
 import { removeAgentCommand } from './agent';
 import { removeGatewayCommand } from './gateway';
 import { removeMemoryCommand } from './memory';
-import z from 'zod';
 
-const handler: CommandHandler = async context => {
-  context.consoleLogger.info(`running root level add command`);
-  return context.tuiScreenRenderer.render({ initialPath: '/remove', enterAltScreen: false });
-};
+const flags = {} as const satisfies CommandFlags;
 
-export const removeCommand: Command = {
+export const removeCommand: Command<typeof flags> = {
   name: 'remove',
-  schema: z.object({}),
-  handler,
+  flags,
+  handler: async context => {
+    context.consoleLogger.info(`running root level remove command`);
+    return context.tuiScreenRenderer.render({ initialPath: '/remove', enterAltScreen: false });
+  },
   setup: (context, parentCommand) => {
-    const removeCommand = parentCommand
-      .command('remove')
-      .description('this is the remove command')
-      .showHelpAfterError()
-      .showSuggestionAfterError();
-    register(context, removeAgentCommand, { parentCommand: removeCommand });
-    register(context, removeMemoryCommand, { parentCommand: removeCommand });
-    register(context, removeGatewayCommand, { parentCommand: removeCommand });
-    return removeCommand;
+    const cmd = parentCommand.command('remove').description('Remove a resource from the project').showHelpAfterError();
+    register(context, removeAgentCommand, { parentCommand: cmd });
+    register(context, removeMemoryCommand, { parentCommand: cmd });
+    register(context, removeGatewayCommand, { parentCommand: cmd });
+    return cmd;
   },
 };

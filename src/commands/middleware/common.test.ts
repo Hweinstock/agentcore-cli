@@ -1,9 +1,8 @@
-import { ValidationError, ok } from '../../common';
+import { ok } from '../../common';
 import { getTestCommand, getTestCommandContext } from '../../testing';
 import type { CommandContext } from '../types';
-import { withInputValidation, withLogging, withTelemetry } from './common';
+import { withLogging, withTelemetry } from './common';
 import { describe, expect, it } from 'vitest';
-import z from 'zod';
 
 describe('withLogging', () => {
   it('creates a child logger with command name', async () => {
@@ -31,43 +30,6 @@ describe('withLogging', () => {
 
     const actual = await wrapped.handler(getTestCommandContext(), {});
     expect(actual).toBe(expected);
-  });
-});
-
-describe('withInputValidation', () => {
-  it('passes valid input to handler', async () => {
-    const schema = z.object({ name: z.string() });
-    let capturedInput: unknown;
-    const command = getTestCommand({
-      schema,
-      handler: async (_ctx, input) => {
-        capturedInput = input;
-        return ok();
-      },
-    });
-    const wrapped = withInputValidation(command);
-
-    await wrapped.handler(getTestCommandContext(), { name: 'hello' });
-
-    expect(capturedInput).toEqual({ name: 'hello' });
-  });
-
-  it('returns error for invalid input without calling handler', async () => {
-    const schema = z.object({ name: z.string() });
-    let handlerCalled = false;
-    const command = getTestCommand({
-      schema,
-      handler: async () => {
-        handlerCalled = true;
-        return ok();
-      },
-    });
-    const wrapped = withInputValidation(command);
-
-    const result = await wrapped.handler(getTestCommandContext(), { name: 123 });
-
-    expect(() => result.unwrap()).toThrow(ValidationError);
-    expect(handlerCalled).toBe(false);
   });
 });
 

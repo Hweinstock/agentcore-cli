@@ -1,8 +1,6 @@
-import { ValidationError, err } from '../../common';
-import type { Command } from '../types';
-import z from 'zod';
+import type { Command, CommandFlags } from '../types';
 
-export const withLogging = <S extends z.ZodObject>(command: Command<S>): Command<S> => ({
+export const withLogging = <F extends CommandFlags>(command: Command<F>): Command<F> => ({
   ...command,
   handler: async (context, input) => {
     const commandLogger = context.fileLogger.child({ command: command.name });
@@ -17,20 +15,10 @@ export const withLogging = <S extends z.ZodObject>(command: Command<S>): Command
   },
 });
 
-export const withInputValidation = <S extends z.ZodObject>(command: Command<S>): Command<S> => ({
-  ...command,
-  handler: async (context, input) => {
-    const inputParseResult = command.schema.safeParse(input);
-    // TODO: make this a better user facing error message
-    if (!inputParseResult.success) return err(new ValidationError(inputParseResult.error.message));
-    return command.handler(context, inputParseResult.data);
-  },
-});
-
-export const withTelemetry = <S extends z.ZodObject>(command: Command<S>): Command<S> => ({
+export const withTelemetry = <F extends CommandFlags>(command: Command<F>): Command<F> => ({
   ...command,
   handler: (context, input) =>
-    context.telemetryClient.withTelemetry('cli.command_run', {}, recorder =>
+    context.telemetryClient.withMetric('cli.command_run', {}, recorder =>
       command.handler({ ...context, telemetryRecorder: recorder }, input)
     ),
 });

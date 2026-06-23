@@ -13,22 +13,31 @@ export interface CommandContext extends ProgramContext {
 
 const _emptyZodObject = z.object({});
 
+export interface FlagDefinition<S extends z.ZodTypeAny = z.ZodTypeAny> {
+  schema: S;
+  required?: boolean;
+  usage: string;
+  description: string;
+}
+
+export type CommandFlags = Record<string, FlagDefinition>;
+
+export type CommandSchema<F extends CommandFlags> = z.ZodObject<{ [K in keyof F]: F[K]['schema'] }>;
+
 export type CommandHandler<SchemaType extends z.ZodObject = typeof _emptyZodObject> = (
   context: CommandContext,
   input: z.infer<SchemaType>
 ) => Promise<Result<unknown>>;
 
-export interface Command<SchemaType extends z.ZodObject = z.ZodObject> {
+export interface Command<F extends CommandFlags> {
   name: string;
-  schema: SchemaType;
-  handler: CommandHandler<SchemaType>;
-  middleware?: CommandMiddleware<SchemaType>[];
+  flags: F;
+  handler: CommandHandler<CommandSchema<F>>;
+  middleware?: CommandMiddleware<F>[];
   setup: (context: CommandContext, parentCommand: CommanderCommand) => CommanderCommand;
 }
 
-export type CommandMiddleware<SchemaType extends z.ZodObject = typeof _emptyZodObject> = (
-  command: Command<SchemaType>
-) => Command<SchemaType>;
+export type CommandMiddleware<F extends CommandFlags> = (command: Command<F>) => Command<F>;
 
 export interface CommandRouter {
   route: (args: string[]) => Promise<Result>;

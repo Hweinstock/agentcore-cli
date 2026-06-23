@@ -1,35 +1,47 @@
-import { withInputValidation, withLogging, withTelemetry } from './middleware';
-import type { Command, CommandContext } from './types';
+import { ValidationError } from '../common';
+import { withLogging, withTelemetry } from './middleware';
+import type { Command, CommandContext, CommandFlags, CommandSchema } from './types';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
-export function register<SchemaType extends z.ZodObject>(
-  context: CommandContext,
-  command: Command<SchemaType>,
-  options?: {
-    parentCommand?: CommanderCommand;
-  }
-): CommanderCommand {
-  const parentCommand = options?.parentCommand ?? new CommanderCommand();
-  return command.setup(context, parentCommand).action(toCommanderAction(context, command));
+export function buildSchema<F extends CommandFlags>(flags: F): CommandSchema<F> {
+  const shape = Object.fromEntries(Object.entries(flags).map(([k, v]) => [k, v.schema]));
+  return z.object(shape) as CommandSchema<F>;
 }
 
-/**
- * Wrapper around all commands this is where we put common middleware such as schema validation, telemetry, logging, etc.
- */
-// TODO: add telemetry for cli.command_run here
-function toCommanderAction<SchemaType extends z.ZodObject>(
+export function register<F extends CommandFlags>(
   context: CommandContext,
-  command: Command<SchemaType>
-): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
-  const commonMiddleware = [withLogging, withTelemetry, withInputValidation, ...(command.middleware ?? [])];
+  command: Command<F>,
+  options?: { parentCommand?: CommanderCommand }
+): CommanderCommand {
+  const parentCommand = options?.parentCommand ?? new CommanderCommand();
+  const cmd = command.setup(context, parentCommand);
 
+  for (const flag of Object.values(command.flags)) {
+    if (flag.required) {
+      cmd.requiredOption(flag.usage, flag.description);
+    } else {
+      cmd.option(flag.usage, flag.description);
+    }
+  }
+
+  return cmd.action(toCommanderAction(context, command));
+}
+
+function toCommanderAction<F extends CommandFlags>(
+  context: CommandContext,
+  command: Command<F>
+): (input: Record<string, unknown>, command: CommanderCommand) => Promise<void> {
+  const commonMiddleware = [withLogging, withTelemetry, ...(command.middleware ?? [])];
   const commandWithMiddleware = commonMiddleware.reduce((prev, next) => next(prev), command);
 
-  return async (input: Record<string, unknown>, _command: CommanderCommand) => {
-    const result = await commandWithMiddleware.handler(context, input as z.infer<SchemaType>);
+  const schema = buildSchema(command.flags);
 
+  return async (input: Record<string, unknown>) => {
+    const parseResult = schema.safeParse(input);
+    if (!parseResult.success) throw new ValidationError(parseResult.error.message);
+
+    const result = await commandWithMiddleware.handler(context, parseResult.data);
     if (!result.success) throw result.error;
-    return;
   };
 }

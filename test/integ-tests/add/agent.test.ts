@@ -44,4 +44,13 @@ describe('add agent command', () => {
     expect(result.exitCode).toBe(0);
     helpers.project(name).assertExists('app/ts-agent');
   });
+
+  it('accepts the --debug flag', () => {
+    const name = helpers.randomProjectName();
+    helpers.createProject(name);
+    const result = helpers.run(['add', 'agent', '--name', 'debug-agent', '--debug'], {
+      cwd: join(helpers.getTmpDir(), name),
+    });
+    expect(result.exitCode, `expected exit code 0, got: ${JSON.stringify(result)}`).toBe(0);
+  });
 });

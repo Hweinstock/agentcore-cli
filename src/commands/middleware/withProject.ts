@@ -1,8 +1,7 @@
 import { NoProjectFoundError, err } from '../../common';
-import type { Command } from '../types';
-import type z from 'zod';
+import type { Command, CommandFlags } from '../types';
 
-export const withProject = <S extends z.ZodObject>(command: Command<S>): Command<S> => ({
+export const withProject = <F extends CommandFlags>(command: Command<F>): Command<F> => ({
   ...command,
   handler: async (context, input) => {
     const findProjectResult = await context.projectManager.find();

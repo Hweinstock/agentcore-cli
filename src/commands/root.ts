@@ -1,15 +1,14 @@
 import { register } from './command-builder';
 import { addCommand, createCommand, deployCommand, devCommand, removeCommand } from './handlers';
-import type { Command, CommandHandler } from './types';
+import type { Command, CommandFlags } from './types';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
-import z from 'zod';
 
-const handler: CommandHandler = async (context, _input) => context.tuiScreenRenderer.render();
+const flags = {} as const satisfies CommandFlags;
 
-export const rootCommand: Command = {
+export const rootCommand: Command<typeof flags> = {
   name: 'root',
-  schema: z.object({}),
-  handler,
+  flags,
+  handler: async context => context.tuiScreenRenderer.render(),
   setup: context => {
     const parentCommand = new CommanderCommand();
     register(context, addCommand, { parentCommand });

@@ -1,30 +1,27 @@
 import { register } from '../../command-builder';
-import type { Command, CommandHandler } from '../../types';
+import type { Command, CommandFlags } from '../../types';
 import { addAgentCommand } from './agent';
 import { addGatewayCommand } from './gateway';
 import { addMemoryCommand } from './memory';
-import z from 'zod';
 
-const schema = z.object({});
+const flags = {} as const satisfies CommandFlags;
 
-const handler: CommandHandler<typeof schema> = async context => {
-  context.consoleLogger.info(`running root level add command`);
-  return context.tuiScreenRenderer.render({ initialPath: '/add', enterAltScreen: false });
-};
-
-export const addCommand: Command<typeof schema> = {
+export const addCommand: Command<typeof flags> = {
   name: 'add',
-  schema,
-  handler,
+  flags,
+  handler: async context => {
+    context.consoleLogger.info(`running root level add command`);
+    return context.tuiScreenRenderer.render({ initialPath: '/add', enterAltScreen: false });
+  },
   setup: (context, parentCommand) => {
-    const addCommand = parentCommand
+    const cmd = parentCommand
       .command('add')
       .description('this is the add command')
       .showHelpAfterError()
       .showSuggestionAfterError();
-    register(context, addAgentCommand, { parentCommand: addCommand });
-    register(context, addMemoryCommand, { parentCommand: addCommand });
-    register(context, addGatewayCommand, { parentCommand: addCommand });
-    return addCommand;
+    register(context, addAgentCommand, { parentCommand: cmd });
+    register(context, addMemoryCommand, { parentCommand: cmd });
+    register(context, addGatewayCommand, { parentCommand: cmd });
+    return cmd;
   },
 };

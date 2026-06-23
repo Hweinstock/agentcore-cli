@@ -1,62 +1,53 @@
 import { ValidationError, err } from '../../common';
 import { withProject } from '../middleware';
-import type { Command, CommandHandler } from '../types';
-import * as z from 'zod';
+import type { Command, CommandFlags } from '../types';
+import z from 'zod';
 
-const schema = z.object({
-  prompt: z.string().optional(),
-  runtime: z.string().optional(),
-  port: z.number().optional(),
-  stream: z.boolean().optional(),
-  logs: z.boolean().optional(),
-});
+const flags = {
+  prompt: {
+    schema: z.string().optional(),
+    usage: '--prompt <prompt>',
+    description: 'Send a prompt to a running dev server',
+  },
+  runtime: { schema: z.string().optional(), usage: '-r, --runtime <name>', description: 'Agent to run or invoke' },
+  port: { schema: z.number().optional(), usage: '-p, --port <port>', description: 'Port for dev server' },
+  stream: { schema: z.boolean().optional(), usage: '-s, --stream', description: 'Stream response when invoking' },
+  logs: { schema: z.boolean().optional(), usage: '-l, --logs', description: 'Run dev server with logs to stdout' },
+} as const satisfies CommandFlags;
 
-const handler: CommandHandler<typeof schema> = async (context, input) => {
-  context.consoleLogger.info(`running dev handler`);
-
-  if (!context.project) return err(new Error('missing project'));
-  const project = context.project;
-
-  const agentsResult = await project.config.all();
-  if (!agentsResult.success) return agentsResult;
-  const agents = agentsResult.data.config.agents;
-
-  if (agents.length === 0) return err(new ValidationError('no agents in project'));
-
-  const agentName = input.runtime ?? (agents.length === 1 ? agents[0] : undefined);
-  if (!agentName) return err(new ValidationError('multiple agents found, specify --runtime'));
-  if (!agents.includes(agentName)) return err(new ValidationError(`agent "${agentName}" not found`));
-
-  const port = input.port ?? 8000;
-
-  // Invoke mode: send prompt to an already-running server
-  if (input.prompt) {
-    const invokeResult = await project.invokeDevServer({ port, prompt: input.prompt, stream: input.stream ?? false });
-    if (!invokeResult.success) return invokeResult;
-    if (!input.stream) {
-      context.consoleLogger.info(invokeResult.data.response);
-    }
-    return invokeResult;
-  }
-
-  // Server mode: start the dev server and block
-  return project.startDevServer({ agentName, port });
-};
-
-export const devCommand: Command<typeof schema> = {
+export const devCommand: Command<typeof flags> = {
   name: 'dev',
-  schema,
-  handler,
+  flags,
+  handler: async (context, input) => {
+    context.consoleLogger.info(`running dev handler`);
+
+    if (!context.project) return err(new Error('missing project'));
+    const project = context.project;
+
+    const agentsResult = await project.config.all();
+    if (!agentsResult.success) return agentsResult;
+    const agents = agentsResult.data.config.agents;
+
+    if (agents.length === 0) return err(new ValidationError('no agents in project'));
+
+    const agentName = input.runtime ?? (agents.length === 1 ? agents[0] : undefined);
+    if (!agentName) return err(new ValidationError('multiple agents found, specify --runtime'));
+    if (!agents.includes(agentName)) return err(new ValidationError(`agent "${agentName}" not found`));
+
+    const port = input.port ?? 8000;
+
+    if (input.prompt) {
+      const invokeResult = await project.invokeDevServer({ port, prompt: input.prompt, stream: input.stream ?? false });
+      if (!invokeResult.success) return invokeResult;
+      if (!input.stream) {
+        context.consoleLogger.info(invokeResult.data.response);
+      }
+      return invokeResult;
+    }
+
+    return project.startDevServer({ agentName, port });
+  },
   middleware: [withProject],
   setup: (_context, parentCommand) =>
-    parentCommand
-      .command('dev')
-      .description('Start local development server')
-      .showHelpAfterError()
-      .showSuggestionAfterError()
-      .option('--prompt <prompt>', 'Send a prompt to a running dev server')
-      .option('-r, --runtime <name>', 'Agent to run or invoke')
-      .option('-p, --port <port>', 'Port for dev server')
-      .option('-s, --stream', 'Stream response when invoking')
-      .option('-l, --logs', 'Run dev server with logs to stdout'),
+    parentCommand.command('dev').description('Start local development server').showHelpAfterError(),
 };
