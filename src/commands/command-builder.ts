@@ -26,16 +26,12 @@ export function register<F extends CommandFlags, A extends CommandArguments>(
   const cmd = command.setup(context, parentCommand);
 
   for (const flag of Object.values(command.flags ?? {})) {
+    if (flag.hidden?.()) continue;
     if (flag.required) {
       cmd.requiredOption(flag.usage, flag.description);
     } else {
       cmd.option(flag.usage, flag.description);
     }
-  }
-
-  for (const arg of command.arguments ?? []) {
-    const bracket = arg.required ? `<${arg.name}>` : `[${arg.name}]`;
-    cmd.argument(bracket, arg.description);
   }
 
   return cmd.action(toCommanderAction(context, command));

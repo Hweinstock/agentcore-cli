@@ -1,15 +1,11 @@
 import { register } from '../../command-builder';
-import { COMMON_FLAGS } from '../../flags';
-import type { Command, CommandFlags } from '../../types';
+import type { Command } from '../../types';
 import { addAgentCommand } from './agent';
 import { addGatewayCommand } from './gateway';
 import { addMemoryCommand } from './memory';
 
-const flags = { ...COMMON_FLAGS } as const satisfies CommandFlags;
-
-export const addCommand: Command<typeof flags> = {
+export const addCommand: Command = {
   name: 'add',
-  flags,
   handler: async context => {
     context.consoleLogger.info(`running root level add command`);
     return context.tuiScreenRenderer.render({ initialPath: '/add', enterAltScreen: false });

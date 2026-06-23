@@ -1,13 +1,10 @@
 import { register } from './command-builder';
 import { addCommand, configCommand, createCommand, deployCommand, devCommand, removeCommand } from './handlers';
-import type { Command, CommandFlags } from './types';
+import type { Command } from './types';
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 
-const flags = {} as const satisfies CommandFlags;
-
-export const rootCommand: Command<typeof flags> = {
+export const rootCommand: Command = {
   name: 'root',
-  flags,
   handler: async context => context.tuiScreenRenderer.render(),
   setup: context => {
     const parentCommand = new CommanderCommand();
