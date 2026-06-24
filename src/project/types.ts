@@ -26,6 +26,21 @@ export interface ProjectManagerContext {
   agentTemplateRenderer: TemplateRenderer<AgentTemplateValues>;
 }
 
+export interface OnProgressEvent {
+  step: string;
+}
+
+export interface CreateProjectOptions {
+  projectName: string;
+  noInstall?: boolean;
+  onProgress?: (event: OnProgressEvent) => void;
+}
+
+export interface ProjectManager {
+  create: (input: CreateProjectOptions) => Promise<Result<Project>>;
+  find: () => Promise<Result<Project>>;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface DeployProjectOptions {}
 

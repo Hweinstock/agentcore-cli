@@ -1,4 +1,4 @@
-import type { Result } from '../common/result';
+import type { Result } from '../common';
 import type { TelemetryConfig } from '../global-config';
 import type { Logger } from '../logging';
 import { type AttributeRecorder, createAttributeRecorder } from './recorder';

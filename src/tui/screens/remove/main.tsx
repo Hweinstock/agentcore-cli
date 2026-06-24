@@ -1,6 +1,6 @@
 import { buildScreen } from '../../base-screen';
-import { ListSelector } from '../../components/list-selector';
-import { useBack } from '../../hooks/use-back';
+import { ListSelector } from '../../components';
+import { useBack } from '../../hooks';
 import type { RouteEntry } from '../../types';
 import { type ReactElement } from 'react';
 import { useNavigate } from 'react-router';

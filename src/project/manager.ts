@@ -1,18 +1,8 @@
 import { type Result, ValidationError, err, ok } from '../common';
 import { getProject } from './project';
 import { scaffoldProject } from './scaffold';
-import type { Project, ProjectManagerContext } from './types';
+import type { CreateProjectOptions, OnProgressEvent, Project, ProjectManagerContext } from './types';
 import path from 'node:path';
-
-interface OnProgressEvent {
-  step: string;
-}
-
-interface CreateProjectOptions {
-  projectName: string;
-  noInstall?: boolean;
-  onProgress?: (event: OnProgressEvent) => void;
-}
 
 export interface ProjectManager {
   create: (input: CreateProjectOptions) => Promise<Result<Project>>;

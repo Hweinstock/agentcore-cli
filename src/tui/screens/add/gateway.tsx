@@ -1,5 +1,5 @@
 import { buildScreen } from '../../base-screen';
-import { useBack } from '../../hooks/use-back';
+import { useBack } from '../../hooks/';
 import { Box, Text } from 'ink';
 import { type ReactElement } from 'react';
 

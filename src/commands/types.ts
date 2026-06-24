@@ -1,6 +1,6 @@
 import type { Result } from '../common';
 import type { ProgramContext } from '../program-context';
-import type { Project } from '../project/types';
+import type { Project } from '../project';
 import type { AttributeRecorder, CommandRunAttributes } from '../telemetry';
 import type { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';

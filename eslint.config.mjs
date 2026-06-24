@@ -120,6 +120,12 @@ export default tseslint.config(
       'react-hooks/preserve-manual-memoization': 'warn',
       'react-refresh/only-export-components': ['warn', { allowConstantExport: true }],
       'import/no-unresolved': 'off', // TypeScript handles this
+      '@typescript-eslint/no-restricted-imports': ['error', {
+        patterns: [{
+          regex: '^(?:\\.\\.\\/)+([^.\\/][^\\/]*)\\/(.+)',
+          message: 'Import from the module index file instead of reaching into internal files.',
+        }],
+      }],
       // Allow intentional unused placeholders like `_unused`
       '@typescript-eslint/no-unused-vars': [
         'error',
@@ -143,6 +149,12 @@ export default tseslint.config(
     },
   },
   prettier,
+  {
+    files: ['src/testing/**', '**/*.test.*'],
+    rules: {
+      '@typescript-eslint/no-restricted-imports': 'off',
+    },
+  },
   {
     ignores: [
       'dist',
