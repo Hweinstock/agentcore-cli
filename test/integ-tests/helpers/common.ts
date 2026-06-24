@@ -25,11 +25,11 @@ export function randomProjectName(): string {
   return `test-${randomUUID().slice(0, 8)}`;
 }
 
-export function run(args: string[], options?: { cwd?: string }): RunResult {
+export function run(args: string[], options?: { cwd?: string; env?: Record<string, string> }): RunResult {
   const result = spawnSync(getCliPath(), args, {
     cwd: options?.cwd ?? getTmpDir(),
     encoding: 'utf-8',
-    env: { ...process.env, NO_COLOR: '1' },
+    env: { ...process.env, NO_COLOR: '1', ...options?.env },
   });
   return {
     stdout: result.stdout ?? '',

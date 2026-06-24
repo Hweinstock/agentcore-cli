@@ -10,7 +10,7 @@ export function buildSchema<F extends CommandFlags, A extends CommandArguments>(
 ): CommandSchema<F, A> {
   const shape = {
     ...Object.fromEntries(Object.entries(flags).map(([k, v]) => [k, v.schema])),
-    ...Object.fromEntries(Object.entries(args).map(([k, v]) => [k, v.schema])),
+    ...Object.fromEntries((Array.isArray(args) ? args : []).map(a => [a.name, a.schema])),
   };
 
   // entries erases type information, so we add it back before returning.
@@ -32,6 +32,10 @@ export function register<F extends CommandFlags, A extends CommandArguments>(
     } else {
       cmd.option(flag.usage, flag.description);
     }
+  }
+
+  for (const argument of command.arguments ?? []) {
+    cmd.argument(`[${argument.name}]`, argument.description);
   }
 
   return cmd.action(toCommanderAction(context, command));
@@ -67,12 +71,12 @@ function toCommanderAction<F extends CommandFlags, A extends CommandArguments>(
  * see https://github.com/tj/commander.js/blob/master/Readme.md#action-handler for more info;
  * */
 function parseCommanderArgs(args: unknown[], commandArgs: CommandArguments): Record<string, unknown> {
-  const argKeys = Object.keys(commandArgs);
+  const argDefs = Array.isArray(commandArgs) ? commandArgs : [];
   const options = args[args.length - 2] as Record<string, unknown>;
-  const positional = args.slice(0, argKeys.length);
+  const positional = args.slice(0, argDefs.length);
   const input = { ...options };
-  for (let i = 0; i < argKeys.length; i++) {
-    input[argKeys[i]!] = positional[i];
+  for (let i = 0; i < argDefs.length; i++) {
+    input[argDefs[i]!.name] = positional[i];
   }
   return input;
 }
