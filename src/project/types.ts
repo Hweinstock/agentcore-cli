@@ -2,8 +2,8 @@ import type { AsyncResult, ClientRegistry, GlobalConstants, JsonDatastore, Resul
 import type { EnvironmentAccessor } from '../env';
 import type { GlobalConfigAccessor } from '../global-config';
 import type { Logger } from '../logging';
-import type { AgentBuildType, AgentFramework, AgentLanguage, AgentMemory, AgentProtocol } from '../schemas';
 import type { TelemetryClient } from '../telemetry';
+import type { AgentBuildType, AgentFramework, AgentLanguage, AgentMemory, AgentProtocol } from './schemas';
 import type { AgentTemplateValues, TemplateRenderer } from './templates';
 import z from 'zod';
 

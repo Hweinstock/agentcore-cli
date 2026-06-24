@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+// TODO: this is where all the schemas will live.
+
 export const agentLanguageSchema = z.enum(['python', 'typescript']);
 export const agentFrameworkSchema = z.enum(['strands', 'vercel', 'langchain_langgraph']);
 export const agentProtocolSchema = z.enum(['http', 'mcp']);
