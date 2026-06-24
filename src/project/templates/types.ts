@@ -7,6 +7,9 @@ export interface TemplateRendererContext {
   fs: FilesystemAccessor;
 }
 
+/**
+ * This is the general interface over handlebars that manages the rendering of templates.
+ */
 export interface TemplateRenderer<T> {
   renderString(str: string, templateValues: T): Result<string, ValidationError | TemplateError>;
   renderFile(

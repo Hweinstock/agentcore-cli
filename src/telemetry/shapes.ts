@@ -1,4 +1,5 @@
 // placeholder for real telemetry schema.
+// these will be validated via zod.
 
 export interface CommonAttributes {
   duration: number;

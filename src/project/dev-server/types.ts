@@ -7,6 +7,9 @@ export interface DevServerOptions {
   env: Record<string, string>;
 }
 
+/**
+ * depending on the language, framework, etc. the running logic may be different. For each different setup, we can implement the following interface.
+ */
 export interface DevServerRunner {
   setup: (options: DevServerOptions) => Promise<Result>;
   start: (options: DevServerOptions) => ChildProcessHandle;

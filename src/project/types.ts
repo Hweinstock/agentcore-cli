@@ -63,6 +63,7 @@ export type ProjectConfigAccessor<S extends Record<string, unknown> = ProjectCon
 
 export interface Project {
   addAgent: (input: AddAgentOptions) => Promise<Result>;
+  // TODO: deployment will likely need to be its own module/functionality that is injected into here.
   deploy: (input: DeployProjectOptions) => Promise<Result>;
   startDevServer: (input: StartDevServerOptions) => Promise<Result>;
   invokeDevServer: (input: InvokeDevServerOptions) => Promise<Result<{ response: string }>>;
