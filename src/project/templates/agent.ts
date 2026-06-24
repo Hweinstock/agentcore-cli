@@ -1,4 +1,4 @@
-import { agentFrameworkSchema, agentLanguageSchema, agentProtocolSchema, modelProviderSchema } from '../schemas';
+import { agentFrameworkSchema, agentLanguageSchema, agentProtocolSchema, modelProviderSchema } from '../../schemas';
 import { HandlebarsTemplateEngine, type TemplateHelper } from './handlebars';
 import type { TemplateRenderer, TemplateRendererContext } from './types';
 import { z } from 'zod';

@@ -1,10 +1,11 @@
-import { getInMemoryProject, getTestCommandContext } from '../../../testing';
+import { ProjectTestingHelpers } from '../../../project';
+import { getTestCommandContext } from '../../testing';
 import { removeGatewayCommand } from './gateway';
 import { describe, expect, it } from 'vitest';
 
 describe('remove gateway handler', () => {
   it('removes gateway from config', async () => {
-    const project = getInMemoryProject();
+    const project = ProjectTestingHelpers.getInMemoryProject();
     await project.config.add('gateways', 'my-gateway');
     const context = getTestCommandContext({ project });
 

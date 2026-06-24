@@ -1,11 +1,11 @@
-import { getInMemoryProject, getTestCommandContext } from '../../../testing';
+import { ProjectTestingHelpers } from '../../../project';
+import { getTestCommandContext } from '../../testing';
 import { removeMemoryCommand } from './memory';
 import { describe, expect, it } from 'vitest';
 
 describe('remove memory handler', () => {
   it('removes memory from config', async () => {
-    const project = getInMemoryProject();
-    await project.config.add('memories', 'my-memory');
+    const project = ProjectTestingHelpers.getInMemoryProject();
     const context = getTestCommandContext({ project });
 
     const result = await removeMemoryCommand.handler(context, { name: 'my-memory' });

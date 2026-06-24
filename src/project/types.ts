@@ -1,11 +1,11 @@
-import type { ClientRegistry, GlobalConstants, Result } from '../common';
+import type { AsyncResult, ClientRegistry, GlobalConstants, JsonDatastore, Result } from '../common';
 import type { EnvironmentAccessor } from '../env';
 import type { GlobalConfigAccessor } from '../global-config';
 import type { Logger } from '../logging';
 import type { AgentBuildType, AgentFramework, AgentLanguage, AgentMemory, AgentProtocol } from '../schemas';
 import type { TelemetryClient } from '../telemetry';
-import type { AgentTemplateValues, TemplateRenderer } from '../templates';
-import type { ProjectConfigAccessor } from './config-accessor';
+import type { AgentTemplateValues, TemplateRenderer } from './templates';
+import z from 'zod';
 
 export interface AddAgentOptions {
   agentName: string;
@@ -36,11 +36,6 @@ export interface CreateProjectOptions {
   onProgress?: (event: OnProgressEvent) => void;
 }
 
-export interface ProjectManager {
-  create: (input: CreateProjectOptions) => Promise<Result<Project>>;
-  find: () => Promise<Result<Project>>;
-}
-
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type
 interface DeployProjectOptions {}
 
@@ -55,10 +50,26 @@ interface InvokeDevServerOptions {
   stream: boolean;
 }
 
+// This is a simplified config, intended to represent the agentcore.json schema.
+export const projectConfigSchema = z.object({
+  agents: z.array(z.string()),
+  memories: z.array(z.string()),
+  gateways: z.array(z.string()),
+  harnesses: z.array(z.string()),
+});
+export type ProjectConfig = z.infer<typeof projectConfigSchema>;
+
+export type ProjectConfigAccessor<S extends Record<string, unknown> = ProjectConfig> = JsonDatastore<S>;
+
 export interface Project {
   addAgent: (input: AddAgentOptions) => Promise<Result>;
   deploy: (input: DeployProjectOptions) => Promise<Result>;
   startDevServer: (input: StartDevServerOptions) => Promise<Result>;
   invokeDevServer: (input: InvokeDevServerOptions) => Promise<Result<{ response: string }>>;
   config: ProjectConfigAccessor;
+}
+
+export interface ProjectManager {
+  create: (input: CreateProjectOptions) => AsyncResult<Project>;
+  find: () => AsyncResult<Project>;
 }

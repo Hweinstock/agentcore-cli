@@ -26,7 +26,7 @@ async function resolveAssetsPath(
   return ok({ path: targetPath });
 }
 
-export function getProject(context: ProjectManagerContext, options: GetProjectOptions): Project {
+export function getDefaultProject(context: ProjectManagerContext, options: GetProjectOptions): Project {
   const { projectName, path: projectPath } = options;
 
   const config = getProjectConfigAccessor(context, projectPath);

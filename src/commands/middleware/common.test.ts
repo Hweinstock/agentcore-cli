@@ -1,5 +1,5 @@
 import { ok } from '../../common';
-import { getTestCommand, getTestCommandContext } from '../../testing';
+import { getTestCommand, getTestCommandContext } from '../testing';
 import type { CommandContext } from '../types';
 import { withLogging, withTelemetry } from './common';
 import { describe, expect, it } from 'vitest';

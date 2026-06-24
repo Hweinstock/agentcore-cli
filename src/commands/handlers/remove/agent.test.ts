@@ -1,10 +1,11 @@
-import { getInMemoryProject, getTestCommandContext } from '../../../testing';
+import { ProjectTestingHelpers } from '../../../project';
+import { getTestCommandContext } from '../../testing';
 import { removeAgentCommand } from './agent';
 import { describe, expect, it } from 'vitest';
 
 describe('remove agent handler', () => {
   it('removes agent from config', async () => {
-    const project = getInMemoryProject();
+    const project = ProjectTestingHelpers.getInMemoryProject();
     await project.config.add('agents', 'my-agent');
     const context = getTestCommandContext({ project });
 

@@ -1,10 +1,11 @@
-import { getInMemoryProject, getTestCommandContext } from '../../../testing';
+import { ProjectTestingHelpers } from '../../../project';
+import { getTestCommandContext } from '../../testing';
 import { addAgentCommand } from './agent';
 import { describe, expect, it } from 'vitest';
 
 describe('add agent handler', () => {
   it('adds agent with defaults when only name is provided', async () => {
-    const project = getInMemoryProject();
+    const project = ProjectTestingHelpers.getInMemoryProject();
     const context = getTestCommandContext({ project });
     const result = await addAgentCommand.handler(context, { name: 'my-agent' });
 
@@ -15,7 +16,7 @@ describe('add agent handler', () => {
   });
 
   it('passes explicit options through', async () => {
-    const project = getInMemoryProject();
+    const project = ProjectTestingHelpers.getInMemoryProject();
     const context = getTestCommandContext({ project });
     const result = await addAgentCommand.handler(context, {
       name: 'ts-agent',

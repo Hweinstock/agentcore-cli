@@ -3,9 +3,8 @@ import { AgentCoreError, type Result, getClientRegistry, getGlobalConstants } fr
 import { getEnvironmentAccessor } from './env';
 import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
 import { type Logger, getConsoleLogger, getFileLogger } from './logging';
-import { getProjectManager } from './project';
+import { getAgentTemplateRenderer, getProjectManager } from './project';
 import { getTelemetryClient } from './telemetry';
-import { getAgentTemplateRenderer } from './templates';
 import { getTuiScreenRenderer } from './tui';
 
 /**

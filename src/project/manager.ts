@@ -1,15 +1,10 @@
-import { type Result, ValidationError, err, ok } from '../common';
-import { getProject } from './project';
+import { ValidationError, err, ok } from '../common';
+import { getDefaultProject } from './project';
 import { scaffoldProject } from './scaffold';
-import type { CreateProjectOptions, OnProgressEvent, Project, ProjectManagerContext } from './types';
+import type { OnProgressEvent, ProjectManager, ProjectManagerContext } from './types';
 import path from 'node:path';
 
-export interface ProjectManager {
-  create: (input: CreateProjectOptions) => Promise<Result<Project>>;
-  find: () => Promise<Result<Project>>;
-}
-
-export function getProjectManager(context: ProjectManagerContext): ProjectManager {
+export function getDefaultProjectManager(context: ProjectManagerContext): ProjectManager {
   const projectManagerLogger = context.logger.child({ module: 'project-manager' });
 
   const newContext = {
@@ -96,7 +91,7 @@ export function getProjectManager(context: ProjectManagerContext): ProjectManage
 
       const projectName = path.basename(cwd);
       projectManagerLogger.debug(`project found: ${projectName} at ${cwd}`);
-      return ok(getProject(context, { path: cwd, projectName }));
+      return ok(getDefaultProject(context, { path: cwd, projectName }));
     },
   };
 }

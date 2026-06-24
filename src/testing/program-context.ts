@@ -1,15 +1,14 @@
-import { err, getGlobalConstants, getJsonDatastore, inMemorySource, ok } from '../common';
-import { getEnvironmentAccessor } from '../env/accessor';
+import { getClientRegistry, getGlobalConstants, getJsonDatastore, inMemorySource, ok } from '../common';
+import { getEnvironmentAccessor } from '../env';
 import { globalConfigSchema } from '../global-config';
 import { getNullLogger } from '../logging';
 import type { ProgramContext } from '../program-context';
-import type { ProjectManager } from '../project';
-import type { Project } from '../project/types';
-import { getNullTelemetryClient } from '../telemetry/client';
-import { getInMemoryProject } from './in-memory-project';
+import { getAgentTemplateRenderer, getProjectManager } from '../project';
+import { getNullTelemetryClient } from '../telemetry';
 
 export function getTestProgramContext(overrides?: Partial<ProgramContext>): ProgramContext {
   const logger = getNullLogger();
+  const telemetryClient = getNullTelemetryClient({ logger });
   const globalConfigAccessor = getJsonDatastore({}, { schema: globalConfigSchema, source: inMemorySource({}) });
 
   const environmentAccessor = getEnvironmentAccessor(
@@ -22,15 +21,6 @@ export function getTestProgramContext(overrides?: Partial<ProgramContext>): Prog
     }
   );
 
-  let project: Project | undefined;
-  const projectManager: ProjectManager = {
-    create: async () => {
-      project = getInMemoryProject();
-      return ok(project);
-    },
-    find: () => (project ? Promise.resolve(ok(project)) : Promise.resolve(err(new Error('no project')))),
-  };
-
   return {
     globalConstants: getGlobalConstants(),
     fileLogger: logger,
@@ -39,7 +29,15 @@ export function getTestProgramContext(overrides?: Partial<ProgramContext>): Prog
     globalConfigAccessor,
     environmentAccessor,
     tuiScreenRenderer: { render: () => Promise.resolve(ok()) },
-    projectManager,
+    projectManager: getProjectManager({
+      logger,
+      telemetryClient,
+      globalConfigAccessor,
+      env: environmentAccessor,
+      constants: getGlobalConstants(),
+      clientRegistry: getClientRegistry({ logger }),
+      agentTemplateRenderer: getAgentTemplateRenderer({ logger, fs: environmentAccessor.fs }),
+    }),
     ...overrides,
   };
 }

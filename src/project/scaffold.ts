@@ -1,6 +1,6 @@
 import { type Result, collect, ok } from '../common';
 import { getDefaultProjectConfig } from './config-accessor';
-import { getProject } from './project';
+import { getDefaultProject } from './project';
 import type { Project, ProjectManagerContext } from './types';
 import path from 'node:path';
 
@@ -80,5 +80,5 @@ export async function scaffoldProject(
     if (!npmInstallResult.success) return npmInstallResult;
   }
 
-  return ok(getProject(context, { path: options.outputDir, projectName: options.projectName }));
+  return ok(getDefaultProject(context, { path: options.outputDir, projectName: options.projectName }));
 }

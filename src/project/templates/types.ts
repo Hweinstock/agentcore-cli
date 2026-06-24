@@ -1,6 +1,6 @@
-import type { AsyncResult, FileSystemIOError, Result, TemplateError, ValidationError } from '../common';
-import type { FilesystemAccessor } from '../env';
-import type { Logger } from '../logging';
+import type { AsyncResult, FileSystemIOError, Result, TemplateError, ValidationError } from '../../common';
+import type { FilesystemAccessor } from '../../env';
+import type { Logger } from '../../logging';
 
 export interface TemplateRendererContext {
   logger: Logger;

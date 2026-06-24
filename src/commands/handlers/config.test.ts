@@ -1,5 +1,5 @@
 import { ValidationError } from '../../common';
-import { getTestCommandContext } from '../../testing';
+import { getTestCommandContext } from '../testing';
 import { configCommand } from './config';
 import { describe, expect, it } from 'vitest';
 

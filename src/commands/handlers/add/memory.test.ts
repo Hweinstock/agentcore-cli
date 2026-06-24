@@ -1,10 +1,11 @@
-import { getInMemoryProject, getTestCommandContext } from '../../../testing';
+import { ProjectTestingHelpers } from '../../../project';
+import { getTestCommandContext } from '../../testing';
 import { addMemoryCommand } from './memory';
 import { describe, expect, it } from 'vitest';
 
 describe('add memory handler', () => {
   it('adds memory to config', async () => {
-    const project = getInMemoryProject();
+    const project = ProjectTestingHelpers.getInMemoryProject();
     const context = getTestCommandContext({ project });
     const result = await addMemoryCommand.handler(context, { name: 'my-memory' });
 

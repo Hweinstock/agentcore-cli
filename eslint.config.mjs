@@ -150,12 +150,6 @@ export default tseslint.config(
   },
   prettier,
   {
-    files: ['src/testing/**', '**/*.test.*'],
-    rules: {
-      '@typescript-eslint/no-restricted-imports': 'off',
-    },
-  },
-  {
     ignores: [
       'dist',
       'node_modules',

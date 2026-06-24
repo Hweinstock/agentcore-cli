@@ -1,4 +1,4 @@
-import { retry } from '../common/utils/poll';
+import { retry } from '../common';
 import { type TempDir, createTempDir } from '../testing';
 import { getFileLogger } from './file-logger';
 import { existsSync, readFileSync } from 'node:fs';

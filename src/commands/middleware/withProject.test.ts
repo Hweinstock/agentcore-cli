@@ -1,5 +1,6 @@
 import { NoProjectFoundError, ok } from '../../common';
-import { getTestCommand, getTestCommandContext } from '../../testing';
+import { ProjectTestingHelpers } from '../../project';
+import { getTestCommand, getTestCommandContext } from '../testing';
 import type { CommandContext } from '../types';
 import { withProject } from './withProject';
 import { describe, expect, it } from 'vitest';
@@ -13,11 +14,19 @@ describe('withProject', () => {
         return ok();
       },
     });
-    const context = getTestCommandContext();
+    const projectManager = ProjectTestingHelpers.getInMemoryProjectManager();
+    // create a project for the middleware to find.
+    const projectCreationResult = await projectManager.create({ projectName: 'test-project' });
+
+    projectCreationResult.unwrap();
+
+    const context = getTestCommandContext({ projectManager });
     await context.projectManager.create({ projectName: 'test' });
     const wrapped = withProject(command);
 
-    await wrapped.handler(context, {});
+    const commandResult = await wrapped.handler(context, {});
+
+    commandResult.unwrap();
 
     expect(capturedContext).toBeDefined();
     expect(capturedContext!.project).toBeDefined();

@@ -1,10 +1,11 @@
-import { getInMemoryProject, getTestCommandContext } from '../../../testing';
+import { ProjectTestingHelpers } from '../../../project';
+import { getTestCommandContext } from '../../testing';
 import { addGatewayCommand } from './gateway';
 import { describe, expect, it } from 'vitest';
 
 describe('add gateway handler', () => {
   it('adds gateway to config', async () => {
-    const project = getInMemoryProject();
+    const project = ProjectTestingHelpers.getInMemoryProject();
     const context = getTestCommandContext({ project });
     const result = await addGatewayCommand.handler(context, { name: 'my-gateway' });
 
