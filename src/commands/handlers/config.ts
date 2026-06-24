@@ -37,11 +37,12 @@ export const configCommand: Command<typeof flags, typeof args> = {
       return ok(configResult.data.value);
     }
 
-    if (!accessor.isValidPathValue(input.key, tryParseJson(input.value) as string)) {
-      return err(new ValidationError(`invalid value for ${input.key}: ${input.value}`));
+    // TS is not able to infer that this is always a string since the json string we pass in always resolves to a string.
+    const inputValue = tryParseJson(input.value, input.value).data;
+    if (!accessor.isValidPathValue(input.key, inputValue)) {
+      return err(new ValidationError(`invalid value ${input.value} for ${input.key}. type=${typeof input.value}`));
     }
-
-    const configResult = await accessor.set(input.key, tryParseJson(input.value) as string);
+    const configResult = await accessor.set(input.key, inputValue);
     if (!configResult.success) return configResult;
     context.consoleLogger.info(`set ${input.key}=${input.value}`);
     return ok(configResult.data.value);

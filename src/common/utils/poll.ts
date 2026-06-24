@@ -1,3 +1,5 @@
+import { PollTimeoutError } from '../errors';
+
 interface RetryOpts<T> {
   operation: () => T | Promise<T>;
   condition: (result: T) => boolean;
@@ -22,5 +24,5 @@ export const retry = async <T>({
     }
     await new Promise(r => setTimeout(r, interval));
   }
-  throw new Error(`retry exhausted after ${maxAttempts} attempts`);
+  throw new PollTimeoutError(`retry exhausted after ${maxAttempts} attempts`);
 };

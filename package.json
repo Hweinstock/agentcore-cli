@@ -50,8 +50,8 @@
     "security:audit": "npm audit --audit-level=high --omit=dev",
     "prepare": "husky",
     "dev": "npm run build && npm pack && npm install -g ./aws-agentcore-*.tgz && rm -f ./aws-agentcore-*.tgz",
-    "test": "vitest run --project unit",
-    "test:integ": "npm run dev && AGENTCORE_CLI_PATH=$(npm prefix -g)/bin/agentcore vitest run --project integ",
+    "test:unit": "vitest run --project unit",
+    "test:integ": "npm run build && AGENTCORE_CLI_PATH=$PWD/dist/index.mjs vitest run --project integ",
     "test:update-snapshots": "vitest run --project unit --update"
   },
   "dependencies": {

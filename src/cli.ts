@@ -5,6 +5,7 @@ import { type GlobalConfig, getGlobalConfigAccessor } from './global-config';
 import { type Logger, getConsoleLogger, getFileLogger } from './logging';
 import { getProjectManager } from './project';
 import { getTelemetryClient } from './telemetry';
+import { getAgentTemplateRenderer } from './templates';
 import { getTuiScreenRenderer } from './tui';
 
 /**
@@ -38,6 +39,7 @@ export async function main(args: string[]): Promise<void> {
     env: environmentAccessor,
     constants: globalConstants,
     clientRegistry,
+    agentTemplateRenderer: getAgentTemplateRenderer({ logger: fileLogger, fs: environmentAccessor.fs }),
   });
 
   const tuiScreenRenderer = getTuiScreenRenderer({

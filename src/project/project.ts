@@ -1,64 +1,12 @@
 import { type Result, ValidationError, err, ok } from '../common';
 import { getProjectConfigAccessor } from './config-accessor';
 import { resolveRunner } from './dev-server';
-import type { Project, ProjectManagerContext } from './types';
-import Handlebars from 'handlebars';
+import type { AddAgentOptions, Project, ProjectManagerContext } from './types';
 import path from 'node:path';
-
-Handlebars.registerHelper('eq', (a: unknown, b: unknown) => a === b);
-Handlebars.registerHelper(
-  'includes',
-  (array: unknown[], value: unknown) => Array.isArray(array) && array.includes(value)
-);
-Handlebars.registerHelper('snakeCase', (str: string) => str.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase());
-Handlebars.registerHelper('pathSlug', (str: string) =>
-  str
-    .replace(/[^a-zA-Z0-9]/g, '_')
-    .replace(/^_+/, '')
-    .replace(/_+/g, '_')
-    .toLowerCase()
-);
 
 interface GetProjectOptions {
   projectName: string;
   path: string;
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const TEMPLATE = {
-  LANGUAGES: ['python', 'typescript'] as const,
-  FRAMEWORKS: ['strands', 'vercel', 'langchain_langgraph'] as const,
-  PROTOCOLS: ['http', 'mcp'] as const,
-  MEMORY_OPTIONS: ['none', 'longAndShort', 'short'] as const,
-  BUILD_TYPES: ['container', 'codezip'] as const,
-};
-
-type TempateOptions<K extends keyof typeof TEMPLATE> = (typeof TEMPLATE)[K][number];
-
-export interface AddAgentOptions {
-  agentName: string;
-  language: TempateOptions<'LANGUAGES'>;
-  framework: TempateOptions<'FRAMEWORKS'>;
-  protocol: TempateOptions<'PROTOCOLS'>;
-  memory: TempateOptions<'MEMORY_OPTIONS'>;
-  buildType: TempateOptions<'BUILD_TYPES'>;
-}
-
-interface RenderTemplateOptions {
-  sourcePath: string;
-  destinationPath: string;
-  templateValues: {
-    name: string;
-    agentName: string;
-    projectName: string;
-    language: TempateOptions<'LANGUAGES'>;
-    framework: TempateOptions<'FRAMEWORKS'>;
-    protocol: TempateOptions<'PROTOCOLS'>;
-    modelProvider: 'Bedrock' | 'Anthropic' | 'OpenAI' | 'Gemini';
-    hasMemory: boolean;
-    hasGateway: boolean;
-    hasConfigBundle: boolean;
-  };
 }
 
 async function resolveAssetsPath(
@@ -76,36 +24,6 @@ async function resolveAssetsPath(
     );
 
   return ok({ path: targetPath });
-}
-
-async function renderTemplate(context: ProjectManagerContext, options: RenderTemplateOptions): Promise<Result> {
-  const { sourcePath, destinationPath, templateValues } = options;
-  const { fs } = context.env;
-
-  const mkdirResult = await fs.mkdir(destinationPath, { recursive: true });
-  if (!mkdirResult.success) return mkdirResult;
-
-  const entriesResult = await fs.readdir(sourcePath, { withFileTypes: true });
-  if (!entriesResult.success) return entriesResult;
-
-  for (const entry of entriesResult.data) {
-    const srcPath = path.join(sourcePath, entry.name);
-    const destPath = path.join(destinationPath, entry.name);
-
-    if (entry.isDirectory()) {
-      const r = await renderTemplate(context, { sourcePath: srcPath, destinationPath: destPath, templateValues });
-      if (!r.success) return r;
-    } else {
-      const readResult = await fs.readFile(srcPath, 'utf-8');
-      if (!readResult.success) return readResult;
-
-      const rendered = Handlebars.compile(readResult.data)(templateValues);
-      const writeResult = await fs.writeFile(destPath, rendered);
-      if (!writeResult.success) return writeResult;
-    }
-  }
-
-  return ok();
 }
 
 export function getProject(context: ProjectManagerContext, options: GetProjectOptions): Project {
@@ -128,10 +46,9 @@ export function getProject(context: ProjectManagerContext, options: GetProjectOp
       const templatePath = resolveTemplateResult.data.path;
 
       const agentDir = path.join(projectPath, 'app', options.agentName);
-      const renderResult = await renderTemplate(context, {
-        sourcePath: path.join(templatePath, 'base'),
-        destinationPath: agentDir,
-        templateValues: {
+      const renderResult = await context.agentTemplateRenderer.renderDir(
+        path.join(templatePath, 'base'),
+        {
           name: options.agentName,
           agentName: options.agentName,
           language: options.language,
@@ -143,7 +60,8 @@ export function getProject(context: ProjectManagerContext, options: GetProjectOp
           hasGateway: false,
           hasConfigBundle: false,
         },
-      });
+        agentDir
+      );
 
       if (!renderResult.success) {
         await context.env.fs.rm(agentDir, { recursive: true, force: true });

@@ -2,9 +2,19 @@ import type { ClientRegistry, GlobalConstants, Result } from '../common';
 import type { EnvironmentAccessor } from '../env';
 import type { GlobalConfigAccessor } from '../global-config';
 import type { Logger } from '../logging';
+import type { AgentBuildType, AgentFramework, AgentLanguage, AgentMemory, AgentProtocol } from '../schemas';
 import type { TelemetryClient } from '../telemetry';
+import type { AgentTemplateValues, TemplateRenderer } from '../templates';
 import type { ProjectConfigAccessor } from './config-accessor';
-import type { AddAgentOptions } from './project';
+
+export interface AddAgentOptions {
+  agentName: string;
+  language: AgentLanguage;
+  framework: AgentFramework;
+  protocol: AgentProtocol;
+  memory: AgentMemory;
+  buildType: AgentBuildType;
+}
 
 export interface ProjectManagerContext {
   logger: Logger;
@@ -13,6 +23,7 @@ export interface ProjectManagerContext {
   env: EnvironmentAccessor;
   constants: GlobalConstants;
   clientRegistry: ClientRegistry;
+  agentTemplateRenderer: TemplateRenderer<AgentTemplateValues>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-empty-object-type

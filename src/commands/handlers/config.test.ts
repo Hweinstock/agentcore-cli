@@ -26,7 +26,7 @@ describe('config handler', () => {
     const context = getTestCommandContext();
     const result = await configCommand.handler(context, { key: 'telemetry.enabled', value: 'true' });
 
-    expect(result.success).toBe(true);
+    result.unwrap();
 
     const getResult = await context.globalConfigAccessor.get('telemetry.enabled');
     expect(getResult.success && getResult.data.value).toBe(true);
@@ -36,15 +36,13 @@ describe('config handler', () => {
     const context = getTestCommandContext();
     const result = await configCommand.handler(context, { key: 'nonexistent.path' });
 
-    expect(result.success).toBe(false);
-    expect(!result.success && result.error).toBeInstanceOf(ValidationError);
+    expect(() => result.unwrap()).toThrow(ValidationError);
   });
 
   it('returns error for invalid value', async () => {
     const context = getTestCommandContext();
     const result = await configCommand.handler(context, { key: 'telemetry.enabled', value: 'notaboolean' });
 
-    expect(result.success).toBe(false);
-    expect(!result.success && result.error).toBeInstanceOf(ValidationError);
+    expect(() => result.unwrap()).toThrow(ValidationError);
   });
 });

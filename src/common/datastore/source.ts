@@ -1,4 +1,5 @@
-import { type Result, ok, wrap, wrapAsync } from '../result';
+import { FileSystemIOError, ValidationError } from '../errors';
+import { type Result, err, ok } from '../result';
 import { mkdirSync, readFileSync, writeFileSync } from 'fs';
 import { mkdir, readFile, writeFile } from 'fs/promises';
 import { dirname } from 'path';
@@ -19,20 +20,38 @@ export interface DataSource {
  * unreadable file reads as an empty document.
  */
 export const jsonFileSource = (filePath: string): DataSource => ({
-  read: wrapAsync(async () => {
-    return JSON.parse(await readFile(filePath, 'utf-8')) as unknown;
-  }),
-  write: wrapAsync(async (data: unknown) => {
-    await mkdir(dirname(filePath), { recursive: true });
-    await writeFile(filePath, JSON.stringify(data, undefined, 2));
-  }),
-  readSync: wrap(() => {
-    return JSON.parse(readFileSync(filePath, 'utf-8')) as unknown;
-  }),
-  writeSync: wrap((data: unknown) => {
-    mkdirSync(dirname(filePath), { recursive: true });
-    writeFileSync(filePath, JSON.stringify(data, undefined, 2));
-  }),
+  read: async () => {
+    try {
+      return ok(JSON.parse(await readFile(filePath, 'utf-8')) as unknown);
+    } catch (e) {
+      return err(new FileSystemIOError((e as Error).message));
+    }
+  },
+  write: async (data: unknown) => {
+    try {
+      await mkdir(dirname(filePath), { recursive: true });
+      await writeFile(filePath, JSON.stringify(data, undefined, 2));
+      return ok(undefined);
+    } catch (e) {
+      return err(new FileSystemIOError((e as Error).message));
+    }
+  },
+  readSync: () => {
+    try {
+      return ok(JSON.parse(readFileSync(filePath, 'utf-8')) as unknown);
+    } catch (e) {
+      return err(new FileSystemIOError((e as Error).message));
+    }
+  },
+  writeSync: (data: unknown) => {
+    try {
+      mkdirSync(dirname(filePath), { recursive: true });
+      writeFileSync(filePath, JSON.stringify(data, undefined, 2));
+      return ok(undefined);
+    } catch (e) {
+      return err(new FileSystemIOError((e as Error).message));
+    }
+  },
 });
 
 /**
@@ -41,15 +60,35 @@ export const jsonFileSource = (filePath: string): DataSource => ({
 export function inMemorySource(initial: unknown = {}): DataSource {
   let stored: unknown = initial;
   return {
-    read: () => Promise.resolve(ok(structuredClone(stored))),
-    write: (value: unknown) => {
-      stored = structuredClone(value);
-      return Promise.resolve(ok(undefined));
+    read: async () => {
+      try {
+        return ok(structuredClone(stored));
+      } catch (e) {
+        return err(new ValidationError((e as Error).message));
+      }
     },
-    readSync: () => ok(structuredClone(stored)),
+    write: async (value: unknown) => {
+      try {
+        stored = structuredClone(value);
+        return ok(undefined);
+      } catch (e) {
+        return err(new ValidationError((e as Error).message));
+      }
+    },
+    readSync: () => {
+      try {
+        return ok(structuredClone(stored));
+      } catch (e) {
+        return err(new ValidationError((e as Error).message));
+      }
+    },
     writeSync: (value: unknown) => {
-      stored = structuredClone(value);
-      return ok(undefined);
+      try {
+        stored = structuredClone(value);
+        return ok(undefined);
+      } catch (e) {
+        return err(new ValidationError((e as Error).message));
+      }
     },
   };
 }

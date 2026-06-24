@@ -1,5 +1,5 @@
 import { type Logger, getNullLogger } from '../../logging';
-import { FileSystemIOError, ValidationError } from '../errors';
+import { ConfigReadError, FileSystemIOError, ValidationError } from '../errors';
 import { type Result, err, ok } from '../result';
 import type { DataSource } from './source';
 import stableStringify from 'fast-json-stable-stringify';
@@ -87,7 +87,7 @@ export function getJsonDatastore<S extends z.ZodType>(
     if (useCache && cachedConfigData) return ok({ config: cachedConfigData });
     const readResult = sync ? opts.source.readSync() : opts.source.read();
     return then(readResult, read => {
-      if (!read.success) return err(new FileSystemIOError(read.error.message));
+      if (!read.success) return err(new ConfigReadError(read.error.message));
 
       const parsed = opts.schema.safeParse(read.data);
       if (!parsed.success) return err(new ValidationError(parsed.error.message));

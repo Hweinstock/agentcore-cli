@@ -34,3 +34,30 @@ export class NoProjectFoundError extends AgentCoreError {
     });
   }
 }
+
+export class ConfigReadError extends AgentCoreError {
+  constructor(message: string, options?: AgentCoreErrorOptions) {
+    super(message, {
+      exitCode: options?.exitCode ?? 1,
+      source: options?.source ?? 'user',
+    });
+  }
+}
+
+export class PollTimeoutError extends AgentCoreError {
+  constructor(message: string, options?: AgentCoreErrorOptions) {
+    super(message, {
+      exitCode: options?.exitCode ?? 1,
+      source: options?.source ?? 'service',
+    });
+  }
+}
+
+export class TemplateError extends AgentCoreError {
+  constructor(message: string, options?: AgentCoreErrorOptions) {
+    super(message, {
+      exitCode: options?.exitCode ?? 1,
+      source: options?.source ?? 'client',
+    });
+  }
+}

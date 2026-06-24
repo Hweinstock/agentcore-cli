@@ -4,10 +4,10 @@ import type { Command, CommandArguments, CommandContext, CommandFlags, CommandSc
 import { Command as CommanderCommand } from '@commander-js/extra-typings';
 import z from 'zod';
 
-export function buildSchema<F extends CommandFlags, A extends CommandArguments>(
-  flags: F,
-  args: A
-): CommandSchema<F, A> {
+/**
+ * Build a zod schema for a command by combining the flag and argument definitions.
+ */
+function buildSchema<F extends CommandFlags, A extends CommandArguments>(flags: F, args: A): CommandSchema<F, A> {
   const shape = {
     ...Object.fromEntries(Object.entries(flags).map(([k, v]) => [k, v.schema])),
     ...Object.fromEntries((Array.isArray(args) ? args : []).map(a => [a.name, a.schema])),
@@ -17,6 +17,9 @@ export function buildSchema<F extends CommandFlags, A extends CommandArguments>(
   return z.object(shape) as CommandSchema<F, A>;
 }
 
+/**
+ * Register a command with commander.
+ */
 export function register<F extends CommandFlags, A extends CommandArguments>(
   context: CommandContext,
   command: Command<F, A>,
@@ -41,6 +44,9 @@ export function register<F extends CommandFlags, A extends CommandArguments>(
   return cmd.action(toCommanderAction(context, command));
 }
 
+/**
+ * Transform a command into a commander action with common middleware, and input validation.
+ */
 function toCommanderAction<F extends CommandFlags, A extends CommandArguments>(
   context: CommandContext,
   command: Command<F, A>
@@ -67,6 +73,8 @@ function toCommanderAction<F extends CommandFlags, A extends CommandArguments>(
  *
  * Commander actions are setup like:
  * (arg_1, arg_2, .... arg_3, flags, cmd)
+ *
+ * this function allows us to treat it as a single object keyed by the names of the arguments/flags.
  *
  * see https://github.com/tj/commander.js/blob/master/Readme.md#action-handler for more info;
  * */

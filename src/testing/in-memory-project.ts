@@ -1,7 +1,6 @@
 import { type Result, getJsonDatastore, inMemorySource, ok } from '../common';
 import { projectConfigSchema } from '../project/config-accessor';
-import type { AddAgentOptions } from '../project/project';
-import type { Project } from '../project/types';
+import type { AddAgentOptions , Project } from '../project/types';
 
 export interface InMemoryProject extends Project {
   agents: AddAgentOptions[];
