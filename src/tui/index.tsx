@@ -1,4 +1,3 @@
-import React from "react";
 import { render } from "ink";
 import { Root } from "../components/Root";
 import {

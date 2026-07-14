@@ -4,28 +4,59 @@
 // published `bin` directly executable by Node. It's ignored during development
 // when the file is run via `bun run src/index.ts`.
 
+import { homedir } from "os";
+import { join } from "path";
+
 import { CoreClient } from "./core";
 import { createControlClient, createDataClient, createIamClient } from "./core/factories";
 import { createRootHandler } from "./handlers";
+import { createFileLogger, LOG_LEVEL } from "./logging";
 import { runWithExitCode } from "./runnable";
 
 process.exit(
   await runWithExitCode(async (argv: string[]) => {
-    // Wrap the SDK clients in the CoreClient the handlers consume. Passing
-    // factories (rather than instances) lets CoreClient build one client per
-    // region on demand.
-    const coreClient = new CoreClient(createControlClient, createDataClient, createIamClient);
+    // generate a unique identifier corresponding to this process of this CLI. (ex. one command invoke, one TUI session)
+    // TODO: wire this id into telemetry as well
+    const cliSessionId = crypto.randomUUID();
 
-    // Pass it to the root handler, along with the process's standard streams as
-    // the app's io. CoreClient exposes feature sub-clients (e.g. `.harness`), so
-    // it satisfies the Core contract directly.
-    const rootHandler = createRootHandler(coreClient, {
+    const rootLogger = createFileLogger({
+      filePath: join(homedir(), ".agentcore", "logs", "output"),
+      // TODO: allow overriding via global settings
+      logLevel: LOG_LEVEL.DEBUG,
+      bindings: { cliSessionId },
+    });
+
+    const io = {
       stdin: process.stdin,
       stdout: process.stdout,
       stderr: process.stderr,
-    });
+    };
 
-    // Handle the request
-    await rootHandler.route(argv);
+    try {
+      // Wrap the SDK clients in the CoreClient the handlers consume. Passing
+      // factories (rather than instances) lets CoreClient build one client per
+      // region on demand.
+      const coreClient = new CoreClient(createControlClient, createDataClient, createIamClient);
+
+      // Pass it to the root handler, along with the process's standard streams as
+      // the app's io. CoreClient exposes feature sub-clients (e.g. `.harness`), so
+      // it satisfies the Core contract directly.
+      const rootHandler = createRootHandler(coreClient, {
+        io,
+        logger: rootLogger,
+      });
+
+      // Handle the request
+      await rootHandler.route(argv);
+    } catch (e) {
+      const error = e instanceof Error ? e : new Error(String(e));
+      io.stderr.write(`${error.name}: ${error.message}\n`);
+      rootLogger
+        .child({ errorName: error.name, errorMessage: error.message, stack: error.stack ?? "" })
+        .error();
+      throw e;
+    } finally {
+      await rootLogger.flush();
+    }
   }),
 );

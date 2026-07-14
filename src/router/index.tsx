@@ -3,6 +3,7 @@ export {
   compile,
   CommandKey,
   PathKey,
+  LoggerKey,
   type DefaultHandle,
   type DefaultHandlerProvider,
   isDefaultHandlerProvider,
