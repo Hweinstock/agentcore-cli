@@ -48,7 +48,6 @@ export function DataTable<T extends Record<string, unknown>>({
   data,
   pageSize = 10,
   searchable = true,
-  searchPlaceholder = "Filter...",
   onSelect,
   onEscape,
   onPrevPage,

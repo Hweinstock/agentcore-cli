@@ -19,7 +19,6 @@ export const Header: React.FC<HeaderProps> = ({
   version,
   subtitle,
   style = "box",
-  align = "left",
   theme = darkTheme,
 }) => {
   const { stdout } = useStdout();
