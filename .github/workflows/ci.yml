@@ -1,0 +1,27 @@
+# Orchestrates all CI checks on PRs and pushes to main.
+name: CI
+on:
+  # TODO: remove refactor from below once this makes it to main.
+  push:
+    branches: [main, refactor]
+  pull_request:
+    branches: [main, refactor]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
+  unit-test:
+    uses: ./.github/workflows/unit-test.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}
