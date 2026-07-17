@@ -39,6 +39,8 @@ jobs:
       - run: bun test --coverage --coverage-reporter=lcov
 
       - name: Upload to CodeCov
+        # only upload on linux to avoid duplicates.
+        if: runner.os == 'Linux'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
