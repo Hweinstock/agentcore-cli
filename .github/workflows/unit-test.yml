@@ -6,6 +6,9 @@ on:
       ref:
         required: true
         type: string
+    secrets:
+      CODECOV_TOKEN:
+        required: false
 
 jobs:
   test:
@@ -36,6 +39,8 @@ jobs:
       - run: bun test --coverage --coverage-reporter=lcov
 
       - name: Upload to CodeCov
+        # only upload on linux to avoid duplicates.
+        if: always() && runner.os == 'Linux'
         uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
