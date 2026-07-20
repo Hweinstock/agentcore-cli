@@ -4,6 +4,7 @@ export {
   CommandKey,
   PathKey,
   LoggerKey,
+  ProjectKey,
   type DefaultHandle,
   type DefaultHandlerProvider,
   isDefaultHandlerProvider,

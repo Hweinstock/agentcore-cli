@@ -36,7 +36,12 @@ process.exit(
       // Wrap the SDK clients in the CoreClient the handlers consume. Passing
       // factories (rather than instances) lets CoreClient build one client per
       // region on demand.
-      const coreClient = new CoreClient(createControlClient, createDataClient, createIamClient);
+      const coreClient = new CoreClient({
+        createControlClient,
+        createDataClient,
+        createIamClient,
+        logger: rootLogger.child({ module: "core" }),
+      });
 
       // Pass it to the root handler, along with the process's standard streams as
       // the app's io. CoreClient exposes feature sub-clients (e.g. `.harness`), so
