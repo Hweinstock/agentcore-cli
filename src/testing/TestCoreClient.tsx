@@ -27,6 +27,7 @@ import type {
 import type { Core } from "../handlers/types";
 import type { CoreHarnessClient, CreateHarnessInput } from "../handlers/harness/types";
 import type { CoreOptions } from "../core/types";
+import type { CreateProjectInput, Project, ProjectManager } from "../handlers/project/types";
 
 // TestCoreClient is a hand-controllable `Core` for tests. It implements the same
 // interface the real CoreClient satisfies, so it drops straight into
@@ -404,7 +405,18 @@ export class TestHarnessClient implements CoreHarnessClient {
   }
 }
 
+export class TestProjectManager implements ProjectManager {
+  find(): Promise<Project> {
+    throw new Error(`TestProjectManager.find is not implemented yet`);
+  }
+
+  create(_input: CreateProjectInput): Promise<Project> {
+    throw new Error(`TestProjectManager.create is not implemented yet`);
+  }
+}
+
 // TestCoreClient implements the Core contract with fully controllable sub-clients.
 export class TestCoreClient implements Core {
   readonly harness = new TestHarnessClient();
+  readonly projectManager = new TestProjectManager();
 }

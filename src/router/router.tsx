@@ -6,6 +6,7 @@ import { parseArguments, toCommanderArgument } from "./args";
 
 import { Command } from "commander";
 import type { Logger } from "../logging";
+import type { Project } from "../handlers/project/types";
 
 // CommandKey exposes the Commander Command for the executing leaf via context.
 export const CommandKey: ContextKey<Command> = contextKey<Command>("commander.command");
@@ -13,6 +14,8 @@ export const CommandKey: ContextKey<Command> = contextKey<Command>("commander.co
 export const PathKey: ContextKey<string> = contextKey<string>("path");
 
 export const LoggerKey = contextKey<Logger>("logger");
+
+export const ProjectKey = contextKey<Project>("project");
 
 // DefaultHandle runs when a group is selected without a subcommand (e.g.
 // `agentcore` or `agentcore harness`). It reads group-level/global flags from the

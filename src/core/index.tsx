@@ -9,6 +9,9 @@ import type {
   CreateDataClient,
   CreateIamClient,
 } from "./types";
+import type { Logger } from "../logging";
+import type { ProjectManager } from "../handlers/project/types";
+import { createProjectManager } from "./project";
 
 export type {
   AwsClients,
@@ -17,6 +20,13 @@ export type {
   CreateDataClient,
   CreateIamClient,
 } from "./types";
+
+interface CoreClientConfig {
+  createControlClient: CreateControlClient;
+  createDataClient: CreateDataClient;
+  createIamClient: CreateIamClient;
+  logger: Logger;
+}
 
 // CoreClient is the single entry point to the Bedrock AgentCore APIs. It owns the
 // underlying SDK clients (one per config, created on demand from the injected
@@ -27,14 +37,26 @@ export class CoreClient implements AwsClients {
   private dataClients = new Map<string, BedrockAgentCoreClient>();
   private iamClients = new Map<string, IAMClient>();
 
+  private readonly createControlClient: CreateControlClient;
+  private readonly createDataClient: CreateDataClient;
+  private readonly createIamClient: CreateIamClient;
+  private logger: Logger;
+
   // Feature-scoped sub-clients. Access as e.g. `coreClient.harness.getHarness(...)`.
   readonly harness: HarnessClient = new HarnessClient(this);
 
-  constructor(
-    private readonly createControlClient: CreateControlClient,
-    private readonly createDataClient: CreateDataClient,
-    private readonly createIamClient: CreateIamClient,
-  ) {}
+  readonly projectManager: ProjectManager;
+
+  constructor(config: CoreClientConfig) {
+    this.createControlClient = config.createControlClient;
+    this.createDataClient = config.createDataClient;
+    this.createIamClient = config.createIamClient;
+    this.logger = config.logger;
+
+    this.projectManager = createProjectManager({
+      logger: this.logger.child({ module: "projectManager" }),
+    });
+  }
 
   // control returns the control-plane client for `config`, creating and caching it
   // on first use.

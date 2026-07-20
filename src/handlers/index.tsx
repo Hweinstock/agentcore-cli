@@ -34,7 +34,7 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
   // Install sub handlers
   root.handler(createHarnessHandler(core, io));
   root.handler(createConfigHandler(io));
-  root.handler(createProjectHandler());
+  root.handler(createProjectHandler({ projectManager: core.projectManager }));
 
   // Invoking with no subcommand launches the interactive TUI.
   root.default(renderTui(core, io));
