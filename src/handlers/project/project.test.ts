@@ -17,7 +17,7 @@ describe("project create", () => {
   });
 
   test("accepts a known --template value", async () => {
-    await expect(run(["create", "--template", "placeholder"])).rejects.toThrow(/not implemented/);
+    await expect(run(["create", "--template", "barebones"])).rejects.toThrow(/not implemented/);
   });
 
   test("rejects an unknown --template value", async () => {

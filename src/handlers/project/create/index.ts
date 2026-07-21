@@ -14,7 +14,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag(
         "template",
         "project template to scaffold from",
-        z.enum(PROJECT_TEMPLATES).default("placeholder"),
+        z.enum(PROJECT_TEMPLATES).default(PROJECT_TEMPLATES.BAREBONES),
       ),
     ],
     handle: async (_ctx, flags) => {

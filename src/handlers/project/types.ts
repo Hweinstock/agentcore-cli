@@ -1,9 +1,13 @@
 /** Available project templates for scaffolding new AgentCore projects. */
-export const PROJECT_TEMPLATES = ["placeholder"] as const;
+export const PROJECT_TEMPLATES = {
+  BAREBONES: "barebones",
+} as const;
+
+export type ProjectTemplate = (typeof PROJECT_TEMPLATES)[keyof typeof PROJECT_TEMPLATES];
 
 export type CreateProjectInput = {
   /** The project template to scaffold from. */
-  template: (typeof PROJECT_TEMPLATES)[number];
+  template: ProjectTemplate;
 };
 
 export type FindProjectInput = {
