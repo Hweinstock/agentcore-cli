@@ -15,6 +15,8 @@ describe("menu rendering", () => {
     const frame = r.lastFrame()!;
     expect(frame).toContain("harness");
     expect(frame).toContain("manage agentcore harnesses");
+    expect(frame).toContain("runtime");
+    expect(frame).toContain("inspect AgentCore Runtimes");
     expect(frame).toContain("config");
     expect(frame).toContain("read/write global config values");
     r.unmount();
@@ -86,7 +88,7 @@ describe("navigation", () => {
     await waitForText(r.lastFrame, "❯ harness");
 
     await r.press("down");
-    await waitForText(r.lastFrame, "❯ config");
+    await waitForText(r.lastFrame, "❯ runtime");
     r.unmount();
   });
 

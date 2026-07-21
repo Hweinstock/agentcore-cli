@@ -8,6 +8,11 @@ import type {
   DeleteHarnessResponse,
   GetHarnessResponse,
   GetHarnessEndpointResponse,
+  GetAgentRuntimeEndpointResponse,
+  GetAgentRuntimeResponse,
+  ListAgentRuntimeEndpointsResponse,
+  ListAgentRuntimesResponse,
+  ListAgentRuntimeVersionsResponse,
   ListHarnessesResponse,
   ListHarnessEndpointsResponse,
   ListHarnessVersionsResponse,
@@ -26,6 +31,7 @@ import type {
 } from "@aws-sdk/client-bedrock-agentcore";
 import type { Core } from "../handlers/types";
 import type { CoreHarnessClient, CreateHarnessInput } from "../handlers/harness/types";
+import type { CoreRuntimeClient } from "../handlers/runtime/types";
 import type { CoreOptions } from "../core/types";
 
 // TestCoreClient is a hand-controllable `Core` for tests. It implements the same
@@ -64,6 +70,15 @@ const DEFAULT_UPDATE_ENDPOINT_RESPONSE: UpdateHarnessEndpointResponse =
   {} as UpdateHarnessEndpointResponse;
 const DEFAULT_DELETE_ENDPOINT_RESPONSE: DeleteHarnessEndpointResponse =
   {} as DeleteHarnessEndpointResponse;
+const DEFAULT_GET_RUNTIME_RESPONSE = {} as GetAgentRuntimeResponse;
+const DEFAULT_GET_RUNTIME_ENDPOINT_RESPONSE = {} as GetAgentRuntimeEndpointResponse;
+const DEFAULT_LIST_RUNTIMES_RESPONSE: ListAgentRuntimesResponse = { agentRuntimes: [] };
+const DEFAULT_LIST_RUNTIME_VERSIONS_RESPONSE: ListAgentRuntimeVersionsResponse = {
+  agentRuntimes: [],
+};
+const DEFAULT_LIST_RUNTIME_ENDPOINTS_RESPONSE: ListAgentRuntimeEndpointsResponse = {
+  runtimeEndpoints: [],
+};
 
 // abortError mirrors the error the SDK's abort handling rejects with.
 function abortError(): Error {
@@ -404,7 +419,56 @@ export class TestHarnessClient implements CoreHarnessClient {
   }
 }
 
+class TestRuntimeClient implements CoreRuntimeClient {
+  async getRuntime(_id: string, _options: CoreOptions): Promise<GetAgentRuntimeResponse> {
+    return DEFAULT_GET_RUNTIME_RESPONSE;
+  }
+
+  async getRuntimeVersion(
+    _id: string,
+    _version: string,
+    _options: CoreOptions,
+  ): Promise<GetAgentRuntimeResponse> {
+    return DEFAULT_GET_RUNTIME_RESPONSE;
+  }
+
+  async getRuntimeEndpoint(
+    _id: string,
+    _qualifier: string,
+    _options: CoreOptions,
+  ): Promise<GetAgentRuntimeEndpointResponse> {
+    return DEFAULT_GET_RUNTIME_ENDPOINT_RESPONSE;
+  }
+
+  async listRuntimes(
+    _nextToken: string | undefined,
+    _maxResults: number | undefined,
+    _options: CoreOptions,
+  ): Promise<ListAgentRuntimesResponse> {
+    return DEFAULT_LIST_RUNTIMES_RESPONSE;
+  }
+
+  async listRuntimeVersions(
+    _id: string,
+    _nextToken: string | undefined,
+    _maxResults: number | undefined,
+    _options: CoreOptions,
+  ): Promise<ListAgentRuntimeVersionsResponse> {
+    return DEFAULT_LIST_RUNTIME_VERSIONS_RESPONSE;
+  }
+
+  async listRuntimeEndpoints(
+    _id: string,
+    _nextToken: string | undefined,
+    _maxResults: number | undefined,
+    _options: CoreOptions,
+  ): Promise<ListAgentRuntimeEndpointsResponse> {
+    return DEFAULT_LIST_RUNTIME_ENDPOINTS_RESPONSE;
+  }
+}
+
 // TestCoreClient implements the Core contract with fully controllable sub-clients.
 export class TestCoreClient implements Core {
   readonly harness = new TestHarnessClient();
+  readonly runtime = new TestRuntimeClient();
 }

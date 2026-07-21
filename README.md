@@ -49,6 +49,15 @@ agentcore                          # interactive TUI
 │       ├── list
 │       ├── update
 │       └── delete
+├── runtime                        # inspect deployed AgentCore Runtimes
+│   ├── get                        # fetch a Runtime by id
+│   ├── list                       # list Runtimes (server-side paginated)
+│   ├── version
+│   │   ├── get                    # get a specific Runtime version
+│   │   └── list                   # list a Runtime's versions
+│   └── endpoint
+│       ├── get                    # get a Runtime endpoint by qualifier
+│       └── list                   # list a Runtime's endpoints
 └── config                         # read/write global config values
 ```
 
@@ -84,6 +93,14 @@ agentcore harness invoke --id <harnessId> --session-id <session> --qualifier PRO
 
 # Run a shell command inside the agent runtime
 agentcore harness exec --id <harnessId> --command "ls -la" --json
+
+# Inspect deployed Runtimes without project configuration or deployment
+agentcore runtime get --id <runtimeId>
+agentcore runtime list --max-results 20
+agentcore runtime version get --id <runtimeId> --version <version>
+agentcore runtime version list --id <runtimeId> --max-results 20
+agentcore runtime endpoint get --id <runtimeId> --qualifier DEFAULT
+agentcore runtime endpoint list --id <runtimeId> --max-results 20
 ```
 
 ---

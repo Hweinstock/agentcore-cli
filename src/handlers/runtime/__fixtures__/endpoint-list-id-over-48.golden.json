@@ -1,0 +1,25 @@
+{
+  "runtimeEndpoints": [
+    {
+      "name": "runtimeReadOnlyFixture",
+      "agentRuntimeEndpointArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx/runtime-endpoint/runtimeReadOnlyFixture",
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx",
+      "status": "READY",
+      "id": "runtimeReadOnlyFixture",
+      "createdAt": "2026-07-21T15:25:40.102Z",
+      "lastUpdatedAt": "2026-07-21T15:25:40.952Z",
+      "liveVersion": "2",
+      "description": "Stable shared endpoint for AgentCore CLI Runtime read-only fixture recording"
+    },
+    {
+      "name": "DEFAULT",
+      "agentRuntimeEndpointArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx/runtime-endpoint/DEFAULT",
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx",
+      "status": "READY",
+      "id": "DEFAULT",
+      "createdAt": "2026-07-21T15:24:52.560Z",
+      "lastUpdatedAt": "2026-07-21T15:25:21.499Z",
+      "liveVersion": "2"
+    }
+  ]
+}

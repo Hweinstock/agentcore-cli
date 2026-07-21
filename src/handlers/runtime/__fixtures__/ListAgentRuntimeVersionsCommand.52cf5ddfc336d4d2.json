@@ -1,0 +1,16 @@
+{
+  "agentRuntimes": [
+    {
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx",
+      "agentRuntimeId": "agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx",
+      "agentRuntimeVersion": "2",
+      "agentRuntimeName": "agentcore_cli_runtime_read_only_fixture",
+      "description": "Stable shared resource for AgentCore CLI Runtime read-only fixture recording",
+      "lastUpdatedAt": {
+        "$date": "2026-07-21T15:25:21.499Z"
+      },
+      "status": "READY"
+    }
+  ],
+  "nextToken": "AQICAHiNyEvxZzpFuVHtBl-B3jfZBBM36tDjm8_cCisOa4ihlgEwXMAtTGTZFyWB6KZJtPn-AAAB0jCCAc4GCSqGSIb3DQEHBqCCAb8wggG7AgEAMIIBtAYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAylUsElcghzf4NUBekCARCAggGFF5whr4_8k1-yrxtlajLC17iTtz9pMjqudZrl7Y8ThJ9zRhnUFv8pbwu7RhGP7PaJKPIQD4StFOj3OSUXBL5dXN81JpbJSIrHm5Hxq0VS_q9hszeRO97gG6ltMo4Qmu17dFndYD0amjEpHDcp4b1d-bHrKu1exmbqwo0cak87FinliDqGAd7tClaOOry60psmqDxpxpgmSvPnw7LfT3t4R-pM4oo1gxGELSmXWV_7qaWRpSKSrLr7ZD67nssylo5F4hB9ut1KQMvLBYALvzHeI5Na873JU8oYtU1unOAoCrl1AqTCS3sS0RgqbYrOLmw0bKgxk4-OjbYyH2n72BiD1lcMdk95ZYG7ZXkhn6NZQsdVDVT1Ez-RKU6ry5CBMlQdo8GXQ1quzdGqnPwXAWKs80jGPf9C10vhVmL1fQ9DFlfZIo4b0h3ztZEon8IX84cXnEJX41up7qJWqefRHrirOjsvUwBpRK8brnreCQ1JeJeBY065x69iBAQWH3e9AI2lcPBvVR0="
+}

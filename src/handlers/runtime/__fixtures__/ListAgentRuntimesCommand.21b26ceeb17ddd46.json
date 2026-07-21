@@ -1,0 +1,15 @@
+{
+  "agentRuntimes": [
+    {
+      "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/harness_tf_acc_test_1997929140646926281-Z7D2FxDMk2",
+      "agentRuntimeId": "harness_tf_acc_test_1997929140646926281-Z7D2FxDMk2",
+      "agentRuntimeVersion": "1",
+      "agentRuntimeName": "harness_tf_acc_test_1997929140646926281",
+      "lastUpdatedAt": {
+        "$date": "2026-05-01T18:19:03.512Z"
+      },
+      "status": "READY"
+    }
+  ],
+  "nextToken": "AQICAHiNyEvxZzpFuVHtBl-B3jfZBBM36tDjm8_cCisOa4ihlgERE3Zyf3dYmd2LiyBNyCGEAAABnDCCAZgGCSqGSIb3DQEHBqCCAYkwggGFAgEAMIIBfgYJKoZIhvcNAQcBMB4GCWCGSAFlAwQBLjARBAyfUbmfL0KkkYuZZjACARCAggFPo8_Z_n6DRJs7flKkMS76z_JFSAm1blzGlN7POeFElkiXsL7aZjMsXg4ZA_23v5B-MkGPNDk-JX3nvwhPY-m4ykso-CkulJ6-Ek1jq2OqRTUw0B3c0LEGJKBGa38UzkKv1Vz2gEDELmDHJV8pMfa6oR4aUMi_ak20jSTTCvinG7vEuToL5raasFar5772NrT1Rs0h_VQ_P3EIiw-XWUONLv3pkVP7PAfGSB7wI3pWYHMXZGPzxlUrkpUMM_arxdNkweYTbuzjx2hZyws0W-eLlqhy-veF82FpJj4Yshb6TsIQnBlUCl-Sf9PDbBBbBrmg08-h6BumkebR1OIRVISn5FRodYKirS4UdZdCiAiRVT5jKy6EWdCVc2rUiD2R7CA_jR2U_nPVPuJU0YA4y2ZMeAg4l-q-2h001YWYfGtIN967xQbRCKc6nU95IhKLZSM="
+}

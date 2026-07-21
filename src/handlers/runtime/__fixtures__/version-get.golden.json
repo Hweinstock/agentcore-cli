@@ -1,0 +1,29 @@
+{
+  "agentRuntimeArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx",
+  "agentRuntimeName": "agentcore_cli_runtime_read_only_fixture",
+  "agentRuntimeId": "agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx",
+  "agentRuntimeVersion": "1",
+  "createdAt": "2026-07-21T15:24:53.572Z",
+  "lastUpdatedAt": "2026-07-21T15:24:53.572Z",
+  "roleArn": "arn:aws:iam::685197708687:role/tf_acc_test_1997929140646926281",
+  "networkConfiguration": {
+    "networkMode": "PUBLIC"
+  },
+  "status": "READY",
+  "lifecycleConfiguration": {
+    "idleRuntimeSessionTimeout": 900,
+    "maxLifetime": 28800
+  },
+  "description": "Stable shared resource for AgentCore CLI Runtime read-only fixture recording",
+  "workloadIdentityDetails": {
+    "workloadIdentityArn": "arn:aws:bedrock-agentcore:us-west-2:685197708687:workload-identity-directory/default/workload-identity/agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx"
+  },
+  "agentRuntimeArtifact": {
+    "containerConfiguration": {
+      "containerUri": "public.ecr.aws/y5s8y8h8/harness-us-west-2:latest"
+    }
+  },
+  "metadataConfiguration": {
+    "requireMMDSV2": true
+  }
+}
