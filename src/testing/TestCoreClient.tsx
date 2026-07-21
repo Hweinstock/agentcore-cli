@@ -105,10 +105,10 @@ async function* abortable<T>(source: AsyncIterable<T>, signal?: AbortSignal): As
     if (signal.aborted) reject(abortError());
     else signal.addEventListener("abort", () => reject(abortError()), { once: true });
   });
-  aborted.catch(() => { });
+  aborted.catch(() => {});
 
   const iterator = source[Symbol.asyncIterator]();
-  for (; ;) {
+  for (;;) {
     const result = await Promise.race([iterator.next(), aborted]);
     if (result.done) return;
     yield result.value;
@@ -472,7 +472,7 @@ class TestRuntimeClient implements CoreRuntimeClient {
 }
 type TestCoreClientOptions = {
   logger?: Logger;
-}
+};
 
 // TestCoreClient implements the Core contract with fully controllable sub-clients.
 export class TestCoreClient implements Core {
