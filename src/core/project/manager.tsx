@@ -1,9 +1,9 @@
 import type { ProjectManager } from "../../handlers/project/types";
 import type { Logger } from "../../logging";
 
-interface CreateProjectManagerConfig {
+type CreateProjectManagerConfig = {
   logger: Logger;
-}
+};
 
 /**
  * Creates a {@link ProjectManager} that relies on the local file system to manage access to projects.

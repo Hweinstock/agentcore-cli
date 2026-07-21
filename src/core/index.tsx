@@ -22,12 +22,12 @@ export type {
   CreateIamClient,
 } from "./types";
 
-interface CoreClientConfig {
+type CoreClientConfig = {
   createControlClient: CreateControlClient;
   createDataClient: CreateDataClient;
   createIamClient: CreateIamClient;
   logger: Logger;
-}
+};
 
 // CoreClient is the single entry point to the Bedrock AgentCore APIs. It owns the
 // underlying SDK clients (one per config, created on demand from the injected

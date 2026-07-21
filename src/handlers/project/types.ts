@@ -1,15 +1,15 @@
 /** Available project templates for scaffolding new AgentCore projects. */
 export const PROJECT_TEMPLATES = ["placeholder"] as const;
 
-export interface CreateProjectInput {
+export type CreateProjectInput = {
   /** The project template to scaffold from. */
   template: (typeof PROJECT_TEMPLATES)[number];
-}
+};
 
-export interface FindProjectInput {
+export type FindProjectInput = {
   /** A path to search from when locating the project root. */
   filePath: string;
-}
+};
 
 /**
  * Exposes the ability to configure, develop, and deploy a resolved AgentCore project.  

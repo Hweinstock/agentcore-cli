@@ -2,9 +2,9 @@ import z from "zod";
 import { createHandler, flag } from "../../../router";
 import { PROJECT_TEMPLATES, type ProjectManager } from "../types";
 
-interface CreateProjectHandlerConfig {
+type CreateProjectHandlerConfig = {
   projectManager: ProjectManager;
-}
+};
 
 export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =>
   createHandler({
