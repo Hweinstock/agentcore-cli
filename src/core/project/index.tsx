@@ -1,1 +1,1 @@
-export { createProjectManager } from "./manager";
+export { FsProjectManager } from "./manager";

@@ -1,20 +1,26 @@
-import type { ProjectManager } from "../../handlers/project/types";
+import type {
+  CreateProjectInput,
+  FindProjectInput,
+  Project,
+  ProjectManager,
+} from "../../handlers/project/types";
 import type { Logger } from "../../logging";
 
-type CreateProjectManagerConfig = {
+type ProjectManagerConfig = {
   logger: Logger;
 };
 
 /**
- * Creates a {@link ProjectManager} that relies on the local file system to manage access to projects.
+ * An implementation of {@link ProjectManager} that relies on the local file system to manage access to projects.
  */
-export function createProjectManager(_config: CreateProjectManagerConfig): ProjectManager {
-  return {
-    find: (_input) => {
-      throw new Error(`ProjectManager.find is not implemented yet`);
-    },
-    create: (_input) => {
-      throw new Error(`ProjectManager.create is not implemented yet`);
-    },
-  };
+export class FsProjectManager implements ProjectManager {
+  constructor(_config: ProjectManagerConfig) {}
+
+  public find(_input: FindProjectInput): Promise<Project> {
+    throw new Error(`ProjectManager.find is not implemented yet`);
+  }
+
+  public create(_input: CreateProjectInput): Promise<Project> {
+    throw new Error(`ProjectManager.create is not implemented yet`);
+  }
 }

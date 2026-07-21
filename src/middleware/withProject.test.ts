@@ -1,12 +1,12 @@
 import { test, expect, describe } from "bun:test";
 import { Router, createHandler } from "../router";
-import { createProjectManager } from "../core/project";
 import { createSilentLogger } from "../testing";
 import { withProject } from "./withProject";
+import { FsProjectManager } from "../core/project";
 
 describe("withProject", () => {
   test("throws not implemented", async () => {
-    const projectManager = createProjectManager({ logger: createSilentLogger() });
+    const projectManager = new FsProjectManager({ logger: createSilentLogger() });
 
     const app = new Router("app", "test");
     app.use(withProject({ projectManager, cwd: "/some/path" }));

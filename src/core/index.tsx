@@ -12,7 +12,7 @@ import type {
 } from "./types";
 import type { Logger } from "../logging";
 import type { ProjectManager } from "../handlers/project/types";
-import { createProjectManager } from "./project";
+import { FsProjectManager } from "./project";
 
 export type {
   AwsClients,
@@ -55,7 +55,7 @@ export class CoreClient implements AwsClients {
     this.createIamClient = config.createIamClient;
     this.logger = config.logger;
 
-    this.projectManager = createProjectManager({
+    this.projectManager = new FsProjectManager({
       logger: this.logger.child({ module: "projectManager" }),
     });
   }
