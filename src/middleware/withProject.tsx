@@ -21,7 +21,7 @@ export function withProject(config: WithProjectConfig): Middleware {
     arguments: () => h.arguments(),
     children: () => h.children(),
     handle: async (ctx, flags, args) => {
-      const project = await config.projectManager.find({ filePath: config.cwd });
+      const project = await config.projectManager.resolve({ filePath: config.cwd });
       // TODO: swap this for a typed error.
       if (!project) throw new Error(`Unable to find project at path ${config.cwd}`);
       await h.handle(ctx.withValue<Project>(ProjectKey, project), flags, args);

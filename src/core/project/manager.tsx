@@ -1,6 +1,6 @@
 import type {
   CreateProjectInput,
-  FindProjectInput,
+  ResolveProjectInput,
   Project,
   ProjectManager,
 } from "../../handlers/project/types";
@@ -11,13 +11,13 @@ type ProjectManagerConfig = {
 };
 
 /**
- * An implementation of {@link ProjectManager} that relies on the local file system to manage access to projects.
+ * An implementation of {@link ProjectManager} that relies on the local file system to manage projects.
  */
 export class FsProjectManager implements ProjectManager {
   constructor(_config: ProjectManagerConfig) {}
 
-  public find(_input: FindProjectInput): Promise<Project> {
-    throw new Error(`ProjectManager.find is not implemented yet`);
+  public resolve(_input: ResolveProjectInput): Promise<Project> {
+    throw new Error(`ProjectManager.resolve is not implemented yet`);
   }
 
   public create(_input: CreateProjectInput): Promise<Project> {

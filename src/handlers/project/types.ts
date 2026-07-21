@@ -10,23 +10,22 @@ export type CreateProjectInput = {
   template: ProjectTemplate;
 };
 
-export type FindProjectInput = {
+export type ResolveProjectInput = {
   /** A path to search from when locating the project root. */
   filePath: string;
 };
 
-/**
- * Exposes the ability to configure, develop, and deploy a resolved AgentCore project.  
- */
-export interface Project {}
+export type Project = {
+  name: string;
+};
 
 /**
- * Manages project lifecycle: creation (scaffolding) and discovery
+ * The primary interface for interacting with projects
  */
 export interface ProjectManager {
   /** Scaffold a new AgentCore project from the given template. */
   create(input: CreateProjectInput): Promise<Project>;
 
   /** Locate an existing AgentCore project. Returns undefined if no project can be found. */
-  find(input: FindProjectInput): Promise<Project | undefined>;
+  resolve(input: ResolveProjectInput): Promise<Project | undefined>;
 }
