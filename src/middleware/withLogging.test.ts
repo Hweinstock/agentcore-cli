@@ -14,7 +14,7 @@ describe("withLogging", () => {
 
   beforeEach(async () => {
     tempDir = await mkdtemp(join(tmpdir(), "logging-test-"));
-    logger = createFileLogger({
+    logger = await createFileLogger({
       filePath: join(tempDir, "output"),
       logLevel: LOG_LEVEL.DEBUG,
     });

@@ -19,7 +19,7 @@ process.exit(
     // TODO: wire this id into telemetry as well
     const cliSessionId = crypto.randomUUID();
 
-    const rootLogger = createFileLogger({
+    const rootLogger = await createFileLogger({
       filePath: join(homedir(), ".agentcore", "logs", "output"),
       // TODO: allow overriding via global settings
       logLevel: LOG_LEVEL.DEBUG,

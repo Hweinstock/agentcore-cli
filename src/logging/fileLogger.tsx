@@ -1,4 +1,5 @@
 import pino from "pino";
+import pinoRoll from "pino-roll";
 import { type AsyncLogger, type LoggerBindings, type LogLevel } from "./types";
 
 export interface FileLoggerConfig {
@@ -32,31 +33,35 @@ function wrapPinoLogger(pinoLogger: pino.Logger): AsyncLogger {
  * @param config - Logger configuration (file path, rotation limits, level).
  * @returns A {@link AsyncLogger} that writes to a rotating file via pino.
  */
-export function createFileLogger(config: FileLoggerConfig): AsyncLogger {
+export async function createFileLogger(config: FileLoggerConfig): Promise<AsyncLogger> {
   const maxSizeInMB = config.maxSizeInMB ?? 10;
   const maxFileCount = config.maxFileCount ?? 5;
   const bindings = config.bindings ?? {};
+
+  // setup logging stream in the same thread as main execution to avoid separate worker thread.
+  // separate worker thread attempts to import pino-roll at runtime, which fails when run as an executable.
+  const stream = await pinoRoll({
+    extension: ".log",
+    dateFormat: "yyyy-MM-dd'T'HH-mm-ss",
+    // Rotate when file reaches {maxSizeInMB} MB, and start deleting once we have {maxFileCount} files
+    size: `${maxSizeInMB}m`,
+    limit: { count: maxFileCount },
+    file: config.filePath,
+    mkdir: true,
+  });
+
   return wrapPinoLogger(
-    pino({
-      level: config.logLevel,
-      base: undefined, // omit pid and hostname
-      formatters: {
-        level(label) {
-          return { level: label };
+    pino(
+      {
+        level: config.logLevel,
+        base: undefined, // omit pid and hostname
+        formatters: {
+          level(label) {
+            return { level: label };
+          },
         },
       },
-      transport: {
-        target: "pino-roll",
-        options: {
-          extension: ".log",
-          dateFormat: "yyyy-MM-dd'T'HH-mm-ss",
-          // Rotate when file reaches {maxSizeInMB} MB, and start deleting once we have {maxFileCount} files
-          size: `${maxSizeInMB}m`,
-          limit: { count: maxFileCount },
-          file: config.filePath,
-          mkdir: true,
-        },
-      },
-    }),
+      stream,
+    ),
   ).child(bindings);
 }
