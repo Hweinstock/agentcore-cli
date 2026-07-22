@@ -27,3 +27,9 @@ jobs:
       ref: ${{ github.event.pull_request.head.sha || github.sha }}
     secrets:
       CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  compile-binaries:
+    uses: ./.github/workflows/compile.yml
+    permissions:
+      contents: read
+    with:
+      ref: ${{ github.event.pull_request.head.sha || github.sha }}

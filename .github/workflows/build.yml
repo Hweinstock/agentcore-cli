@@ -31,5 +31,3 @@ jobs:
         if: always()
       - run: bun pm pack
         if: always()
-      - run: bun run compile
-        if: always()
