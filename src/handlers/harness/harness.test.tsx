@@ -30,7 +30,12 @@ const REGION = "us-west-2";
 // and returns whatever the command wrote to stdout.
 async function run(args: string[]): Promise<string> {
   const { createControlClient, createDataClient, createIamClient } = fixtureFactories(FIXTURES);
-  const core = new CoreClient(createControlClient, createDataClient, createIamClient);
+  const core = new CoreClient({
+    createControlClient,
+    createDataClient,
+    createIamClient,
+    logger: createSilentLogger(),
+  });
   const io = testIO();
   const root = createRootHandler(core, { io: io.io, logger: createSilentLogger() });
   await root.route(["node", "agentcore", ...args, "--region", REGION]);

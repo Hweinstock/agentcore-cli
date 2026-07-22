@@ -9,6 +9,7 @@ import {
 import { CoreClient } from "./index";
 import type { ClientConfig } from "./types";
 import { toClientConfig } from "./utils";
+import { createSilentLogger } from "../testing";
 
 // A minimal stand-in for the SDK clients; CoreClient only stores and returns
 // them, so an opaque tagged object is enough to assert identity/caching.
@@ -24,14 +25,15 @@ function fakeIam(config: ClientConfig): IAMClient {
 
 test("control() constructs a client once per config and caches it", () => {
   let built = 0;
-  const core = new CoreClient(
-    (config) => {
+  const core = new CoreClient({
+    createControlClient: (config) => {
       built++;
       return fakeControl(config);
     },
-    fakeData,
-    fakeIam,
-  );
+    createDataClient: fakeData,
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   const a = core.control({ region: "us-east-1" });
   const b = core.control({ region: "us-east-1" });
@@ -42,14 +44,15 @@ test("control() constructs a client once per config and caches it", () => {
 
 test("control() builds a distinct client per distinct config", () => {
   let built = 0;
-  const core = new CoreClient(
-    (config) => {
+  const core = new CoreClient({
+    createControlClient: (config) => {
       built++;
       return fakeControl(config);
     },
-    fakeData,
-    fakeIam,
-  );
+    createDataClient: fakeData,
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   core.control({ region: "us-east-1" });
   core.control({ region: "us-west-2" });
@@ -61,17 +64,18 @@ test("control() builds a distinct client per distinct config", () => {
 test("data() caches independently of control()", () => {
   let controlBuilt = 0;
   let dataBuilt = 0;
-  const core = new CoreClient(
-    (config) => {
+  const core = new CoreClient({
+    createControlClient: (config) => {
       controlBuilt++;
       return fakeControl(config);
     },
-    (config) => {
+    createDataClient: (config) => {
       dataBuilt++;
       return fakeData(config);
     },
-    fakeIam,
-  );
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   core.control({ region: "us-east-1" });
   const d1 = core.data({ region: "us-east-1" });
@@ -83,7 +87,12 @@ test("data() caches independently of control()", () => {
 });
 
 test("exposes a harness sub-client", () => {
-  const core = new CoreClient(fakeControl, fakeData, fakeIam);
+  const core = new CoreClient({
+    createControlClient: fakeControl,
+    createDataClient: fakeData,
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
   expect(core.harness).toBeDefined();
 });
 
@@ -93,9 +102,9 @@ test("invokeHarness sends an InvokeHarnessCommand on the data client with the ab
   const sent: { command: unknown; options: unknown }[] = [];
   const configs: ClientConfig[] = [];
   const response = { stream: undefined };
-  const core = new CoreClient(
-    fakeControl,
-    (config) => {
+  const core = new CoreClient({
+    createControlClient: fakeControl,
+    createDataClient: (config) => {
       configs.push(config);
       return {
         config,
@@ -106,8 +115,9 @@ test("invokeHarness sends an InvokeHarnessCommand on the data client with the ab
         },
       } as unknown as BedrockAgentCoreClient;
     },
-    fakeIam,
-  );
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   const request = {
     harnessArn: "arn:aws:bedrock-agentcore:us-east-1:123:harness/h-1",
@@ -138,16 +148,17 @@ test("invokeHarness stream iteration rejects promptly when aborted mid-stream", 
       await new Promise(() => {});
     },
   };
-  const core = new CoreClient(
-    fakeControl,
-    (config) =>
+  const core = new CoreClient({
+    createControlClient: fakeControl,
+    createDataClient: (config) =>
       ({
         config,
         kind: "data",
         send: async () => ({ stream: hangingStream }),
       }) as unknown as BedrockAgentCoreClient,
-    fakeIam,
-  );
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   const controller = new AbortController();
   const response = await core.harness.invokeHarness(
@@ -166,9 +177,9 @@ test("invokeHarness stream iteration rejects promptly when aborted mid-stream", 
 
 test("invokeAgentRuntimeCommand sends the command on the data client with the abort signal", async () => {
   const sent: { command: unknown; options: unknown }[] = [];
-  const core = new CoreClient(
-    fakeControl,
-    (config) =>
+  const core = new CoreClient({
+    createControlClient: fakeControl,
+    createDataClient: (config) =>
       ({
         config,
         kind: "data",
@@ -177,8 +188,9 @@ test("invokeAgentRuntimeCommand sends the command on the data client with the ab
           return { statusCode: 200, stream: undefined };
         },
       }) as unknown as BedrockAgentCoreClient,
-    fakeIam,
-  );
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   const request = {
     agentRuntimeArn: "arn:aws:bedrock-agentcore:us-east-1:123:harness/h-1",
@@ -195,16 +207,17 @@ test("invokeAgentRuntimeCommand sends the command on the data client with the ab
 
 test("invokeHarness returns the stream untouched when no abort signal is given", async () => {
   const stream = (async function* () {})();
-  const core = new CoreClient(
-    fakeControl,
-    (config) =>
+  const core = new CoreClient({
+    createControlClient: fakeControl,
+    createDataClient: (config) =>
       ({
         config,
         kind: "data",
         send: async () => ({ stream }),
       }) as unknown as BedrockAgentCoreClient,
-    fakeIam,
-  );
+    createIamClient: fakeIam,
+    logger: createSilentLogger(),
+  });
 
   const response = await core.harness.invokeHarness(
     { harnessArn: "arn", runtimeSessionId: "s".repeat(40), messages: [] },

@@ -33,6 +33,10 @@ import type { Core } from "../handlers/types";
 import type { CoreHarnessClient, CreateHarnessInput } from "../handlers/harness/types";
 import type { CoreRuntimeClient } from "../handlers/runtime/types";
 import type { CoreOptions } from "../core/types";
+import type { ProjectManager } from "../handlers/project/types";
+import type { Logger } from "../logging";
+import { createSilentLogger } from "./logging";
+import { FsProjectManager } from "../core/project";
 
 // TestCoreClient is a hand-controllable `Core` for tests. It implements the same
 // interface the real CoreClient satisfies, so it drops straight into
@@ -466,9 +470,17 @@ class TestRuntimeClient implements CoreRuntimeClient {
     return DEFAULT_LIST_RUNTIME_ENDPOINTS_RESPONSE;
   }
 }
+type TestCoreClientOptions = {
+  logger?: Logger;
+};
 
 // TestCoreClient implements the Core contract with fully controllable sub-clients.
 export class TestCoreClient implements Core {
   readonly harness = new TestHarnessClient();
   readonly runtime = new TestRuntimeClient();
+  readonly projectManager: ProjectManager;
+
+  constructor(options?: TestCoreClientOptions) {
+    this.projectManager = new FsProjectManager({ logger: options?.logger ?? createSilentLogger() });
+  }
 }

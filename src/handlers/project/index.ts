@@ -1,10 +1,15 @@
 import { Router } from "../../router";
 import { createCreateProjectHandler } from "./create";
+import type { ProjectManager } from "./types";
 
-export function createProjectHandler(): Router {
+type ProjectHandlerConfig = {
+  projectManager: ProjectManager;
+};
+
+export function createProjectHandler(config: ProjectHandlerConfig): Router {
   const project = new Router("project", "manage an AgentCore project");
 
-  project.handler(createCreateProjectHandler());
+  project.handler(createCreateProjectHandler({ projectManager: config.projectManager }));
 
   return project;
 }

@@ -16,7 +16,12 @@ const MISSING_RUNTIME_ID = "missing_runtime-0000000000";
 
 function createFixtureCore(): CoreClient {
   const { createControlClient, createDataClient, createIamClient } = fixtureFactories(FIXTURES);
-  return new CoreClient(createControlClient, createDataClient, createIamClient);
+  return new CoreClient({
+    createControlClient,
+    createDataClient,
+    createIamClient,
+    logger: createSilentLogger(),
+  });
 }
 
 async function run(args: string[]): Promise<string> {

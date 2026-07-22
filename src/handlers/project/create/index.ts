@@ -1,9 +1,12 @@
 import z from "zod";
 import { createHandler, flag } from "../../../router";
+import { PROJECT_TEMPLATES, type ProjectManager } from "../types";
 
-export const PROJECT_TEMPLATES = ["placeholder"] as const;
+type CreateProjectHandlerConfig = {
+  projectManager: ProjectManager;
+};
 
-export const createCreateProjectHandler = () =>
+export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =>
   createHandler({
     name: "create",
     description: "create a new AgentCore project",
@@ -11,10 +14,12 @@ export const createCreateProjectHandler = () =>
       flag(
         "template",
         "project template to scaffold from",
-        z.enum(PROJECT_TEMPLATES).default("placeholder"),
+        z.enum(PROJECT_TEMPLATES).default(PROJECT_TEMPLATES.BAREBONES),
       ),
     ],
-    handle: async () => {
-      throw new Error("`agentcore project create` is not implemented yet");
+    handle: async (_ctx, flags) => {
+      await config.projectManager.create({
+        template: flags.template,
+      });
     },
   });
