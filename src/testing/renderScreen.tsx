@@ -2,7 +2,7 @@ import React from "react";
 import { render, cleanup } from "ink-testing-library";
 import { QueryClient } from "@tanstack/react-query";
 import { ValueContext, compile, CommandKey, type Context } from "../router";
-import { RegionKey, JsonKey, DebugKey } from "../handlers/keys";
+import { RegionKey, JsonKey, DebugKey, EndpointKey } from "../handlers/keys";
 import { JsonRendererKey } from "../tui";
 import { createRootHandler } from "../handlers";
 import { Root } from "../components/Root";
@@ -27,7 +27,7 @@ import { createSilentLogger } from "./logging";
 // RouterScreen walks it to resolve each menu's subcommands), the global flags
 // (region/json/debug), and a no-op JsonRenderer. Compiling the real handler tree
 // keeps the command menus faithful to the production command structure.
-function baseContext(core: TestCoreClient): Context {
+function baseContext(core: TestCoreClient, endpointUrl?: string): Context {
   const rootCommand = compile(
     createRootHandler(core, { io: testIO().io, logger: createSilentLogger() }),
     ValueContext.EmptyContext(),
@@ -36,6 +36,7 @@ function baseContext(core: TestCoreClient): Context {
   return ValueContext.EmptyContext()
     .withValue(CommandKey, rootCommand)
     .withValue(RegionKey, "us-east-1")
+    .withValue(EndpointKey, endpointUrl)
     .withValue(JsonKey, false)
     .withValue(DebugKey, false)
     .withValue(JsonRendererKey, { renderJson: () => {} });
@@ -56,6 +57,10 @@ export interface RenderScreenOptions {
   core?: TestCoreClient;
   // ctx overrides the base context (rarely needed).
   ctx?: Context;
+  // queryClient overrides the deterministic default when a test needs to
+  // exercise cache behavior.
+  queryClient?: QueryClient;
+  endpointUrl?: string;
 }
 
 export interface RenderScreenResult {
@@ -72,14 +77,29 @@ export interface RenderScreenResult {
   // press sends a named key (e.g. "return", "escape", "down"), then yields a tick
   // for the same reason as `write`.
   press: (key: keyof typeof keys) => Promise<void>;
+  resize: (columns: number, rows?: number) => Promise<void>;
   rerender: () => void;
   unmount: () => void;
+}
+
+interface ResizableStdout {
+  readonly columns: number;
+  readonly rows?: number;
+  emit(event: "resize"): boolean;
+}
+
+function setWindowSize(stdout: ResizableStdout, columns: number, rows: number): void {
+  Object.defineProperties(stdout, {
+    columns: { configurable: true, value: columns },
+    rows: { configurable: true, value: rows },
+  });
+  stdout.emit("resize");
 }
 
 // keys maps friendly names to the escape sequences Ink decodes into key events.
 export const keys = {
   return: "\r",
-  escape: "",
+  escape: "\u001B[27u",
   up: "[A",
   down: "[B",
   left: "[D",
@@ -98,17 +118,12 @@ export function cleanupScreens(): void {
 // and returns handles to read frames and send input.
 export function renderScreen(path: string, options: RenderScreenOptions = {}): RenderScreenResult {
   const core = options.core ?? new TestCoreClient();
-  const ctx = options.ctx ?? baseContext(core);
-  const queryClient = testQueryClient();
+  const ctx = options.ctx ?? baseContext(core, options.endpointUrl);
+  const queryClient = options.queryClient ?? testQueryClient();
 
-  const instance = render(<Root path={path} ctx={ctx} core={core} queryClient={queryClient} />);
-
-  // ink-testing-library's fake stdout reports columns=100 but no rows, so Ink
-  // falls back to the host terminal's height — making tests clip (and fail)
-  // differently per environment. Pin a fixed, realistically sized window and
-  // announce it; useWindowSize listens for "resize" and re-renders.
-  Object.defineProperty(instance.stdout, "rows", { value: 40 });
-  instance.stdout.emit("resize");
+  const instance = render(<></>);
+  setWindowSize(instance.stdout, 100, 40);
+  instance.rerender(<Root path={path} ctx={ctx} core={core} queryClient={queryClient} />);
 
   return {
     core,
@@ -126,6 +141,13 @@ export function renderScreen(path: string, options: RenderScreenOptions = {}): R
       await tick();
       instance.stdin.write(keys[key]);
       await tick();
+    },
+    resize: async (columns, rows = 40) => {
+      setWindowSize(instance.stdout, columns, rows);
+      await waitFor(() => {
+        const lines = (instance.lastFrame() ?? "").split("\n");
+        return lines.length === rows && Math.max(...lines.map((line) => line.length)) === columns;
+      });
     },
     rerender: () =>
       instance.rerender(<Root path={path} ctx={ctx} core={core} queryClient={queryClient} />),

@@ -1,0 +1,290 @@
+import { afterEach, describe, expect, test } from "bun:test";
+import type {
+  HarnessSummary,
+  ListHarnessesResponse,
+} from "@aws-sdk/client-bedrock-agentcore-control";
+import { QueryClient } from "@tanstack/react-query";
+import { cleanupScreens, renderScreen, TestCoreClient, waitFor, waitForText } from "../testing";
+
+afterEach(cleanupScreens);
+
+function harness(overrides: Partial<HarnessSummary> = {}): HarnessSummary {
+  return {
+    harnessId: "MyHarness-abc123",
+    harnessName: "MyHarness",
+    arn: "arn:aws:bedrock-agentcore:us-east-1:123:harness/MyHarness-abc123",
+    createdAt: new Date("2026-04-22T21:53:06.235Z"),
+    updatedAt: new Date("2026-04-22T21:53:27.062Z"),
+    harnessVersion: "1",
+    status: "READY",
+    ...overrides,
+  };
+}
+
+function coreWith(harnesses: HarnessSummary[]): TestCoreClient {
+  const core = new TestCoreClient();
+  core.harness.setListResponse({ harnesses });
+  return core;
+}
+
+function getResponse(summary: HarnessSummary) {
+  return { harness: summary } as Parameters<TestCoreClient["harness"]["setGetResponse"]>[0];
+}
+
+describe("paginated table picker contract", () => {
+  test("retries a failed query", async () => {
+    const core = new TestCoreClient();
+    core.harness.setError(new Error("access denied"));
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "access denied");
+    expect(r.lastFrame()).toContain("[r] retry");
+
+    core.harness.setError(undefined);
+    core.harness.setListResponse({
+      harnesses: [harness({ harnessName: "recovered" })],
+    });
+    await r.write("r");
+    await waitForText(r.lastFrame, "recovered");
+  });
+
+  test("returns to the previous page after a later-page query fails", async () => {
+    const core = new TestCoreClient();
+    core.harness.setListResponse({
+      harnesses: [harness({ harnessName: "page-one" })],
+      nextToken: "t2",
+    });
+    const listHarnesses = core.harness.listHarnesses.bind(core.harness);
+    core.harness.listHarnesses = async (...args) => {
+      if (args[0] === "t2") throw new Error("page unavailable");
+      return listHarnesses(...args);
+    };
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "page 1 · more →");
+    await r.write("l");
+    await waitForText(r.lastFrame, "page unavailable");
+    expect(r.lastFrame()).toContain("[←/h] previous page");
+
+    await r.write("h");
+    await waitForText(r.lastFrame, "page-one");
+    expect(core.harness.calls.at(-1)?.args[0]).toBeUndefined();
+  });
+
+  test("keeps Escape active while loading", async () => {
+    const core = new TestCoreClient();
+    const pending = Promise.withResolvers<ListHarnessesResponse>();
+    core.harness.listHarnesses = async () => pending.promise;
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "Loading harnesses");
+    await r.press("escape");
+    await waitForText(r.lastFrame, "manage agentcore harnesses");
+  });
+
+  test("keeps Escape active after a query fails", async () => {
+    const core = new TestCoreClient();
+    core.harness.setError(new Error("access denied"));
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "access denied");
+    await r.press("escape");
+    await waitForText(r.lastFrame, "manage agentcore harnesses");
+  });
+
+  test("distinguishes first-page and later-page empty states", async () => {
+    const firstPage = renderScreen("/agentcore/harness/list");
+    await waitForText(firstPage.lastFrame, "No harnesses found.");
+    expect(firstPage.lastFrame()).not.toContain("page 1");
+    await firstPage.press("escape");
+    await waitForText(firstPage.lastFrame, "manage agentcore harnesses");
+    firstPage.unmount();
+
+    const core = new TestCoreClient();
+    core.harness.setListResponse({
+      harnesses: [harness({ harnessName: "page-one" })],
+      nextToken: "t2",
+    });
+    core.harness.setListResponse({ harnesses: [] }, "t2");
+    const laterPage = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(laterPage.lastFrame, "page 1 · more →");
+    await laterPage.write("l");
+    await waitForText(laterPage.lastFrame, "No harnesses on this page.");
+    expect(laterPage.lastFrame()).toContain("page 2");
+    expect(laterPage.lastFrame()).not.toContain("No harnesses found.");
+  });
+
+  test("pages forward and backward using token history", async () => {
+    const core = new TestCoreClient();
+    const first = harness({ harnessName: "page-one-first", harnessId: "page-one-first" });
+    core.harness.setListResponse({
+      harnesses: [first, harness({ harnessName: "page-one-second", harnessId: "page-one-second" })],
+      nextToken: "t2",
+    });
+    core.harness.setListResponse(
+      {
+        harnesses: [
+          harness({ harnessName: "page-two-first", harnessId: "page-two-first" }),
+          harness({ harnessName: "page-two-second", harnessId: "page-two-second" }),
+        ],
+      },
+      "t2",
+    );
+    core.harness.setGetResponse(getResponse(first));
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "page 1 · more →");
+    expect(r.lastFrame()).toContain("[←→/hl] page");
+    expect(core.harness.calls.filter((call) => call.method === "listHarnesses")).toEqual([
+      {
+        method: "listHarnesses",
+        args: [undefined, 32, { region: "us-east-1", endpointUrl: undefined }],
+      },
+    ]);
+    await r.press("down");
+    await waitForText(r.lastFrame, "❯ page-one-second");
+    await r.write("l");
+    await waitForText(r.lastFrame, "❯ page-two-first");
+    expect(core.harness.calls.at(-1)).toEqual({
+      method: "listHarnesses",
+      args: ["t2", 32, { region: "us-east-1", endpointUrl: undefined }],
+    });
+
+    await r.press("down");
+    await waitForText(r.lastFrame, "❯ page-two-second");
+    await r.write("h");
+    await waitForText(r.lastFrame, "❯ page-one-first");
+    expect(r.lastFrame()).toContain("page 1");
+    await r.press("return");
+    await waitForText(r.lastFrame, "agentcore → harness → get → page-one-first");
+    expect(
+      core.harness.calls.some(
+        (call) => call.method === "getHarness" && call.args[0] === "page-one-second",
+      ),
+    ).toBe(false);
+  });
+
+  test("retains rows and disables selection and paging during a transition", async () => {
+    const core = new TestCoreClient();
+    core.harness.setListResponse({
+      harnesses: [harness({ harnessName: "stable-page-one", harnessId: "stable-1" })],
+      nextToken: "t2",
+    });
+    core.harness.setListResponse(
+      { harnesses: [harness({ harnessName: "settled-page-two", harnessId: "settled-2" })] },
+      "t2",
+    );
+    const nextPage = Promise.withResolvers<void>();
+    const previousPage = Promise.withResolvers<void>();
+    let holdFirstPage = false;
+    const listHarnesses = core.harness.listHarnesses.bind(core.harness);
+    core.harness.listHarnesses = async (...args) => {
+      const response = await listHarnesses(...args);
+      if (args[0] === "t2") await nextPage.promise;
+      if (args[0] === undefined && holdFirstPage) await previousPage.promise;
+      return response;
+    };
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false, gcTime: Infinity, staleTime: 0 },
+      },
+    });
+    const r = renderScreen("/agentcore/harness/list", { core, queryClient });
+
+    await waitForText(r.lastFrame, "page 1 · more →");
+    await r.write("l");
+    await waitForText(r.lastFrame, "loading page 2…");
+    expect(r.lastFrame()).toContain("stable-page-one");
+
+    const callsDuringTransition = core.harness.calls.length;
+    await r.press("return");
+    await r.write("l");
+    await r.write("h");
+    expect(core.harness.calls).toHaveLength(callsDuringTransition);
+    expect(core.harness.calls.some((call) => call.method === "getHarness")).toBe(false);
+
+    nextPage.resolve();
+    await waitForText(r.lastFrame, "settled-page-two");
+
+    holdFirstPage = true;
+    await r.write("h");
+    await waitForText(r.lastFrame, "loading page 1…");
+    expect(r.lastFrame()).toContain("stable-page-one");
+
+    const callsDuringRefetch = core.harness.calls.length;
+    await r.press("return");
+    await r.write("l");
+    expect(core.harness.calls).toHaveLength(callsDuringRefetch);
+    expect(core.harness.calls.some((call) => call.method === "getHarness")).toBe(false);
+
+    await r.press("escape");
+    await waitForText(r.lastFrame, "manage agentcore harnesses");
+    previousPage.resolve();
+  });
+
+  test("resizing resets pagination and selection", async () => {
+    const first = harness({ harnessName: "page-one-first", harnessId: "page-one-first" });
+    const core = new TestCoreClient();
+    core.harness.setListResponse({
+      harnesses: [first, harness({ harnessName: "page-one-second", harnessId: "page-one-second" })],
+      nextToken: "t2",
+    });
+    core.harness.setListResponse(
+      {
+        harnesses: [
+          harness({ harnessName: "page-two-first", harnessId: "page-two-first" }),
+          harness({ harnessName: "page-two-second", harnessId: "page-two-second" }),
+        ],
+      },
+      "t2",
+    );
+    core.harness.setGetResponse(getResponse(first));
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "page 1 · more →");
+    await r.write("l");
+    await waitForText(r.lastFrame, "page-two-second");
+    await r.press("down");
+    await waitForText(r.lastFrame, "❯ page-two-second");
+
+    await r.resize(100, 20);
+    await waitForText(r.lastFrame, "page-one-first");
+    await r.press("return");
+    await waitForText(r.lastFrame, "agentcore → harness → get → page-one-first");
+    expect(
+      core.harness.calls.some(
+        (call) => call.method === "getHarness" && call.args[0] === "page-one-second",
+      ),
+    ).toBe(false);
+  });
+
+  test("pasted filter input does not page and resets selection to its first match", async () => {
+    const alpha = harness({ harnessName: "alpha", harnessId: "alpha-1" });
+    const beta = harness({ harnessName: "beta", harnessId: "beta-2" });
+    const core = coreWith([alpha, beta]);
+    core.harness.setListResponse({ harnesses: [alpha, beta], nextToken: "t2" });
+    core.harness.setGetResponse(getResponse(alpha));
+    const r = renderScreen("/agentcore/harness/list", { core });
+
+    await waitForText(r.lastFrame, "beta");
+    await r.press("down");
+    await r.write("/");
+    await r.write("missing");
+    await waitForText(r.lastFrame, "/ Filter: missing");
+    await r.press("escape");
+    await r.write("/");
+    await r.write("alpha");
+    await waitForText(r.lastFrame, "/ Filter: alpha");
+    expect(
+      core.harness.calls.some((call) => call.method === "listHarnesses" && call.args[0] === "t2"),
+    ).toBe(false);
+
+    await r.press("return");
+    await r.press("return");
+    await waitFor(() =>
+      core.harness.calls.some((call) => call.method === "getHarness" && call.args[0] === "alpha-1"),
+    );
+    expect(r.lastFrame()).toContain("agentcore → harness → get → alpha-1");
+  });
+});

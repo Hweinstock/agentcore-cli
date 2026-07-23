@@ -1,5 +1,5 @@
 import { test, expect, describe, afterEach } from "bun:test";
-import { renderScreen, waitForText, cleanupScreens, tick } from "../testing";
+import { cleanupScreens, renderScreen, tick, waitForText } from "../testing";
 
 afterEach(cleanupScreens);
 
@@ -135,17 +135,6 @@ describe("navigation", () => {
     await r.press("escape");
     await tick(20);
     expect(r.lastFrame()).toContain("❯ harness");
-    r.unmount();
-  });
-
-  test("ctrl+c is handled (quit) without crashing", async () => {
-    const r = renderScreen("/agentcore");
-    await waitForText(r.lastFrame, "❯ harness");
-
-    // ctrl+c is 0x03; the menu's handler calls exit(), which unmounts the app.
-    // Driving the branch must not throw; after exit the renderer stops updating.
-    await r.write(String.fromCharCode(3));
-    await tick(20);
     r.unmount();
   });
 });

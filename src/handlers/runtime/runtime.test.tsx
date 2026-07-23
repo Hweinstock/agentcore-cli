@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { CoreClient } from "../../core";
-import { createSilentLogger, fixtureFactories, matchGolden, testIO } from "../../testing";
+import {
+  createSilentLogger,
+  fixtureFactories,
+  matchGolden,
+  TestCoreClient,
+  testIO,
+} from "../../testing";
 import { createRootHandler } from "../index";
 
 const REGION = "us-west-2";
@@ -16,6 +22,7 @@ const MISSING_RUNTIME_ID = "missing_runtime-0000000000";
 
 function createFixtureCore(): CoreClient {
   const { createControlClient, createDataClient, createIamClient } = fixtureFactories(FIXTURES);
+
   return new CoreClient({
     createControlClient,
     createDataClient,
@@ -35,6 +42,20 @@ async function run(args: string[]): Promise<string> {
   return io.stdout();
 }
 
+function testRuntimeCommand() {
+  const core = new TestCoreClient();
+  const io = testIO();
+  const root = createRootHandler(core, {
+    io: io.io,
+    logger: createSilentLogger(),
+  });
+
+  return {
+    core,
+    route: (args: string[]) => root.route(["node", "agentcore", ...args, "--region", REGION]),
+  };
+}
+
 describe("runtime command hierarchy", () => {
   test("registers the Runtime read-only command hierarchy", () => {
     const root = createRootHandler(createFixtureCore(), {
@@ -43,6 +64,7 @@ describe("runtime command hierarchy", () => {
     });
     const runtime = root.children().find((child) => child.name() === "runtime");
 
+    expect(runtime?.flags().map((flag) => flag.name)).not.toContain("interactive");
     expect(runtime?.children().map((child) => child.name())).toEqual([
       "get",
       "list",
@@ -66,14 +88,28 @@ describe("runtime command hierarchy", () => {
   });
 
   test.each(["runtime", "runtime version", "runtime endpoint"])(
-    "prints help for bare `%s` without an SDK call",
+    "prints help for `%s --json` without an SDK call",
     async (command) => {
-      const stdout = await run(command.split(" "));
+      const stdout = await run([...command.split(" "), "--json"]);
 
       expect(stdout).toContain(`Usage: agentcore ${command}`);
       expect(stdout).toContain("Commands:");
     },
   );
+});
+
+describe("runtime TUI dispatch", () => {
+  test.each([
+    ["get", ["runtime", "get"]],
+    ["endpoint list", ["runtime", "endpoint", "list"]],
+  ] as const)("opens the TUI for a bare Runtime %s leaf", async (_label, args) => {
+    const { core, route } = testRuntimeCommand();
+
+    await expect(route([...args])).rejects.toThrow(
+      "interactive mode requires a TTY on stdin and stdout",
+    );
+    expect(core.runtime.calls).toEqual([]);
+  });
 });
 
 describe("runtime read-only commands", () => {
@@ -218,9 +254,12 @@ describe("runtime read-only commands", () => {
       /--qualifier/,
     ],
     ["runtime endpoint list", ["runtime", "endpoint", "list"], /--id/],
-  ] as const)("rejects a missing required selector for `%s`", async (_label, args, message) => {
-    expect(run([...args])).rejects.toThrow(message);
-  });
+  ] as const)(
+    "rejects a missing required selector for headless `%s`",
+    async (_label, args, message) => {
+      await expect(run([...args, "--json"])).rejects.toThrow(message);
+    },
+  );
 
   test.each([
     [

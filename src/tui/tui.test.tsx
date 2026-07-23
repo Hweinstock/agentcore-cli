@@ -1,7 +1,30 @@
 import { test, expect, describe } from "bun:test";
 import { createRootHandler } from "../handlers";
 import { renderJson } from "./index";
-import { createSilentLogger, TestCoreClient, testIO } from "../testing";
+import { createSilentLogger, TestCoreClient, testIO, tick, waitFor } from "../testing";
+
+interface TtyInput extends NodeJS.ReadStream {
+  write(chunk: string): boolean;
+}
+
+function ttyTestIO(): { streams: ReturnType<typeof testIO>; stdin: TtyInput } {
+  const streams = testIO({ isTTY: true });
+  const stdin = streams.io.stdin as TtyInput;
+  stdin.setRawMode = function () {
+    return this;
+  };
+  stdin.ref = function () {
+    return this;
+  };
+  stdin.unref = function () {
+    return this;
+  };
+  Object.defineProperties(streams.io.stdout, {
+    columns: { configurable: true, value: 100 },
+    rows: { configurable: true, value: 40 },
+  });
+  return { streams, stdin };
+}
 
 describe("renderJson", () => {
   test("pretty-prints a value as indented JSON to the given writer", () => {
@@ -38,5 +61,65 @@ describe("--json short-circuits the TUI", () => {
     // The harness subcommands are listed in its help.
     expect(out).toContain("list");
     expect(out).toContain("get");
+  });
+});
+
+describe("TUI stream boundary", () => {
+  test.each([
+    ["stdin and stdout", false, false],
+    ["stdin", false, true],
+    ["stdout", true, false],
+  ] as const)(
+    "rejects interactive mode when %s is non-TTY",
+    async (_label, stdinIsTTY, stdoutIsTTY) => {
+      const io = testIO({ isTTY: true });
+      Object.defineProperty(io.io.stdin, "isTTY", { configurable: true, value: stdinIsTTY });
+      Object.defineProperty(io.io.stdout, "isTTY", { configurable: true, value: stdoutIsTTY });
+      const root = createRootHandler(new TestCoreClient(), {
+        io: io.io,
+        logger: createSilentLogger(),
+      });
+
+      await expect(root.route(["node", "agentcore"])).rejects.toThrow(
+        "interactive mode requires a TTY on stdin and stdout",
+      );
+    },
+  );
+
+  test("Ctrl+C exits a Runtime list and ignores input after exit", async () => {
+    const core = new TestCoreClient();
+    core.runtime.setListResponse({
+      agentRuntimes: [
+        {
+          agentRuntimeArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/runtime-123",
+          agentRuntimeId: "runtime-123",
+          agentRuntimeVersion: "7",
+          agentRuntimeName: "checkout",
+          description: "Checkout Runtime",
+          lastUpdatedAt: new Date("2026-07-20T12:34:56.000Z"),
+          status: "READY",
+        },
+      ],
+      nextToken: "page-2",
+    });
+    const { streams, stdin } = ttyTestIO();
+    const root = createRootHandler(core, {
+      io: streams.io,
+      logger: createSilentLogger(),
+    });
+    const routePromise = root.route(["node", "agentcore", "runtime", "list"]);
+    const listCalls = () => core.runtime.calls.filter((call) => call.method === "listRuntimes");
+
+    await waitFor(() => listCalls().length > 0);
+    await tick();
+    const callsBeforeExit = listCalls().length;
+
+    stdin.write(String.fromCharCode(3));
+    await expect(routePromise).resolves.toBeUndefined();
+
+    stdin.write("l");
+    await tick();
+    expect(listCalls()).toHaveLength(callsBeforeExit);
+    expect(listCalls().some((call) => call.args[0] === "page-2")).toBe(false);
   });
 });

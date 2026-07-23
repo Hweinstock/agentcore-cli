@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { darkTheme } from "../_core.js";
 import type { InkUITheme } from "../_core.js";
@@ -40,6 +40,7 @@ export interface DataTableProps<T> {
   showFooter?: boolean;
   emptyMessage?: string;
   focus?: boolean;
+  selectionResetKey?: string | number;
   theme?: InkUITheme;
 }
 
@@ -62,6 +63,7 @@ export function DataTable<T extends Record<string, unknown>>({
   showFooter = true,
   emptyMessage = "No data",
   focus = true,
+  selectionResetKey,
   theme = darkTheme,
 }: DataTableProps<T>): React.ReactElement {
   const [selectedRow, setSelectedRow] = useState(0);
@@ -70,6 +72,11 @@ export function DataTable<T extends Record<string, unknown>>({
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [searchQuery, setSearchQuery] = useState("");
   const [searchMode, setSearchMode] = useState(false);
+
+  useEffect(() => {
+    setSelectedRow(0);
+    setCurrentPage(0);
+  }, [selectionResetKey]);
 
   // Filter
   const filtered = data.filter((row) => {
@@ -108,7 +115,9 @@ export function DataTable<T extends Record<string, unknown>>({
           setSearchQuery((q) => q.slice(0, -1));
           return;
         }
-        if (input && input.length === 1 && !key.ctrl) setSearchQuery((q) => q + input);
+        if (input && !key.ctrl && !key.meta && !/\p{Cc}/u.test(input)) {
+          setSearchQuery((q) => q + input);
+        }
         return;
       }
 
@@ -135,8 +144,11 @@ export function DataTable<T extends Record<string, unknown>>({
             onNextPage();
           }
         } else setCurrentPage((p) => Math.min(totalPages - 1, p + 1));
-      } else if (input === "/") setSearchMode(true);
-      else if (input === "s") {
+      } else if (input === "/") {
+        setSelectedRow(0);
+        setCurrentPage(0);
+        setSearchMode(true);
+      } else if (input === "s") {
         const col = columns.find((c) => c.sortable);
         if (col) {
           if (sortColumn === col.key) setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
