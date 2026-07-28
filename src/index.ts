@@ -14,6 +14,7 @@ import { FsReadWriteJson } from "./io";
 import { createFileLogger, LOG_LEVEL } from "./logging";
 import { runWithExitCode } from "./runnable";
 import { DefaultGlobalConfigAccessor } from "./globalConfig";
+import { AgentCoreCLIError } from "./errors";
 
 process.exit(
   await runWithExitCode(async (argv: string[]) => {
@@ -65,11 +66,9 @@ process.exit(
       // Handle the request
       await rootHandler.route(argv);
     } catch (e) {
-      const error = e instanceof Error ? e : new Error(String(e));
-      rootLogger
-        .child({ errorName: error.name, errorMessage: error.message, stack: error.stack ?? "" })
-        .error();
-      throw e;
+      const error = AgentCoreCLIError.fromError(e);
+      rootLogger.child({ error: error.json() }).error();
+      throw error;
     } finally {
       await rootLogger.end();
     }
