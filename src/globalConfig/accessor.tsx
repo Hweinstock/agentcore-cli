@@ -6,9 +6,10 @@ import {
 } from "./types";
 import type { ReadWriteJson } from "../io";
 import type { Logger } from "../logging";
-import z from "zod";
 import { globalConfigFileSchema } from "./types";
 import { DEFAULT_GLOBAL_CONFIG, applyOverrides } from "./config";
+import z from "zod";
+import { InputValidationError } from "../errors";
 
 type DefaultGlobalConfigAccessorConfig = {
   logger: Logger;
@@ -76,8 +77,9 @@ export class DefaultGlobalConfigAccessor implements GlobalConfigAccessor {
   private async writeToConfigFile(data: GlobalConfigFileData): Promise<GlobalConfigFileData> {
     const dataParseResult = globalConfigFileSchema.safeParse(data);
     if (!dataParseResult.success) {
-      // TODO: mark this as a client-source error.
-      throw new TypeError(z.prettifyError(dataParseResult.error));
+      throw new InputValidationError(z.prettifyError(dataParseResult.error), {
+        cause: dataParseResult.error,
+      });
     }
 
     await this.json.write(this.filePath, dataParseResult.data);
