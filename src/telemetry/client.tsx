@@ -13,6 +13,7 @@ import {
 import type { GlobalConfigAccessor } from "../globalConfig";
 import { FileSystemSink } from "./fileSystemSink";
 import path from "path";
+import { OtelHistogramMetricSink } from "./otelSink";
 
 export type DefaultTelemetryClientConfig = {
   logger: Logger;
@@ -31,6 +32,7 @@ export class DefaultTelemetryClient implements TelemetryClient {
   private readonly auditFilePath: string;
   private globalConfigAccessor: GlobalConfigAccessor;
   private readonly metricSinksOverride: MetricSink[] | undefined;
+
   constructor(config: DefaultTelemetryClientConfig) {
     this.logger = config.logger;
     this.sessionId = config.sessionId;
@@ -106,6 +108,14 @@ export class DefaultTelemetryClient implements TelemetryClient {
         new FileSystemSink({
           logger: this.logger.child({ module: "fileSystemSink" }),
           filePath: this.auditFilePath,
+        }),
+      );
+
+    if (globalConfig.telemetry.enabled)
+      metricSinks.push(
+        new OtelHistogramMetricSink({
+          logger: this.logger.child({ module: "otelCollectorSink" }),
+          endpoint: globalConfig.telemetry.endpoint,
         }),
       );
 
