@@ -182,7 +182,7 @@ test("data() caches independently of control()", () => {
   expect(dataBuilt).toBe(1);
 });
 
-test("exposes a harness sub-client", () => {
+test("exposes feature sub-clients", () => {
   const core = new CoreClient({
     createControlClient: fakeControl,
     createDataClient: fakeData,
@@ -190,6 +190,7 @@ test("exposes a harness sub-client", () => {
     logger: createSilentLogger(),
   });
   expect(core.harness).toBeDefined();
+  expect(core.memory).toBeDefined();
 });
 
 test("getRuntime sends the abort signal to the control client", async () => {

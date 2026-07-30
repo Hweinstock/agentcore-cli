@@ -13,10 +13,12 @@ import type {
   GetHarnessEndpointResponse,
   GetAgentRuntimeEndpointResponse,
   GetAgentRuntimeResponse,
+  GetMemoryOutput,
   ListApiKeyCredentialProvidersResponse,
   ListAgentRuntimeEndpointsResponse,
   ListAgentRuntimesResponse,
   ListAgentRuntimeVersionsResponse,
+  ListMemoriesOutput,
   ListHarnessesResponse,
   ListHarnessEndpointsResponse,
   ListHarnessVersionsResponse,
@@ -25,6 +27,7 @@ import type {
   DeleteEvaluatorResponse,
   GetEvaluatorResponse,
   ListEvaluatorsResponse,
+  MemoryView,
   UpdateEvaluatorResponse,
   UpdateApiKeyCredentialProviderResponse,
   UpdateHarnessEndpointRequest,
@@ -47,6 +50,7 @@ import type {
   CreateApiKeyCredentialProviderInput,
   UpdateApiKeyCredentialProviderInput,
 } from "../handlers/identity/types";
+import type { CoreMemoryClient } from "../handlers/memory/types";
 import type {
   CoreRuntimeClient,
   RuntimeInvokeRequest,
@@ -103,6 +107,8 @@ const DEFAULT_LIST_API_KEYS_RESPONSE: ListApiKeyCredentialProvidersResponse = {
 };
 const DEFAULT_UPDATE_API_KEY_RESPONSE = {} as UpdateApiKeyCredentialProviderResponse;
 const DEFAULT_DELETE_API_KEY_RESPONSE = {} as DeleteApiKeyCredentialProviderResponse;
+const DEFAULT_GET_MEMORY_RESPONSE = {} as GetMemoryOutput;
+const DEFAULT_LIST_MEMORIES_RESPONSE: ListMemoriesOutput = { memories: [] };
 const DEFAULT_GET_RUNTIME_RESPONSE = {} as GetAgentRuntimeResponse;
 const DEFAULT_GET_RUNTIME_ENDPOINT_RESPONSE = {} as GetAgentRuntimeEndpointResponse;
 const DEFAULT_LIST_RUNTIMES_RESPONSE: ListAgentRuntimesResponse = { agentRuntimes: [] };
@@ -587,6 +593,50 @@ export class TestRuntimeClient implements CoreRuntimeClient {
     );
   }
 }
+
+export class TestMemoryClient implements CoreMemoryClient {
+  readonly calls: RecordedCall[] = [];
+
+  private getResponse: GetMemoryOutput = DEFAULT_GET_MEMORY_RESPONSE;
+  private listResponses = new Map<string | undefined, ListMemoriesOutput>();
+  private error?: Error;
+
+  setGetResponse(response: GetMemoryOutput): this {
+    this.getResponse = response;
+    return this;
+  }
+
+  setListResponse(response: ListMemoriesOutput, forNextToken?: string): this {
+    this.listResponses.set(forNextToken, response);
+    return this;
+  }
+
+  setError(error: Error | undefined): this {
+    this.error = error;
+    return this;
+  }
+
+  async getMemory(id: string, view: MemoryView, options: CoreOptions): Promise<GetMemoryOutput> {
+    this.calls.push({ method: "getMemory", args: [id, view, options] });
+    if (this.error) throw this.error;
+    return this.getResponse;
+  }
+
+  async listMemories(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListMemoriesOutput> {
+    this.calls.push({ method: "listMemories", args: [nextToken, maxResults, options] });
+    if (this.error) throw this.error;
+    return (
+      this.listResponses.get(nextToken) ??
+      this.listResponses.get(undefined) ??
+      DEFAULT_LIST_MEMORIES_RESPONSE
+    );
+  }
+}
+
 type TestCoreClientOptions = {
   logger?: Logger;
 };
@@ -743,6 +793,7 @@ export class TestEvalClient implements CoreEvalClient {
 export class TestCoreClient implements Core {
   readonly harness = new TestHarnessClient();
   readonly identity = new TestIdentityClient();
+  readonly memory = new TestMemoryClient();
   readonly runtime = new TestRuntimeClient();
   readonly eval = new TestEvalClient();
   readonly projectManager: ProjectManager;

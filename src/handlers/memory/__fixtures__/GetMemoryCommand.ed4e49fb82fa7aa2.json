@@ -1,0 +1,6 @@
+{
+  "$error": {
+    "name": "ResourceNotFoundException",
+    "message": "Resource not found during GetMemory: Failed to retrieve memory item for ID: missing_memory-0000000000"
+  }
+}

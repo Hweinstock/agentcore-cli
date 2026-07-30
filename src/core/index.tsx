@@ -4,6 +4,7 @@ import { IAMClient } from "@aws-sdk/client-iam";
 import { EvalClient } from "./eval";
 import { HarnessClient } from "./harness";
 import { IdentityClient } from "./identity";
+import { MemoryClient } from "./memory";
 import { RuntimeClient } from "./runtime";
 import type {
   AwsClients,
@@ -51,6 +52,7 @@ export class CoreClient implements AwsClients {
   // Feature-scoped sub-clients. Access as e.g. `coreClient.harness.getHarness(...)`.
   readonly harness: HarnessClient = new HarnessClient(this);
   readonly identity: IdentityClient = new IdentityClient(this);
+  readonly memory: MemoryClient = new MemoryClient(this);
   readonly runtime: RuntimeClient;
   readonly eval: EvalClient = new EvalClient(this);
 
