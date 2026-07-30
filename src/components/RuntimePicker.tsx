@@ -2,7 +2,9 @@ import type { AgentRuntime } from "@aws-sdk/client-bedrock-agentcore-control";
 import { useNavigate } from "react-router";
 import type { ScreenProps } from "../handlers/types";
 import { coreOptsFromCtx } from "../handlers/utils";
+import { formatTimestamp } from "./formatTimestamp";
 import { PaginatedTablePicker } from "./PaginatedTablePicker";
+import type { DataTableColumn } from "./ui/data-table";
 
 interface RuntimeRow extends Record<string, unknown> {
   runtimeId: string;
@@ -11,6 +13,29 @@ interface RuntimeRow extends Record<string, unknown> {
   status: string;
   lastUpdatedAt: string;
 }
+
+function runtimeIdSuffix(value: unknown): string {
+  const id = String(value ?? "");
+  return id.slice(id.lastIndexOf("-") + 1);
+}
+
+export const runtimeColumns = [
+  { key: "runtimeName", header: "name", flex: true },
+  {
+    key: "runtimeId",
+    header: "id suffix",
+    width: 10,
+    render: runtimeIdSuffix,
+  },
+  { key: "runtimeVersion", header: "version", width: 7 },
+  { key: "status", header: "status", width: 13 },
+  {
+    key: "lastUpdatedAt",
+    header: "updated UTC",
+    width: 16,
+    render: formatTimestamp,
+  },
+] satisfies DataTableColumn<RuntimeRow>[];
 
 function toRow(runtime: AgentRuntime): RuntimeRow {
   const runtimeId = runtime.agentRuntimeId ?? "";
@@ -53,13 +78,7 @@ export function RuntimePicker({
         };
       }}
       toRow={toRow}
-      columns={[
-        { key: "runtimeName", header: "name" },
-        { key: "runtimeId", header: "id" },
-        { key: "runtimeVersion", header: "latestVersion" },
-        { key: "status", header: "status" },
-        { key: "lastUpdatedAt", header: "lastUpdatedAt" },
-      ]}
+      columns={runtimeColumns}
       getValue={(row) => row.runtimeId}
       onSelect={onSelect}
       onBack={goBack}

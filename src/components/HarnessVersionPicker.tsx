@@ -2,7 +2,9 @@ import { useNavigate } from "react-router";
 import type { HarnessVersionSummary } from "@aws-sdk/client-bedrock-agentcore-control";
 import type { ScreenProps } from "../handlers/types";
 import { coreOptsFromCtx } from "../handlers/utils";
+import { formatTimestamp } from "./formatTimestamp";
 import { PaginatedTablePicker } from "./PaginatedTablePicker";
+import type { DataTableColumn } from "./ui/data-table";
 
 // VersionRow is the flat, display-ready shape the table renders.
 interface VersionRow extends Record<string, unknown> {
@@ -11,6 +13,18 @@ interface VersionRow extends Record<string, unknown> {
   createdAt: string;
   updatedAt: string;
 }
+
+export const harnessVersionColumns = [
+  { key: "harnessVersion", header: "version", width: 7 },
+  { key: "status", header: "status", width: 13, minWidth: 6 },
+  {
+    key: "createdAt",
+    header: "created UTC",
+    width: 16,
+    minWidth: 11,
+    render: formatTimestamp,
+  },
+] satisfies DataTableColumn<VersionRow>[];
 
 function toRow(v: HarnessVersionSummary): VersionRow {
   return {
@@ -62,11 +76,7 @@ export function HarnessVersionPicker({
         };
       }}
       toRow={toRow}
-      columns={[
-        { key: "harnessVersion", header: "version" },
-        { key: "status", header: "status" },
-        { key: "createdAt", header: "createdAt" },
-      ]}
+      columns={harnessVersionColumns}
       sortRows={(rows) =>
         [...rows].sort((left, right) => Number(right.harnessVersion) - Number(left.harnessVersion))
       }
