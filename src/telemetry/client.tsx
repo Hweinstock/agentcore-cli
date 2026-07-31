@@ -13,7 +13,7 @@ import {
 import type { GlobalConfigAccessor } from "../globalConfig";
 import { FileSystemSink } from "./fileSystemSink";
 import path from "path";
-import { OtelHistogramMetricSink } from "./otelSink";
+import { OtelHistogramSink } from "./otelSink";
 
 export type DefaultTelemetryClientConfig = {
   logger: Logger;
@@ -56,22 +56,15 @@ export class DefaultTelemetryClient implements TelemetryClient {
     attributesRecorder: AttributesRecorder<AttributesOf<TMetricName>>,
   ): Promise<void> {
     const metricSinks = await this.getMetricSinks();
-    const resourceAttributes = await this.getResourceAttributes();
 
     const metricAttributes = METRICS[metricName]["attributeSchema"].parse(
       attributesRecorder.getAttributes(),
     );
     const validatedMetricValue = METRICS[metricName]["valueSchema"].parse(metricValue);
 
-    // merge in resource attributes with metric attributes before sending to sink.
-    const attributes = {
-      ...resourceAttributes,
-      ...metricAttributes,
-    };
-
     metricSinks.forEach((sink) => {
       try {
-        sink.send(metricName, validatedMetricValue, attributes);
+        sink.send(metricName, validatedMetricValue, metricAttributes);
       } catch (e) {
         const error = e instanceof Error ? e : new Error(String(e));
         this.logger
@@ -98,6 +91,7 @@ export class DefaultTelemetryClient implements TelemetryClient {
 
   private getMetricSinks: () => Promise<MetricSink[]> = once(async () => {
     if (this.metricSinksOverride) return this.metricSinksOverride;
+    const resourceAttributes = await this.getResourceAttributes();
 
     const metricSinks = [];
 
@@ -108,14 +102,16 @@ export class DefaultTelemetryClient implements TelemetryClient {
         new FileSystemSink({
           logger: this.logger.child({ module: "fileSystemSink" }),
           filePath: this.auditFilePath,
+          resourceAttributes,
         }),
       );
 
     if (globalConfig.telemetry.enabled)
       metricSinks.push(
-        new OtelHistogramMetricSink({
+        new OtelHistogramSink({
           logger: this.logger.child({ module: "otelCollectorSink" }),
           endpoint: globalConfig.telemetry.endpoint,
+          resourceAttributes,
         }),
       );
 

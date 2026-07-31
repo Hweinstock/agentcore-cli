@@ -16,7 +16,7 @@ export type OtelCollectorSinkConfig = {
   instrumentationScope?: string;
 };
 
-export class OtelHistogramMetricSink implements MetricSink {
+export class OtelHistogramSink implements MetricSink {
   private readonly name: string;
   private readonly endpoint: string;
   private meterProvider: MeterProvider;
