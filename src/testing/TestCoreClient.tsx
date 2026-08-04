@@ -935,7 +935,17 @@ export class TestCoreClient implements Core {
   readonly eval = new TestEvalClient();
   readonly projectManager: ProjectManager;
 
+  // Commands the project manager would have run (npm install, git init, ...),
+  // recorded instead of spawned so tests stay fast and hermetic.
+  readonly projectCommands: { command: string[]; cwd: string }[] = [];
+
   constructor(options?: TestCoreClientOptions) {
-    this.projectManager = new FsProjectManager({ logger: options?.logger ?? createSilentLogger() });
+    this.projectManager = new FsProjectManager({
+      logger: options?.logger ?? createSilentLogger(),
+      runner: async (command, { cwd }) => {
+        this.projectCommands.push({ command, cwd });
+      },
+      checkTool: async () => {}, // CI hosts don't have uv installed
+    });
   }
 }

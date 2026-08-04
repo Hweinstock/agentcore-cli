@@ -8,8 +8,10 @@ import type {
   ProjectManager,
 } from "../../handlers/project/types";
 import type { Logger } from "../../logging";
+import { requireTool, runProcess, type ProcessRunner } from "../../io";
 import { projectTree } from "./compose";
 import { defaultSource, type AssetSource } from "./source";
+import { TEMPLATES } from "./templates";
 import { writeTree } from "./tree";
 
 /** Walks up from directory looking for the agentcore/agentcore.json project marker. */
@@ -27,6 +29,8 @@ function enclosingProjectRoot(directory: string): string | undefined {
 type ProjectManagerConfig = {
   logger: Logger;
   source?: AssetSource; // Bun executable or dist/assets depending on runtime
+  runner?: ProcessRunner; // injectable so tests never spawn real processes
+  checkTool?: typeof requireTool; // injectable so tests don't depend on the host's PATH
 };
 
 /**
@@ -35,10 +39,14 @@ type ProjectManagerConfig = {
 export class FsProjectManager implements ProjectManager {
   private readonly logger: Logger;
   private readonly source: AssetSource;
+  private readonly runner: ProcessRunner;
+  private readonly checkTool: typeof requireTool;
 
   constructor(config: ProjectManagerConfig) {
     this.logger = config.logger;
     this.source = config.source ?? defaultSource();
+    this.runner = config.runner ?? runProcess;
+    this.checkTool = config.checkTool ?? requireTool;
   }
 
   public resolve(_input: ResolveProjectInput): Promise<Project> {
@@ -54,9 +62,39 @@ export class FsProjectManager implements ProjectManager {
     const destination = join(process.cwd(), input.name);
     this.logger.debug(`scaffolding project "${input.name}" from template "${input.template}"`);
 
+    input.onProgress?.({ message: "Scaffolding project files..." });
     const tree = await projectTree(input.name, input.template, this.source);
     await writeTree(tree, destination);
 
+    // A failed step leaves the scaffolded files in place; the error tells the
+    // user how to rerun the step by hand.
+    if (!input.skipInstall) {
+      await this.checkTool("npm", "Install Node.js: https://nodejs.org/");
+      input.onProgress?.({ message: "Installing CDK dependencies (npm install)..." });
+      await this.run(["npm", "install"], join(destination, "agentcore", "cdk"));
+
+      const appDir = join(destination, "app", TEMPLATES[input.template].appDir);
+      if (existsSync(join(appDir, "pyproject.toml"))) {
+        await this.checkTool(
+          "uv",
+          "Install uv: https://docs.astral.sh/uv/getting-started/installation/",
+        );
+        input.onProgress?.({ message: "Syncing Python dependencies (uv sync)..." });
+        await this.run(["uv", "sync"], appDir);
+      }
+    }
+
+    if (!input.skipGit) {
+      await this.checkTool("git", "Install git: https://git-scm.com/downloads");
+      input.onProgress?.({ message: "Initializing git repository..." });
+      await this.run(["git", "init"], destination);
+    }
+
     return { name: input.name };
+  }
+
+  // Runs a command with its output streamed to the file logger.
+  private run(command: string[], cwd: string): Promise<void> {
+    return this.runner(command, { cwd, onOutput: (chunk) => this.logger.debug(chunk) });
   }
 }
