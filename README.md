@@ -58,7 +58,7 @@ agentcore                          # interactive TUI
 ├── runtime                        # inspect deployed AgentCore Runtimes
 │   ├── get                        # fetch a Runtime by id
 │   ├── list                       # list Runtimes (server-side paginated)
-│   ├── invoke                     # invoke a Runtime
+│   ├── invoke                     # invoke a Runtime headlessly or in a persistent console
 │   ├── version
 │   │   ├── get                    # get a specific Runtime version
 │   │   └── list                   # list a Runtime's versions
@@ -182,7 +182,7 @@ Source-aware values: any field flag documented as such accepts the value inline,
 
 ### Invoke a Runtime
 
-Runtime invocation accepts inline, file, or stdin payload bytes:
+Headless invocation accepts inline, file, or stdin payload bytes:
 
 ```bash
 # Inline
@@ -254,14 +254,35 @@ agentcore runtime invoke --id <runtimeId> --payload '{"action":"status"}' --json
 # {"statusCode":200,"contentType":"application/json","bodyEncoding":"utf8","body":"{\"ok\":true}","complete":true}
 ```
 
+Without `--payload`, Runtime Invoke opens a persistent JSON console for repeated
+requests. The console sends inline `application/json` payloads and renders each
+response according to its returned content type. Bare invoke opens the Runtime
+and endpoint pickers; `--id` skips the Runtime picker, and `--id` plus
+`--qualifier` opens the console directly. `--session-id` resumes that Runtime
+session in the console. `--user-id`, `--header`, and `--bearer-token` seed
+request context that persists across sends and endpoint changes within that
+Runtime. The console never displays their values, and switching Runtimes clears
+them. Interactive bearer tokens may be inline or `file://` sources, but not
+stdin.
+
+| Shortcut      | Action                                       |
+| ------------- | -------------------------------------------- |
+| `Enter`       | Send the JSON request                        |
+| `Shift+Enter` | Insert a newline                             |
+| `Ctrl+T`      | Change Runtime or endpoint                   |
+| `Ctrl+V`      | Toggle raw and pretty completed JSON         |
+| `Esc`         | Interrupt an active request or navigate back |
+| `↑`/`↓`       | Scroll response history                      |
+
 Runtime Invoke accepts Runtime IDs from the current account only. It does not
 accept ARNs, `--version`, `--interactive`, cross-account targets, or custom
 request paths. All requests use the Runtime `/invocations` route, including MCP
 Runtimes.
 
-Bare Runtime and Memory branches and leaves require a TTY on stdin and stdout. Supplying
-operation flags runs the command headlessly, and `--json` always suppresses TUI
-rendering.
+Bare Runtime and Memory branches and leaves require a TTY on stdin and stdout.
+For Runtime Invoke, supplying a payload or headless-only request or output flags
+runs headlessly; `--session-id` can instead seed the persistent console.
+`--json` always suppresses TUI rendering.
 
 ```bash
 agentcore runtime
