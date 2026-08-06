@@ -1,9 +1,11 @@
 import type {
   CreateApiKeyCredentialProviderResponse,
+  CreateOauth2CredentialProviderResponse,
   CreateHarnessEndpointRequest,
   CreateHarnessEndpointResponse,
   CreateHarnessResponse,
   DeleteApiKeyCredentialProviderResponse,
+  DeleteOauth2CredentialProviderResponse,
   DeleteHarnessEndpointRequest,
   DeleteHarnessEndpointResponse,
   DeleteHarnessRequest,
@@ -12,12 +14,14 @@ import type {
   GetGatewayRuleResponse,
   GetGatewayTargetResponse,
   GetApiKeyCredentialProviderResponse,
+  GetOauth2CredentialProviderResponse,
   GetHarnessResponse,
   GetHarnessEndpointResponse,
   GetAgentRuntimeEndpointResponse,
   GetAgentRuntimeResponse,
   GetMemoryOutput,
   ListApiKeyCredentialProvidersResponse,
+  ListOauth2CredentialProvidersResponse,
   ListAgentRuntimeEndpointsResponse,
   ListAgentRuntimesResponse,
   ListAgentRuntimeVersionsResponse,
@@ -41,6 +45,7 @@ import type {
   UpdateEvaluatorResponse,
   UpdateOnlineEvaluationConfigResponse,
   UpdateApiKeyCredentialProviderResponse,
+  UpdateOauth2CredentialProviderResponse,
   UpdateHarnessEndpointRequest,
   UpdateHarnessEndpointResponse,
   UpdateHarnessRequest,
@@ -72,7 +77,9 @@ import type { CoreGatewayClient } from "../handlers/gateway/types";
 import type {
   CoreIdentityClient,
   CreateApiKeyCredentialProviderInput,
+  CreateOauth2CredentialProviderInput,
   UpdateApiKeyCredentialProviderInput,
+  UpdateOauth2CredentialProviderInput,
 } from "../handlers/identity/types";
 import type { CoreMemoryClient } from "../handlers/memory/types";
 import type {
@@ -153,6 +160,13 @@ const DEFAULT_GET_GATEWAY_TARGET_RESPONSE = {} as GetGatewayTargetResponse;
 const DEFAULT_LIST_GATEWAY_TARGETS_RESPONSE: ListGatewayTargetsResponse = { items: [] };
 const DEFAULT_GET_GATEWAY_RULE_RESPONSE = {} as GetGatewayRuleResponse;
 const DEFAULT_LIST_GATEWAY_RULES_RESPONSE: ListGatewayRulesResponse = { gatewayRules: [] };
+const DEFAULT_CREATE_OAUTH2_RESPONSE = {} as CreateOauth2CredentialProviderResponse;
+const DEFAULT_GET_OAUTH2_RESPONSE = {} as GetOauth2CredentialProviderResponse;
+const DEFAULT_LIST_OAUTH2_RESPONSE: ListOauth2CredentialProvidersResponse = {
+  credentialProviders: [],
+};
+const DEFAULT_UPDATE_OAUTH2_RESPONSE = {} as UpdateOauth2CredentialProviderResponse;
+const DEFAULT_DELETE_OAUTH2_RESPONSE = {} as DeleteOauth2CredentialProviderResponse;
 const DEFAULT_GET_RUNTIME_RESPONSE = {} as GetAgentRuntimeResponse;
 const DEFAULT_GET_RUNTIME_ENDPOINT_RESPONSE = {} as GetAgentRuntimeEndpointResponse;
 const DEFAULT_LIST_RUNTIMES_RESPONSE: ListAgentRuntimesResponse = { agentRuntimes: [] };
@@ -907,40 +921,108 @@ type TestCoreClientOptions = {
 };
 
 class TestIdentityClient implements CoreIdentityClient {
+  readonly calls: RecordedCall[] = [];
+
+  private getOauth2Response: GetOauth2CredentialProviderResponse = DEFAULT_GET_OAUTH2_RESPONSE;
+  private updateOauth2Response: UpdateOauth2CredentialProviderResponse =
+    DEFAULT_UPDATE_OAUTH2_RESPONSE;
+
+  setGetOauth2Response(response: GetOauth2CredentialProviderResponse): this {
+    this.getOauth2Response = response;
+    return this;
+  }
+
+  setUpdateOauth2Response(response: UpdateOauth2CredentialProviderResponse): this {
+    this.updateOauth2Response = response;
+    return this;
+  }
+
   async createApiKeyCredentialProvider(
-    _input: CreateApiKeyCredentialProviderInput,
-    _options: CoreOptions,
+    input: CreateApiKeyCredentialProviderInput,
+    options: CoreOptions,
   ): Promise<CreateApiKeyCredentialProviderResponse> {
+    this.calls.push({ method: "createApiKeyCredentialProvider", args: [input, options] });
     return DEFAULT_CREATE_API_KEY_RESPONSE;
   }
 
   async getApiKeyCredentialProvider(
-    _name: string,
-    _options: CoreOptions,
+    name: string,
+    options: CoreOptions,
   ): Promise<GetApiKeyCredentialProviderResponse> {
+    this.calls.push({ method: "getApiKeyCredentialProvider", args: [name, options] });
     return DEFAULT_GET_API_KEY_RESPONSE;
   }
 
   async listApiKeyCredentialProviders(
-    _nextToken: string | undefined,
-    _maxResults: number | undefined,
-    _options: CoreOptions,
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
   ): Promise<ListApiKeyCredentialProvidersResponse> {
+    this.calls.push({
+      method: "listApiKeyCredentialProviders",
+      args: [nextToken, maxResults, options],
+    });
     return DEFAULT_LIST_API_KEYS_RESPONSE;
   }
 
   async updateApiKeyCredentialProvider(
-    _input: UpdateApiKeyCredentialProviderInput,
-    _options: CoreOptions,
+    input: UpdateApiKeyCredentialProviderInput,
+    options: CoreOptions,
   ): Promise<UpdateApiKeyCredentialProviderResponse> {
+    this.calls.push({ method: "updateApiKeyCredentialProvider", args: [input, options] });
     return DEFAULT_UPDATE_API_KEY_RESPONSE;
   }
 
   async deleteApiKeyCredentialProvider(
-    _name: string,
-    _options: CoreOptions,
+    name: string,
+    options: CoreOptions,
   ): Promise<DeleteApiKeyCredentialProviderResponse> {
+    this.calls.push({ method: "deleteApiKeyCredentialProvider", args: [name, options] });
     return DEFAULT_DELETE_API_KEY_RESPONSE;
+  }
+
+  async createOauth2CredentialProvider(
+    input: CreateOauth2CredentialProviderInput,
+    options: CoreOptions,
+  ): Promise<CreateOauth2CredentialProviderResponse> {
+    this.calls.push({ method: "createOauth2CredentialProvider", args: [input, options] });
+    return DEFAULT_CREATE_OAUTH2_RESPONSE;
+  }
+
+  async getOauth2CredentialProvider(
+    name: string,
+    options: CoreOptions,
+  ): Promise<GetOauth2CredentialProviderResponse> {
+    this.calls.push({ method: "getOauth2CredentialProvider", args: [name, options] });
+    return this.getOauth2Response;
+  }
+
+  async listOauth2CredentialProviders(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListOauth2CredentialProvidersResponse> {
+    this.calls.push({
+      method: "listOauth2CredentialProviders",
+      args: [nextToken, maxResults, options],
+    });
+    return DEFAULT_LIST_OAUTH2_RESPONSE;
+  }
+
+  async updateOauth2CredentialProvider(
+    input: UpdateOauth2CredentialProviderInput,
+    options: CoreOptions,
+  ): Promise<UpdateOauth2CredentialProviderResponse> {
+    this.calls.push({ method: "updateOauth2CredentialProvider", args: [input, options] });
+    return this.updateOauth2Response;
+  }
+
+  async deleteOauth2CredentialProvider(
+    name: string,
+    options: CoreOptions,
+  ): Promise<DeleteOauth2CredentialProviderResponse> {
+    this.calls.push({ method: "deleteOauth2CredentialProvider", args: [name, options] });
+    return DEFAULT_DELETE_OAUTH2_RESPONSE;
   }
 }
 
