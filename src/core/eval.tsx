@@ -1,24 +1,34 @@
 import {
+  CreateDatasetCommand,
+  CreateDatasetVersionCommand,
   CreateEvaluatorCommand,
   CreateOnlineEvaluationConfigCommand,
+  DeleteDatasetCommand,
   DeleteEvaluatorCommand,
   DeleteOnlineEvaluationConfigCommand,
   GetAgentRuntimeCommand,
+  GetDatasetCommand,
   GetEvaluatorCommand,
   GetHarnessCommand,
   GetOnlineEvaluationConfigCommand,
+  ListDatasetsCommand,
   ListEvaluatorsCommand,
   ListOnlineEvaluationConfigsCommand,
   UpdateEvaluatorCommand,
   UpdateOnlineEvaluationConfigCommand,
+  type CreateDatasetResponse,
+  type CreateDatasetVersionResponse,
   type CreateEvaluatorRequest,
   type CreateEvaluatorResponse,
   type CreateOnlineEvaluationConfigResponse,
+  type DeleteDatasetResponse,
   type DeleteEvaluatorResponse,
   type DeleteOnlineEvaluationConfigResponse,
   type EvaluatorConfig,
+  type GetDatasetResponse,
   type GetEvaluatorResponse,
   type GetOnlineEvaluationConfigResponse,
+  type ListDatasetsResponse,
   type ListEvaluatorsResponse,
   type DataSourceConfig,
   type ListOnlineEvaluationConfigsResponse,
@@ -27,16 +37,19 @@ import {
   type UpdateOnlineEvaluationConfigResponse,
   type BedrockAgentCoreControlClient,
 } from "@aws-sdk/client-bedrock-agentcore-control";
-import { InputValidationError } from "../errors";
+import { Transform } from "node:stream";
+import { FileWriteError, InputValidationError, NetworkingError } from "../errors";
 import type {
   CodeBasedUpdate,
   RoleScopeWarning,
   CoreEvalClient,
+  CreateDatasetInput,
   CreateOnlineEvalInput,
   LlmAsAJudgeUpdate,
   UpdateOnlineEvalInput,
 } from "../handlers/eval/types";
-import type { AwsClients, CoreOptions } from "./types";
+import { atomicWriteStream } from "../io";
+import type { AwsClients, CoreFetch, CoreOptions } from "./types";
 import { toClientConfig } from "./utils";
 import {
   accountIdFromRoleArn,
@@ -50,7 +63,11 @@ import {
 const DEFAULT_ENDPOINT_QUALIFIER = "DEFAULT";
 
 export class EvalClient implements CoreEvalClient {
-  constructor(private readonly clients: AwsClients) {}
+  constructor(
+    private readonly clients: AwsClients,
+    // HTTP client for datasets presigned S3 URL
+    private readonly fetch: CoreFetch = globalThis.fetch,
+  ) {}
 
   async createEvaluator(
     request: CreateEvaluatorRequest,
@@ -447,6 +464,122 @@ export class EvalClient implements CoreEvalClient {
       .control(toClientConfig(options))
       .send(new DeleteOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }));
   }
+
+  async createDataset(
+    input: CreateDatasetInput,
+    options: CoreOptions,
+  ): Promise<CreateDatasetResponse> {
+    return this.clients.control(toClientConfig(options)).send(new CreateDatasetCommand(input));
+  }
+
+  async getDataset(
+    id: string,
+    version: string | undefined,
+    options: CoreOptions,
+  ): Promise<GetDatasetResponse> {
+    return this.clients
+      .control(toClientConfig(options))
+      .send(new GetDatasetCommand({ datasetId: id, datasetVersion: version }));
+  }
+
+  // downloadDataset resolves the version's presigned URL and streams it to disk.
+  // The body is streamed to a temporary file and renamed into place
+  async downloadDataset(
+    id: string,
+    version: string | undefined,
+    filePath: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<GetDatasetResponse> {
+    const dataset = await this.getDataset(id, version, options);
+
+    // The consolidated file is written asynchronously, so a dataset that is still
+    // ingesting has no URL to offer yet. Report the status, which is what tells
+    // the caller whether to retry.
+    if (!dataset.downloadUrl) {
+      throw new NetworkingError(
+        `Dataset "${id}" has no downloadable content yet (status ${dataset.status ?? "unknown"}); ` +
+          `retry once it reports ACTIVE`,
+        { meta: { datasetId: id, datasetVersion: dataset.datasetVersion, status: dataset.status } },
+      );
+    }
+
+    let response: Response;
+    try {
+      response = await this.fetch(dataset.downloadUrl, { signal });
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason ?? error;
+      throw error;
+    }
+    if (!response.ok) {
+      throw new NetworkingError(`Downloading dataset "${id}" failed with HTTP ${response.status}`, {
+        meta: { datasetId: id, status: response.status },
+      });
+    }
+    if (!response.body) {
+      throw new NetworkingError(`Dataset "${id}" download returned an empty response`, {
+        meta: { datasetId: id },
+      });
+    }
+
+    try {
+      await atomicWriteStream(filePath, response.body, {
+        signal,
+        transforms: [endWithNewline()],
+      });
+    } catch (error) {
+      if (signal?.aborted) throw signal.reason ?? error;
+      throw new FileWriteError(`Could not write dataset "${id}" to ${filePath}`, {
+        cause: error,
+        meta: { datasetId: id, filePath },
+      });
+    }
+    return dataset;
+  }
+
+  async listDatasets(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListDatasetsResponse> {
+    return this.clients
+      .control(toClientConfig(options))
+      .send(new ListDatasetsCommand({ nextToken, maxResults }));
+  }
+
+  async deleteDataset(
+    id: string,
+    version: string | undefined,
+    options: CoreOptions,
+  ): Promise<DeleteDatasetResponse> {
+    return this.clients
+      .control(toClientConfig(options))
+      .send(new DeleteDatasetCommand({ datasetId: id, datasetVersion: version }));
+  }
+
+  async publishDataset(id: string, options: CoreOptions): Promise<CreateDatasetVersionResponse> {
+    return this.clients
+      .control(toClientConfig(options))
+      .send(new CreateDatasetVersionCommand({ datasetId: id }));
+  }
+}
+
+// endWithNewline appends a single trailing newline if the stream did not with one
+// Omitting the trailing newline causes attempts at appending to produce malformed JSONL
+// Normalizing on write keeps the downloaded file editable
+function endWithNewline(): Transform {
+  const NEWLINE = 0x0a;
+  let lastByte: number | undefined;
+  return new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      if (chunk.length > 0) lastByte = chunk[chunk.length - 1];
+      callback(null, chunk);
+    },
+    flush(callback) {
+      // An empty body is left empty rather than turned into a lone newline.
+      callback(null, lastByte === undefined || lastByte === NEWLINE ? undefined : "\n");
+    },
+  });
 }
 
 // runtimeLogGroup mirrors the old CLI's derivation (src/cli/aws/cloudwatch.ts):

@@ -1,11 +1,17 @@
 import type {
+  CreateDatasetRequest,
+  CreateDatasetResponse,
+  CreateDatasetVersionResponse,
   CreateEvaluatorRequest,
   CreateEvaluatorResponse,
   CreateOnlineEvaluationConfigResponse,
+  DeleteDatasetResponse,
   DeleteEvaluatorResponse,
   DeleteOnlineEvaluationConfigResponse,
+  GetDatasetResponse,
   GetEvaluatorResponse,
   GetOnlineEvaluationConfigResponse,
+  ListDatasetsResponse,
   ListEvaluatorsResponse,
   ListOnlineEvaluationConfigsResponse,
   DataSourceConfig,
@@ -95,6 +101,12 @@ export type RoleScopeWarning = {
   logGroupNames: string[];
 };
 
+export type CreateDatasetInput = CreateDatasetRequest;
+
+// CoreEvalClient is the evaluator, online evaluation, and dataset surface the eval
+// handlers depend on. It is declared here, next to the handlers that consume it,
+// and implemented by src/core/eval.tsx (dependency inversion: handlers own the
+// abstraction).
 export interface CoreEvalClient {
   createEvaluator(
     request: CreateEvaluatorRequest,
@@ -152,4 +164,37 @@ export interface CoreEvalClient {
     id: string,
     options: CoreOptions,
   ): Promise<DeleteOnlineEvaluationConfigResponse>;
+
+  // createDataset seeds a new dataset's DRAFT from `source`, which is required.
+  // `schemaType` governs the structure of every example and is immutable after creation.
+  // The response reports status CREATING — ingestion is asynchronous, and the dataset is not
+  // writable until GetDataset reports ACTIVE.
+  createDataset(input: CreateDatasetInput, options: CoreOptions): Promise<CreateDatasetResponse>;
+  // getDataset returns metadata for one version
+  getDataset(
+    id: string,
+    version: string | undefined,
+    options: CoreOptions,
+  ): Promise<GetDatasetResponse>;
+  // downloadDataset writes one version's examples to `filePath` as JSONL
+  downloadDataset(
+    id: string,
+    version: string | undefined,
+    filePath: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<GetDatasetResponse>;
+  listDatasets(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListDatasetsResponse>;
+  deleteDataset(
+    id: string,
+    version: string | undefined,
+    options: CoreOptions,
+  ): Promise<DeleteDatasetResponse>;
+  // publishDataset freezes the current DRAFT as the next numbered version. The
+  // DRAFT survives and stays editable, so publishing is additive
+  publishDataset(id: string, options: CoreOptions): Promise<CreateDatasetVersionResponse>;
 }

@@ -142,3 +142,17 @@ export class RuntimeInvokeResponseError extends AgentCoreCLIError {
     super(message, { cause });
   }
 }
+
+/** Remote content could not be fetched, or is not available yet. */
+export class NetworkingError extends AgentCoreCLIError {
+  constructor(message: string, options?: AgentCoreCLIErrorOptions) {
+    super(message, { source: ERROR_SOURCE.SERVICE, ...options });
+  }
+}
+
+/** A file could not be written locally: missing directory, permission denial, etc. */
+export class FileWriteError extends AgentCoreCLIError {
+  constructor(message: string, options?: AgentCoreCLIErrorOptions) {
+    super(message, { source: ERROR_SOURCE.USER, ...options });
+  }
+}

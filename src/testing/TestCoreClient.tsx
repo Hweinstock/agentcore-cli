@@ -32,11 +32,16 @@ import type {
   ListGatewayRulesResponse,
   ListGatewaysResponse,
   ListGatewayTargetsResponse,
+  CreateDatasetResponse,
+  CreateDatasetVersionResponse,
   CreateEvaluatorRequest,
   CreateEvaluatorResponse,
   CreateOnlineEvaluationConfigResponse,
+  DeleteDatasetResponse,
   DeleteEvaluatorResponse,
   DeleteOnlineEvaluationConfigResponse,
+  GetDatasetResponse,
+  ListDatasetsResponse,
   GetEvaluatorResponse,
   GetOnlineEvaluationConfigResponse,
   ListEvaluatorsResponse,
@@ -90,6 +95,7 @@ import type {
 import type {
   CodeBasedUpdate,
   CoreEvalClient,
+  CreateDatasetInput,
   CreateOnlineEvalInput,
   LlmAsAJudgeUpdate,
   UpdateOnlineEvalInput,
@@ -185,6 +191,11 @@ const DEFAULT_CREATE_ONLINE_EVAL_RESPONSE = {} as CreateOnlineEvaluationConfigRe
 const DEFAULT_UPDATE_ONLINE_EVAL_RESPONSE = {} as UpdateOnlineEvaluationConfigResponse;
 const DEFAULT_GET_ONLINE_EVAL_RESPONSE = {} as GetOnlineEvaluationConfigResponse;
 const DEFAULT_DELETE_ONLINE_EVAL_RESPONSE = {} as DeleteOnlineEvaluationConfigResponse;
+const DEFAULT_CREATE_DATASET_RESPONSE = {} as CreateDatasetResponse;
+const DEFAULT_GET_DATASET_RESPONSE = {} as GetDatasetResponse;
+const DEFAULT_LIST_DATASETS_RESPONSE: ListDatasetsResponse = { datasets: [] };
+const DEFAULT_DELETE_DATASET_RESPONSE = {} as DeleteDatasetResponse;
+const DEFAULT_PUBLISH_DATASET_RESPONSE = {} as CreateDatasetVersionResponse;
 
 // events wraps canned events as a one-shot AsyncIterable.
 async function* events<T>(items: T[]): AsyncGenerator<T> {
@@ -1106,6 +1117,11 @@ export class TestEvalClient implements CoreEvalClient {
     DEFAULT_GET_ONLINE_EVAL_RESPONSE;
   private onlineEvalDeleteResponse: DeleteOnlineEvaluationConfigResponse =
     DEFAULT_DELETE_ONLINE_EVAL_RESPONSE;
+  private createDatasetResponse: CreateDatasetResponse = DEFAULT_CREATE_DATASET_RESPONSE;
+  private getDatasetResponse: GetDatasetResponse = DEFAULT_GET_DATASET_RESPONSE;
+  private datasetListResponses = new Map<string | undefined, ListDatasetsResponse>();
+  private deleteDatasetResponse: DeleteDatasetResponse = DEFAULT_DELETE_DATASET_RESPONSE;
+  private publishDatasetResponse: CreateDatasetVersionResponse = DEFAULT_PUBLISH_DATASET_RESPONSE;
   private error?: Error;
 
   // setListResponse sets what listEvaluators resolves to (when not erroring).
@@ -1176,6 +1192,41 @@ export class TestEvalClient implements CoreEvalClient {
   // to (when not erroring).
   setOnlineEvalDeleteResponse(response: DeleteOnlineEvaluationConfigResponse): this {
     this.onlineEvalDeleteResponse = response;
+    return this;
+  }
+
+  // setCreateDatasetResponse sets what createDataset resolves to (when not
+  // erroring).
+  setCreateDatasetResponse(response: CreateDatasetResponse): this {
+    this.createDatasetResponse = response;
+    return this;
+  }
+
+  // setGetDatasetResponse sets what getDataset and downloadDataset resolve to
+  // (when not erroring).
+  setGetDatasetResponse(response: GetDatasetResponse): this {
+    this.getDatasetResponse = response;
+    return this;
+  }
+
+  // setListDatasetsResponse sets what listDatasets resolves to (when not
+  // erroring). Pass `forNextToken` to serve a later page.
+  setListDatasetsResponse(response: ListDatasetsResponse, forNextToken?: string): this {
+    this.datasetListResponses.set(forNextToken, response);
+    return this;
+  }
+
+  // setDeleteDatasetResponse sets what deleteDataset resolves to (when not
+  // erroring).
+  setDeleteDatasetResponse(response: DeleteDatasetResponse): this {
+    this.deleteDatasetResponse = response;
+    return this;
+  }
+
+  // setPublishDatasetResponse sets what publishDataset resolves to (when not
+  // erroring).
+  setPublishDatasetResponse(response: CreateDatasetVersionResponse): this {
+    this.publishDatasetResponse = response;
     return this;
   }
 
@@ -1302,6 +1353,63 @@ export class TestEvalClient implements CoreEvalClient {
     this.calls.push({ method: "deleteOnlineEvaluationConfig", args: [id, options] });
     if (this.error) throw this.error;
     return this.onlineEvalDeleteResponse;
+  }
+
+  async createDataset(
+    input: CreateDatasetInput,
+    options: CoreOptions,
+  ): Promise<CreateDatasetResponse> {
+    this.calls.push({ method: "createDataset", args: [input, options] });
+    if (this.error) throw this.error;
+    return this.createDatasetResponse;
+  }
+
+  async getDataset(
+    id: string,
+    version: string | undefined,
+    options: CoreOptions,
+  ): Promise<GetDatasetResponse> {
+    this.calls.push({ method: "getDataset", args: [id, version, options] });
+    if (this.error) throw this.error;
+    return this.getDatasetResponse;
+  }
+
+  async downloadDataset(
+    id: string,
+    version: string | undefined,
+    filePath: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<GetDatasetResponse> {
+    this.calls.push({ method: "downloadDataset", args: [id, version, filePath, options, signal] });
+    if (this.error) throw this.error;
+    return this.getDatasetResponse;
+  }
+
+  async listDatasets(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListDatasetsResponse> {
+    this.calls.push({ method: "listDatasets", args: [nextToken, maxResults, options] });
+    if (this.error) throw this.error;
+    return this.datasetListResponses.get(nextToken) ?? DEFAULT_LIST_DATASETS_RESPONSE;
+  }
+
+  async deleteDataset(
+    id: string,
+    version: string | undefined,
+    options: CoreOptions,
+  ): Promise<DeleteDatasetResponse> {
+    this.calls.push({ method: "deleteDataset", args: [id, version, options] });
+    if (this.error) throw this.error;
+    return this.deleteDatasetResponse;
+  }
+
+  async publishDataset(id: string, options: CoreOptions): Promise<CreateDatasetVersionResponse> {
+    this.calls.push({ method: "publishDataset", args: [id, options] });
+    if (this.error) throw this.error;
+    return this.publishDatasetResponse;
   }
 }
 
