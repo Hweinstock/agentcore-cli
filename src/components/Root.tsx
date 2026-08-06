@@ -48,6 +48,19 @@ import {
 import { MemoryEventScreen } from "../handlers/memory/event/screen.tsx";
 import { MemoryEventGetScreen } from "../handlers/memory/event/get/screen.tsx";
 import { MemoryEventListScreen } from "../handlers/memory/event/list/screen.tsx";
+import { IdentityScreen } from "../handlers/identity/screen.tsx";
+import { ApiKeyCredentialProviderScreen } from "../handlers/identity/api-key-credential-provider/screen.tsx";
+import { ApiKeyCredentialProviderListScreen } from "../handlers/identity/api-key-credential-provider/list/screen.tsx";
+import {
+  ApiKeyCredentialProviderGetScreen,
+  ApiKeyCredentialProviderGetJsonScreen,
+} from "../handlers/identity/api-key-credential-provider/get/screen.tsx";
+import { Oauth2CredentialProviderScreen } from "../handlers/identity/oauth2-credential-provider/screen.tsx";
+import { Oauth2CredentialProviderListScreen } from "../handlers/identity/oauth2-credential-provider/list/screen.tsx";
+import {
+  Oauth2CredentialProviderGetScreen,
+  Oauth2CredentialProviderGetJsonScreen,
+} from "../handlers/identity/oauth2-credential-provider/get/screen.tsx";
 import { RootScreen, HelpScreen } from "../handlers/screen.tsx";
 import type { Context } from "../router";
 
@@ -373,6 +386,48 @@ export function Root({ path, ctx, core, queryClient }: RootProps) {
           <Route
             path="agentcore/memory/event/list/:memoryId/:actorId/:sessionId"
             element={<MemoryEventListScreen ctx={ctx} core={core} />}
+          />
+          <Route path="agentcore/identity" element={<IdentityScreen ctx={ctx} core={core} />} />
+          <Route
+            path="agentcore/identity/api-key-credential-provider"
+            element={<ApiKeyCredentialProviderScreen ctx={ctx} core={core} />}
+          />
+          {/* Bare `get` (no name) has nothing to show — send the user to the list. */}
+          <Route
+            path="agentcore/identity/api-key-credential-provider/get"
+            element={<Navigate to="/agentcore/identity/api-key-credential-provider/list" replace />}
+          />
+          <Route
+            path="agentcore/identity/api-key-credential-provider/list"
+            element={<ApiKeyCredentialProviderListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/identity/api-key-credential-provider/get/:name"
+            element={<ApiKeyCredentialProviderGetScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/identity/api-key-credential-provider/get/:name/json"
+            element={<ApiKeyCredentialProviderGetJsonScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/identity/oauth2-credential-provider"
+            element={<Oauth2CredentialProviderScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/identity/oauth2-credential-provider/get"
+            element={<Navigate to="/agentcore/identity/oauth2-credential-provider/list" replace />}
+          />
+          <Route
+            path="agentcore/identity/oauth2-credential-provider/list"
+            element={<Oauth2CredentialProviderListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/identity/oauth2-credential-provider/get/:name"
+            element={<Oauth2CredentialProviderGetScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/identity/oauth2-credential-provider/get/:name/json"
+            element={<Oauth2CredentialProviderGetJsonScreen ctx={ctx} core={core} />}
           />
           <Route path="*" element={<HelpScreen ctx={ctx} core={core} />} />
         </Routes>
