@@ -1,10 +1,16 @@
 import {
+  CreateGatewayCommand,
+  CreateGatewayRuleCommand,
+  CreateGatewayTargetCommand,
   GetGatewayCommand,
   GetGatewayRuleCommand,
   GetGatewayTargetCommand,
   ListGatewayRulesCommand,
   ListGatewaysCommand,
   ListGatewayTargetsCommand,
+  type CreateGatewayResponse,
+  type CreateGatewayRuleResponse,
+  type CreateGatewayTargetResponse,
   type GetGatewayResponse,
   type GetGatewayRuleResponse,
   type GetGatewayTargetResponse,
@@ -12,12 +18,32 @@ import {
   type ListGatewaysResponse,
   type ListGatewayTargetsResponse,
 } from "@aws-sdk/client-bedrock-agentcore-control";
-import type { CoreGatewayClient } from "../handlers/gateway/types";
+import type {
+  CoreGatewayClient,
+  CreateGatewayInput,
+  CreateGatewayRuleInput,
+  CreateGatewayTargetInput,
+} from "../handlers/gateway/types";
 import type { AwsClients, CoreOptions } from "./types";
 import { toClientConfig } from "./utils";
 
 export class GatewayClient implements CoreGatewayClient {
   constructor(private readonly clients: AwsClients) {}
+
+  async createGateway(
+    input: CreateGatewayInput,
+    options: CoreOptions,
+  ): Promise<CreateGatewayResponse> {
+    const control = this.clients.control(toClientConfig(options));
+    const { protocol, roleArn, ...request } = input;
+    return control.send(
+      new CreateGatewayCommand({
+        ...request,
+        roleArn,
+        ...(protocol === "mcp" ? { protocolType: "MCP" as const } : {}),
+      }),
+    );
+  }
 
   async getGateway(id: string, options: CoreOptions): Promise<GetGatewayResponse> {
     return this.clients
@@ -63,6 +89,15 @@ export class GatewayClient implements CoreGatewayClient {
     );
   }
 
+  async createGatewayTarget(
+    input: CreateGatewayTargetInput,
+    options: CoreOptions,
+  ): Promise<CreateGatewayTargetResponse> {
+    return this.clients
+      .control(toClientConfig(options))
+      .send(new CreateGatewayTargetCommand(input));
+  }
+
   async getGatewayRule(
     gatewayId: string,
     ruleId: string,
@@ -89,5 +124,12 @@ export class GatewayClient implements CoreGatewayClient {
         maxResults,
       }),
     );
+  }
+
+  async createGatewayRule(
+    input: CreateGatewayRuleInput,
+    options: CoreOptions,
+  ): Promise<CreateGatewayRuleResponse> {
+    return this.clients.control(toClientConfig(options)).send(new CreateGatewayRuleCommand(input));
   }
 }
