@@ -107,28 +107,3 @@ jobs:
         # what fires the alarm.
         if: always()
         run: .github/scripts/emit-canary-heartbeat.sh "${{ job.status }}"
-
-      - name: Generate GitHub App Token
-        if: failure()
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          app-id: ${{ vars.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-      - name: Create canary failure issue
-        if: failure()
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          VARIANT_NAME: ${{ matrix.variant }}/${{ matrix.build }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          INSTALL_SPEC: ${{ steps.install.outputs.spec }}
-        run: |
-          npx -y tsx .github/scripts/create-failure-issue.ts \
-            --title-prefix "Canary Failure" \
-            --name "$VARIANT_NAME" \
-            --branch "${{ github.ref_name }}" \
-            --commit "${{ github.sha }}" \
-            --run-url "$RUN_URL" \
-            --labels "high-severity,ci" \
-            --detail "strands-bedrock smoke test; installed from ${INSTALL_SPEC:-unknown}"
