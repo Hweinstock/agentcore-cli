@@ -36,11 +36,14 @@ export function withTuiOnEmptyFlagsAndArgs(core: Core, io: AppIO): Middleware {
     description: () => h.description(),
     flags: () => h.flags(),
     arguments: () => h.arguments(),
+    doesSupportTui: () => h.doesSupportTui(),
     children: () => h.children(),
     handle: async (ctx, flags, args) => {
+      const command = ctx.require(CommandKey);
       if (
+        h.doesSupportTui() &&
         !ctx.require(JsonKey) &&
-        countPassedFlags(h, ctx.require(CommandKey)) === 0 &&
+        countPassedFlags(h, command) === 0 &&
         countPassedValues(args) === 0
       ) {
         await boundRenderTui(ctx, flags, args);
