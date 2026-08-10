@@ -1,10 +1,12 @@
 import { ProjectNameSchema } from "../../core/project/schema";
+import type { ProjectRuntime } from "../../core/project/schema";
 
 export { ProjectNameSchema };
 
 /** Available project templates for scaffolding new AgentCore projects. */
 export const PROJECT_TEMPLATES = {
   HELLO_WORLD_PYTHON: "hello-world-python",
+  HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
 } as const;
 
 export type ProjectTemplate = (typeof PROJECT_TEMPLATES)[keyof typeof PROJECT_TEMPLATES];
@@ -33,6 +35,10 @@ export type ResolveProjectInput = {
 
 export type Project = {
   name: string;
+  /** Absolute path to the project root (the parent of agentcore/). */
+  rootPath: string;
+  /** The runtimes registered in agentcore.json. */
+  runtimes: ProjectRuntime[];
 };
 
 /**
