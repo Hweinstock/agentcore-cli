@@ -40,7 +40,11 @@ import {
 import {
   GetBatchEvaluationCommand,
   ListBatchEvaluationsCommand,
+  StartBatchEvaluationCommand,
   type ListBatchEvaluationsResponse,
+  type StartBatchEvaluationResponse,
+  type DataSourceConfig as DataPlaneDataSourceConfig,
+  type CloudWatchFilterConfig,
 } from "@aws-sdk/client-bedrock-agentcore";
 import { Transform } from "node:stream";
 import { FileWriteError, InputValidationError, NetworkingError } from "../errors";
@@ -53,6 +57,8 @@ import type {
   CreateOnlineEvalInput,
   GetBatchEvaluationResult,
   LlmAsAJudgeUpdate,
+  SessionSourceValue,
+  StartBatchEvaluationInput,
   UpdateOnlineEvalInput,
 } from "../handlers/eval/types";
 import { atomicWriteStream } from "../io";
@@ -276,6 +282,61 @@ export class EvalClient implements CoreEvalClient {
     return this.clients
       .data(toClientConfig(options))
       .send(new ListBatchEvaluationsCommand({ nextToken, maxResults }));
+  }
+
+  async startBatchEvaluation(
+    input: StartBatchEvaluationInput,
+    options: CoreOptions,
+  ): Promise<StartBatchEvaluationResponse> {
+    const dataSourceConfig = await this.dataSourceConfigForSource(input.source, options);
+    return this.clients.data(toClientConfig(options)).send(
+      new StartBatchEvaluationCommand({
+        batchEvaluationName: input.name,
+        description: input.description,
+        evaluators: input.evaluatorIds.map((evaluatorId) => ({ evaluatorId })),
+        dataSourceConfig,
+        evaluationMetadata: input.groundTruth ? { sessionMetadata: input.groundTruth } : undefined,
+        kmsKeyArn: input.kmsKeyArn,
+      }),
+    );
+  }
+
+  // dataSourceConfigForSource maps a resolved SessionSourceValue to the data-plane
+  // dataSourceConfig union. The agent arm reuses the same runtime resolution +
+  // log-group derivation the control-plane agentDataSource uses, then attaches the
+  // session-id / time-range filters; the raw arm is returned verbatim.
+  private async dataSourceConfigForSource(
+    source: SessionSourceValue,
+    options: CoreOptions,
+  ): Promise<DataPlaneDataSourceConfig> {
+    if (source.origin === "raw") return source.dataSourceConfig;
+
+    const timeRange = source.window;
+
+    if (source.origin === "online-eval") {
+      return {
+        onlineEvaluationConfigSource: {
+          onlineEvaluationConfigArn: source.onlineEvaluationConfigId,
+          timeRange,
+        },
+      };
+    }
+
+    const qualifier = source.endpoint ?? DEFAULT_ENDPOINT_QUALIFIER;
+    const { runtimeId, runtimeName } = await resolveAgentToNameAndId(
+      source.agent,
+      this.clients,
+      options,
+    );
+    const filterConfig: CloudWatchFilterConfig | undefined =
+      source.sessionIds || timeRange ? { sessionIds: source.sessionIds, timeRange } : undefined;
+    return {
+      cloudWatchLogs: {
+        logGroupNames: [runtimeLogGroup(runtimeId, qualifier)],
+        serviceNames: [runtimeServiceName(runtimeName, qualifier)],
+        filterConfig,
+      },
+    };
   }
 
   async createOnlineEvaluationConfig(
@@ -672,13 +733,13 @@ function runtimeServiceName(runtimeName: string, endpoint: string): string {
   return `${runtimeName}.${endpoint}`;
 }
 
-// resolveAgentToRuntime resolves `--agent <id>` to its underlying runtime id +
+// resolveAgentToNameAndId resolves `--agent <id>` to its underlying runtime id +
 // name. A harness is itself implemented as an AgentCore Runtime under the
 // hood, so a plain runtime id resolves directly via GetAgentRuntime; a harness
 // id 404s there and resolves instead via GetHarness, reading the underlying
 // runtime out of `harness.environment.agentCoreRuntimeEnvironment`. Verified
 // against real harnesses/runtimes in a live account before relying on it.
-async function resolveAgentToRuntime(
+async function resolveAgentToNameAndId(
   agent: string,
   clients: AwsClients,
   options: CoreOptions,
@@ -717,7 +778,7 @@ async function agentDataSource(
   options: CoreOptions,
 ): Promise<DataSourceConfig> {
   const qualifier = endpoint ?? DEFAULT_ENDPOINT_QUALIFIER;
-  const { runtimeId, runtimeName } = await resolveAgentToRuntime(agent, clients, options);
+  const { runtimeId, runtimeName } = await resolveAgentToNameAndId(agent, clients, options);
   return {
     cloudWatchLogs: {
       logGroupNames: [runtimeLogGroup(runtimeId, qualifier)],
