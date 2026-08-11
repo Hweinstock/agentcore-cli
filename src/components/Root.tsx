@@ -67,6 +67,18 @@ import {
   Oauth2CredentialProviderGetScreen,
   Oauth2CredentialProviderGetJsonScreen,
 } from "../handlers/identity/oauth2-credential-provider/get/screen.tsx";
+import { GatewayScreen } from "../handlers/gateway/screen.tsx";
+import { GatewayGetJsonScreen, GatewayGetScreen } from "../handlers/gateway/get/screen.tsx";
+import { GatewayListScreen } from "../handlers/gateway/list/screen.tsx";
+import { GatewayTargetScreen } from "../handlers/gateway/target/screen.tsx";
+import { GatewayTargetListScreen } from "../handlers/gateway/target/list/screen.tsx";
+import { GatewayTargetGetScreen } from "../handlers/gateway/target/get/screen.tsx";
+import { GatewayConnectorScreen } from "../handlers/gateway/connector/screen.tsx";
+import { GatewayConnectorListScreen } from "../handlers/gateway/connector/list/screen.tsx";
+import { GatewayConnectorGetScreen } from "../handlers/gateway/connector/get/screen.tsx";
+import { GatewayRuleScreen } from "../handlers/gateway/rule/screen.tsx";
+import { GatewayRuleListScreen } from "../handlers/gateway/rule/list/screen.tsx";
+import { GatewayRuleGetScreen } from "../handlers/gateway/rule/get/screen.tsx";
 import { RootScreen, HelpScreen } from "../handlers/screen.tsx";
 import type { Context } from "../router";
 
@@ -322,6 +334,83 @@ export function Root({ path, ctx, core, queryClient }: RootProps) {
           <Route
             path="agentcore/runtime/invoke/:runtimeId/:qualifier"
             element={<RuntimeInvokeScreen ctx={ctx} core={core} />}
+          />
+          <Route path="agentcore/gateway" element={<GatewayScreen ctx={ctx} core={core} />} />
+          <Route
+            path="agentcore/gateway/get"
+            element={<Navigate to="/agentcore/gateway/list" replace />}
+          />
+          <Route
+            path="agentcore/gateway/list"
+            element={<GatewayListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/get/:gatewayId"
+            element={<GatewayGetScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/get/:gatewayId/json"
+            element={<GatewayGetJsonScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/target"
+            element={<GatewayTargetScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/target/get"
+            element={<Navigate to="/agentcore/gateway/target/list" replace />}
+          />
+          <Route
+            path="agentcore/gateway/target/list"
+            element={<GatewayTargetListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/target/list/:gatewayId"
+            element={<GatewayTargetListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/target/get/:gatewayId/:targetId"
+            element={<GatewayTargetGetScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/connector"
+            element={<GatewayConnectorScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/connector/get"
+            element={<Navigate to="/agentcore/gateway/connector/list" replace />}
+          />
+          <Route
+            path="agentcore/gateway/connector/list"
+            element={<GatewayConnectorListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/connector/list/:gatewayId"
+            element={<GatewayConnectorListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/connector/get/:gatewayId/:targetId"
+            element={<GatewayConnectorGetScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/rule"
+            element={<GatewayRuleScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/rule/get"
+            element={<Navigate to="/agentcore/gateway/rule/list" replace />}
+          />
+          <Route
+            path="agentcore/gateway/rule/list"
+            element={<GatewayRuleListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/rule/list/:gatewayId"
+            element={<GatewayRuleListScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/gateway/rule/get/:gatewayId/:ruleId"
+            element={<GatewayRuleGetScreen ctx={ctx} core={core} />}
           />
           <Route path="agentcore/eval" element={<EvalScreen ctx={ctx} core={core} />} />
           <Route

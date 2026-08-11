@@ -830,6 +830,8 @@ export class TestGatewayClient implements CoreGatewayClient {
   private listResponses = new Map<string | undefined, ListGatewaysResponse>();
   private getTargetResponse: GetGatewayTargetResponse = DEFAULT_GET_GATEWAY_TARGET_RESPONSE;
   private listTargetResponses = new Map<string | undefined, ListGatewayTargetsResponse>();
+  private getConnectorResponse: GetGatewayTargetResponse = DEFAULT_GET_GATEWAY_TARGET_RESPONSE;
+  private listConnectorResponses = new Map<string | undefined, ListGatewayTargetsResponse>();
   private getRuleResponse: GetGatewayRuleResponse = DEFAULT_GET_GATEWAY_RULE_RESPONSE;
   private listRuleResponses = new Map<string | undefined, ListGatewayRulesResponse>();
   private error?: Error;
@@ -851,6 +853,16 @@ export class TestGatewayClient implements CoreGatewayClient {
 
   setListTargetsResponse(response: ListGatewayTargetsResponse, forNextToken?: string): this {
     this.listTargetResponses.set(forNextToken, response);
+    return this;
+  }
+
+  setGetConnectorResponse(response: GetGatewayTargetResponse): this {
+    this.getConnectorResponse = response;
+    return this;
+  }
+
+  setListConnectorsResponse(response: ListGatewayTargetsResponse, forNextToken?: string): this {
+    this.listConnectorResponses.set(forNextToken, response);
     return this;
   }
 
@@ -931,6 +943,34 @@ export class TestGatewayClient implements CoreGatewayClient {
     return (
       this.listTargetResponses.get(nextToken) ??
       this.listTargetResponses.get(undefined) ??
+      DEFAULT_LIST_GATEWAY_TARGETS_RESPONSE
+    );
+  }
+
+  async getGatewayConnector(
+    gatewayId: string,
+    targetId: string,
+    options: CoreOptions,
+  ): Promise<GetGatewayTargetResponse> {
+    this.calls.push({ method: "getGatewayConnector", args: [gatewayId, targetId, options] });
+    if (this.error) throw this.error;
+    return this.getConnectorResponse;
+  }
+
+  async listGatewayConnectors(
+    gatewayId: string,
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListGatewayTargetsResponse> {
+    this.calls.push({
+      method: "listGatewayConnectors",
+      args: [gatewayId, nextToken, maxResults, options],
+    });
+    if (this.error) throw this.error;
+    return (
+      this.listConnectorResponses.get(nextToken) ??
+      this.listConnectorResponses.get(undefined) ??
       DEFAULT_LIST_GATEWAY_TARGETS_RESPONSE
     );
   }
