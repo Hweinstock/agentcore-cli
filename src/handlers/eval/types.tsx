@@ -79,7 +79,6 @@ export type LlmAsAJudgeUpdate = {
   model?: string;
   ratingScale?: RatingScale;
   kmsKeyArn?: string;
-  clientToken?: string;
 };
 
 // CodeBasedUpdate carries the fields a caller may change on a code-based
@@ -89,7 +88,6 @@ export type CodeBasedUpdate = {
   lambdaArn?: string;
   timeout?: number;
   kmsKeyArn?: string;
-  clientToken?: string;
 };
 
 // CreateOnlineEvalInput mirrors CreateOnlineEvaluationConfigRequest but lets the

@@ -153,7 +153,6 @@ export class EvalClient implements CoreEvalClient {
         evaluatorId: id,
         evaluatorConfig,
         kmsKeyArn: update.kmsKeyArn,
-        clientToken: update.clientToken,
       }),
     );
   }
@@ -198,7 +197,6 @@ export class EvalClient implements CoreEvalClient {
         evaluatorId: id,
         evaluatorConfig,
         kmsKeyArn: update.kmsKeyArn,
-        clientToken: update.clientToken,
       }),
     );
   }
