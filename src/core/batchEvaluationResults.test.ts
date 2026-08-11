@@ -1,5 +1,6 @@
 import { test, expect } from "bun:test";
 import type { CloudWatchLogsClient, OutputLogEvent } from "@aws-sdk/client-cloudwatch-logs";
+import { ResultTruncationError } from "../errors";
 import { createSilentLogger } from "../testing";
 import {
   isTerminalStatus,
@@ -154,6 +155,33 @@ test("readEvaluationResults skips lines without an evaluation name", async () =>
     createSilentLogger(),
   );
   expect(results).toEqual([]);
+});
+
+test("readEvaluationResults throws (not silently truncates) when it hits the page cap", async () => {
+  // Token advances on every call, so the loop never detects exhaustion and runs
+  // into MAX_RESULT_PAGES. It must throw so the caller surfaces truncation, rather
+  // than returning the accumulated partial list as if it were complete.
+  let call = 0;
+  const everAdvancing = {
+    send: async () => ({
+      events: [
+        {
+          message: JSON.stringify({
+            attributes: { "gen_ai.evaluation.name": "Builtin.Correctness" },
+          }),
+        },
+      ],
+      nextForwardToken: `t-${call++}`, // always changes → never exhausts
+    }),
+  } as unknown as CloudWatchLogsClient;
+
+  const err = await readEvaluationResults(everAdvancing, "lg", "ls", createSilentLogger()).then(
+    () => undefined,
+    (e) => e as ResultTruncationError,
+  );
+  expect(err).toBeInstanceOf(ResultTruncationError);
+  expect(err?.message).toMatch(/incomplete/);
+  expect(err?.source).toBe("internal"); // our page cap, not a user or service fault
 });
 
 test("parseEvaluationLogEvent warns on and skips an unparseable line", () => {
