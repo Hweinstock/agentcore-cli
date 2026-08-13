@@ -9,6 +9,9 @@ import {
   ListGatewaysCommand,
   ListGatewayTargetsCommand,
   TargetType,
+  UpdateGatewayCommand,
+  UpdateGatewayRuleCommand,
+  UpdateGatewayTargetCommand,
   type CreateGatewayResponse,
   type CreateGatewayRuleResponse,
   type CreateGatewayTargetResponse,
@@ -20,13 +23,26 @@ import {
   type ListGatewayTargetsResponse,
   type TargetConfiguration,
   type TargetSummary,
+  type UpdateGatewayRequest,
+  type UpdateGatewayResponse,
+  type UpdateGatewayRuleResponse,
+  type UpdateGatewayTargetRequest,
+  type UpdateGatewayTargetResponse,
 } from "@aws-sdk/client-bedrock-agentcore-control";
-import { InputValidationError, ResultTruncationError } from "../errors";
+import {
+  AgentCoreCLIError,
+  ERROR_SOURCE,
+  InputValidationError,
+  ResultTruncationError,
+} from "../errors";
 import type {
   CoreGatewayClient,
   CreateGatewayInput,
   CreateGatewayRuleInput,
   CreateGatewayTargetInput,
+  GatewayRuleUpdateInput,
+  GatewayTargetUpdatePatch,
+  GatewayUpdatePatch,
 } from "../handlers/gateway/types";
 import type { AwsClients, CoreOptions } from "./types";
 import { toClientConfig } from "./utils";
@@ -56,6 +72,77 @@ export class GatewayClient implements CoreGatewayClient {
     return this.clients
       .control(toClientConfig(options))
       .send(new GetGatewayCommand({ gatewayIdentifier: id }));
+  }
+
+  async updateGateway(
+    patch: GatewayUpdatePatch,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayResponse> {
+    const control = this.clients.control(toClientConfig(options));
+    const current = await control.send(new GetGatewayCommand({ gatewayIdentifier: patch.id }));
+    const resource = `Gateway "${patch.id}"`;
+    const name = GatewayClient.required(current.name, resource, "name");
+    const roleArn = GatewayClient.required(current.roleArn, resource, "role ARN");
+    const authorizerType = GatewayClient.required(
+      current.authorizerType,
+      resource,
+      "authorizer type",
+    );
+    if (patch.authorizerConfiguration !== undefined && authorizerType !== "CUSTOM_JWT") {
+      throw new InputValidationError(
+        "Authorizer configuration can only be updated for a CUSTOM_JWT Gateway",
+      );
+    }
+
+    let policyEngineConfiguration = current.policyEngineConfiguration;
+    if (patch.policyEngineConfiguration === null) {
+      policyEngineConfiguration = undefined;
+    } else if (patch.policyEngineConfiguration !== undefined) {
+      const arn = patch.policyEngineConfiguration.arn ?? current.policyEngineConfiguration?.arn;
+      const mode = patch.policyEngineConfiguration.mode ?? current.policyEngineConfiguration?.mode;
+      if (!arn || !mode) {
+        throw new InputValidationError(
+          "Policy Engine update requires an ARN and mode, either existing or supplied",
+        );
+      }
+      policyEngineConfiguration = { arn, mode };
+    }
+
+    const description = GatewayClient.replace(current.description, patch.description);
+    const protocolConfiguration = GatewayClient.replace(
+      current.protocolConfiguration,
+      patch.protocolConfiguration,
+    );
+    const customTransformConfiguration = GatewayClient.replace(
+      current.customTransformConfiguration,
+      patch.customTransformConfiguration,
+    );
+    const interceptorConfigurations = GatewayClient.replace(
+      current.interceptorConfigurations,
+      patch.interceptorConfigurations,
+    );
+    const exceptionLevel = GatewayClient.replace(current.exceptionLevel, patch.exceptionLevel);
+    const wafConfiguration = GatewayClient.replace(
+      current.wafConfiguration,
+      patch.wafConfiguration,
+    );
+    const request: UpdateGatewayRequest = {
+      gatewayIdentifier: patch.id,
+      name,
+      roleArn: patch.roleArn ?? roleArn,
+      authorizerType,
+      description,
+      protocolType: patch.clearProtocol ? undefined : current.protocolType,
+      protocolConfiguration,
+      authorizerConfiguration: patch.authorizerConfiguration ?? current.authorizerConfiguration,
+      kmsKeyArn: current.kmsKeyArn,
+      customTransformConfiguration,
+      interceptorConfigurations,
+      policyEngineConfiguration,
+      exceptionLevel,
+      wafConfiguration,
+    };
+    return control.send(new UpdateGatewayCommand(request));
   }
 
   async listGateways(
@@ -154,6 +241,20 @@ export class GatewayClient implements CoreGatewayClient {
     );
   }
 
+  async updateGatewayTarget(
+    patch: GatewayTargetUpdatePatch,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayTargetResponse> {
+    return this.updateTarget(patch, options, false);
+  }
+
+  async updateGatewayConnector(
+    patch: GatewayTargetUpdatePatch,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayTargetResponse> {
+    return this.updateTarget(patch, options, true);
+  }
+
   async getGatewayRule(
     gatewayId: string,
     ruleId: string,
@@ -187,6 +288,97 @@ export class GatewayClient implements CoreGatewayClient {
     options: CoreOptions,
   ): Promise<CreateGatewayRuleResponse> {
     return this.clients.control(toClientConfig(options)).send(new CreateGatewayRuleCommand(input));
+  }
+
+  async updateGatewayRule(
+    input: GatewayRuleUpdateInput,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayRuleResponse> {
+    return this.clients.control(toClientConfig(options)).send(new UpdateGatewayRuleCommand(input));
+  }
+
+  private async updateTarget(
+    patch: GatewayTargetUpdatePatch,
+    options: CoreOptions,
+    connectorOnly: boolean,
+  ): Promise<UpdateGatewayTargetResponse> {
+    const control = this.clients.control(toClientConfig(options));
+    const current = await control.send(
+      new GetGatewayTargetCommand({
+        gatewayIdentifier: patch.gatewayId,
+        targetId: patch.targetId,
+      }),
+    );
+    const currentTargetConfiguration = GatewayClient.required(
+      current.targetConfiguration,
+      `Gateway Target "${patch.targetId}"`,
+      "configuration",
+    );
+    if (connectorOnly && !GatewayClient.isConnectorTarget(currentTargetConfiguration)) {
+      throw new InputValidationError(`Gateway Target "${patch.targetId}" is not connector-backed`);
+    }
+
+    let targetConfiguration = patch.targetConfiguration;
+    if (targetConfiguration === undefined && patch.endpoint !== undefined) {
+      const mcpServer = currentTargetConfiguration.mcp?.mcpServer;
+      if (!mcpServer) {
+        throw new InputValidationError("Endpoint updates require an existing MCP server Target");
+      }
+      targetConfiguration = {
+        mcp: {
+          mcpServer: {
+            ...mcpServer,
+            endpoint: patch.endpoint,
+          },
+        },
+      };
+    }
+    targetConfiguration ??= currentTargetConfiguration;
+
+    const name = GatewayClient.replace(current.name, patch.name);
+    const description = GatewayClient.replace(current.description, patch.description);
+    const credentialProviderConfigurations = GatewayClient.replace(
+      current.credentialProviderConfigurations,
+      patch.credentialProviderConfigurations,
+    );
+    const metadataConfiguration = GatewayClient.replace(
+      current.metadataConfiguration,
+      patch.metadataConfiguration,
+    );
+    const privateEndpoint = GatewayClient.replace(current.privateEndpoint, patch.privateEndpoint);
+    const request: UpdateGatewayTargetRequest = {
+      gatewayIdentifier: patch.gatewayId,
+      targetId: patch.targetId,
+      targetConfiguration,
+      name,
+      description,
+      credentialProviderConfigurations,
+      metadataConfiguration,
+      privateEndpoint,
+    };
+    if (connectorOnly && !GatewayClient.isConnectorTarget(request.targetConfiguration)) {
+      throw new InputValidationError(
+        "Connector updates require an MCP or inference connector Target configuration",
+      );
+    }
+    return control.send(new UpdateGatewayTargetCommand(request));
+  }
+
+  private static replace<T>(
+    current: T | undefined,
+    replacement: T | null | undefined,
+  ): T | undefined {
+    if (replacement === undefined) return current;
+    return replacement === null ? undefined : replacement;
+  }
+
+  private static required<T>(value: T | undefined, resource: string, field: string): T {
+    if (value === undefined) {
+      throw new AgentCoreCLIError(`${resource} is missing its ${field} required for update`, {
+        source: ERROR_SOURCE.SERVICE,
+      });
+    }
+    return value;
   }
 
   private static isConnectorTarget(configuration: TargetConfiguration | undefined): boolean {

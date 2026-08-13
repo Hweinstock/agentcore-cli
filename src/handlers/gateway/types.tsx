@@ -11,6 +11,12 @@ import type {
   ListGatewayRulesResponse,
   ListGatewaysResponse,
   ListGatewayTargetsResponse,
+  UpdateGatewayRequest,
+  UpdateGatewayResponse,
+  UpdateGatewayRuleRequest,
+  UpdateGatewayRuleResponse,
+  UpdateGatewayTargetRequest,
+  UpdateGatewayTargetResponse,
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import type { CoreOptions } from "../../core/types";
 
@@ -24,8 +30,40 @@ export type CreateGatewayTargetInput = CreateGatewayTargetRequest;
 
 export type CreateGatewayRuleInput = CreateGatewayRuleRequest;
 
+export type GatewayUpdatePatch = {
+  id: string;
+  roleArn?: UpdateGatewayRequest["roleArn"];
+  clearProtocol?: boolean;
+  description?: UpdateGatewayRequest["description"] | null;
+  protocolConfiguration?: UpdateGatewayRequest["protocolConfiguration"] | null;
+  authorizerConfiguration?: UpdateGatewayRequest["authorizerConfiguration"];
+  customTransformConfiguration?: UpdateGatewayRequest["customTransformConfiguration"] | null;
+  interceptorConfigurations?: UpdateGatewayRequest["interceptorConfigurations"] | null;
+  policyEngineConfiguration?: Partial<
+    NonNullable<UpdateGatewayRequest["policyEngineConfiguration"]>
+  > | null;
+  exceptionLevel?: UpdateGatewayRequest["exceptionLevel"] | null;
+  wafConfiguration?: UpdateGatewayRequest["wafConfiguration"] | null;
+};
+
+export type GatewayTargetUpdatePatch = {
+  gatewayId: string;
+  targetId: string;
+  name?: UpdateGatewayTargetRequest["name"];
+  description?: UpdateGatewayTargetRequest["description"] | null;
+  endpoint?: string;
+  targetConfiguration?: UpdateGatewayTargetRequest["targetConfiguration"];
+  credentialProviderConfigurations?:
+    UpdateGatewayTargetRequest["credentialProviderConfigurations"] | null;
+  metadataConfiguration?: UpdateGatewayTargetRequest["metadataConfiguration"] | null;
+  privateEndpoint?: UpdateGatewayTargetRequest["privateEndpoint"] | null;
+};
+
+export type GatewayRuleUpdateInput = UpdateGatewayRuleRequest;
+
 export interface CoreGatewayClient {
   createGateway(input: CreateGatewayInput, options: CoreOptions): Promise<CreateGatewayResponse>;
+  updateGateway(patch: GatewayUpdatePatch, options: CoreOptions): Promise<UpdateGatewayResponse>;
   getGateway(id: string, options: CoreOptions): Promise<GetGatewayResponse>;
   listGateways(
     nextToken: string | undefined,
@@ -58,6 +96,14 @@ export interface CoreGatewayClient {
     maxResults: number | undefined,
     options: CoreOptions,
   ): Promise<ListGatewayTargetsResponse>;
+  updateGatewayTarget(
+    patch: GatewayTargetUpdatePatch,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayTargetResponse>;
+  updateGatewayConnector(
+    patch: GatewayTargetUpdatePatch,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayTargetResponse>;
   getGatewayRule(
     gatewayId: string,
     ruleId: string,
@@ -73,4 +119,8 @@ export interface CoreGatewayClient {
     input: CreateGatewayRuleInput,
     options: CoreOptions,
   ): Promise<CreateGatewayRuleResponse>;
+  updateGatewayRule(
+    input: GatewayRuleUpdateInput,
+    options: CoreOptions,
+  ): Promise<UpdateGatewayRuleResponse>;
 }
