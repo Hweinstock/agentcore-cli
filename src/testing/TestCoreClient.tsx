@@ -35,21 +35,28 @@ import type {
   ListGatewayRulesResponse,
   ListGatewaysResponse,
   ListGatewayTargetsResponse,
+  CreateConfigurationBundleResponse,
   CreateDatasetResponse,
   CreateDatasetVersionResponse,
   CreateEvaluatorRequest,
   CreateEvaluatorResponse,
   CreateOnlineEvaluationConfigResponse,
+  DeleteConfigurationBundleResponse,
   DeleteDatasetResponse,
   DeleteEvaluatorResponse,
   DeleteOnlineEvaluationConfigResponse,
+  GetConfigurationBundleResponse,
+  GetConfigurationBundleVersionResponse,
   GetDatasetResponse,
+  ListConfigurationBundlesResponse,
+  ListConfigurationBundleVersionsResponse,
   ListDatasetsResponse,
   GetEvaluatorResponse,
   GetOnlineEvaluationConfigResponse,
   ListEvaluatorsResponse,
   ListOnlineEvaluationConfigsResponse,
   MemoryView,
+  UpdateConfigurationBundleResponse,
   UpdateEvaluatorResponse,
   UpdateOnlineEvaluationConfigResponse,
   UpdateApiKeyCredentialProviderResponse,
@@ -114,11 +121,13 @@ import type {
   BatchEvaluationResultEntry,
   CodeBasedUpdate,
   CoreEvalClient,
+  CreateConfigurationBundleInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   GetBatchEvaluationResult,
   LlmAsAJudgeUpdate,
   StartBatchEvaluationInput,
+  UpdateConfigurationBundleInput,
   UpdateOnlineEvalInput,
 } from "../handlers/eval/types";
 import { isTerminalStatus } from "../core/batchEvaluationResults";
@@ -219,6 +228,15 @@ const DEFAULT_CREATE_ONLINE_EVAL_RESPONSE = {} as CreateOnlineEvaluationConfigRe
 const DEFAULT_UPDATE_ONLINE_EVAL_RESPONSE = {} as UpdateOnlineEvaluationConfigResponse;
 const DEFAULT_GET_ONLINE_EVAL_RESPONSE = {} as GetOnlineEvaluationConfigResponse;
 const DEFAULT_DELETE_ONLINE_EVAL_RESPONSE = {} as DeleteOnlineEvaluationConfigResponse;
+const DEFAULT_CREATE_CONFIG_BUNDLE_RESPONSE = {} as CreateConfigurationBundleResponse;
+const DEFAULT_GET_CONFIG_BUNDLE_RESPONSE = {} as GetConfigurationBundleResponse;
+const DEFAULT_GET_CONFIG_BUNDLE_VERSION_RESPONSE = {} as GetConfigurationBundleVersionResponse;
+const DEFAULT_LIST_CONFIG_BUNDLES_RESPONSE: ListConfigurationBundlesResponse = { bundles: [] };
+const DEFAULT_UPDATE_CONFIG_BUNDLE_RESPONSE = {} as UpdateConfigurationBundleResponse;
+const DEFAULT_DELETE_CONFIG_BUNDLE_RESPONSE = {} as DeleteConfigurationBundleResponse;
+const DEFAULT_LIST_CONFIG_BUNDLE_VERSIONS_RESPONSE: ListConfigurationBundleVersionsResponse = {
+  versions: [],
+};
 const DEFAULT_CREATE_DATASET_RESPONSE = {} as CreateDatasetResponse;
 const DEFAULT_GET_DATASET_RESPONSE = {} as GetDatasetResponse;
 const DEFAULT_LIST_DATASETS_RESPONSE: ListDatasetsResponse = { datasets: [] };
@@ -1254,6 +1272,24 @@ export class TestEvalClient implements CoreEvalClient {
     DEFAULT_GET_ONLINE_EVAL_RESPONSE;
   private onlineEvalDeleteResponse: DeleteOnlineEvaluationConfigResponse =
     DEFAULT_DELETE_ONLINE_EVAL_RESPONSE;
+  private createConfigBundleResponse: CreateConfigurationBundleResponse =
+    DEFAULT_CREATE_CONFIG_BUNDLE_RESPONSE;
+  private getConfigBundleResponse: GetConfigurationBundleResponse =
+    DEFAULT_GET_CONFIG_BUNDLE_RESPONSE;
+  private getConfigBundleVersionResponse: GetConfigurationBundleVersionResponse =
+    DEFAULT_GET_CONFIG_BUNDLE_VERSION_RESPONSE;
+  private configBundleListResponses = new Map<
+    string | undefined,
+    ListConfigurationBundlesResponse
+  >();
+  private updateConfigBundleResponse: UpdateConfigurationBundleResponse =
+    DEFAULT_UPDATE_CONFIG_BUNDLE_RESPONSE;
+  private deleteConfigBundleResponse: DeleteConfigurationBundleResponse =
+    DEFAULT_DELETE_CONFIG_BUNDLE_RESPONSE;
+  private configBundleVersionListResponses = new Map<
+    string | undefined,
+    ListConfigurationBundleVersionsResponse
+  >();
   private createDatasetResponse: CreateDatasetResponse = DEFAULT_CREATE_DATASET_RESPONSE;
   private getDatasetResponse: GetDatasetResponse = DEFAULT_GET_DATASET_RESPONSE;
   private datasetListResponses = new Map<string | undefined, ListDatasetsResponse>();
@@ -1337,6 +1373,47 @@ export class TestEvalClient implements CoreEvalClient {
   // to (when not erroring).
   setOnlineEvalDeleteResponse(response: DeleteOnlineEvaluationConfigResponse): this {
     this.onlineEvalDeleteResponse = response;
+    return this;
+  }
+
+  setCreateConfigurationBundleResponse(response: CreateConfigurationBundleResponse): this {
+    this.createConfigBundleResponse = response;
+    return this;
+  }
+
+  setGetConfigurationBundleResponse(response: GetConfigurationBundleResponse): this {
+    this.getConfigBundleResponse = response;
+    return this;
+  }
+
+  setGetConfigurationBundleVersionResponse(response: GetConfigurationBundleVersionResponse): this {
+    this.getConfigBundleVersionResponse = response;
+    return this;
+  }
+
+  setListConfigurationBundlesResponse(
+    response: ListConfigurationBundlesResponse,
+    forNextToken?: string,
+  ): this {
+    this.configBundleListResponses.set(forNextToken, response);
+    return this;
+  }
+
+  setUpdateConfigurationBundleResponse(response: UpdateConfigurationBundleResponse): this {
+    this.updateConfigBundleResponse = response;
+    return this;
+  }
+
+  setDeleteConfigurationBundleResponse(response: DeleteConfigurationBundleResponse): this {
+    this.deleteConfigBundleResponse = response;
+    return this;
+  }
+
+  setListConfigurationBundleVersionsResponse(
+    response: ListConfigurationBundleVersionsResponse,
+    forNextToken?: string,
+  ): this {
+    this.configBundleVersionListResponses.set(forNextToken, response);
     return this;
   }
 
@@ -1574,6 +1651,79 @@ export class TestEvalClient implements CoreEvalClient {
     this.calls.push({ method: "deleteOnlineEvaluationConfig", args: [id, options] });
     if (this.error) throw this.error;
     return this.onlineEvalDeleteResponse;
+  }
+
+  async createConfigurationBundle(
+    input: CreateConfigurationBundleInput,
+    options: CoreOptions,
+  ): Promise<CreateConfigurationBundleResponse> {
+    this.calls.push({ method: "createConfigurationBundle", args: [input, options] });
+    if (this.error) throw this.error;
+    return this.createConfigBundleResponse;
+  }
+
+  async getConfigurationBundle(
+    id: string,
+    version: string | undefined,
+    branchName: string,
+    options: CoreOptions,
+  ): Promise<GetConfigurationBundleResponse | GetConfigurationBundleVersionResponse> {
+    this.calls.push({ method: "getConfigurationBundle", args: [id, version, branchName, options] });
+    if (this.error) throw this.error;
+    return version === undefined
+      ? this.getConfigBundleResponse
+      : this.getConfigBundleVersionResponse;
+  }
+
+  async listConfigurationBundles(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListConfigurationBundlesResponse> {
+    this.calls.push({ method: "listConfigurationBundles", args: [nextToken, maxResults, options] });
+    if (this.error) throw this.error;
+    return (
+      this.configBundleListResponses.get(nextToken) ??
+      this.configBundleListResponses.get(undefined) ??
+      DEFAULT_LIST_CONFIG_BUNDLES_RESPONSE
+    );
+  }
+
+  async updateConfigurationBundle(
+    id: string,
+    update: UpdateConfigurationBundleInput,
+    options: CoreOptions,
+  ): Promise<UpdateConfigurationBundleResponse> {
+    this.calls.push({ method: "updateConfigurationBundle", args: [id, update, options] });
+    if (this.error) throw this.error;
+    return this.updateConfigBundleResponse;
+  }
+
+  async deleteConfigurationBundle(
+    id: string,
+    options: CoreOptions,
+  ): Promise<DeleteConfigurationBundleResponse> {
+    this.calls.push({ method: "deleteConfigurationBundle", args: [id, options] });
+    if (this.error) throw this.error;
+    return this.deleteConfigBundleResponse;
+  }
+
+  async listConfigurationBundleVersions(
+    id: string,
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListConfigurationBundleVersionsResponse> {
+    this.calls.push({
+      method: "listConfigurationBundleVersions",
+      args: [id, nextToken, maxResults, options],
+    });
+    if (this.error) throw this.error;
+    return (
+      this.configBundleVersionListResponses.get(nextToken) ??
+      this.configBundleVersionListResponses.get(undefined) ??
+      DEFAULT_LIST_CONFIG_BUNDLE_VERSIONS_RESPONSE
+    );
   }
 
   async createDataset(
