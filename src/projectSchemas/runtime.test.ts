@@ -1,6 +1,6 @@
 import { describe, expect, it } from "bun:test";
 import {
-  AgentEnvSpecSchema,
+  ProjectRuntimeSchema,
   LifecycleConfigurationSchema,
   checkAllowlistHeader,
   isReservedBuildArgKey,
@@ -51,17 +51,17 @@ describe("runtime custom validation", () => {
     ).toBe(false);
   });
   it("couples VPC mode and network configuration", () => {
-    expect(AgentEnvSpecSchema.safeParse({ ...codeZipAgent, networkMode: "VPC" }).success).toBe(
+    expect(ProjectRuntimeSchema.safeParse({ ...codeZipAgent, networkMode: "VPC" }).success).toBe(
       false,
     );
-    expect(AgentEnvSpecSchema.safeParse({ ...codeZipAgent, networkConfig }).success).toBe(false);
+    expect(ProjectRuntimeSchema.safeParse({ ...codeZipAgent, networkConfig }).success).toBe(false);
   });
   it("couples CUSTOM_JWT and authorizer configuration", () => {
     expect(
-      AgentEnvSpecSchema.safeParse({ ...codeZipAgent, authorizerType: "CUSTOM_JWT" }).success,
+      ProjectRuntimeSchema.safeParse({ ...codeZipAgent, authorizerType: "CUSTOM_JWT" }).success,
     ).toBe(false);
     expect(
-      AgentEnvSpecSchema.safeParse({
+      ProjectRuntimeSchema.safeParse({
         ...codeZipAgent,
         authorizerType: "AWS_IAM",
         authorizerConfiguration: {
@@ -78,19 +78,19 @@ describe("runtime custom validation", () => {
       { buildContextPath: "." },
       { customDockerBuildArgs: { KEY: "value" } },
     ]) {
-      expect(AgentEnvSpecSchema.safeParse({ ...codeZipAgent, ...field }).success).toBe(false);
-      expect(AgentEnvSpecSchema.safeParse({ ...containerAgent, ...field }).success).toBe(true);
+      expect(ProjectRuntimeSchema.safeParse({ ...codeZipAgent, ...field }).success).toBe(false);
+      expect(ProjectRuntimeSchema.safeParse({ ...containerAgent, ...field }).success).toBe(true);
     }
   });
   it("rejects reserved build args and control characters", () => {
     expect(
-      AgentEnvSpecSchema.safeParse({
+      ProjectRuntimeSchema.safeParse({
         ...containerAgent,
         customDockerBuildArgs: { IMAGE_URI: "value" },
       }).success,
     ).toBe(false);
     expect(
-      AgentEnvSpecSchema.safeParse({
+      ProjectRuntimeSchema.safeParse({
         ...containerAgent,
         customDockerBuildArgs: { SAFE: "line1\nline2" },
       }).success,
@@ -105,13 +105,13 @@ describe("runtime custom validation", () => {
       },
     };
     expect(
-      AgentEnvSpecSchema.safeParse({
+      ProjectRuntimeSchema.safeParse({
         ...codeZipAgent,
         filesystemConfigurations: [efsAccessPoint],
       }).success,
     ).toBe(false);
     expect(
-      AgentEnvSpecSchema.safeParse({
+      ProjectRuntimeSchema.safeParse({
         ...codeZipAgent,
         networkMode: "VPC",
         networkConfig,
@@ -119,7 +119,7 @@ describe("runtime custom validation", () => {
       }).success,
     ).toBe(false);
     expect(
-      AgentEnvSpecSchema.safeParse({
+      ProjectRuntimeSchema.safeParse({
         ...codeZipAgent,
         filesystemConfigurations: Array.from({ length: 6 }, (_, index) => ({
           sessionStorage: { mountPath: `/mnt/data${index}` },
@@ -136,7 +136,7 @@ describe("runtime custom validation", () => {
       networkMode: "VPC" as const,
       networkConfig: { ...networkConfig, securityGroups },
     };
-    expect(AgentEnvSpecSchema.safeParse({ ...containerAgent, ...vpc }).success).toBe(false);
-    expect(AgentEnvSpecSchema.safeParse({ ...codeZipAgent, ...vpc }).success).toBe(true);
+    expect(ProjectRuntimeSchema.safeParse({ ...containerAgent, ...vpc }).success).toBe(false);
+    expect(ProjectRuntimeSchema.safeParse({ ...codeZipAgent, ...vpc }).success).toBe(true);
   });
 });

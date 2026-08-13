@@ -236,7 +236,7 @@ export const RuntimeEndpointSchema = z.object({
   description: z.string().max(200).optional(),
 });
 export type RuntimeEndpoint = z.infer<typeof RuntimeEndpointSchema>;
-export const AgentEnvSpecSchema = z
+export const ProjectRuntimeSchema = z
   .object({
     name: AgentNameSchema,
     description: z.string().max(200).optional(),
@@ -385,4 +385,4 @@ export const AgentEnvSpecSchema = z
       }
     }
   });
-export type AgentEnvSpec = z.infer<typeof AgentEnvSpecSchema>;
+export type ProjectRuntime = z.infer<typeof ProjectRuntimeSchema>;

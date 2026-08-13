@@ -17,7 +17,7 @@ import {
 } from "../../io";
 import { defaultSource, type AssetSource } from "./source";
 import { createProjectTreeFromTemplate, TEMPLATES } from "./templates";
-import { ProjectSpecSchema } from "./schema";
+import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { enclosingProjectRoot } from "./fsUtils";
 import { DeserializationError, InputValidationError, ProjectStateError } from "../../errors/errors";
 

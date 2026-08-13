@@ -1,5 +1,5 @@
 import { describe, expect, it } from "bun:test";
-import { AgentCoreProjectSpecSchema, ProjectNameSchema } from "./project";
+import { ProjectSpecSchema, ProjectNameSchema } from "./project";
 
 const minimalProject = { name: "project", version: 1 };
 
@@ -18,7 +18,7 @@ describe("project custom validation", () => {
   });
 
   it("rejects duplicate resource identities", () => {
-    const result = AgentCoreProjectSpecSchema.safeParse({
+    const result = ProjectSpecSchema.safeParse({
       ...minimalProject,
       runtimes: [runtime, runtime],
     });
@@ -31,7 +31,7 @@ describe("project custom validation", () => {
   });
 
   it("validates online evaluation agent and evaluator references", () => {
-    const result = AgentCoreProjectSpecSchema.safeParse({
+    const result = ProjectSpecSchema.safeParse({
       ...minimalProject,
       onlineEvalConfigs: [
         {
@@ -54,7 +54,7 @@ describe("project custom validation", () => {
   });
 
   it("allows built-in and ARN evaluator references", () => {
-    const result = AgentCoreProjectSpecSchema.safeParse({
+    const result = ProjectSpecSchema.safeParse({
       ...minimalProject,
       runtimes: [runtime],
       onlineEvalConfigs: [
@@ -85,14 +85,14 @@ describe("project custom validation", () => {
       ],
     };
     expect(
-      AgentCoreProjectSpecSchema.safeParse({
+      ProjectSpecSchema.safeParse({
         ...minimalProject,
         runtimes: [runtime],
         agentCoreGateways: [gateway],
       }).success,
     ).toBe(false);
     expect(
-      AgentCoreProjectSpecSchema.safeParse({
+      ProjectSpecSchema.safeParse({
         ...minimalProject,
         runtimes: [runtime],
         agentCoreGateways: [
@@ -129,7 +129,7 @@ describe("project custom validation", () => {
       ],
       evaluationConfig: { onlineEvaluationConfigArn: "arn:evaluation" },
     };
-    const result = AgentCoreProjectSpecSchema.safeParse({
+    const result = ProjectSpecSchema.safeParse({
       ...minimalProject,
       agentCoreGateways: [
         {
@@ -160,13 +160,13 @@ describe("project custom validation", () => {
       ],
     };
     expect(
-      AgentCoreProjectSpecSchema.safeParse({
+      ProjectSpecSchema.safeParse({
         ...minimalProject,
         agentCoreGateways: [{ name: "gateway", targets: [target] }],
       }).success,
     ).toBe(false);
     expect(
-      AgentCoreProjectSpecSchema.safeParse({
+      ProjectSpecSchema.safeParse({
         ...minimalProject,
         agentCoreGateways: [
           {
@@ -196,18 +196,18 @@ describe("project custom validation", () => {
         },
       ],
     };
+    expect(ProjectSpecSchema.safeParse({ ...minimalProject, payments: [payment] }).success).toBe(
+      false,
+    );
     expect(
-      AgentCoreProjectSpecSchema.safeParse({ ...minimalProject, payments: [payment] }).success,
-    ).toBe(false);
-    expect(
-      AgentCoreProjectSpecSchema.safeParse({
+      ProjectSpecSchema.safeParse({
         ...minimalProject,
         credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: "credential" }],
         payments: [payment],
       }).success,
     ).toBe(false);
     expect(
-      AgentCoreProjectSpecSchema.safeParse({
+      ProjectSpecSchema.safeParse({
         ...minimalProject,
         credentials: [
           {
