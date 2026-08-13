@@ -105,6 +105,8 @@ import type {
   GatewayRuleUpdateInput,
   GatewayTargetUpdatePatch,
   GatewayUpdatePatch,
+  GatewayInvokeRequest,
+  GatewayInvokeResponse,
 } from "../handlers/gateway/types";
 import type {
   CoreIdentityClient,
@@ -270,6 +272,11 @@ async function* events<T>(items: T[]): AsyncGenerator<T> {
 }
 
 const DEFAULT_RUNTIME_INVOKE_RESPONSE: RuntimeInvokeResponse = {
+  statusCode: 200,
+  contentType: "application/json",
+  body: events([]),
+};
+const DEFAULT_GATEWAY_INVOKE_RESPONSE: GatewayInvokeResponse = {
   statusCode: 200,
   contentType: "application/json",
   body: events([]),
@@ -886,6 +893,7 @@ export class TestGatewayClient implements CoreGatewayClient {
   private getRuleResponse: GetGatewayRuleResponse = DEFAULT_GET_GATEWAY_RULE_RESPONSE;
   private listRuleResponses = new Map<string | undefined, ListGatewayRulesResponse>();
   private deleteRuleResponse: DeleteGatewayRuleResponse = DEFAULT_DELETE_GATEWAY_RULE_RESPONSE;
+  private invokeResponse: GatewayInvokeResponse = DEFAULT_GATEWAY_INVOKE_RESPONSE;
   private error?: Error;
 
   setGetResponse(response: GetGatewayResponse): this {
@@ -943,6 +951,11 @@ export class TestGatewayClient implements CoreGatewayClient {
     return this;
   }
 
+  setInvokeResponse(response: GatewayInvokeResponse): this {
+    this.invokeResponse = response;
+    return this;
+  }
+
   setError(error: Error | undefined): this {
     this.error = error;
     return this;
@@ -966,8 +979,25 @@ export class TestGatewayClient implements CoreGatewayClient {
     return DEFAULT_UPDATE_GATEWAY_RESPONSE;
   }
 
-  async getGateway(id: string, options: CoreOptions): Promise<GetGatewayResponse> {
-    this.calls.push({ method: "getGateway", args: [id, options] });
+  async invokeGateway(
+    request: GatewayInvokeRequest,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<GatewayInvokeResponse> {
+    this.calls.push({ method: "invokeGateway", args: [request, options, signal] });
+    if (this.error) throw this.error;
+    return this.invokeResponse;
+  }
+
+  async getGateway(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<GetGatewayResponse> {
+    this.calls.push({
+      method: "getGateway",
+      args: [id, options, ...(signal ? [signal] : [])],
+    });
     if (this.error) throw this.error;
     return this.getResponse;
   }
