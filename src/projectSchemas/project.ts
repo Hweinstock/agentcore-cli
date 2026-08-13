@@ -1,5 +1,5 @@
 import { isReservedProjectName } from "./constants";
-import { AgentEnvSpecSchema } from "./runtime";
+import { ProjectRuntimeSchema } from "./runtime";
 import {
   AgentCoreGatewaySchema,
   AgentCoreGatewayTargetSchema,
@@ -41,14 +41,14 @@ const uniqueNames = (resource: string) =>
     ({ name }) => name,
     (name) => `Duplicate ${resource} name: ${name}`,
   );
-export const AgentCoreProjectSpecSchema = z
+export const ProjectSpecSchema = z
   .object({
     $schema: z.string().optional(),
     name: ProjectNameSchema,
     version: z.number().int().min(1),
     managedBy: ManagedBySchema,
     tags: TagsSchema.optional(),
-    runtimes: z.array(AgentEnvSpecSchema).default([]).superRefine(uniqueNames("agent")),
+    runtimes: z.array(ProjectRuntimeSchema).default([]).superRefine(uniqueNames("agent")),
     memories: z.array(MemorySchema).default([]).superRefine(uniqueNames("memory")),
     knowledgeBases: z
       .array(KnowledgeBaseSchema)
@@ -259,4 +259,4 @@ export const AgentCoreProjectSpecSchema = z
       }
     }
   });
-export type AgentCoreProjectSpec = z.infer<typeof AgentCoreProjectSpecSchema>;
+export type ProjectSpec = z.infer<typeof ProjectSpecSchema>;

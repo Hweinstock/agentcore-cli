@@ -1,7 +1,4 @@
-import { ProjectNameSchema } from "../../core/project/schema";
-import type { ProjectRuntime } from "../../core/project/schema";
-
-export { ProjectNameSchema };
+import type { ProjectRuntime } from "../../projectSchemas/runtime";
 
 /** Available project templates for scaffolding new AgentCore projects. */
 export const PROJECT_TEMPLATES = {
