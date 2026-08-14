@@ -12,8 +12,12 @@ import {
   TestGlobalConfigAccessor,
   waitFor,
 } from "../../../testing";
+import { PathKey, ValueContext } from "../../../router";
 import { createRootHandler } from "../../index";
+import { JsonKey } from "../../keys";
 import type { GatewayInvokeRequest } from "../types";
+import { createInvokeGatewayHandler } from "./index";
+import { GatewayInvokeLaunchContextKey } from "./launchContext";
 
 const REGION = "us-west-2";
 const GATEWAY_ID = "gateway-123";
@@ -339,7 +343,9 @@ describe("gateway invoke", () => {
 
   test.each([
     [["gateway", "invoke", "--payload", "{}"], /--id/],
-    [["gateway", "invoke", "--id", GATEWAY_ID], /--payload/],
+    [["gateway", "invoke", "--id", GATEWAY_ID, "--json"], /--payload/],
+    [["gateway", "invoke", "--id", GATEWAY_ID, "--method", "POST"], /--payload/],
+    [["gateway", "invoke", "--id", GATEWAY_ID, "--output-file", "response.bin"], /--payload/],
     [
       [
         "gateway",
@@ -371,6 +377,83 @@ describe("gateway invoke", () => {
 
     const code = await runWithExitCode(async () =>
       runCommand(core, output.io, ["gateway", "invoke", "--payload", "{}"]),
+    );
+
+    expect(code).toBe(ExitCode.USAGE);
+    expect(core.gateway.calls).toEqual([]);
+  });
+
+  test("a bare command enters existing TUI middleware without Gateway Core calls", async () => {
+    const core = configuredCore();
+    const output = captureIO();
+
+    await expect(runCommand(core, output.io, ["gateway", "invoke"])).rejects.toThrow(
+      "interactive mode requires a TTY on stdin and stdout",
+    );
+    expect(core.gateway.calls).toEqual([]);
+  });
+
+  test("deep-links an id-only invoke and seeds interactive request context", async () => {
+    const core = configuredCore();
+    const output = captureIO();
+    let renderCount = 0;
+    const handler = createInvokeGatewayHandler(
+      core,
+      output.io,
+      async (path, ctx, renderedCore, renderedIo) => {
+        renderCount++;
+        expect(path).toBe("/agentcore/gateway/invoke/gateway%2Fblue%20one");
+        expect(ctx.value(GatewayInvokeLaunchContextKey)).toEqual({
+          gatewayId: "gateway/blue one",
+          path: "runtime/invocations?trace=true",
+          runtimeSessionId: "runtime-session",
+          mcpSessionId: "mcp-session",
+          mcpProtocolVersion: "2025-06-18",
+          applicationHeaders: [["X-Tenant", "retail"]],
+          bearerToken: "secret-token",
+        });
+        expect(renderedCore).toBe(core);
+        expect(renderedIo).toBe(output.io);
+      },
+    );
+    const ctx = ValueContext.EmptyContext()
+      .withValue(PathKey, "/agentcore/gateway/invoke")
+      .withValue(JsonKey, false);
+
+    await handler.handle(
+      ctx,
+      {
+        id: "gateway/blue one",
+        path: "runtime/invocations?trace=true",
+        payload: undefined,
+        header: ["X-Tenant: retail"],
+        "bearer-token": "secret-token",
+        "session-id": "runtime-session",
+        "mcp-session-id": "mcp-session",
+        "mcp-protocol-version": "2025-06-18",
+      },
+      {},
+    );
+
+    expect(renderCount).toBe(1);
+    expect(core.gateway.calls).toEqual([]);
+  });
+
+  test("rejects stdin bearer tokens when launching the TUI", async () => {
+    const core = configuredCore();
+    const output = captureIO(Buffer.from("secret-token"));
+
+    await expect(
+      runCommand(core, output.io, ["gateway", "invoke", "--id", GATEWAY_ID, "--bearer-token", "-"]),
+    ).rejects.toThrow("stdin bearer tokens are not available");
+    expect(core.gateway.calls).toEqual([]);
+  });
+
+  test("classifies an unavailable interactive environment as usage", async () => {
+    const core = configuredCore();
+    const output = captureIO();
+    const code = await runWithExitCode(async () =>
+      runCommand(core, output.io, ["gateway", "invoke", "--id", GATEWAY_ID]),
     );
 
     expect(code).toBe(ExitCode.USAGE);
