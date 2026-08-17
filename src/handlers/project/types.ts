@@ -48,7 +48,7 @@ export type AddResourceInput =
     }
   | {
       resourceType: "runtime";
-      resourceConfig: z.input<typeof ProjectRuntimeSchema>;
+      resourceConfig: Omit<z.input<typeof ProjectRuntimeSchema>, "codeLocation" | "runtimeVersion">;
     };
 
 export type ProjectResource = AddResourceInput["resourceType"];
