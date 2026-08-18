@@ -35,11 +35,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
     flags: [
       flag("name", "the name of the runtime", z.string().optional()),
       flag("description", "an optional description of the runtime", z.string().optional()),
-      flag(
-        "template",
-        "template to scaffold from",
-        z.enum(RUNTIME_TEMPLATES).default(RUNTIME_TEMPLATES.HELLO_WORLD_PYTHON),
-      ),
+      flag("template", "template to scaffold from", z.enum(RUNTIME_TEMPLATES).optional()),
       flag(
         "role-arn",
         "IAM role ARN that provides permissions for the runtime",
@@ -139,11 +135,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       if (!flags.name)
         throw new InputValidationError("required option '--name <name>' not specified");
 
-      const sourceCount = [flags.template, flags["code-location"]].filter(Boolean).length;
-      if (sourceCount !== 1)
-        throw new InputValidationError("exactly one of --template or --code-location is required");
+      if (flags.template && flags["code-location"])
+        throw new InputValidationError("--template and --code-location are mutually exclusive");
 
-      const isTemplate = Boolean(flags.template);
+      const isTemplate = !flags["code-location"];
+      const template = flags.template ?? RUNTIME_TEMPLATES.HELLO_WORLD_PYTHON;
       const templateOnlyFlags = (["memory", "model-provider", "api-key"] as const).filter(
         (f) => flags[f],
       );
@@ -242,10 +238,10 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         tags: parseJsonFlag<Record<string, string>>("tags", flags["tags"]),
       };
 
-      const runtimeConfig = flags.template
+      const runtimeConfig = isTemplate
         ? {
             source: "template" as const,
-            template: flags.template,
+            template,
             memory: memoryConfiguration,
             modelProvider: { apiKey, provider: flags["model-provider"] },
             ...infraConfig,

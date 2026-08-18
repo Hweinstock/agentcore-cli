@@ -724,7 +724,8 @@ describe("project add runtime", () => {
 
   // Verifies each valid flag combination passes handler validation.
   test.each<[string, string[]]>([
-    ["minimal — template path", ["--name", "my_agent", ...template]],
+    ["minimal — name only (defaults to template)", ["--name", "my_agent"]],
+    ["explicit template path", ["--name", "my_agent", ...template]],
     ["minimal — BYO path with build", ["--name", "my_agent", ...byo, "--build", "CodeZip"]],
     [
       "BYO container with dockerfile",
@@ -949,7 +950,6 @@ describe("project add runtime", () => {
   // Rejects invalid flag combinations with InputValidationError.
   test.each<[string, string[]]>([
     ["missing --name", ["--template", "hello-world-python"]],
-    ["missing both --template and --code-location", ["--name", "my_agent"]],
     [
       "--template and --code-location are mutually exclusive",
       ["--name", "my_agent", "--template", "hello-world-python", "--code-location", "app/agent"],
