@@ -24,13 +24,12 @@ import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { enclosingProjectRoot } from "./fsUtils";
 import {
   AgentCoreCLIError,
-  DeserializationError,
   InputValidationError,
   NotImplementedError,
   ProjectStateError,
 } from "../../errors/errors";
 import type { HarnessSpecSchema } from "../../projectSchemas/harness";
-import type z from "zod";
+import z from "zod";
 
 type ProjectManagerConfig = {
   logger: Logger;
@@ -63,22 +62,12 @@ export class FsProjectManager implements ProjectManager {
     if (!rootPath) return undefined;
 
     const configPath = join(rootPath, "agentcore", "agentcore.json");
-    try {
-      const spec = await this.json.read(configPath, ProjectSpecSchema);
-      return {
-        name: spec.name,
-        rootPath,
-        spec,
-      };
-    } catch (error) {
-      // A malformed agentcore.json is a user-correctable problem, not a crash.
-      if (error instanceof DeserializationError) {
-        throw new InputValidationError(`invalid project configuration at ${configPath}`, {
-          cause: error,
-        });
-      }
-      throw error;
-    }
+    const spec = await this.json.read(configPath, ProjectSpecSchema);
+    return {
+      name: spec.name,
+      rootPath,
+      spec,
+    };
   }
 
   public async *create(input: CreateProjectInput): AsyncGenerator<ProjectEvent, Project> {
@@ -176,12 +165,17 @@ export class FsProjectManager implements ProjectManager {
 
     yield { message: `Updating project spec file at '${agentCoreSpecPath}'` };
 
+    const newSpec = { ...existingProjectSpec, [projectSpecKey]: newResources };
+    const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
+
+    if (!newSpecParseResult.success)
+      throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
+        cause: newSpecParseResult.error,
+      });
+
     // rollback scaffolding changes on failed config writes to prevent bad state.
     try {
-      const newProjectSpec = await this.json.write(agentCoreSpecPath, {
-        ...existingProjectSpec,
-        [projectSpecKey]: newResources,
-      });
+      const newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
 
       return {
         ...project,

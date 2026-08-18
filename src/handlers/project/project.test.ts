@@ -10,7 +10,7 @@ import {
   TestGlobalConfigAccessor,
   testIO,
 } from "../../testing";
-import { InputValidationError } from "../../errors";
+import { DeserializationError, InputValidationError } from "../../errors";
 import { FsReadWriteJson, type ReadWriteJson } from "../../io";
 
 async function run(args: string[], opts?: { core?: TestCoreClient }) {
@@ -586,6 +586,14 @@ describe("project add harness", () => {
     ).rejects.toBeInstanceOf(InputValidationError);
   });
 
+  test("rejects a duplicate harness name", async () => {
+    await inProject();
+    await run(["add", "harness", "--name", "x"]);
+    await expect(run(["add", "harness", "--name", "x"])).rejects.toBeInstanceOf(
+      InputValidationError,
+    );
+  });
+
   test("cleans up scaffolded files when the spec write fails", async () => {
     const projectRoot = await inProject();
     const logger = createSilentLogger();
@@ -607,11 +615,17 @@ describe("project add harness", () => {
     expect(existsSync(join(projectRoot, "app", "x"))).toBe(false);
   });
 
-  test("rejects a duplicate harness name", async () => {
-    await inProject();
-    await run(["add", "harness", "--name", "x"]);
+  test("rejects when the existing spec is invalid", async () => {
+    const projectRoot = await inProject();
+
+    // create a corrupted agentcore.json
+    const specPath = join(projectRoot, "agentcore", "agentcore.json");
+    const spec = await Bun.file(specPath).json();
+    spec.unknownField = "bad";
+    await Bun.write(specPath, JSON.stringify(spec));
+
     await expect(run(["add", "harness", "--name", "x"])).rejects.toBeInstanceOf(
-      InputValidationError,
+      DeserializationError,
     );
   });
 
