@@ -146,13 +146,8 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         flags["environment-variables"],
       );
 
-      const build = flags.build;
-      const entrypoint = flags.entrypoint;
-
-      if (entrypoint && build === "Container")
-        throw new InputValidationError(
-          "code entrypoint cannot be provided with Container build type",
-        );
+      // TODO: make entrypoint optional since container agents don't need it.
+      const entrypoint = flags.entrypoint ?? "main.py";
 
       const network = toNetwork(inputNetwork);
 

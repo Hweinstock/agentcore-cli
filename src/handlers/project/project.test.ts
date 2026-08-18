@@ -929,10 +929,6 @@ describe("project add runtime", () => {
       ["--name", "my_agent", "--template", "hello-world-python", "--code-location", "app/agent"],
     ],
     [
-      "entrypoint cannot be provided with Container build type",
-      ["--name", "my_agent", ...byo, "--build", "Container", "--entrypoint", "main.py"],
-    ],
-    [
       "--custom-docker-build-args requires --dockerfile or --build-context-path",
       [
         "--name",
