@@ -10,7 +10,7 @@ import {
   TestGlobalConfigAccessor,
   testIO,
 } from "../../testing";
-import { InputValidationError } from "../../errors";
+import { InputValidationError, NotImplementedError } from "../../errors";
 import { FsReadWriteJson, type ReadWriteJson } from "../../io";
 
 async function run(args: string[], opts?: { core?: TestCoreClient }) {
@@ -112,7 +112,7 @@ describe("project create", () => {
 
 describe("project add harness", () => {
   const defaultModel = { provider: "bedrock", modelId: "global.anthropic.claude-sonnet-4-6" };
-  /** Verify error case for different flags **/
+  // Verifies each flag combination produces the expected harness config.
   test.each<[string, string[], Record<string, unknown>]>([
     ["minimal — name only", ["--name", "x"], { model: defaultModel }],
     [
@@ -610,6 +610,7 @@ describe("project add harness", () => {
     );
   });
 
+  // Rejects invalid flag combinations with InputValidationError.
   test.each([
     ["missing --name", ["--model", '{"bedrockModelConfig":{"modelId":"x"}}']],
     ["model without modelId", ["--name", "x", "--model", '{"bedrockModelConfig":{}}']],
@@ -713,5 +714,284 @@ describe("project build", () => {
     await rm(join(projectRoot, "agentcore", "cdk", "node_modules"), { recursive: true });
 
     await expect(run(["build"])).rejects.toThrow(/npm install/);
+  });
+});
+
+// TODO: Replace NotImplementedError assertions with output assertions once
+// FsProjectManager.addResource supports the "runtime" resource type.
+describe("project add runtime", () => {
+  const byo = ["--code-location", "app/my_agent"];
+  const tpl = ["--template", "hello-world-python"];
+
+  // Verifies each valid flag combination passes handler validation.
+  test.each<[string, string[]]>([
+    ["minimal — template path", ["--name", "my_agent", ...tpl]],
+    ["minimal — BYO path with build", ["--name", "my_agent", ...byo, "--build", "CodeZip"]],
+    [
+      "BYO container with dockerfile",
+      ["--name", "my_agent", ...byo, "--build", "Container", "--dockerfile", "Dockerfile"],
+    ],
+    [
+      "entrypoint + runtime-version for CodeZip",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "CodeZip",
+        "--entrypoint",
+        "app.py:main",
+        "--runtime-version",
+        "PYTHON_3_13",
+      ],
+    ],
+    ["description", ["--name", "my_agent", ...tpl, "--description", "A test agent"]],
+    [
+      "role-arn",
+      ["--name", "my_agent", ...tpl, "--role-arn", "arn:aws:iam::123456789012:role/MyRole"],
+    ],
+    [
+      "network-configuration — VPC",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--network-configuration",
+        '{"networkMode":"VPC","networkModeConfig":{"subnets":["subnet-abc"],"securityGroups":["sg-123"]}}',
+      ],
+    ],
+    [
+      "network-configuration — PUBLIC",
+      ["--name", "my_agent", ...tpl, "--network-configuration", '{"networkMode":"PUBLIC"}'],
+    ],
+    [
+      "authorizer-configuration — customJWT",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--authorizer-configuration",
+        '{"customJWTAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
+      ],
+    ],
+    [
+      "protocol-configuration — MCP",
+      ["--name", "my_agent", ...tpl, "--protocol-configuration", '{"serverProtocol":"MCP"}'],
+    ],
+    [
+      "protocol-configuration — A2A",
+      ["--name", "my_agent", ...tpl, "--protocol-configuration", '{"serverProtocol":"A2A"}'],
+    ],
+    [
+      "protocol-configuration — AGUI",
+      ["--name", "my_agent", ...tpl, "--protocol-configuration", '{"serverProtocol":"AGUI"}'],
+    ],
+    [
+      "request-header-configuration",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--request-header-configuration",
+        '{"requestHeaderAllowlist":["X-Custom-Header","Authorization"]}',
+      ],
+    ],
+    [
+      "lifecycle-configuration",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--lifecycle-configuration",
+        '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
+      ],
+    ],
+    [
+      "environment-variables",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--environment-variables",
+        '{"LOG_LEVEL":"debug","APP_ENV":"staging"}',
+      ],
+    ],
+    [
+      "filesystem-configurations — sessionStorage",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--filesystem-configurations",
+        '[{"sessionStorage":{"mountPath":"/mnt/data"}}]',
+      ],
+    ],
+    [
+      "filesystem-configurations — efsAccessPoint",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--filesystem-configurations",
+        '[{"efsAccessPoint":{"accessPointArn":"arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-abc","mountPath":"/mnt/efs"}}]',
+      ],
+    ],
+    [
+      "filesystem-configurations — s3FilesAccessPoint",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--filesystem-configurations",
+        '[{"s3FilesAccessPoint":{"accessPointArn":"arn:aws:s3files:us-east-1:123456789012:file-system/fs-abc/access-point/fsap-def","mountPath":"/mnt/s3"}}]',
+      ],
+    ],
+    ["tags", ["--name", "my_agent", ...tpl, "--tags", '{"team":"ml","env":"prod"}']],
+    [
+      "dockerfile + build-context-path",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "Container",
+        "--dockerfile",
+        "docker/Dockerfile.gpu",
+        "--build-context-path",
+        ".",
+      ],
+    ],
+    [
+      "custom-docker-build-args with dockerfile",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "Container",
+        "--dockerfile",
+        "Dockerfile",
+        "--custom-docker-build-args",
+        '{"AGENT_NAME":"my_agent","VERSION":"1.0"}',
+      ],
+    ],
+    [
+      "custom-docker-build-args with build-context-path",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "Container",
+        "--build-context-path",
+        ".",
+        "--custom-docker-build-args",
+        '{"AGENT_NAME":"my_agent"}',
+      ],
+    ],
+    [
+      "additional-policies",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--additional-policies",
+        "arn:aws:iam::123456789012:policy/MyPolicy",
+      ],
+    ],
+    [
+      "vpc-id with VPC network configuration",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "Container",
+        "--dockerfile",
+        "Dockerfile",
+        "--network-configuration",
+        '{"networkMode":"VPC","networkModeConfig":{"subnets":["subnet-abc"],"securityGroups":["sg-123"]}}',
+        "--vpc-id",
+        "vpc-0123456789abcdef0",
+      ],
+    ],
+  ])("%s — accepts flags", async (_label, flags) => {
+    await inProject();
+    await expect(run(["add", "runtime", ...flags])).rejects.toBeInstanceOf(NotImplementedError);
+  });
+
+  // Rejects invalid flag combinations with InputValidationError.
+  test.each<[string, string[]]>([
+    ["missing --name", ["--template", "hello-world-python"]],
+    ["missing both --template and --code-location", ["--name", "my_agent"]],
+    [
+      "--template and --code-location are mutually exclusive",
+      ["--name", "my_agent", "--template", "hello-world-python", "--code-location", "app/agent"],
+    ],
+    [
+      "entrypoint cannot be provided with Container build type",
+      ["--name", "my_agent", ...byo, "--build", "Container", "--entrypoint", "main.py"],
+    ],
+    [
+      "--custom-docker-build-args requires --dockerfile or --build-context-path",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "Container",
+        "--custom-docker-build-args",
+        '{"KEY":"value"}',
+      ],
+    ],
+    [
+      "--vpc-id requires --network-configuration with VPC network configuration",
+      [
+        "--name",
+        "my_agent",
+        ...byo,
+        "--build",
+        "Container",
+        "--dockerfile",
+        "Dockerfile",
+        "--vpc-id",
+        "vpc-0123456789abcdef0",
+      ],
+    ],
+    [
+      "unrecognized authorizer configuration variant",
+      ["--name", "my_agent", ...tpl, "--authorizer-configuration", '{"unknownAuth":{}}'],
+    ],
+    [
+      "missing discoveryUrl in authorizer",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--authorizer-configuration",
+        '{"customJWTAuthorizer":{"allowedAudience":["a"]}}',
+      ],
+    ],
+    [
+      "unrecognized filesystem configuration variant",
+      ["--name", "my_agent", ...tpl, "--filesystem-configurations", '[{"unknownFs":{}}]'],
+    ],
+    [
+      "invalid JSON in --network-configuration",
+      ["--name", "my_agent", ...tpl, "--network-configuration", "{bad}"],
+    ],
+    [
+      "unrecognized request header configuration variant",
+      [
+        "--name",
+        "my_agent",
+        ...tpl,
+        "--request-header-configuration",
+        '{"unknownVariant":["X-Foo"]}',
+      ],
+    ],
+  ])("%s", async (_label, flags) => {
+    await inProject();
+    await expect(run(["add", "runtime", ...flags])).rejects.toBeInstanceOf(InputValidationError);
   });
 });

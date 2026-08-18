@@ -1,12 +1,27 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import type z from "zod";
-import type { ProjectRuntimeSchema } from "../../projectSchemas/runtime";
+import type {
+  BuildType,
+  EnvVar,
+  FilesystemConfiguration,
+  LifecycleConfiguration,
+  NetworkConfig,
+} from "../../projectSchemas/runtime";
+import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../projectSchemas/auth";
+import type { NetworkMode, ProtocolMode, RuntimeVersion } from "../../projectSchemas/constants";
+
+/** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} */
+export const RUNTIME_TEMPLATES = {
+  HELLO_WORLD_PYTHON: "hello-world-python",
+  HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
+} as const;
+
+export type RuntimeTemplate = (typeof RUNTIME_TEMPLATES)[keyof typeof RUNTIME_TEMPLATES];
 
 /** Available project templates for scaffolding new AgentCore projects. */
 export const PROJECT_TEMPLATES = {
-  HELLO_WORLD_PYTHON: "hello-world-python",
-  HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
+  ...RUNTIME_TEMPLATES,
 } as const;
 
 export type ProjectTemplate = (typeof PROJECT_TEMPLATES)[keyof typeof PROJECT_TEMPLATES];
@@ -40,6 +55,44 @@ export type Project = {
   spec: z.infer<typeof ProjectSpecSchema>;
 };
 
+/** Shared infrastructure config fields for a runtime (independent of source type). */
+type RuntimeInfraConfig = {
+  name: string;
+  description?: string;
+  executionRoleArn?: string;
+  additionalPolicies?: string[];
+  envVars?: EnvVar[];
+  networkMode?: NetworkMode;
+  networkConfig?: NetworkConfig;
+  authorizerType?: RuntimeAuthorizerType;
+  authorizerConfiguration?: AuthorizerConfig;
+  protocol?: ProtocolMode;
+  requestHeaderAllowlist?: string[];
+  lifecycleConfiguration?: LifecycleConfiguration;
+  filesystemConfigurations?: FilesystemConfiguration[];
+  tags?: Record<string, string>;
+};
+
+/** BYO path: user provides existing code location and build config. */
+type RuntimeByoConfig = RuntimeInfraConfig & {
+  source: "byo";
+  codeLocation: string;
+  build?: BuildType;
+  entrypoint?: string;
+  runtimeVersion?: RuntimeVersion;
+  dockerfile?: string;
+  buildContextPath?: string;
+  customDockerBuildArgs?: Record<string, string>;
+};
+
+/** Template path: CLI scaffolds agent code from a template. */
+type RuntimeTemplateConfig = RuntimeInfraConfig & {
+  source: "template";
+  template: string;
+};
+
+export type RuntimeResourceConfig = RuntimeByoConfig | RuntimeTemplateConfig;
+
 /** Discriminated union input for {@link ProjectManager.addResource}. */
 export type AddResourceInput =
   | {
@@ -48,7 +101,7 @@ export type AddResourceInput =
     }
   | {
       resourceType: "runtime";
-      resourceConfig: Omit<z.input<typeof ProjectRuntimeSchema>, "codeLocation" | "runtimeVersion">;
+      resourceConfig: RuntimeResourceConfig;
     };
 
 export type ProjectResource = AddResourceInput["resourceType"];

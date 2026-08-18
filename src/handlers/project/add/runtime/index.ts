@@ -4,7 +4,6 @@ import type { AddProjectResourceConfig } from "../types";
 import { parseJsonFlag } from "../../../utils";
 import { InputValidationError } from "../../../../errors";
 import type {
-  AgentRuntimeArtifact,
   AuthorizerConfiguration,
   FilesystemConfiguration,
   LifecycleConfiguration,
@@ -13,7 +12,6 @@ import type {
   RequestHeaderConfiguration,
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import {
-  type BuildType,
   type EnvVar,
   type FilesystemConfiguration as ProjectFilesystemConfiguration,
   type LifecycleConfiguration as ProjectLifecycleConfiguration,
@@ -21,32 +19,62 @@ import {
   BuildTypeSchema,
 } from "../../../../projectSchemas/runtime";
 import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../../../projectSchemas/auth";
-import type {
-  NetworkMode,
-  ProtocolMode,
-  RuntimeVersion,
+import {
+  type NetworkMode,
+  type ProtocolMode,
+  RuntimeVersionSchema,
 } from "../../../../projectSchemas/constants";
+import { RUNTIME_TEMPLATES } from "../../types";
 
 export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
   createHandler({
     name: "runtime",
-    description: "adds a runtime to the current project",
+    description: "adds a runtime to the current project either from a template or BYO",
     flags: [
       flag("name", "the name of the runtime", z.string().optional()),
       flag("description", "description of the runtime", z.string().optional()),
+      flag("template", "runtime template to scaffold from", z.enum(RUNTIME_TEMPLATES).optional()),
+      flag("code-location", "path to existing agent source code (BYO path)", z.string().optional()),
+      flag("build", "build type: CodeZip or Container (BYO only)", BuildTypeSchema.optional()),
+      flag("entrypoint", "entrypoint file, e.g. main.py:handler (BYO only)", z.string().optional()),
+      flag(
+        "runtime-version",
+        "language runtime, e.g. PYTHON_3_13, NODE_22 (BYO CodeZip only)",
+        RuntimeVersionSchema.optional(),
+      ),
+      flag(
+        "dockerfile",
+        "dockerfile for the container build (BYO Container only)",
+        z.string().optional(),
+      ),
+      flag(
+        "build-context-path",
+        "docker build context directory relative to project root (BYO Container only)",
+        z.string().optional(),
+      ),
+      flag(
+        "custom-docker-build-args",
+        "docker build args as JSON key/value object (BYO Container only)",
+        z.string().optional(),
+      ),
       flag(
         "role-arn",
         "IAM role ARN that provides permissions for the runtime",
         z.string().optional(),
       ),
       flag(
-        "agent-runtime-artifact",
-        "runtime artifact configuration (JSON AgentRuntimeArtifact)",
-        z.string().optional(),
+        "additional-policies",
+        "additional IAM policy ARNs or policy document paths",
+        z.array(z.string()).optional(),
       ),
       flag(
         "network-configuration",
         "network configuration (JSON NetworkConfiguration)",
+        z.string().optional(),
+      ),
+      flag(
+        "vpc-id",
+        "VPC ID for Container builds in VPC mode (CodeBuild cannot infer it from subnets)",
         z.string().optional(),
       ),
       flag(
@@ -80,42 +108,15 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         z.string().optional(),
       ),
       flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
-      flag("build", "build type for the runtime source code", BuildTypeSchema.optional()),
-      flag("entrypoint", "entrypoint for a codezip runtime", z.string().optional()),
-      flag(
-        "dockerfile",
-        "dockerfile describing the container for the runtime",
-        z.string().optional(),
-      ),
-      flag(
-        "build-context-path",
-        "docker build context directory relative to project root (Container only)",
-        z.string().optional(),
-      ),
-      flag(
-        "custom-docker-build-args",
-        "docker build args (JSON object of key/value strings, Container only)",
-        z.string().optional(),
-      ),
-      flag(
-        "instrumentation",
-        'instrumentation config (JSON, e.g. {"enableOtel": true})',
-        z.string().optional(),
-      ),
-      flag(
-        "additional-policies",
-        "additional IAM policy ARNs or policy document paths",
-        z.array(z.string()).optional(),
-      ),
     ],
     handle: async (ctx, flags) => {
       if (!flags.name)
         throw new InputValidationError("required option '--name <name>' not specified");
 
-      const inputArtifact = parseJsonFlag<AgentRuntimeArtifact>(
-        "agent-runtime-artifact",
-        flags["agent-runtime-artifact"],
-      );
+      const sourceCount = [flags.template, flags["code-location"]].filter(Boolean).length;
+      if (sourceCount !== 1)
+        throw new InputValidationError("exactly one of --template or --code-location is required");
+
       const inputNetwork = parseJsonFlag<NetworkConfiguration>(
         "network-configuration",
         flags["network-configuration"],
@@ -145,47 +146,42 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         flags["environment-variables"],
       );
 
-      const build = getBuildType(flags.build, inputArtifact);
-      const entrypoint = getEntrypoint(flags.entrypoint, inputArtifact);
+      const build = flags.build;
+      const entrypoint = flags.entrypoint;
 
       if (entrypoint && build === "Container")
         throw new InputValidationError(
-          `code entrypoint cannot be provided with Container build type`,
-        );
-
-      if (flags["custom-docker-build-args"] && !flags.dockerfile && !flags["build-context-path"])
-        throw new InputValidationError(
-          " --custom-docker-build-args requires --dockerfile or --build-context-path",
+          "code entrypoint cannot be provided with Container build type",
         );
 
       const network = toNetwork(inputNetwork);
+
+      if (flags["custom-docker-build-args"] && !flags.dockerfile && !flags["build-context-path"])
+        throw new InputValidationError(
+          "--custom-docker-build-args requires --dockerfile or --build-context-path",
+        );
+
+      if (flags["vpc-id"] && !network?.networkConfig)
+        throw new InputValidationError(
+          "--vpc-id requires --network-configuration with VPC network configuration",
+        );
+
       const auth = toAuthorizer(inputAuthConfig);
       const protocol = toProtocol(inputProtocol);
       const requestHeaderAllowlist = toRequestHeaderAllowlist(inputRequestHeaders);
       const lifecycleConfiguration = toLifecycle(inputLifecycle);
       const filesystemConfigurations = toFilesystems(inputFilesystems);
 
-      const runtimeConfig = {
+      const infraConfig = {
         name: flags.name,
         description: flags.description,
-        build,
-        entrypoint,
-        runtimeVersion: getRuntimeVersion(inputArtifact),
-        dockerfile: flags.dockerfile,
-        buildContextPath: flags["build-context-path"],
-        customDockerBuildArgs: parseJsonFlag<Record<string, string>>(
-          "custom-docker-build-args",
-          flags["custom-docker-build-args"],
-        ),
         executionRoleArn: flags["role-arn"],
         additionalPolicies: flags["additional-policies"],
-        instrumentation: parseJsonFlag<{ enableOtel: boolean }>(
-          "instrumentation",
-          flags["instrumentation"],
-        ),
         envVars: toEnvironmentVariables(inputEnvironmentVariables),
         networkMode: network?.networkMode,
-        networkConfig: network?.networkConfig,
+        networkConfig: network?.networkConfig
+          ? { ...network.networkConfig, ...(flags["vpc-id"] ? { vpcId: flags["vpc-id"] } : {}) }
+          : undefined,
         authorizerType: auth?.authorizerType,
         authorizerConfiguration: auth?.authorizerConfiguration,
         protocol,
@@ -194,6 +190,23 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         filesystemConfigurations,
         tags: parseJsonFlag<Record<string, string>>("tags", flags["tags"]),
       };
+
+      const runtimeConfig = flags.template
+        ? { source: "template" as const, template: flags.template, ...infraConfig }
+        : {
+            source: "byo" as const,
+            codeLocation: flags["code-location"]!,
+            build: flags.build,
+            entrypoint,
+            runtimeVersion: flags["runtime-version"],
+            dockerfile: flags.dockerfile,
+            buildContextPath: flags["build-context-path"],
+            customDockerBuildArgs: parseJsonFlag<Record<string, string>>(
+              "custom-docker-build-args",
+              flags["custom-docker-build-args"],
+            ),
+            ...infraConfig,
+          };
 
       const project = ctx.require(ProjectKey);
       for await (const event of config.projectManager.addResource(project, {
@@ -206,38 +219,6 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       config.io.stderr.write(`added runtime '${flags.name}' to '${project.name}'\n`);
     },
   });
-
-/** Converts AgentRuntimeArtifact union discriminator to project schema BuildType. */
-function getBuildType(
-  buildFlag: z.input<typeof BuildTypeSchema> | undefined,
-  runtimeArtifact: AgentRuntimeArtifact | undefined,
-): BuildType {
-  if (runtimeArtifact && buildFlag)
-    throw new InputValidationError(`--runtime-artifact and --build are mutually exclusive`);
-  if (buildFlag) return buildFlag;
-  if (runtimeArtifact?.containerConfiguration) return "Container";
-  if (runtimeArtifact?.codeConfiguration) return "CodeZip";
-  throw new InputValidationError(`exactly one of --runtime-artifact and --build is required`);
-}
-
-/** Converts codeConfiguration.entryPoint string[] to colon-joined "file.py:handler" format. */
-function getEntrypoint(
-  entrypointFlag: string | undefined,
-  runtimeArtifact: AgentRuntimeArtifact | undefined,
-): string | undefined {
-  if (runtimeArtifact && entrypointFlag)
-    throw new InputValidationError(`--runtime-artifact and --entrypoint are mutually exclusive`);
-  if (entrypointFlag) return entrypointFlag;
-  if (runtimeArtifact?.codeConfiguration?.entryPoint)
-    return runtimeArtifact.codeConfiguration.entryPoint.join(":");
-  return undefined;
-}
-
-/** Converts codeConfiguration.runtime enum string to project schema RuntimeVersion. */
-function getRuntimeVersion(artifact: AgentRuntimeArtifact | undefined): RuntimeVersion | undefined {
-  if (!artifact?.codeConfiguration?.runtime) return undefined;
-  return artifact.codeConfiguration.runtime as RuntimeVersion;
-}
 
 /** Converts API flat {key: value} map to project schema [{name, value}] array. */
 function toEnvironmentVariables(envVars: Record<string, string> | undefined): EnvVar[] {
@@ -299,7 +280,7 @@ function toRequestHeaderAllowlist(
   if ("requestHeaderAllowlist" in headers && headers.requestHeaderAllowlist) {
     return headers.requestHeaderAllowlist;
   }
-  return undefined;
+  throw new InputValidationError("Unrecognized request header configuration variant");
 }
 
 /** Converts API LifecycleConfiguration to project schema LifecycleConfiguration. */
