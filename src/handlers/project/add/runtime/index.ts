@@ -3,14 +3,13 @@ import { createHandler, flag, ProjectKey } from "../../../../router";
 import type { AddProjectResourceConfig } from "../types";
 import { parseJsonFlag } from "../../../utils";
 import { InputValidationError } from "../../../../errors";
-import {
-  ServerProtocol,
-  type AuthorizerConfiguration,
-  type FilesystemConfiguration,
-  type LifecycleConfiguration,
-  type NetworkConfiguration,
-  type ProtocolConfiguration,
-  type RequestHeaderConfiguration,
+import type {
+  AuthorizerConfiguration,
+  FilesystemConfiguration,
+  LifecycleConfiguration,
+  NetworkConfiguration,
+  ProtocolConfiguration,
+  RequestHeaderConfiguration,
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import {
   type EnvVar,
@@ -19,7 +18,11 @@ import {
   BuildTypeSchema,
 } from "../../../../projectSchemas/runtime";
 import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../../../projectSchemas/auth";
-import { type NetworkMode, RuntimeVersionSchema } from "../../../../projectSchemas/constants";
+import {
+  type NetworkMode,
+  ProtocolModeSchema,
+  RuntimeVersionSchema,
+} from "../../../../projectSchemas/constants";
 import {
   runtimeModelProviderSchema,
   RUNTIME_TEMPLATES,
@@ -44,11 +47,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       flag("code-location", "path to existing agent source code (BYO path)", z.string().optional()),
       flag("build", "build type: CodeZip or Container", BuildTypeSchema.optional()),
       flag("entrypoint", "entrypoint file, e.g. main.py:handler (BYO only)", z.string().optional()),
-      flag(
-        "protocol",
-        "remote server protocol for the runtime (ex. http, mcp, a2a, etc.) shorthand for --protocol-configuration",
-        z.string().optional(),
-      ),
+      flag("protocol", "server protocol ex. HTTP, MCP, A2A, AGUI", ProtocolModeSchema.optional()),
       flag(
         "api-key",
         "API key source for non-bedrock model providers: '-' for stdin, 'file://path' for file",
@@ -231,7 +230,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
           : undefined,
         authorizerType: auth?.authorizerType,
         authorizerConfiguration: auth?.authorizerConfiguration,
-        protocol: (flags["protocol"] as ServerProtocol) ?? inputProtocol?.serverProtocol,
+        protocol: flags["protocol"] ?? inputProtocol?.serverProtocol,
         requestHeaderAllowlist,
         lifecycleConfiguration: inputLifecycle,
         filesystemConfigurations,
