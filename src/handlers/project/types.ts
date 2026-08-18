@@ -1,6 +1,6 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
-import type z from "zod";
+import z from "zod";
 import type {
   BuildType,
   EnvVar,
@@ -10,6 +10,7 @@ import type {
 } from "../../projectSchemas/runtime";
 import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../projectSchemas/auth";
 import type { NetworkMode, ProtocolMode, RuntimeVersion } from "../../projectSchemas/constants";
+import { MemoryStrategyType } from "@aws-sdk/client-bedrock-agentcore-control";
 
 /** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} describing runtimes only */
 export const RUNTIME_TEMPLATES = {
@@ -89,6 +90,8 @@ type RuntimeByoConfig = RuntimeInfraConfig & {
 type RuntimeTemplateConfig = RuntimeInfraConfig & {
   source: "template";
   template: RuntimeTemplate;
+  memory?: RuntimeMemoryConfig;
+  modelProvider?: RuntimeModelProviderConfig;
 };
 
 export type RuntimeResourceConfig = RuntimeByoConfig | RuntimeTemplateConfig;
@@ -122,3 +125,25 @@ export interface ProjectManager {
   /** Add a resource to an existing AgentCore project. */
   addResource(project: Project, input: AddResourceInput): AsyncGenerator<ProjectEvent, Project>;
 }
+
+export const runtimeModelProviderSchema = z.enum(["bedrock", "anthropic", "openai", "gemini"]);
+export type RuntimeModelProvider = z.infer<typeof runtimeModelProviderSchema>;
+
+export type RuntimeModelProviderConfig = {
+  provider?: RuntimeModelProvider;
+  apiKey?: string;
+};
+
+export const runtimeMemoryConfigSchema = z.discriminatedUnion("mode", [
+  z.object({ mode: z.literal("disabled") }),
+  z.object({
+    mode: z.literal("create"),
+    strategies: z.array(z.enum(Object.values(MemoryStrategyType))),
+  }),
+  z.object({
+    mode: z.literal("existing"),
+    arn: z.string().min(1),
+  }),
+]);
+
+export type RuntimeMemoryConfig = z.input<typeof runtimeMemoryConfigSchema>;

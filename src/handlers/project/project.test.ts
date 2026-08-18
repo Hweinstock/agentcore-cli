@@ -898,6 +898,33 @@ describe("project add runtime", () => {
         "arn:aws:iam::123456789012:policy/MyPolicy",
       ],
     ],
+    ["protocol shortcut", ["--name", "my_agent", ...template, "--protocol", "MCP"]],
+    [
+      "memory — create with strategies",
+      [
+        "--name",
+        "my_agent",
+        ...template,
+        "--memory",
+        '{"mode":"create","strategies":["SEMANTIC","EPISODIC"]}',
+      ],
+    ],
+    [
+      "memory — existing by ARN",
+      [
+        "--name",
+        "my_agent",
+        ...template,
+        "--memory",
+        '{"mode":"existing","arn":"arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/MyMem"}',
+      ],
+    ],
+    ["memory — disabled", ["--name", "my_agent", ...template, "--memory", '{"mode":"disabled"}']],
+    ["model-provider — openai", ["--name", "my_agent", ...template, "--model-provider", "openai"]],
+    [
+      "build on template path (overlay)",
+      ["--name", "my_agent", ...template, "--build", "Container"],
+    ],
     [
       "vpc-id with VPC network configuration",
       [
@@ -984,6 +1011,54 @@ describe("project add runtime", () => {
         "--request-header-configuration",
         '{"unknownVariant":["X-Foo"]}',
       ],
+    ],
+    [
+      "--protocol and --protocol-configuration are mutually exclusive",
+      [
+        "--name",
+        "my_agent",
+        ...template,
+        "--protocol",
+        "MCP",
+        "--protocol-configuration",
+        '{"serverProtocol":"MCP"}',
+      ],
+    ],
+    [
+      "--entrypoint is only available on BYO path",
+      ["--name", "my_agent", ...template, "--entrypoint", "main.py"],
+    ],
+    [
+      "--runtime-version is only available on BYO path",
+      ["--name", "my_agent", ...template, "--runtime-version", "PYTHON_3_13"],
+    ],
+    [
+      "--dockerfile is only available on BYO path",
+      ["--name", "my_agent", ...template, "--dockerfile", "Dockerfile"],
+    ],
+    [
+      "--build-context-path is only available on BYO path",
+      ["--name", "my_agent", ...template, "--build-context-path", "."],
+    ],
+    [
+      "--custom-docker-build-args is only available on BYO path",
+      ["--name", "my_agent", ...template, "--custom-docker-build-args", '{"KEY":"val"}'],
+    ],
+    [
+      "--memory is only available on template path",
+      ["--name", "my_agent", ...byo, "--memory", '{"mode":"disabled"}'],
+    ],
+    [
+      "--model-provider is only available on template path",
+      ["--name", "my_agent", ...byo, "--model-provider", "openai"],
+    ],
+    [
+      "--api-key is only available on template path",
+      ["--name", "my_agent", ...byo, "--api-key", "-"],
+    ],
+    [
+      "invalid memory JSON schema",
+      ["--name", "my_agent", ...template, "--memory", '{"mode":"invalid"}'],
     ],
   ])("%s", async (_label, flags) => {
     await inProject();

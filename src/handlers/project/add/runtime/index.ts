@@ -3,13 +3,14 @@ import { createHandler, flag, ProjectKey } from "../../../../router";
 import type { AddProjectResourceConfig } from "../types";
 import { parseJsonFlag } from "../../../utils";
 import { InputValidationError } from "../../../../errors";
-import type {
-  AuthorizerConfiguration,
-  FilesystemConfiguration,
-  LifecycleConfiguration,
-  NetworkConfiguration,
-  ProtocolConfiguration,
-  RequestHeaderConfiguration,
+import {
+  ServerProtocol,
+  type AuthorizerConfiguration,
+  type FilesystemConfiguration,
+  type LifecycleConfiguration,
+  type NetworkConfiguration,
+  type ProtocolConfiguration,
+  type RequestHeaderConfiguration,
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import {
   type EnvVar,
@@ -19,7 +20,12 @@ import {
 } from "../../../../projectSchemas/runtime";
 import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../../../projectSchemas/auth";
 import { type NetworkMode, RuntimeVersionSchema } from "../../../../projectSchemas/constants";
-import { RUNTIME_TEMPLATES } from "../../types";
+import {
+  runtimeModelProviderSchema,
+  RUNTIME_TEMPLATES,
+  runtimeMemoryConfigSchema,
+} from "../../types";
+import { SourceResolver } from "../../../../io";
 
 export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -40,8 +46,23 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         z.string().optional(),
       ),
       flag("code-location", "path to existing agent source code (BYO path)", z.string().optional()),
-      flag("build", "build type: CodeZip or Container (BYO only)", BuildTypeSchema.optional()),
+      flag("build", "build type: CodeZip or Container", BuildTypeSchema.optional()),
       flag("entrypoint", "entrypoint file, e.g. main.py:handler (BYO only)", z.string().optional()),
+      flag(
+        "protocol",
+        "remote server protocol for the runtime (ex. http, mcp, a2a, etc.) shorthand for --protocol-configuration",
+        z.string().optional(),
+      ),
+      flag(
+        "api-key",
+        "API key source for non-bedrock model providers: '-' for stdin, 'file://path' for file",
+        z.string().optional(),
+      ),
+      flag(
+        "model-provider",
+        "model provider (template only)",
+        runtimeModelProviderSchema.optional(),
+      ),
       flag(
         "runtime-version",
         "language runtime, e.g. PYTHON_3_13, NODE_22 (BYO CodeZip only)",
@@ -107,6 +128,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         "filesystem mount configurations (JSON FilesystemConfiguration[])",
         z.string().optional(),
       ),
+      flag(
+        "memory",
+        "memory configuration (JSON with mode: none | create | existing ) (template only)",
+        z.string().optional(),
+      ),
       flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
     ],
     handle: async (ctx, flags) => {
@@ -116,6 +142,29 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       const sourceCount = [flags.template, flags["code-location"]].filter(Boolean).length;
       if (sourceCount !== 1)
         throw new InputValidationError("exactly one of --template or --code-location is required");
+
+      const isTemplate = Boolean(flags.template);
+      const templateOnlyFlags = (["memory", "model-provider", "api-key"] as const).filter(
+        (f) => flags[f],
+      );
+      const byoOnlyFlags = (
+        [
+          "entrypoint",
+          "runtime-version",
+          "dockerfile",
+          "build-context-path",
+          "custom-docker-build-args",
+        ] as const
+      ).filter((f) => flags[f]);
+
+      if (isTemplate && byoOnlyFlags.length > 0)
+        throw new InputValidationError(
+          `--${byoOnlyFlags[0]} is only available on the BYO path (--code-location)`,
+        );
+      if (!isTemplate && templateOnlyFlags.length > 0)
+        throw new InputValidationError(
+          `--${templateOnlyFlags[0]} is only available on the template path (--template)`,
+        );
 
       const inputNetwork = parseJsonFlag<NetworkConfiguration>(
         "network-configuration",
@@ -145,11 +194,15 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         "environment-variables",
         flags["environment-variables"],
       );
+      const memoryConfiguration = parseMemoryConfig(flags["memory"]);
 
       // TODO: make entrypoint optional since container agents don't need it.
       const entrypoint = flags.entrypoint ?? "main.py";
 
       const network = toNetwork(inputNetwork);
+
+      const source = new SourceResolver({ stdin: config.io.stdin });
+      const apiKey = await source.resolveText("api-key", flags["api-key"]);
 
       if (flags["custom-docker-build-args"] && !flags.dockerfile && !flags["build-context-path"])
         throw new InputValidationError(
@@ -159,6 +212,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       if (flags["vpc-id"] && !network?.networkConfig)
         throw new InputValidationError(
           "--vpc-id requires --network-configuration with VPC network configuration",
+        );
+
+      if (flags["protocol"] && flags["protocol-configuration"])
+        throw new InputValidationError(
+          "--protocol and --protocol-configuration are mutually exclusive",
         );
 
       const auth = toAuthorizer(inputAuthConfig);
@@ -177,7 +235,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
           : undefined,
         authorizerType: auth?.authorizerType,
         authorizerConfiguration: auth?.authorizerConfiguration,
-        protocol: inputProtocol?.serverProtocol,
+        protocol: (flags["protocol"] as ServerProtocol) ?? inputProtocol?.serverProtocol,
         requestHeaderAllowlist,
         lifecycleConfiguration: inputLifecycle,
         filesystemConfigurations,
@@ -185,7 +243,13 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       };
 
       const runtimeConfig = flags.template
-        ? { source: "template" as const, template: flags.template, ...infraConfig }
+        ? {
+            source: "template" as const,
+            template: flags.template,
+            memory: memoryConfiguration,
+            modelProvider: { apiKey, provider: flags["model-provider"] },
+            ...infraConfig,
+          }
         : {
             source: "byo" as const,
             codeLocation: flags["code-location"]!,
@@ -212,6 +276,17 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       config.io.stderr.write(`added runtime '${flags.name}' to '${project.name}'\n`);
     },
   });
+
+/** Parses and validates the --memory JSON flag against the runtime memory config schema. */
+function parseMemoryConfig(
+  raw: string | undefined,
+): z.infer<typeof runtimeMemoryConfigSchema> | undefined {
+  if (!raw) return undefined;
+  const parsed = parseJsonFlag<Record<string, unknown>>("memory", raw);
+  const result = runtimeMemoryConfigSchema.safeParse(parsed);
+  if (!result.success) throw new InputValidationError(z.prettifyError(result.error));
+  return result.data;
+}
 
 /** Converts API flat {key: value} map to project schema [{name, value}] array. */
 function toEnvironmentVariables(envVars: Record<string, string> | undefined): EnvVar[] {
