@@ -112,7 +112,7 @@ describe("project create", () => {
 
 describe("project add harness", () => {
   const defaultModel = { provider: "bedrock", modelId: "global.anthropic.claude-sonnet-4-6" };
-  // Verifies each flag combination produces the expected harness config.
+  /** Verify error case for different flags **/
   test.each<[string, string[], Record<string, unknown>]>([
     ["minimal — name only", ["--name", "x"], { model: defaultModel }],
     [
@@ -610,7 +610,6 @@ describe("project add harness", () => {
     );
   });
 
-  // Rejects invalid flag combinations with InputValidationError.
   test.each([
     ["missing --name", ["--model", '{"bedrockModelConfig":{"modelId":"x"}}']],
     ["model without modelId", ["--name", "x", "--model", '{"bedrockModelConfig":{}}']],
@@ -721,11 +720,11 @@ describe("project build", () => {
 // FsProjectManager.addResource supports the "runtime" resource type.
 describe("project add runtime", () => {
   const byo = ["--code-location", "app/my_agent"];
-  const tpl = ["--template", "hello-world-python"];
+  const template = ["--template", "hello-world-python"];
 
   // Verifies each valid flag combination passes handler validation.
   test.each<[string, string[]]>([
-    ["minimal — template path", ["--name", "my_agent", ...tpl]],
+    ["minimal — template path", ["--name", "my_agent", ...template]],
     ["minimal — BYO path with build", ["--name", "my_agent", ...byo, "--build", "CodeZip"]],
     [
       "BYO container with dockerfile",
@@ -745,53 +744,53 @@ describe("project add runtime", () => {
         "PYTHON_3_13",
       ],
     ],
-    ["description", ["--name", "my_agent", ...tpl, "--description", "A test agent"]],
+    ["description", ["--name", "my_agent", ...template, "--description", "A test agent"]],
     [
       "role-arn",
-      ["--name", "my_agent", ...tpl, "--role-arn", "arn:aws:iam::123456789012:role/MyRole"],
+      ["--name", "my_agent", ...template, "--role-arn", "arn:aws:iam::123456789012:role/MyRole"],
     ],
     [
       "network-configuration — VPC",
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--network-configuration",
         '{"networkMode":"VPC","networkModeConfig":{"subnets":["subnet-abc"],"securityGroups":["sg-123"]}}',
       ],
     ],
     [
       "network-configuration — PUBLIC",
-      ["--name", "my_agent", ...tpl, "--network-configuration", '{"networkMode":"PUBLIC"}'],
+      ["--name", "my_agent", ...template, "--network-configuration", '{"networkMode":"PUBLIC"}'],
     ],
     [
       "authorizer-configuration — customJWT",
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--authorizer-configuration",
         '{"customJWTAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
       ],
     ],
     [
       "protocol-configuration — MCP",
-      ["--name", "my_agent", ...tpl, "--protocol-configuration", '{"serverProtocol":"MCP"}'],
+      ["--name", "my_agent", ...template, "--protocol-configuration", '{"serverProtocol":"MCP"}'],
     ],
     [
       "protocol-configuration — A2A",
-      ["--name", "my_agent", ...tpl, "--protocol-configuration", '{"serverProtocol":"A2A"}'],
+      ["--name", "my_agent", ...template, "--protocol-configuration", '{"serverProtocol":"A2A"}'],
     ],
     [
       "protocol-configuration — AGUI",
-      ["--name", "my_agent", ...tpl, "--protocol-configuration", '{"serverProtocol":"AGUI"}'],
+      ["--name", "my_agent", ...template, "--protocol-configuration", '{"serverProtocol":"AGUI"}'],
     ],
     [
       "request-header-configuration",
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--request-header-configuration",
         '{"requestHeaderAllowlist":["X-Custom-Header","Authorization"]}',
       ],
@@ -801,7 +800,7 @@ describe("project add runtime", () => {
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--lifecycle-configuration",
         '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
       ],
@@ -811,7 +810,7 @@ describe("project add runtime", () => {
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--environment-variables",
         '{"LOG_LEVEL":"debug","APP_ENV":"staging"}',
       ],
@@ -821,7 +820,7 @@ describe("project add runtime", () => {
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--filesystem-configurations",
         '[{"sessionStorage":{"mountPath":"/mnt/data"}}]',
       ],
@@ -831,7 +830,7 @@ describe("project add runtime", () => {
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--filesystem-configurations",
         '[{"efsAccessPoint":{"accessPointArn":"arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-abc","mountPath":"/mnt/efs"}}]',
       ],
@@ -841,12 +840,12 @@ describe("project add runtime", () => {
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--filesystem-configurations",
         '[{"s3FilesAccessPoint":{"accessPointArn":"arn:aws:s3files:us-east-1:123456789012:file-system/fs-abc/access-point/fsap-def","mountPath":"/mnt/s3"}}]',
       ],
     ],
-    ["tags", ["--name", "my_agent", ...tpl, "--tags", '{"team":"ml","env":"prod"}']],
+    ["tags", ["--name", "my_agent", ...template, "--tags", '{"team":"ml","env":"prod"}']],
     [
       "dockerfile + build-context-path",
       [
@@ -894,7 +893,7 @@ describe("project add runtime", () => {
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--additional-policies",
         "arn:aws:iam::123456789012:policy/MyPolicy",
       ],
@@ -956,32 +955,32 @@ describe("project add runtime", () => {
     ],
     [
       "unrecognized authorizer configuration variant",
-      ["--name", "my_agent", ...tpl, "--authorizer-configuration", '{"unknownAuth":{}}'],
+      ["--name", "my_agent", ...template, "--authorizer-configuration", '{"unknownAuth":{}}'],
     ],
     [
       "missing discoveryUrl in authorizer",
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--authorizer-configuration",
         '{"customJWTAuthorizer":{"allowedAudience":["a"]}}',
       ],
     ],
     [
       "unrecognized filesystem configuration variant",
-      ["--name", "my_agent", ...tpl, "--filesystem-configurations", '[{"unknownFs":{}}]'],
+      ["--name", "my_agent", ...template, "--filesystem-configurations", '[{"unknownFs":{}}]'],
     ],
     [
       "invalid JSON in --network-configuration",
-      ["--name", "my_agent", ...tpl, "--network-configuration", "{bad}"],
+      ["--name", "my_agent", ...template, "--network-configuration", "{bad}"],
     ],
     [
       "unrecognized request header configuration variant",
       [
         "--name",
         "my_agent",
-        ...tpl,
+        ...template,
         "--request-header-configuration",
         '{"unknownVariant":["X-Foo"]}',
       ],

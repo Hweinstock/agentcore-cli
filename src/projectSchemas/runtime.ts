@@ -241,7 +241,7 @@ export const ProjectRuntimeSchema = z
     name: AgentNameSchema,
     description: z.string().max(200).optional(),
     build: BuildTypeSchema,
-    entrypoint: EntrypointSchema.optional(),
+    entrypoint: EntrypointSchema,
     codeLocation: DirectoryPathSchema,
     dockerfile: DockerfilePathSchema.optional(),
     buildContextPath: DirectoryPathSchema.optional(),

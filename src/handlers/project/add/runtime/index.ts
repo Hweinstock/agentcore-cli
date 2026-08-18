@@ -14,26 +14,27 @@ import type {
 import {
   type EnvVar,
   type FilesystemConfiguration as ProjectFilesystemConfiguration,
-  type LifecycleConfiguration as ProjectLifecycleConfiguration,
   type NetworkConfig,
   BuildTypeSchema,
 } from "../../../../projectSchemas/runtime";
 import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../../../projectSchemas/auth";
-import {
-  type NetworkMode,
-  type ProtocolMode,
-  RuntimeVersionSchema,
-} from "../../../../projectSchemas/constants";
+import { type NetworkMode, RuntimeVersionSchema } from "../../../../projectSchemas/constants";
 import { RUNTIME_TEMPLATES } from "../../types";
 
 export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
   createHandler({
     name: "runtime",
-    description: "adds a runtime to the current project either from a template or BYO",
+    description:
+      "adds a runtime to the current project either from a template or from existing local code",
     flags: [
       flag("name", "the name of the runtime", z.string().optional()),
-      flag("description", "description of the runtime", z.string().optional()),
-      flag("template", "runtime template to scaffold from", z.enum(RUNTIME_TEMPLATES).optional()),
+      flag("description", "an optional description of the runtime", z.string().optional()),
+      flag("template", "template to scaffold from", z.enum(RUNTIME_TEMPLATES).optional()),
+      flag(
+        "role-arn",
+        "IAM role ARN that provides permissions for the runtime",
+        z.string().optional(),
+      ),
       flag("code-location", "path to existing agent source code (BYO path)", z.string().optional()),
       flag("build", "build type: CodeZip or Container (BYO only)", BuildTypeSchema.optional()),
       flag("entrypoint", "entrypoint file, e.g. main.py:handler (BYO only)", z.string().optional()),
@@ -44,7 +45,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       ),
       flag(
         "dockerfile",
-        "dockerfile for the container build (BYO Container only)",
+        "dockerfile path for the container build (BYO Container only)",
         z.string().optional(),
       ),
       flag(
@@ -57,14 +58,10 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         "docker build args as JSON key/value object (BYO Container only)",
         z.string().optional(),
       ),
-      flag(
-        "role-arn",
-        "IAM role ARN that provides permissions for the runtime",
-        z.string().optional(),
-      ),
+
       flag(
         "additional-policies",
-        "additional IAM policy ARNs or policy document paths",
+        "additional IAM policy ARNs or policy document paths for the execution role",
         z.array(z.string()).optional(),
       ),
       flag(
@@ -162,9 +159,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         );
 
       const auth = toAuthorizer(inputAuthConfig);
-      const protocol = toProtocol(inputProtocol);
       const requestHeaderAllowlist = toRequestHeaderAllowlist(inputRequestHeaders);
-      const lifecycleConfiguration = toLifecycle(inputLifecycle);
       const filesystemConfigurations = toFilesystems(inputFilesystems);
 
       const infraConfig = {
@@ -179,9 +174,9 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
           : undefined,
         authorizerType: auth?.authorizerType,
         authorizerConfiguration: auth?.authorizerConfiguration,
-        protocol,
+        protocol: inputProtocol?.serverProtocol,
         requestHeaderAllowlist,
-        lifecycleConfiguration,
+        lifecycleConfiguration: inputLifecycle,
         filesystemConfigurations,
         tags: parseJsonFlag<Record<string, string>>("tags", flags["tags"]),
       };
@@ -261,12 +256,6 @@ function toAuthorizer(
   throw new InputValidationError("Unrecognized authorizer configuration variant");
 }
 
-/** Converts API ProtocolConfiguration wrapper to project schema ProtocolMode enum. */
-function toProtocol(protocol: ProtocolConfiguration | undefined): ProtocolMode | undefined {
-  if (!protocol) return undefined;
-  return protocol.serverProtocol as ProtocolMode;
-}
-
 /** Unwraps API RequestHeaderConfiguration union to project schema string[]. */
 function toRequestHeaderAllowlist(
   headers: RequestHeaderConfiguration | undefined,
@@ -276,17 +265,6 @@ function toRequestHeaderAllowlist(
     return headers.requestHeaderAllowlist;
   }
   throw new InputValidationError("Unrecognized request header configuration variant");
-}
-
-/** Converts API LifecycleConfiguration to project schema LifecycleConfiguration. */
-function toLifecycle(
-  lifecycle: LifecycleConfiguration | undefined,
-): ProjectLifecycleConfiguration | undefined {
-  if (!lifecycle) return undefined;
-  return {
-    idleRuntimeSessionTimeout: lifecycle.idleRuntimeSessionTimeout,
-    maxLifetime: lifecycle.maxLifetime,
-  };
 }
 
 /** Converts API FilesystemConfiguration[] tagged unions to project schema format. */

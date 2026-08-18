@@ -11,7 +11,7 @@ import type {
 import type { AuthorizerConfig, RuntimeAuthorizerType } from "../../projectSchemas/auth";
 import type { NetworkMode, ProtocolMode, RuntimeVersion } from "../../projectSchemas/constants";
 
-/** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} */
+/** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} describing runtimes only */
 export const RUNTIME_TEMPLATES = {
   HELLO_WORLD_PYTHON: "hello-world-python",
   HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
@@ -88,7 +88,7 @@ type RuntimeByoConfig = RuntimeInfraConfig & {
 /** Template path: CLI scaffolds agent code from a template. */
 type RuntimeTemplateConfig = RuntimeInfraConfig & {
   source: "template";
-  template: string;
+  template: RuntimeTemplate;
 };
 
 export type RuntimeResourceConfig = RuntimeByoConfig | RuntimeTemplateConfig;
