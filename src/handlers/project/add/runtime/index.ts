@@ -29,7 +29,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
     flags: [
       flag("name", "the name of the runtime", z.string().optional()),
       flag("description", "an optional description of the runtime", z.string().optional()),
-      flag("template", "template to scaffold from", z.enum(RUNTIME_TEMPLATES).optional()),
+      flag(
+        "template",
+        "template to scaffold from",
+        z.enum(RUNTIME_TEMPLATES).default(RUNTIME_TEMPLATES.HELLO_WORLD_PYTHON),
+      ),
       flag(
         "role-arn",
         "IAM role ARN that provides permissions for the runtime",
