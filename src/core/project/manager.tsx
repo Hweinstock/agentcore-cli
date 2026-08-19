@@ -230,6 +230,24 @@ export class FsProjectManager implements ProjectManager {
 
     const newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
 
+    try {
+      switch (input.resourceType) {
+        case "runtime":
+        case "harness": {
+          const outputPath = join(project.rootPath, "app", input.name);
+          await rm(outputPath, { recursive: true, force: true });
+          break;
+        }
+        default:
+          break;
+      }
+    } catch (e) {
+      throw new ProjectStateError(
+        `unable to clean up scaffolded files for ${input.resourceType} with name ${input.name}.`,
+        { cause: e },
+      );
+    }
+
     return {
       ...project,
       spec: newProjectSpec,
