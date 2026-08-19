@@ -64,9 +64,6 @@ export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
       ),
     ],
     handle: async (ctx, flags) => {
-      if (!flags.name)
-        throw new InputValidationError("required option '--name <name>' not specified");
-
       const harnessInput = {
         name: flags.name,
         model: parseJsonFlag("model", flags["model"]) ?? {
@@ -104,9 +101,8 @@ export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
       };
 
       const result = HarnessSpecSchema.safeParse(harnessInput);
-      if (!result.success) {
+      if (!result.success)
         throw new InputValidationError(z.prettifyError(result.error), { cause: result.error });
-      }
 
       const project = ctx.require(ProjectKey);
       for await (const event of config.projectManager.addResource(project, {
