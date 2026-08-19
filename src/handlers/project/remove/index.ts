@@ -1,7 +1,13 @@
 import { argument, createHandler, flag, ProjectKey } from "../../../router";
 import { InputValidationError } from "../../../errors";
 import z from "zod";
-import type { RemoveProjectResourceConfig } from "./types";
+import type { AppIO } from "../../../io";
+import type { ProjectManager } from "../types";
+
+type RemoveProjectResourceConfig = {
+  projectManager: ProjectManager;
+  io: AppIO;
+};
 
 export const createRemoveProjectHandler = (config: RemoveProjectResourceConfig) =>
   createHandler({
