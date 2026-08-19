@@ -4,7 +4,6 @@ import type { AddProjectResourceConfig } from "../types";
 import { parseJsonFlag } from "../../../utils";
 import { InputValidationError } from "../../../../errors";
 import { HarnessSpecSchema } from "../../../../projectSchemas/harness";
-import { formatZodError } from "../../../../router/schema";
 
 export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -106,7 +105,7 @@ export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
 
       const result = HarnessSpecSchema.safeParse(harnessInput);
       if (!result.success) {
-        throw new InputValidationError(formatZodError(result.error), { cause: result.error });
+        throw new InputValidationError(z.prettifyError(result.error), { cause: result.error });
       }
 
       const project = ctx.require(ProjectKey);
