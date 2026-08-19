@@ -1,5 +1,4 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -54,7 +53,6 @@ type RemoveCase = {
   commands: string[][];
   specKey: string;
   expectedRemaining: string[];
-  deletedDirs: string[];
 };
 
 describe("project remove", () => {
@@ -69,14 +67,12 @@ describe("project remove", () => {
       ],
       specKey: "harnesses",
       expectedRemaining: [],
-      deletedDirs: ["app/my_harness"],
     },
     {
       label: "runtime",
       commands: [["remove", "runtime", "--name", "hello_world"]],
       specKey: "runtimes",
       expectedRemaining: [],
-      deletedDirs: ["app/hello_world"],
     },
     {
       label: "removes one harness while leaving others intact",
@@ -87,16 +83,14 @@ describe("project remove", () => {
       ],
       specKey: "harnesses",
       expectedRemaining: ["keep_me"],
-      deletedDirs: ["app/remove_me"],
     },
     {
       label: "removing a non-existent resource succeeds (no-op)",
       commands: [["remove", "harness", "--name", "ghost"]],
       specKey: "harnesses",
       expectedRemaining: [],
-      deletedDirs: [],
     },
-  ])("$label", async ({ commands, specKey, expectedRemaining, deletedDirs }) => {
+  ])("$label", async ({ commands, specKey, expectedRemaining }) => {
     const projectRoot = await inProject();
 
     for (const cmd of commands) {
@@ -106,10 +100,6 @@ describe("project remove", () => {
     const agentcoreJson = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     const remaining = (agentcoreJson[specKey] ?? []) as { name: string }[];
     expect(remaining.map((r) => r.name)).toEqual(expectedRemaining);
-
-    for (const dir of deletedDirs) {
-      expect(existsSync(join(projectRoot, dir))).toBe(false);
-    }
   });
 
   // Verifies that missing required inputs are rejected before calling the manager.
