@@ -48,8 +48,6 @@ async function inProject(name = "TestProject"): Promise<string> {
   return projectRoot;
 }
 
-const RESOURCE_NAME = "test_resource";
-
 type RemoveCase = {
   label: string;
   commands: string[][];
@@ -64,8 +62,8 @@ describe("project remove", () => {
     {
       label: "harness",
       commands: [
-        ["add", "harness", "--name", RESOURCE_NAME],
-        ["remove", "harness", "--name", RESOURCE_NAME],
+        ["add", "harness", "--name", "my_harness"],
+        ["remove", "harness", "--name", "my_harness"],
       ],
       specKey: "harnesses",
       expectedRemaining: [],
