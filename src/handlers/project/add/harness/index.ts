@@ -1,7 +1,7 @@
 import z from "zod";
 import { createHandler, flag, ProjectKey } from "../../../../router";
 import type { AddProjectResourceConfig } from "../types";
-import { parseJsonFlag } from "../../../utils";
+import { parseJsonFlag, parseTags } from "../../../utils";
 import { InputValidationError } from "../../../../errors";
 import { HarnessSpecSchema } from "../../../../projectSchemas/harness";
 
@@ -56,7 +56,7 @@ export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
       flag("max-iterations", "max agent loop iterations per invocation", z.number().optional()),
       flag("max-tokens", "max total output tokens per invocation", z.number().optional()),
       flag("timeout-seconds", "max duration in seconds per invocation", z.number().optional()),
-      flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
+      flag("tags", "tags as key=value (repeatable) or JSON object", z.array(z.string()).optional()),
       flag(
         "dockerfile",
         "path to local dockerfile to use as the container image for the harness",
@@ -96,7 +96,7 @@ export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
         maxIterations: flags["max-iterations"],
         maxTokens: flags["max-tokens"],
         timeoutSeconds: flags["timeout-seconds"],
-        tags: parseJsonFlag("tags", flags["tags"]),
+        tags: parseTags(flags["tags"]),
         dockerfile: flags["dockerfile"],
       };
 
