@@ -53,6 +53,11 @@ export type AddResourceInput =
 
 export type ProjectResource = AddResourceInput["resourceType"];
 
+export type RemoveResourceInput = {
+  resourceType: ProjectResource;
+  name: string;
+};
+
 /**
  * The primary interface for interacting with projects
  */
@@ -68,4 +73,7 @@ export interface ProjectManager {
 
   /** Add a resource to an existing AgentCore project. */
   addResource(project: Project, input: AddResourceInput): AsyncGenerator<ProjectEvent, Project>;
+
+  /** Remove a resource from an existing AgentCore project. */
+  removeResource(project: Project, input: RemoveResourceInput): Promise<Project>;
 }

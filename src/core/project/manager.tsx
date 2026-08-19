@@ -9,6 +9,7 @@ import type {
   ProjectManager,
   ProjectEvent,
   ProjectResource,
+  RemoveResourceInput,
 } from "../../handlers/project/types";
 import type { Logger } from "../../logging";
 import {
@@ -197,6 +198,34 @@ export class FsProjectManager implements ProjectManager {
       );
       throw err;
     }
+  }
+
+  public async removeResource(project: Project, input: RemoveResourceInput): Promise<Project> {
+    const agentCoreSpecPath = join(project.rootPath, "agentcore", "agentcore.json");
+    const projectSpecKey = toProjectSpecKey(input.resourceType);
+
+    const existingProjectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
+
+    const existingResources = existingProjectSpec[projectSpecKey];
+    const newResources = existingResources.filter((r) => r.name !== input.name);
+
+    if (newResources.length === existingResources.length)
+      this.logger.child({ input }).warn(`unable to find resource to delete, skipping.`);
+
+    const newSpec = { ...existingProjectSpec, [projectSpecKey]: newResources };
+    const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
+
+    if (!newSpecParseResult.success)
+      throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
+        cause: newSpecParseResult.error,
+      });
+
+    const newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
+
+    return {
+      ...project,
+      spec: newProjectSpec,
+    };
   }
 
   private async scaffoldHarness(

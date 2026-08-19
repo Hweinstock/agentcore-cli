@@ -25,7 +25,7 @@ async function run(args: string[], opts?: { core?: TestCoreClient }) {
   return { io, core };
 }
 
-describe.each(["remove", "deploy", "status"])("project %s", (command) => {
+describe.each(["deploy", "status"])("project %s", (command) => {
   test("throws because it is not implemented yet", async () => {
     await expect(run([command])).rejects.toThrow(/not implemented/);
   });
