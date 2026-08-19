@@ -5,6 +5,11 @@ import { parseJsonFlag, parseTags } from "../../../utils";
 import { InputValidationError } from "../../../../errors";
 import { HarnessSpecSchema } from "../../../../projectSchemas/harness";
 
+const DEFAULT_MODEL = {
+  provider: "bedrock",
+  modelId: "global.anthropic.claude-sonnet-4-6",
+};
+
 export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
   createHandler({
     name: "harness",
@@ -66,10 +71,7 @@ export const createAddHarnessHandler = (config: AddProjectResourceConfig) =>
     handle: async (ctx, flags) => {
       const harnessInput = {
         name: flags.name,
-        model: parseJsonFlag("model", flags["model"]) ?? {
-          provider: "bedrock" as const,
-          modelId: "global.anthropic.claude-sonnet-4-6",
-        },
+        model: parseJsonFlag("model", flags["model"]) ?? DEFAULT_MODEL,
         systemPrompt: flags["system-prompt"],
         executionRoleArn: flags["execution-role-arn"],
         tools: parseJsonFlag("tools", flags["tools"]),
