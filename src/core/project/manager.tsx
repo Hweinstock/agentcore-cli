@@ -172,6 +172,7 @@ export class FsProjectManager implements ProjectManager {
         );
       }
       case "config-bundle":
+      case "online-eval":
         newResources.push(resourceConfig);
         break;
 
@@ -270,5 +271,7 @@ function toProjectSpecKey(resourceType: ProjectResource) {
       return "runtimes";
     case "config-bundle":
       return "configBundles";
+    case "online-eval":
+      return "onlineEvalConfigs";
   }
 }
