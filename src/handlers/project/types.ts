@@ -1,14 +1,21 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
-import type z from "zod";
-import type { ProjectRuntimeSchema } from "../../projectSchemas/runtime";
+import z from "zod";
+import type { RuntimeResourceConfig } from "./add/runtime/types";
 import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
+
+/** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} describing runtimes only */
+export const RUNTIME_TEMPLATES = {
+  HELLO_WORLD_PYTHON: "hello-world-python",
+  HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
+} as const;
+
+export type RuntimeTemplate = (typeof RUNTIME_TEMPLATES)[keyof typeof RUNTIME_TEMPLATES];
 
 /** Available project templates for scaffolding new AgentCore projects. */
 export const PROJECT_TEMPLATES = {
-  HELLO_WORLD_PYTHON: "hello-world-python",
-  HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
+  ...RUNTIME_TEMPLATES,
 } as const;
 
 export type ProjectTemplate = (typeof PROJECT_TEMPLATES)[keyof typeof PROJECT_TEMPLATES];
@@ -50,7 +57,7 @@ export type AddResourceInput =
     }
   | {
       resourceType: "runtime";
-      resourceConfig: z.input<typeof ProjectRuntimeSchema>;
+      resourceConfig: RuntimeResourceConfig;
     }
   | {
       resourceType: "config-bundle";
