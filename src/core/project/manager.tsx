@@ -20,6 +20,7 @@ import {
   type ReadWriteJson,
 } from "../../io";
 import { defaultSource, type AssetSource } from "./source";
+import { ENV_LOCAL_RELATIVE_PATH, EnvLocalFile } from "./envLocal";
 import { createHarnessTreeFromSpec, createProjectTreeFromTemplate, TEMPLATES } from "./templates";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
 import { enclosingProjectRoot } from "./fsUtils";
@@ -151,8 +152,11 @@ export class FsProjectManager implements ProjectManager {
         `a ${resourceType} with name '${resourceConfig.name}' already exists`,
       );
 
+    // Widened: arms push their own shapes; the whole-spec safeParse below validates.
     const newResources: unknown[] = [...existingResources];
     const scaffoldedPaths: string[] = [];
+    // Non-file work that a failed spec write must also reverse.
+    let envFile: EnvLocalFile | undefined;
 
     switch (resourceType) {
       case "harness": {
@@ -172,6 +176,22 @@ export class FsProjectManager implements ProjectManager {
           "runtime case not yet implemented in FsProjectManager.addResource",
         );
       }
+      case "credential": {
+        // No file scaffolding; the secret placeholder is staged into .env.local
+        // and reversed with the spec write if that commit fails.
+        newResources.push(input.resourceConfig);
+        if (input.envEntries?.length) {
+          envFile = new EnvLocalFile(project.rootPath);
+          yield { message: `Updating secrets file at '${envFile.path}'` };
+          const { skipped } = await envFile.insertIfNew(input.envEntries);
+          for (const key of skipped) {
+            yield {
+              message: `'${key}' already exists in ${ENV_LOCAL_RELATIVE_PATH}; left unchanged`,
+            };
+          }
+        }
+        break;
+      }
       case "config-bundle":
       case "online-eval":
       case "online-insight":
@@ -186,27 +206,24 @@ export class FsProjectManager implements ProjectManager {
 
     yield { message: `Updating project spec file at '${agentCoreSpecPath}'` };
 
-    // rollback scaffolding changes on failed config writes to prevent bad state.
-    try {
-      const newSpec = { ...existingProjectSpec, [projectSpecKey]: newResources };
-      const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
+    const newSpec = { ...existingProjectSpec, [projectSpecKey]: newResources };
 
+    // Validate and write inside the same boundary so a rejected spec rolls back
+    // staged side effects (.env.local, scaffolded files) rather than leaving them.
+    let newProjectSpec: z.infer<typeof ProjectSpecSchema>;
+    try {
+      const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
       if (!newSpecParseResult.success)
         throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
           cause: newSpecParseResult.error,
         });
-      const newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
-
-      return {
-        ...project,
-        spec: newProjectSpec,
-      };
+      newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
     } catch (err) {
       this.logger.warn(
-        `failed to update ${agentCoreSpecPath}; attempting best-effort cleanup of scaffolded files`,
+        `could not commit the spec update to ${agentCoreSpecPath}; attempting best-effort cleanup of staged changes`,
       );
-      await Promise.all(
-        scaffoldedPaths.map((p) =>
+      await Promise.all([
+        ...scaffoldedPaths.map((p) =>
           rm(p, { recursive: true, force: true }).catch((e) => {
             const error = AgentCoreCLIError.fromError(e);
             this.logger
@@ -214,9 +231,20 @@ export class FsProjectManager implements ProjectManager {
               .warn(`failed to clean up ${p}`);
           }),
         ),
-      );
+        envFile?.rollback().catch((e) => {
+          const error = AgentCoreCLIError.fromError(e);
+          this.logger
+            .child({ errorName: error.name, errorMessage: error.message })
+            .warn(`failed to roll back ${ENV_LOCAL_RELATIVE_PATH}`);
+        }),
+      ]);
       throw err;
     }
+
+    return {
+      ...project,
+      spec: newProjectSpec,
+    };
   }
 
   private getProjectSpecPath(project: Project): string {
@@ -306,6 +334,8 @@ function toProjectSpecKey(resourceType: ProjectResource) {
       return "harnesses";
     case "runtime":
       return "runtimes";
+    case "credential":
+      return "credentials";
     case "config-bundle":
       return "configBundles";
     case "online-eval":

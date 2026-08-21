@@ -1,6 +1,7 @@
 import { withProject } from "../../../middleware/";
 import { Router } from "../../../router";
 import { createAddConfigBundleHandler } from "./config-bundle";
+import { createAddCredentialsHandler } from "./credentials";
 import { createAddHarnessHandler } from "./harness";
 import { createAddRuntimeHandler } from "./runtime";
 import { createAddOnlineEvalHandler } from "./online-eval";
@@ -15,5 +16,6 @@ export function createAddProjectResourceHandler(config: AddProjectResourceConfig
   projectAdd.handler(createAddRuntimeHandler(config));
   projectAdd.handler(createAddOnlineEvalHandler(config));
   projectAdd.handler(createAddOnlineInsightHandler(config));
+  projectAdd.handler(createAddCredentialsHandler(config));
   return projectAdd;
 }

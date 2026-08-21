@@ -1,4 +1,5 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
+import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
@@ -49,6 +50,14 @@ export type Project = {
   spec: z.infer<typeof ProjectSpecSchema>;
 };
 
+/** A line to add to agentcore/.env.local. Secret values travel here, never in the spec. */
+export type EnvLocalEntry = {
+  key: string;
+  /** An omitted value writes an empty placeholder the user fills before deploy. */
+  value?: string;
+  comment: string;
+};
+
 /** Discriminated union input for {@link ProjectManager.addResource}. */
 export type AddResourceInput =
   | {
@@ -58,6 +67,11 @@ export type AddResourceInput =
   | {
       resourceType: "runtime";
       resourceConfig: RuntimeResourceConfig;
+    }
+  | {
+      resourceType: "credential";
+      resourceConfig: z.input<typeof CredentialSchema>;
+      envEntries?: EnvLocalEntry[];
     }
   | {
       resourceType: "config-bundle";
