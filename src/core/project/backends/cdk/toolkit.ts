@@ -1,19 +1,32 @@
-import type { IIoHost, IoMessage, Toolkit } from "@aws-cdk/toolkit-lib";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
+import type {
+  IActionAwareIoHost,
+  IIoHost,
+  IoMessage,
+  SdkBaseConfig,
+  Toolkit,
+} from "@aws-cdk/toolkit-lib";
 import { AgentCoreCLIError } from "../../../../errors";
 import type { Logger } from "../../../../logging";
 
 export type CdkOperation =
   | { kind: "bootstrap"; environments: string[]; templateFile?: string }
-  | { kind: "deploy"; stackName: string };
+  | { kind: "deploy"; stackArtifactId: string };
 
 export type CdkRunOptions = {
   /** Synthesized cloud assembly used by deploy operations. */
   assemblyDirectory: string;
+  /** Credential provider shared with deployment preflight calls. */
+  credentials: CdkCredentialProvider;
   /** Region used for the Toolkit's own AWS SDK calls. */
   region: string;
 };
 
 export type CdkOutputs = Record<string, string>;
+export type CdkCredentialProvider = SdkBaseConfig["credentialProvider"];
+export type CdkCredentialResolver = (region: string) => Promise<CdkCredentialProvider>;
 
 export type CdkRunner = (operation: CdkOperation, options: CdkRunOptions) => Promise<CdkOutputs>;
 
@@ -33,7 +46,62 @@ export type LoadedCdkToolkit = {
   toolkit: CdkToolkit;
 };
 
-export type CdkToolkitLoader = (ioHost: IIoHost, region: string) => Promise<LoadedCdkToolkit>;
+export type CdkToolkitLoader = (
+  ioHost: IIoHost,
+  region: string,
+  credentials: CdkCredentialProvider,
+) => Promise<LoadedCdkToolkit>;
+
+type NamedBlob = Blob & { readonly name: string };
+
+export type LoadedBootstrapTemplate = {
+  path: string;
+  cleanup(): Promise<void>;
+};
+
+export type BootstrapTemplateLoader = () => Promise<LoadedBootstrapTemplate | undefined>;
+
+const BOOTSTRAP_TEMPLATE = "bootstrap-template.yaml";
+
+function embeddedFiles(): readonly NamedBlob[] {
+  return typeof Bun === "undefined" ? [] : (Bun.embeddedFiles as readonly NamedBlob[]);
+}
+
+/** Materializes the Toolkit template embedded in a standalone executable. */
+export async function loadBootstrapTemplate(
+  files: readonly NamedBlob[] = embeddedFiles(),
+): Promise<LoadedBootstrapTemplate | undefined> {
+  const template = files.find((file) => file.name.endsWith(BOOTSTRAP_TEMPLATE));
+  if (!template) {
+    // No embedded files at all means a script or npm bundle, where node_modules
+    // exists and the Toolkit reads the template from its own package. Embedded
+    // files *without* the template means a standalone binary whose embed went
+    // missing; returning undefined there sends the Toolkit looking for a package
+    // directory relative to a build-time __dirname that does not exist on this
+    // machine, so the user gets "Unable to find package manifest" instead.
+    if (files.length > 0) {
+      throw new AgentCoreCLIError(
+        `This build of the CLI is missing its copy of ${BOOTSTRAP_TEMPLATE}, so it cannot ` +
+          `bootstrap an AWS environment. Reinstall the CLI, or report this at ` +
+          `https://github.com/aws/agentcore-cli/issues.`,
+      );
+    }
+    return undefined;
+  }
+
+  const directory = await mkdtemp(join(tmpdir(), "agentcore-bootstrap-"));
+  const path = join(directory, BOOTSTRAP_TEMPLATE);
+  try {
+    await writeFile(path, await template.text());
+  } catch (error) {
+    await rm(directory, { recursive: true, force: true });
+    throw error;
+  }
+  return {
+    path,
+    cleanup: () => rm(directory, { recursive: true, force: true }),
+  };
+}
 
 export function createCdkIoHost(logger: Logger): IIoHost {
   const toolkitLogger = logger.child({ component: "cdk-toolkit" });
@@ -56,8 +124,31 @@ export function createCdkIoHost(logger: Logger): IIoHost {
   };
 }
 
+function forAction(ioHost: IIoHost, action: "deploy"): IActionAwareIoHost {
+  return {
+    notify: (message) => ioHost.notify({ ...message, action }),
+    requestResponse: (request) => ioHost.requestResponse({ ...request, action }),
+  };
+}
+
+export async function resolveCdkCredentials(
+  ioHost: IIoHost,
+  region: string,
+): Promise<CdkCredentialProvider> {
+  const { BaseCredentials } = await import("@aws-cdk/toolkit-lib");
+  const config = await BaseCredentials.awsCliCompatible({
+    defaultRegion: region,
+  }).sdkBaseConfig(forAction(ioHost, "deploy"), {});
+  return config.credentialProvider;
+}
+
+export function createCdkCredentialResolver(logger: Logger): CdkCredentialResolver {
+  const ioHost = createCdkIoHost(logger);
+  return (region) => resolveCdkCredentials(ioHost, region);
+}
+
 /** Loads the Toolkit only when a deploy operation needs it. */
-export const loadCdkToolkit: CdkToolkitLoader = async (ioHost, region) => {
+export const loadCdkToolkit: CdkToolkitLoader = async (ioHost, region, credentials) => {
   const lib = await import("@aws-cdk/toolkit-lib");
   return {
     lib,
@@ -66,7 +157,7 @@ export const loadCdkToolkit: CdkToolkitLoader = async (ioHost, region) => {
       color: false,
       emojis: false,
       sdkConfig: {
-        baseCredentials: lib.BaseCredentials.awsCliCompatible({ defaultRegion: region }),
+        baseCredentials: lib.BaseCredentials.custom({ provider: credentials, region }),
       },
     }),
   };
@@ -93,7 +184,7 @@ export async function performCdkOperation(
   const result = await toolkit.deploy(source, {
     stacks: {
       strategy: lib.StackSelectionStrategy.PATTERN_MUST_MATCH_SINGLE,
-      patterns: [operation.stackName],
+      patterns: [operation.stackArtifactId],
     },
   });
 
@@ -104,7 +195,7 @@ export async function performCdkOperation(
   // deletion a successful deploy.
   if (result.stacks.length !== 1) {
     throw new AgentCoreCLIError(
-      `The CDK Toolkit deployed no stack for '${operation.stackName}'. ` +
+      `The CDK Toolkit deployed no stack for '${operation.stackArtifactId}'. ` +
         `This happens when the synthesized stack has no resources, in which case an ` +
         `existing stack of that name is deleted rather than updated.`,
     );
@@ -120,7 +211,7 @@ export function createCdkRunner(
 ): CdkRunner {
   const ioHost = createCdkIoHost(logger);
   return async (operation, options) => {
-    const loaded = await load(ioHost, options.region);
+    const loaded = await load(ioHost, options.region, options.credentials);
     return performCdkOperation(loaded, operation, options);
   };
 }

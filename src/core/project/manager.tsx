@@ -71,6 +71,7 @@ export class FsProjectManager implements ProjectManager {
         logger: config.logger,
         runner: config.runner,
         checkTool: config.checkTool,
+        json: config.json,
       }),
     };
   }
