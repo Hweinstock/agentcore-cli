@@ -11,6 +11,18 @@ const DIST = join(REPO_ROOT, "dist");
 
 const ASSET_NAMING = "agentcore-assets/[dir]/[name].[ext]";
 
+// The Toolkit reads files relative to its own package directory at runtime
+// (bundledPackageRootDir(__dirname)), so the npm bundle keeps that package
+// intact rather than inlining it.
+//
+// This covers the npm bundle only. compile() below cannot use the same trick:
+// a standalone binary ships no node_modules, so marking the Toolkit external
+// would leave an unresolvable require. Bun instead inlines it and rewrites
+// __dirname to the *build machine's* path, which resolves on the builder and
+// fails everywhere else. Binaries therefore have to hand the Toolkit an
+// explicit copy of anything it would otherwise read from its package.
+const EXTERNAL = ["@aws-cdk/toolkit-lib"];
+
 // Shrink whitespace/syntax but keep identifiers: minified names make stack
 // traces unreadable and erase error names telemetry keys on.
 const MINIFY = { whitespace: true, syntax: true, identifiers: false } as const;
@@ -54,6 +66,7 @@ async function bundle(): Promise<void> {
     outdir: DIST,
     target: "node",
     minify: MINIFY,
+    external: EXTERNAL,
   });
 
   // Mirror assets beside the emitted module for resolveAssetsRoot().
