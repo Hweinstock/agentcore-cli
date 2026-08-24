@@ -3,6 +3,7 @@ import { Router } from "../../../router";
 import { createAddConfigBundleHandler } from "./config-bundle";
 import { createAddCredentialsHandler } from "./credentials";
 import { createAddHarnessHandler } from "./harness";
+import { createAddMemoryHandler } from "./memory";
 import { createAddRuntimeHandler } from "./runtime";
 import { createAddOnlineEvalHandler } from "./online-eval";
 import { createAddOnlineInsightHandler } from "./online-insight";
@@ -13,6 +14,7 @@ export function createAddProjectResourceHandler(config: AddProjectResourceConfig
   projectAdd.use(withProject({ projectManager: config.projectManager, cwd: process.cwd() }));
   projectAdd.handler(createAddConfigBundleHandler(config));
   projectAdd.handler(createAddHarnessHandler(config));
+  projectAdd.handler(createAddMemoryHandler(config));
   projectAdd.handler(createAddRuntimeHandler(config));
   projectAdd.handler(createAddOnlineEvalHandler(config));
   projectAdd.handler(createAddOnlineInsightHandler(config));

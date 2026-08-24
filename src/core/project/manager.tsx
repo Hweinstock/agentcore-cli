@@ -200,6 +200,7 @@ export class FsProjectManager implements ProjectManager {
       case "config-bundle":
       case "online-eval":
       case "online-insight":
+      case "memory":
         newResources.push(resourceConfig);
         break;
 
@@ -381,5 +382,7 @@ function toProjectSpecKey(resourceType: ProjectResource) {
     case "online-eval":
     case "online-insight":
       return "onlineEvalConfigs";
+    case "memory":
+      return "memories";
   }
 }
