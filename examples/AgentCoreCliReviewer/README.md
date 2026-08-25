@@ -1,6 +1,6 @@
 # AgentCore CLI PR Reviewer
 
-AgentCore CLI project for the automated pull-request reviewer used by `.github/workflows/pr-ai-review.yml`.
+AgentCore CLI project for the automated pull-request reviewer used by `.github/workflows/pr-automation.yml`.
 
 This project was generated with AgentCore CLI 0.27.0, using the legacy `.github/harness/Dockerfile` before the harness
 assets were moved here:
@@ -43,6 +43,10 @@ the authenticated image described below is deployed, update these AWS Secrets Ma
 - `aws/agentcore-cli/HARNESS_ARN`: the Harness ARN returned by `agentcore status`
 - `aws/agentcore-cli/HARNESS_AWS_ROLE_ARN`: the GitHub Actions invocation role ARN above
 
-The Dockerfile expects `CLONE_TOKEN` and `GITHUB_TOKEN` build arguments. AgentCore CLI's Harness Dockerfile build does
-not currently expose custom build arguments, so a production deployment must use a prebuilt private ECR image with those
-arguments or migrate authentication to a runtime-supported secret mechanism.
+The Dockerfile expects a `CLONE_TOKEN` build argument. AgentCore CLI's Harness Dockerfile build does not currently
+expose custom build arguments, so a production deployment must use a prebuilt private ECR image with that argument or
+migrate clone authentication to a runtime-supported secret mechanism.
+
+The shared `agentcore-devx-devtools` workflow mints a short-lived token from the existing GitHub App to read PR
+discussion and publish the Harness result as `agentcore-devx-automation[bot]`. The token is never sent to the Harness
+runtime or persisted in this image.
