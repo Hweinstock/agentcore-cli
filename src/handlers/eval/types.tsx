@@ -333,7 +333,13 @@ export interface CoreEvalClient {
     options: CoreOptions,
     opts?: { includeResults?: boolean },
   ): Promise<GetBatchEvaluationResult>;
+  getBatchInsights(id: string, options: CoreOptions): Promise<BatchEvaluationDetail>;
   listBatchEvaluations(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListBatchEvaluationsResponse>;
+  listBatchInsights(
     nextToken: string | undefined,
     maxResults: number | undefined,
     options: CoreOptions,
