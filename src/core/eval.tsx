@@ -105,6 +105,12 @@ import type {
   CreateConfigurationBundleInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
+  CreateOnlineInsightInput,
+  CreateOnlineInsightResponse,
+  GetOnlineInsightResponse,
+  ListOnlineInsightsResponse,
+  UpdateOnlineInsightResponse,
+  DeleteOnlineInsightResponse,
   EvaluateInput,
   EvaluateResult,
   GetBatchEvaluationResult,
@@ -180,6 +186,10 @@ const noopLogger: Logger = {
   error: () => {},
   child: () => noopLogger,
 };
+
+const DEFAULT_ONLINE_INSIGHT_PAGE_SIZE = 100;
+const MAX_ONLINE_INSIGHT_PAGES = 101;
+type InsightSummary = NonNullable<ListOnlineInsightsResponse["onlineEvaluationConfigs"]>[number];
 
 export class EvalClient implements CoreEvalClient {
   constructor(
@@ -763,6 +773,109 @@ export class EvalClient implements CoreEvalClient {
     return input.evaluationExecutionRoleArn
       ? control.send(command)
       : retryWhileRolePropagates(() => control.send(command));
+  }
+
+  async createOnlineInsight(
+    input: CreateOnlineInsightInput,
+    options: CoreOptions,
+  ): Promise<CreateOnlineInsightResponse> {
+    const dataSourceConfig =
+      input.agent !== undefined
+        ? await agentDataSource(input.agent, input.endpoint, this.clients, options)
+        : input.dataSourceConfig;
+    const control = this.clients.control(toClientConfig(options));
+
+    const command = new CreateOnlineEvaluationConfigCommand({
+      onlineEvaluationConfigName: input.name,
+      description: input.description,
+      rule: toRule(input.samplingRate, input.sessionTimeoutMinutes, input.filters),
+      dataSourceConfig,
+      insights: input.insightIds.map((insightId) => ({ insightId })),
+      clusteringConfig: input.clusteringConfig,
+      evaluationExecutionRoleArn: input.evaluationExecutionRoleArn,
+      enableOnCreate: input.enableOnCreate ?? true,
+    });
+
+    return control.send(command);
+  }
+
+  async getOnlineInsight(id: string, options: CoreOptions): Promise<GetOnlineInsightResponse> {
+    const control = this.clients.control(toClientConfig(options));
+    const config = await control.send(
+      new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }),
+    );
+    if ((config.insights?.length ?? 0) === 0)
+      throw new InputValidationError(`"${id}" is not an online-insight config`, {
+        meta: { onlineEvaluationConfigId: id },
+      });
+    return config;
+  }
+
+  async listOnlineInsights(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListOnlineInsightsResponse> {
+    // Fill the requested page across underlying pages, since the shared List API
+    // returns eval configs too (mirrors listGatewayConnectors over Targets).
+    const pageSize = maxResults ?? DEFAULT_ONLINE_INSIGHT_PAGE_SIZE;
+    const items: InsightSummary[] = [];
+    let token = nextToken;
+    let filling = true;
+
+    for (let page = 0; page < MAX_ONLINE_INSIGHT_PAGES; page++) {
+      const requestToken = token;
+      const requestSize = filling ? pageSize - items.length : DEFAULT_ONLINE_INSIGHT_PAGE_SIZE;
+      const response = await this.listOnlineEvaluationConfigs(token, requestSize, options);
+      const insights = (response.onlineEvaluationConfigs ?? []).filter(
+        (c) => (c.insights?.length ?? 0) > 0,
+      );
+
+      if (filling) {
+        items.push(...insights);
+        filling = items.length < pageSize;
+      } else if (insights.length > 0) {
+        return { ...response, onlineEvaluationConfigs: items, nextToken: requestToken };
+      }
+
+      if (response.nextToken === undefined) {
+        return { ...response, onlineEvaluationConfigs: items, nextToken: undefined };
+      }
+      token = response.nextToken;
+    }
+
+    throw new ResultTruncationError(
+      `Online insight discovery exceeded ${MAX_ONLINE_INSIGHT_PAGES} config pages; results are incomplete`,
+    );
+  }
+
+  async setOnlineInsightExecutionStatus(
+    id: string,
+    executionStatus: "ENABLED" | "DISABLED",
+    options: CoreOptions,
+  ): Promise<UpdateOnlineInsightResponse> {
+    const config = await this.clients
+      .control(toClientConfig(options))
+      .send(new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }));
+    if ((config.insights?.length ?? 0) === 0)
+      throw new InputValidationError(`"${id}" is not an online-insight config`, {
+        meta: { onlineEvaluationConfigId: id },
+      });
+    return this.setOnlineEvaluationExecutionStatus(id, executionStatus, options);
+  }
+
+  async deleteOnlineInsight(
+    id: string,
+    options: CoreOptions,
+  ): Promise<DeleteOnlineInsightResponse> {
+    const config = await this.clients
+      .control(toClientConfig(options))
+      .send(new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }));
+    if ((config.insights?.length ?? 0) === 0)
+      throw new InputValidationError(`"${id}" is not an online-insight config`, {
+        meta: { onlineEvaluationConfigId: id },
+      });
+    return this.deleteOnlineEvaluationConfig(id, options);
   }
 
   // updateOnlineEvaluationConfig fetches the current config and merges the
