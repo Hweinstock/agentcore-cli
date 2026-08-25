@@ -6,6 +6,7 @@ import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { RuntimeResourceConfig } from "./add/runtime/types";
 import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
+import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
 
 /** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} describing runtimes only */
 export const RUNTIME_TEMPLATES = {
@@ -105,14 +106,29 @@ export type AddResourceInput =
   | {
       resourceType: "memory";
       resourceConfig: z.input<typeof MemorySchema>;
+    }
+  | {
+      resourceType: "gateway";
+      resourceConfig: AgentCoreGateway;
+    }
+  | {
+      resourceType: "gateway-target";
+      gatewayName: string;
+      resourceConfig: AgentCoreGatewayTarget;
     };
 
 export type ProjectResource = AddResourceInput["resourceType"];
 
-export type RemoveResourceInput = {
-  resourceType: ProjectResource;
-  name: string;
-};
+export type RemoveResourceInput =
+  | {
+      resourceType: Exclude<ProjectResource, "gateway-target">;
+      name: string;
+    }
+  | {
+      resourceType: "gateway-target";
+      gatewayName: string;
+      name: string;
+    };
 
 /**
  * The primary interface for interacting with projects
