@@ -169,7 +169,7 @@ import {
   revokeOnlineEvalScope,
   scopePolicyName,
 } from "./onlineEvalExecutionRole";
-import { deleteAbTestRole, provisionAbTestRole } from "./abTestExecutionRole";
+import { accountIdFromArn, deleteAbTestRole, provisionAbTestRole } from "./abTestExecutionRole";
 
 const DEFAULT_ENDPOINT_QUALIFIER = "DEFAULT";
 const DEFAULT_INGESTION_WAIT_MS = 180_000;
@@ -488,7 +488,7 @@ export class EvalClient implements CoreEvalClient {
     const control = this.clients.control(toClientConfig(options));
     const gateway = await control.send(new GetGatewayCommand({ gatewayIdentifier: input.gateway }));
     const gatewayArn = gateway.gatewayArn!;
-    const accountId = gatewayArn.split(":")[4] ?? "*";
+    const accountId = accountIdFromArn(gatewayArn);
 
     const controlBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.control.configBundle}`;
     const treatmentBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.treatment.configBundle}`;
@@ -541,7 +541,7 @@ export class EvalClient implements CoreEvalClient {
     try {
       return input.roleArn
         ? await this.clients.data(toClientConfig(options)).send(command)
-        : await retryWhileRolePropagates(() =>
+        : await retryWhileRoleUnassumable(() =>
             this.clients.data(toClientConfig(options)).send(command),
           );
     } catch (error) {
@@ -549,7 +549,7 @@ export class EvalClient implements CoreEvalClient {
         try {
           await deleteAbTestRole(this.clients.iam({ region: options.region }), provisionedRoleArn);
         } catch {
-          // best effort
+          void 0;
         }
       }
       throw error;
@@ -2105,6 +2105,31 @@ function chunk<T>(items: T[], size: number): T[][] {
 // propagated yet.
 const ROLE_NOT_PROPAGATED =
   /role cannot be assumed|does not have permissions to (create log group|access the specified log groups)/i;
+
+// CreateABTest is on the data plane and surfaces a freshly-provisioned role that
+// has not propagated as a plain AccessDenied rather than the control-plane phrasing
+// ROLE_NOT_PROPAGATED matches, so the ab-test create path retries on that too.
+async function retryWhileRoleUnassumable<T>(send: () => Promise<T>): Promise<T> {
+  const delaysMs = [1_000, 2_000, 4_000, 8_000];
+  for (const delay of delaysMs) {
+    try {
+      return await send();
+    } catch (error) {
+      const err = error as {
+        name?: string;
+        message?: string;
+        $metadata?: { httpStatusCode?: number };
+      };
+      const retryable =
+        err.name === "AccessDeniedException" ||
+        err.$metadata?.httpStatusCode === 403 ||
+        ROLE_NOT_PROPAGATED.test(err.message ?? "");
+      if (!retryable) throw error;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+    }
+  }
+  return send();
+}
 
 // retryWhileRolePropagates retries `send` while the service reports the execution
 // role as unusable, which is how a not-yet-propagated role or policy surfaces.

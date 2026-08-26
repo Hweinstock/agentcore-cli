@@ -50,7 +50,7 @@ export const createConfigBundleRunHandler = (core: Core, io: AppIO) =>
       flag(
         "treatment-weight",
         "1-99; control weight = 100 - this (default 50)",
-        z.number().optional(),
+        z.number().int().optional(),
       ),
       flag(
         "gateway-filter",
@@ -86,8 +86,13 @@ export const createConfigBundleRunHandler = (core: Core, io: AppIO) =>
 
       const control = toBundleRef("control", controlRaw);
       const treatment = toBundleRef("treatment", treatmentRaw);
-      if (control.bundleVersion === treatment.bundleVersion) {
-        throw new InputValidationError("treatment bundle-version must differ from control");
+      if (
+        control.configBundle === treatment.configBundle &&
+        control.bundleVersion === treatment.bundleVersion
+      ) {
+        throw new InputValidationError(
+          "control and treatment must reference a different config-bundle or bundle-version",
+        );
       }
 
       const treatmentWeight = flags["treatment-weight"];

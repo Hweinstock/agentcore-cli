@@ -126,7 +126,7 @@ describe("eval ab-test config-bundle run", () => {
         "o",
         "--json",
       ]),
-    ).rejects.toThrow(/must differ/);
+    ).rejects.toThrow(/must reference a different/);
   });
 
   test("rejects --treatment-weight outside 1-99", async () => {

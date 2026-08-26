@@ -21,6 +21,12 @@ export function roleNameFromArn(roleArn: string): string {
   return parts[parts.length - 1] ?? roleArn;
 }
 
+export function accountIdFromArn(arn: string): string {
+  const accountId = arn.split(":")[4];
+  if (!accountId) throw new Error(`could not extract account id from ARN: ${arn}`);
+  return accountId;
+}
+
 function trustPolicy(accountId: string, region: string): string {
   return JSON.stringify({
     Version: "2012-10-17",
@@ -100,7 +106,7 @@ export async function provisionAbTestRole(
   gatewayArn: string,
   region: string,
 ): Promise<{ roleArn: string; created: boolean }> {
-  const accountId = gatewayArn.split(":")[4] ?? "*";
+  const accountId = accountIdFromArn(gatewayArn);
   const roleName = abTestExecutionRoleName(testName);
 
   let roleArn: string;
@@ -139,11 +145,11 @@ export async function deleteAbTestRole(iam: IAMClient, roleArn: string): Promise
       new DeleteRolePolicyCommand({ RoleName: roleName, PolicyName: AB_TEST_POLICY_NAME }),
     );
   } catch {
-    // best effort
+    void 0;
   }
   try {
     await iam.send(new DeleteRoleCommand({ RoleName: roleName }));
   } catch {
-    // best effort
+    void 0;
   }
 }
