@@ -130,7 +130,7 @@ describe("project create", () => {
   });
 
   test.each([
-    ["default", [], []],
+    ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["none", ["--memory", "none"], []],
     ["short", ["--memory", "short"], []],
     [
@@ -162,7 +162,7 @@ describe("project create", () => {
     const memories = spec.memories ?? [];
     const memory = memories[0];
 
-    if (memoryFlags.length === 0 || memoryFlags[1] === "none") {
+    if (memoryFlags.length > 1 && memoryFlags[1] === "none") {
       expect(memories).toEqual([]);
       return;
     }

@@ -137,7 +137,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
               framework: flags.framework,
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: DEFAULT_MEMORY_SHORTCUTS[flags.memory ?? "none"](runtimeName),
+              memory: DEFAULT_MEMORY_SHORTCUTS[flags.memory ?? "shortAndLongTerm"](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags.build === "CodeZip" ? "PYTHON_3_14" : undefined,
             })

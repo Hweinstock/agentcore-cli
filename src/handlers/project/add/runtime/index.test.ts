@@ -293,7 +293,7 @@ describe("project add runtime", () => {
   });
 
   test.each([
-    ["default", [], []],
+    ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["none", ["--memory", "none"], []],
     ["short", ["--memory", "short"], []],
     [
@@ -324,7 +324,7 @@ describe("project add runtime", () => {
       (candidate: { name: string }) => candidate.name === "my_agentMemory",
     );
 
-    if (memoryFlags.length === 0 || memoryFlags[1] === "none") {
+    if (memoryFlags.length > 1 && memoryFlags[1] === "none") {
       expect(memory).toBeUndefined();
       return;
     }
