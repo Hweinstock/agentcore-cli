@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { copyFile, rm } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { dirname, join, relative } from "node:path";
 import type {
   AddResourceInput,
   CreateProjectInput,
@@ -211,7 +211,7 @@ export class FsProjectManager implements ProjectManager {
       case "runtime": {
         yield { message: "Scaffolding runtime in project" };
         const outputPath = join(project.rootPath, "app", input.resourceConfig.name);
-        scaffoldedPaths.push(join(outputPath, input.resourceConfig.name));
+        scaffoldedPaths.push(outputPath);
 
         const spec = await this.scaffoldRuntimeResources(outputPath, input.resourceConfig);
         if (spec.runtimes) projectSpec.runtimes.push(...spec.runtimes);
@@ -388,7 +388,7 @@ export class FsProjectManager implements ProjectManager {
       throw new InputValidationError(`unable to find template that matches given parameters`);
 
     const result = await resolver.resolve(input);
-    await result.tree.write(outputPath);
+    await result.tree.write(dirname(outputPath));
     return result.spec;
   }
 
