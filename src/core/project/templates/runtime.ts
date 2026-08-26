@@ -116,7 +116,7 @@ type GetRuntimeTemplateResolverConfig = {
   templateRenderer: TemplateRenderer;
 };
 
-/** Given the parameters for rendering, load {@link TemplateResolver} that resolves to the correct template **/
+/** Given the parameters for rendering, load the {@link TemplateResolver} that resolves to the correct template **/
 export function getRuntimeTemplateResolver(
   config: GetRuntimeTemplateResolverConfig,
   input: RuntimeResourceConfig,
