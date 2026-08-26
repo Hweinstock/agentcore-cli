@@ -541,7 +541,7 @@ export class EvalClient implements CoreEvalClient {
     try {
       return input.roleArn
         ? await this.clients.data(toClientConfig(options)).send(command)
-        : await retryWhileRoleUnassumable(() =>
+        : await retryWhileRolePropagates(() =>
             this.clients.data(toClientConfig(options)).send(command),
           );
     } catch (error) {
@@ -2106,10 +2106,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 const ROLE_NOT_PROPAGATED =
   /role cannot be assumed|does not have permissions to (create log group|access the specified log groups)/i;
 
-// CreateABTest is on the data plane and surfaces a freshly-provisioned role that
-// has not propagated as a plain AccessDenied rather than the control-plane phrasing
-// ROLE_NOT_PROPAGATED matches, so the ab-test create path retries on that too.
-async function retryWhileRoleUnassumable<T>(send: () => Promise<T>): Promise<T> {
+async function retryWhileRolePropagates<T>(send: () => Promise<T>): Promise<T> {
   const delaysMs = [1_000, 2_000, 4_000, 8_000];
   for (const delay of delaysMs) {
     try {
@@ -2125,23 +2122,6 @@ async function retryWhileRoleUnassumable<T>(send: () => Promise<T>): Promise<T> 
         err.$metadata?.httpStatusCode === 403 ||
         ROLE_NOT_PROPAGATED.test(err.message ?? "");
       if (!retryable) throw error;
-      await new Promise((resolve) => setTimeout(resolve, delay));
-    }
-  }
-  return send();
-}
-
-// retryWhileRolePropagates retries `send` while the service reports the execution
-// role as unusable, which is how a not-yet-propagated role or policy surfaces.
-// Bounded and short: propagation is normally a few seconds, and a role that is
-// genuinely misconfigured should fail fast rather than hang.
-async function retryWhileRolePropagates<T>(send: () => Promise<T>): Promise<T> {
-  const delaysMs = [1_000, 2_000, 4_000, 8_000];
-  for (const delay of delaysMs) {
-    try {
-      return await send();
-    } catch (error) {
-      if (!ROLE_NOT_PROPAGATED.test((error as Error).message)) throw error;
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
