@@ -73,6 +73,11 @@ import type {
   UpdateHarnessResponse,
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import type {
+  GetABTestResponse,
+  ListABTestsResponse,
+  ABTestExecutionStatus,
+  UpdateABTestResponse,
+  DeleteABTestResponse,
   GetBatchEvaluationResponse,
   GetEventInput,
   GetEventOutput,
@@ -265,6 +270,10 @@ const DEFAULT_DELETE_DATASET_RESPONSE = {} as DeleteDatasetResponse;
 const DEFAULT_PUBLISH_DATASET_RESPONSE = {} as CreateDatasetVersionResponse;
 const DEFAULT_GET_BATCH_EVAL_RESPONSE = {} as GetBatchEvaluationResponse;
 const DEFAULT_LIST_BATCH_EVALS_RESPONSE: ListBatchEvaluationsResponse = { batchEvaluations: [] };
+const DEFAULT_GET_ABTEST_RESPONSE = {} as GetABTestResponse;
+const DEFAULT_LIST_ABTESTS_RESPONSE: ListABTestsResponse = { abTests: [] };
+const DEFAULT_UPDATE_ABTEST_RESPONSE = {} as UpdateABTestResponse;
+const DEFAULT_DELETE_ABTEST_RESPONSE = {} as DeleteABTestResponse;
 const DEFAULT_START_BATCH_EVAL_RESPONSE = {
   batchEvaluationId: "batch-eval-test",
   status: "RUNNING",
@@ -1404,6 +1413,10 @@ export class TestEvalClient implements CoreEvalClient {
   private batchEvalGetResponse: GetBatchEvaluationResponse = DEFAULT_GET_BATCH_EVAL_RESPONSE;
   private batchEvalListResponses = new Map<string | undefined, ListBatchEvaluationsResponse>();
   private batchInsightsListResponses = new Map<string | undefined, ListBatchEvaluationsResponse>();
+  private abTestGetResponse: GetABTestResponse = DEFAULT_GET_ABTEST_RESPONSE;
+  private abTestListResponses = new Map<string | undefined, ListABTestsResponse>();
+  private abTestUpdateResponse: UpdateABTestResponse = DEFAULT_UPDATE_ABTEST_RESPONSE;
+  private abTestDeleteResponse: DeleteABTestResponse = DEFAULT_DELETE_ABTEST_RESPONSE;
   private batchEvalResults: BatchEvaluationResultEntry[] = [];
   private batchEvalResultsError?: unknown;
   private startBatchEvalResponse: StartBatchEvaluationResponse = DEFAULT_START_BATCH_EVAL_RESPONSE;
@@ -1607,6 +1620,26 @@ export class TestEvalClient implements CoreEvalClient {
     return this;
   }
 
+  setAbTestGetResponse(response: GetABTestResponse): this {
+    this.abTestGetResponse = response;
+    return this;
+  }
+
+  setAbTestListResponse(response: ListABTestsResponse, forNextToken?: string): this {
+    this.abTestListResponses.set(forNextToken, response);
+    return this;
+  }
+
+  setAbTestUpdateResponse(response: UpdateABTestResponse): this {
+    this.abTestUpdateResponse = response;
+    return this;
+  }
+
+  setAbTestDeleteResponse(response: DeleteABTestResponse): this {
+    this.abTestDeleteResponse = response;
+    return this;
+  }
+
   // setUpdateDatasetResult sets what updateDatasetExamples resolves to (when not
   // erroring).
   setUpdateDatasetResult(result: DatasetUpdateResult): this {
@@ -1736,6 +1769,42 @@ export class TestEvalClient implements CoreEvalClient {
       this.batchInsightsListResponses.get(undefined) ??
       DEFAULT_LIST_BATCH_EVALS_RESPONSE;
     return { ...response, batchEvaluations: response.batchEvaluations ?? [] };
+  }
+
+  async getABTest(id: string, options: CoreOptions): Promise<GetABTestResponse> {
+    this.calls.push({ method: "getABTest", args: [id, options] });
+    if (this.error) throw this.error;
+    return this.abTestGetResponse;
+  }
+
+  async listABTests(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    options: CoreOptions,
+  ): Promise<ListABTestsResponse> {
+    this.calls.push({ method: "listABTests", args: [nextToken, maxResults, options] });
+    if (this.error) throw this.error;
+    return (
+      this.abTestListResponses.get(nextToken) ??
+      this.abTestListResponses.get(undefined) ??
+      DEFAULT_LIST_ABTESTS_RESPONSE
+    );
+  }
+
+  async setABTestExecutionStatus(
+    id: string,
+    executionStatus: ABTestExecutionStatus,
+    options: CoreOptions,
+  ): Promise<UpdateABTestResponse> {
+    this.calls.push({ method: "setABTestExecutionStatus", args: [id, executionStatus, options] });
+    if (this.error) throw this.error;
+    return this.abTestUpdateResponse;
+  }
+
+  async deleteABTest(id: string, options: CoreOptions): Promise<DeleteABTestResponse> {
+    this.calls.push({ method: "deleteABTest", args: [id, options] });
+    if (this.error) throw this.error;
+    return this.abTestDeleteResponse;
   }
 
   async startBatchEvaluation(
