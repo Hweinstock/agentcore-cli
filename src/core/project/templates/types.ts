@@ -4,7 +4,7 @@ import type { MemorySchema } from "../../../projectSchemas/memory";
 import type { CredentialSchema } from "../../../projectSchemas/credential";
 import type z from "zod";
 
-/** AgentCore Project Spec Entries that referenced as part of a {@link Template} **/
+/** AgentCore Project Spec Entries that rendered as part of a {@link Template} **/
 export type SpecEntries = {
   runtimes?: ProjectRuntime[];
   credentials?: z.infer<typeof CredentialSchema>[];
