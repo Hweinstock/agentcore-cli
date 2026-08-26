@@ -86,12 +86,18 @@ describe("project create", () => {
 
   test("runs the post-scaffold steps and reports progress on stderr", async () => {
     const directory = await inTempDirectory();
-    const { io, core } = await run(["create", "--name", "MyAgent"]);
+    const { io, core } = await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--template",
+      "hello-world-python",
+    ]);
 
     const projectRoot = join(directory, "MyAgent");
     expect(core.projectCommands).toEqual([
       { command: ["npm", "install"], cwd: join(projectRoot, "agentcore", "cdk") },
-      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "hello-world") },
+      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "hello_world") },
       { command: ["git", "init"], cwd: projectRoot },
     ]);
     expect(io.stderr()).toContain("Creating project tree");
@@ -106,6 +112,109 @@ describe("project create", () => {
     const { core } = await run(["create", "--name", "MyAgent", "--skip-install", "--skip-git"]);
 
     expect(core.projectCommands).toEqual([]);
+  });
+
+  test("rejects --template combined with scaffolding flags", async () => {
+    await inTempDirectory();
+    await expect(
+      run([
+        "create",
+        "--name",
+        "MyAgent",
+        "--template",
+        "hello-world-python",
+        "--build",
+        "Container",
+      ]),
+    ).rejects.toThrow(/--template and --build are mutually exclusive/);
+  });
+
+  test("scaffolds from explicit custom flags", async () => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--build",
+      "CodeZip",
+      "--language",
+      "Python",
+      "--framework",
+      "none",
+      "--model-provider",
+      "Bedrock",
+      "--memory",
+      "none",
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyAgent");
+    expect(await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).exists()).toBe(true);
+  });
+
+  test("rejects an invalid --runtime-name before scaffolding", async () => {
+    const directory = await inTempDirectory();
+    await expect(
+      run([
+        "create",
+        "--name",
+        "MyProject",
+        "--runtime-name",
+        "../MyAgent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "none",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "none",
+        "--skip-install",
+        "--skip-git",
+      ]),
+    ).rejects.toThrow(/Must begin with a letter/);
+
+    expect(existsSync(join(directory, "MyProject"))).toBe(false);
+  });
+
+  test("rejects an API key with the Bedrock model provider before scaffolding", async () => {
+    const directory = await inTempDirectory();
+    await expect(
+      run(
+        [
+          "create",
+          "--name",
+          "MyProject",
+          "--build",
+          "CodeZip",
+          "--language",
+          "Python",
+          "--framework",
+          "none",
+          "--model-provider",
+          "Bedrock",
+          "--api-key",
+          "-",
+          "--memory",
+          "none",
+          "--skip-install",
+          "--skip-git",
+        ],
+        { stdin: "secret-key" },
+      ),
+    ).rejects.toThrow(/API keys are not compatible with Bedrock model providers/);
+
+    expect(existsSync(join(directory, "MyProject"))).toBe(false);
+  });
+
+  test("rejects incomplete custom flags", async () => {
+    await inTempDirectory();
+    await expect(
+      run(["create", "--name", "MyAgent", "--build", "CodeZip", "--language", "Python"]),
+    ).rejects.toThrow();
   });
 
   test("rejects an unknown --template value", async () => {
@@ -601,7 +710,7 @@ describe("project build", () => {
 
   test("resolves the project from a nested directory", async () => {
     const projectRoot = await inBuildableProject();
-    process.chdir(join(projectRoot, "app", "hello-world"));
+    process.chdir(join(projectRoot, "app", "hello_world"));
 
     const { core } = await run(["build"]);
 

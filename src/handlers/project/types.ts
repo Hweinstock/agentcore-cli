@@ -6,32 +6,64 @@ import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { RuntimeResourceConfig } from "./add/runtime/types";
 import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
+import { AgentNameSchema, BuildTypeSchema } from "../../projectSchemas/runtime";
 import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
 
-/** Available runtime templates for scaffolding agent code. A subset of {@link PROJECT_TEMPLATES} describing runtimes only */
-export const RUNTIME_TEMPLATES = {
-  HELLO_WORLD_PYTHON: "hello-world-python",
-  HELLO_WORLD_PYTHON_CONTAINER: "hello-world-python-container",
-} as const;
+export const RUNTIME_TEMPLATE_SHORTCUTS = {
+  "hello-world-python": {
+    runtimeName: "hello_world",
+    build: "CodeZip",
+    language: "Python",
+    framework: "none",
+    modelProvider: "Bedrock",
+    memory: "none",
+  },
+  "hello-world-python-container": {
+    runtimeName: "hello_world",
+    build: "Container",
+    language: "Python",
+    framework: "none",
+    modelProvider: "Bedrock",
+    memory: "none",
+  },
+} as const satisfies Record<string, ScaffoldRuntimeInput>;
 
-export type RuntimeTemplate = (typeof RUNTIME_TEMPLATES)[keyof typeof RUNTIME_TEMPLATES];
+export type RuntimeTemplateShortcutName = keyof typeof RUNTIME_TEMPLATE_SHORTCUTS;
 
-/** Available project templates for scaffolding new AgentCore projects. */
-export const PROJECT_TEMPLATES = {
-  ...RUNTIME_TEMPLATES,
-} as const;
+export const RUNTIME_TEMPLATE_SHORTCUT_NAMES = Object.keys(
+  RUNTIME_TEMPLATE_SHORTCUTS,
+) as unknown as readonly [RuntimeTemplateShortcutName, ...RuntimeTemplateShortcutName[]];
 
-export type ProjectTemplate = (typeof PROJECT_TEMPLATES)[keyof typeof PROJECT_TEMPLATES];
-
-export type CreateProjectInput = {
+type CreateProjectInputBase = {
   /** The name of the project; also the directory it is scaffolded into. */
   name: string;
-  /** The project template to scaffold from. */
-  template: ProjectTemplate;
   /** Skip installing dependencies (npm install, uv sync). */
   skipInstall?: boolean;
   /** Skip initializing a git repository. */
   skipGit?: boolean;
+};
+
+/** Set of flags needed to scaffold a new Runtime-based agent **/
+export const ScaffoldRuntimeInputSchema = z
+  .object({
+    runtimeName: AgentNameSchema,
+    build: BuildTypeSchema,
+    language: z.enum(["Python"]),
+    framework: z.enum(["none"]),
+    modelProvider: z.enum(["Bedrock"]),
+    apiKey: z.string().min(1).optional(),
+    memory: z.enum(["none"]),
+  })
+  .refine(({ modelProvider, apiKey }) => !(modelProvider === "Bedrock" && apiKey !== undefined), {
+    message: "API keys are not compatible with Bedrock model providers",
+    path: ["apiKey"],
+  });
+
+export type ScaffoldRuntimeInput = z.infer<typeof ScaffoldRuntimeInputSchema>;
+
+export type CreateProjectInput = CreateProjectInputBase & {
+  /** The resolved template parameters. The handler maps --template to these before calling the manager. */
+  scaffoldRuntimeInput: ScaffoldRuntimeInput;
 };
 
 /** A progress step reported while a long-running project operation runs. */
