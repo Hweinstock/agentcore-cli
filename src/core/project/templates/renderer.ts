@@ -31,6 +31,11 @@ export class HandlebarsTemplateRenderer implements TemplateRenderer {
     this.hbs.registerHelper("snakeCase", (str: string) =>
       str.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase(),
     );
+    this.hbs.registerHelper("safeJson", (value: unknown) => JSON.stringify(value));
+    this.hbs.registerHelper("escapePyStr", (value: unknown) => {
+      const str = typeof value === "string" ? value : "";
+      return str.replace(/\\/g, "\\\\").replace(/"""/g, '\\"\\"\\"');
+    });
   }
 
   render(template: string, context: Record<string, unknown>): string {
