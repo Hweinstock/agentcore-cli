@@ -16,6 +16,7 @@ import {
   GetDatasetCommand,
   GetEvaluatorCommand,
   GetHarnessCommand,
+  GetGatewayCommand,
   GetOnlineEvaluationConfigCommand,
   ListConfigurationBundlesCommand,
   ListConfigurationBundleVersionsCommand,
@@ -60,6 +61,7 @@ import {
 import {
   DeleteRecommendationCommand,
   EvaluateCommand,
+  CreateABTestCommand,
   GetABTestCommand,
   ListABTestsCommand,
   UpdateABTestCommand,
@@ -74,6 +76,7 @@ import {
   type EvaluationReferenceInput,
   type EvaluationResultContent,
   type EvaluationTarget,
+  type CreateABTestResponse,
   type GetABTestResponse,
   type ListABTestsResponse,
   type ABTestExecutionStatus,
@@ -119,6 +122,7 @@ import type {
   RoleScopeWarning,
   CoreEvalClient,
   CreateConfigurationBundleInput,
+  CreateConfigBundleABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -165,6 +169,7 @@ import {
   revokeOnlineEvalScope,
   scopePolicyName,
 } from "./onlineEvalExecutionRole";
+import { deleteAbTestRole, provisionAbTestRole } from "./abTestExecutionRole";
 
 const DEFAULT_ENDPOINT_QUALIFIER = "DEFAULT";
 const DEFAULT_INGESTION_WAIT_MS = 180_000;
@@ -474,6 +479,81 @@ export class EvalClient implements CoreEvalClient {
     return this.clients
       .data(toClientConfig(options))
       .send(new DeleteABTestCommand({ abTestId: id }));
+  }
+
+  async createConfigBundleABTest(
+    input: CreateConfigBundleABTestInput,
+    options: CoreOptions,
+  ): Promise<CreateABTestResponse> {
+    const control = this.clients.control(toClientConfig(options));
+    const gateway = await control.send(new GetGatewayCommand({ gatewayIdentifier: input.gateway }));
+    const gatewayArn = gateway.gatewayArn!;
+    const accountId = gatewayArn.split(":")[4] ?? "*";
+
+    const controlBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.control.configBundle}`;
+    const treatmentBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.treatment.configBundle}`;
+    const onlineEvaluationConfigArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:online-evaluation-config/${input.onlineEval}`;
+
+    const treatmentWeight = input.treatmentWeight ?? 50;
+    const variants = [
+      {
+        name: "C",
+        weight: 100 - treatmentWeight,
+        variantConfiguration: {
+          configurationBundle: {
+            bundleArn: controlBundleArn,
+            bundleVersion: input.control.bundleVersion,
+          },
+        },
+      },
+      {
+        name: "T1",
+        weight: treatmentWeight,
+        variantConfiguration: {
+          configurationBundle: {
+            bundleArn: treatmentBundleArn,
+            bundleVersion: input.treatment.bundleVersion,
+          },
+        },
+      },
+    ];
+
+    let roleArn = input.roleArn;
+    let provisionedRoleArn: string | undefined;
+    if (!roleArn) {
+      const iam = this.clients.iam({ region: options.region });
+      const provisioned = await provisionAbTestRole(iam, input.name, gatewayArn, options.region);
+      roleArn = provisioned.roleArn;
+      if (provisioned.created) provisionedRoleArn = provisioned.roleArn;
+    }
+
+    const command = new CreateABTestCommand({
+      name: input.name,
+      gatewayArn,
+      variants,
+      evaluationConfig: { onlineEvaluationConfigArn },
+      roleArn,
+      gatewayFilter: input.gatewayFilter,
+      enableOnCreate: !input.disableOnCreate,
+      clientToken: randomUUID(),
+    });
+
+    try {
+      return input.roleArn
+        ? await this.clients.data(toClientConfig(options)).send(command)
+        : await retryWhileRolePropagates(() =>
+            this.clients.data(toClientConfig(options)).send(command),
+          );
+    } catch (error) {
+      if (provisionedRoleArn) {
+        try {
+          await deleteAbTestRole(this.clients.iam({ region: options.region }), provisionedRoleArn);
+        } catch {
+          // best effort
+        }
+      }
+      throw error;
+    }
   }
 
   async listBatchInsights(

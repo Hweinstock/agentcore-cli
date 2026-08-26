@@ -76,6 +76,7 @@ import type {
   GetABTestResponse,
   ListABTestsResponse,
   ABTestExecutionStatus,
+  CreateABTestResponse,
   UpdateABTestResponse,
   DeleteABTestResponse,
   DeleteRecommendationResponse,
@@ -137,6 +138,7 @@ import type {
   CodeBasedUpdate,
   CoreEvalClient,
   CreateConfigurationBundleInput,
+  CreateConfigBundleABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -281,6 +283,7 @@ const DEFAULT_GET_ABTEST_RESPONSE = {} as GetABTestResponse;
 const DEFAULT_LIST_ABTESTS_RESPONSE: ListABTestsResponse = { abTests: [] };
 const DEFAULT_UPDATE_ABTEST_RESPONSE = {} as UpdateABTestResponse;
 const DEFAULT_DELETE_ABTEST_RESPONSE = {} as DeleteABTestResponse;
+const DEFAULT_CREATE_ABTEST_RESPONSE = {} as CreateABTestResponse;
 const DEFAULT_START_BATCH_EVAL_RESPONSE = {
   batchEvaluationId: "batch-eval-test",
   status: "RUNNING",
@@ -1438,6 +1441,7 @@ export class TestEvalClient implements CoreEvalClient {
   private abTestListResponses = new Map<string | undefined, ListABTestsResponse>();
   private abTestUpdateResponse: UpdateABTestResponse = DEFAULT_UPDATE_ABTEST_RESPONSE;
   private abTestDeleteResponse: DeleteABTestResponse = DEFAULT_DELETE_ABTEST_RESPONSE;
+  private abTestCreateResponse: CreateABTestResponse = DEFAULT_CREATE_ABTEST_RESPONSE;
   private batchEvalResults: BatchEvaluationResultEntry[] = [];
   private batchEvalResultsError?: unknown;
   private startBatchEvalResponse: StartBatchEvaluationResponse = DEFAULT_START_BATCH_EVAL_RESPONSE;
@@ -1685,6 +1689,11 @@ export class TestEvalClient implements CoreEvalClient {
     return this;
   }
 
+  setAbTestCreateResponse(response: CreateABTestResponse): this {
+    this.abTestCreateResponse = response;
+    return this;
+  }
+
   // setUpdateDatasetResult sets what updateDatasetExamples resolves to (when not
   // erroring).
   setUpdateDatasetResult(result: DatasetUpdateResult): this {
@@ -1892,6 +1901,15 @@ export class TestEvalClient implements CoreEvalClient {
     this.calls.push({ method: "deleteABTest", args: [id, options] });
     if (this.error) throw this.error;
     return this.abTestDeleteResponse;
+  }
+
+  async createConfigBundleABTest(
+    input: CreateConfigBundleABTestInput,
+    options: CoreOptions,
+  ): Promise<CreateABTestResponse> {
+    this.calls.push({ method: "createConfigBundleABTest", args: [input, options] });
+    if (this.error) throw this.error;
+    return this.abTestCreateResponse;
   }
 
   async startBatchEvaluation(

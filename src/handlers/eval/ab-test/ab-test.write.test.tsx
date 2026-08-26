@@ -36,6 +36,7 @@ describe("eval ab-test command hierarchy", () => {
       "resume",
       "stop",
       "delete",
+      "config-bundle",
     ]);
   });
 });
