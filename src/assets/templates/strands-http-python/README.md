@@ -33,14 +33,14 @@ If installation was successful, a virtual environment is already created with de
 Activate the environment with `source .venv/bin/activate` on macOS/Linux, `.venv\Scripts\activate.bat` in Windows
 Command Prompt, or `.\.venv\Scripts\activate.ps1` in Windows PowerShell.
 
-`agentcore dev` will start a local server on 0.0.0.0:8080.
+`agentcore project dev` will start a local server on 0.0.0.0:8080.
 
 In a new terminal, you can invoke that server with:
 
-`agentcore invoke --dev "What can you do"`
+`agentcore project invoke --dev "What can you do"`
 
 # Deployment
 
-After providing credentials, `agentcore deploy` will deploy your project into Amazon Bedrock AgentCore.
+After providing credentials, `agentcore project deploy` will deploy your project into Amazon Bedrock AgentCore.
 
-Use `agentcore invoke` to invoke your deployed agent.
+Use `agentcore project invoke` to invoke your deployed agent.
