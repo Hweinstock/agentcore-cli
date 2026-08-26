@@ -210,7 +210,7 @@ export class FsProjectManager implements ProjectManager {
       }
       case "runtime": {
         yield { message: "Scaffolding runtime in project" };
-        const outputPath = join(project.rootPath, "app");
+        const outputPath = join(project.rootPath, "app", input.resourceConfig.name);
         scaffoldedPaths.push(join(outputPath, input.resourceConfig.name));
 
         const spec = await this.scaffoldRuntimeResources(outputPath, input.resourceConfig);
@@ -276,7 +276,7 @@ export class FsProjectManager implements ProjectManager {
     try {
       const newSpecParseResult = ProjectSpecSchema.safeParse(projectSpec);
       if (!newSpecParseResult.success)
-        throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
+        throw new ProjectStateError(z.prettifyError(newSpecParseResult.error), {
           cause: newSpecParseResult.error,
         });
       newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
