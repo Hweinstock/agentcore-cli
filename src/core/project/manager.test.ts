@@ -18,6 +18,7 @@ import type { DeployBackendInput, ProjectBackend } from "./backends/types";
 
 const HELLO_WORLD_PYTHON = RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
 const HELLO_WORLD_PYTHON_CONTAINER = RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python-container"];
+const STRANDS_PYTHON = RUNTIME_TEMPLATE_SHORTCUTS["strands-python"];
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -69,6 +70,13 @@ async function runCreate(
   }
 }
 
+async function projectManifest(projectRoot: string): Promise<string[]> {
+  return (await readdir(projectRoot, { recursive: true, withFileTypes: true }))
+    .filter((entry) => entry.isFile())
+    .map((entry) => relative(projectRoot, join(entry.parentPath, entry.name)).replaceAll("\\", "/"))
+    .sort();
+}
+
 describe("FsProjectManager.create", () => {
   test("scaffolds the expected file tree into a fresh directory", async () => {
     const directory = await inTempDirectory();
@@ -78,14 +86,22 @@ describe("FsProjectManager.create", () => {
     });
 
     const projectRoot = join(directory, "example");
-    const manifest = (await readdir(projectRoot, { recursive: true, withFileTypes: true }))
-      .filter((entry) => entry.isFile())
-      .map((entry) =>
-        relative(projectRoot, join(entry.parentPath, entry.name)).replaceAll("\\", "/"),
-      )
-      .sort();
+    expect(await projectManifest(projectRoot)).toMatchSnapshot();
+  });
 
-    expect(manifest).toMatchSnapshot();
+  test("snapshots the Strands project manifest and runtime spec", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: STRANDS_PYTHON,
+    });
+
+    const projectRoot = join(directory, "example");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect({
+      manifest: await projectManifest(projectRoot),
+      runtimes: spec.runtimes,
+    }).toMatchSnapshot();
   });
 
   test("writes a deploy-ready agentcore.json registering the template agent", async () => {

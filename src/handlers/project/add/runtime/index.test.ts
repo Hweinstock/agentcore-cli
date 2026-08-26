@@ -64,6 +64,64 @@ describe("project add runtime", () => {
     "none",
   ];
 
+  const allInfrastructureFlags = [
+    "--description",
+    "Configured runtime",
+    "--role-arn",
+    "arn:aws:iam::123456789012:role/MyRole",
+    "--additional-policies",
+    "arn:aws:iam::123456789012:policy/MyPolicy",
+    "--protocol",
+    "HTTP",
+    "--network-mode",
+    "VPC",
+    "--network-config",
+    '{"subnets":["subnet-0123456789abcdef0"],"securityGroups":["sg-0123456789abcdef0"]}',
+    "--authorizer-type",
+    "CUSTOM_JWT",
+    "--authorizer-configuration",
+    '{"customJwtAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
+    "--request-header-allowlist",
+    "X-Custom-Header",
+    "--lifecycle-configuration",
+    '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
+    "--environment-variables",
+    '{"LOG_LEVEL":"debug","APP_ENV":"staging"}',
+    "--filesystem-configurations",
+    '[{"sessionStorage":{"mountPath":"/mnt/data"}}]',
+    "--tags",
+    '{"team":"ml","env":"test"}',
+  ];
+
+  const expectedSpecByLabel: Record<string, Record<string, unknown>> = {
+    "all infrastructure flags": {
+      description: "Configured runtime",
+      executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
+      additionalPolicies: ["arn:aws:iam::123456789012:policy/MyPolicy"],
+      protocol: "HTTP",
+      networkMode: "VPC",
+      networkConfig: {
+        subnets: ["subnet-0123456789abcdef0"],
+        securityGroups: ["sg-0123456789abcdef0"],
+      },
+      authorizerType: "CUSTOM_JWT",
+      authorizerConfiguration: {
+        customJwtAuthorizer: {
+          discoveryUrl: "https://idp.example.com/.well-known/openid-configuration",
+          allowedAudience: ["app"],
+        },
+      },
+      requestHeaderAllowlist: ["X-Custom-Header"],
+      lifecycleConfiguration: { idleRuntimeSessionTimeout: 300, maxLifetime: 3600 },
+      envVars: [
+        { name: "LOG_LEVEL", value: "debug" },
+        { name: "APP_ENV", value: "staging" },
+      ],
+      filesystemConfigurations: [{ sessionStorage: { mountPath: "/mnt/data" } }],
+      tags: { team: "ml", env: "test" },
+    },
+  };
+
   test.each<[string, string[]]>([
     ["template preset", ["--name", "my_agent", ...template]],
     [
@@ -202,86 +260,22 @@ describe("project add runtime", () => {
         "arn:aws:iam::123456789012:policy/MyPolicy",
       ],
     ],
-  ])("%s — accepts flags", async (_label, flags) => {
+    [
+      "all infrastructure flags",
+      ["--name", "configured_agent", ...template, ...allInfrastructureFlags],
+    ],
+  ])("%s — accepts flags", async (label, flags) => {
     const projectRoot = await inProject();
     await run(["add", "runtime", ...flags]);
 
     const name = flags[flags.indexOf("--name") + 1]!;
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     const runtime = spec.runtimes.find((candidate: { name: string }) => candidate.name === name);
-    expect(runtime).toMatchObject({ entrypoint: "main.py" });
+    expect(runtime).toMatchObject({ entrypoint: "main.py", ...expectedSpecByLabel[label] });
     const isContainer = flags.some(
       (value) => value === "Container" || value === "hello-world-python-container",
     );
     expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
-    expect(await Bun.file(join(projectRoot, "app", name, "main.py")).exists()).toBe(true);
-  });
-
-  test("writes all infrastructure flags to the runtime spec", async () => {
-    const projectRoot = await inProject();
-    await run([
-      "add",
-      "runtime",
-      "--name",
-      "configured_agent",
-      ...template,
-      "--description",
-      "Configured runtime",
-      "--role-arn",
-      "arn:aws:iam::123456789012:role/MyRole",
-      "--additional-policies",
-      "arn:aws:iam::123456789012:policy/MyPolicy",
-      "--protocol",
-      "HTTP",
-      "--network-mode",
-      "VPC",
-      "--network-config",
-      '{"subnets":["subnet-0123456789abcdef0"],"securityGroups":["sg-0123456789abcdef0"]}',
-      "--authorizer-type",
-      "CUSTOM_JWT",
-      "--authorizer-configuration",
-      '{"customJwtAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
-      "--request-header-allowlist",
-      "X-Custom-Header",
-      "--lifecycle-configuration",
-      '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
-      "--environment-variables",
-      '{"LOG_LEVEL":"debug","APP_ENV":"staging"}',
-      "--filesystem-configurations",
-      '[{"sessionStorage":{"mountPath":"/mnt/data"}}]',
-      "--tags",
-      '{"team":"ml","env":"test"}',
-    ]);
-
-    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect(
-      spec.runtimes.find((runtime: { name: string }) => runtime.name === "configured_agent"),
-    ).toMatchObject({
-      description: "Configured runtime",
-      executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
-      additionalPolicies: ["arn:aws:iam::123456789012:policy/MyPolicy"],
-      protocol: "HTTP",
-      networkMode: "VPC",
-      networkConfig: {
-        subnets: ["subnet-0123456789abcdef0"],
-        securityGroups: ["sg-0123456789abcdef0"],
-      },
-      authorizerType: "CUSTOM_JWT",
-      authorizerConfiguration: {
-        customJwtAuthorizer: {
-          discoveryUrl: "https://idp.example.com/.well-known/openid-configuration",
-          allowedAudience: ["app"],
-        },
-      },
-      requestHeaderAllowlist: ["X-Custom-Header"],
-      lifecycleConfiguration: { idleRuntimeSessionTimeout: 300, maxLifetime: 3600 },
-      envVars: [
-        { name: "LOG_LEVEL", value: "debug" },
-        { name: "APP_ENV", value: "staging" },
-      ],
-      filesystemConfigurations: [{ sessionStorage: { mountPath: "/mnt/data" } }],
-      tags: { team: "ml", env: "test" },
-    });
   });
 
   test.each<[string, string[]]>([

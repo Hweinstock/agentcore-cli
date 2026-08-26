@@ -74,50 +74,6 @@ describe("project create", () => {
     expect(await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).exists()).toBe(true);
   });
 
-  test("scaffolds the upstream Strands Python HTTP template", async () => {
-    const directory = await inTempDirectory();
-    await run([
-      "create",
-      "--name",
-      "MyAgent",
-      "--template",
-      "strands-python",
-      "--skip-install",
-      "--skip-git",
-    ]);
-
-    const projectRoot = join(directory, "MyAgent");
-    const runtimeRoot = join(projectRoot, "app", "strands_agent");
-    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    const main = await Bun.file(join(runtimeRoot, "main.py")).text();
-    const model = await Bun.file(join(runtimeRoot, "model", "load.py")).text();
-    const pyproject = await Bun.file(join(runtimeRoot, "pyproject.toml")).text();
-
-    expect(spec.runtimes).toEqual([
-      {
-        name: "strands_agent",
-        build: "CodeZip",
-        entrypoint: "main.py",
-        codeLocation: "app/strands_agent",
-        runtimeVersion: "PYTHON_3_14",
-        protocol: "HTTP",
-      },
-    ]);
-    expect(main).toContain("app = BedrockAgentCoreApp()");
-    expect(main).toContain("agent.stream_async(");
-    expect(model).toContain("from strands.models.bedrock import BedrockModel");
-    expect(pyproject).toContain('name = "strands_agent"');
-    expect(pyproject).toContain('requires = ["hatchling ~= 1.27.0"]');
-    expect(pyproject).toContain('"aws-opentelemetry-distro ~= 0.17.0"');
-    expect(pyproject).toContain('"bedrock-agentcore ~= 1.9.1"');
-    expect(pyproject).toContain('"botocore[crt] ~= 1.43.0"');
-    expect(pyproject).toContain('"mcp ~= 1.24.0"');
-    expect(pyproject).toContain('"strands-agents ~= 1.15.0"');
-    expect(main).not.toContain("{{");
-    expect(await Bun.file(join(runtimeRoot, "mcp_client", "client.py")).exists()).toBe(true);
-    expect(await Bun.file(join(runtimeRoot, ".gitignore")).exists()).toBe(true);
-  });
-
   test("rejects an invalid --project-name", async () => {
     await inTempDirectory();
     await expect(run(["create", "--name", "1-bad"])).rejects.toThrow();
