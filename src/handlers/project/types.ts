@@ -1,12 +1,7 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
-import {
-  DEFAULT_EPISODIC_REFLECTION_NAMESPACE_TEMPLATES,
-  DEFAULT_STRATEGY_NAMESPACE_TEMPLATES,
-  MemorySchema,
-  type Memory,
-} from "../../projectSchemas/memory";
+import { MemorySchema } from "../../projectSchemas/memory";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { RuntimeResourceConfig } from "./add/runtime/types";
@@ -14,69 +9,6 @@ import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-co
 import { AgentNameSchema, BuildTypeSchema, EntrypointSchema } from "../../projectSchemas/runtime";
 import { RuntimeVersionSchema } from "../../projectSchemas/constants";
 import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
-
-export const RUNTIME_TEMPLATE_SHORTCUTS = {
-  "hello-world-python": {
-    runtimeName: "hello_world",
-    build: "CodeZip",
-    language: "Python",
-    framework: "none",
-    modelProvider: "Bedrock",
-    entrypoint: "main.py",
-    runtimeVersion: "PYTHON_3_14",
-  },
-  "hello-world-python-container": {
-    runtimeName: "hello_world",
-    build: "Container",
-    language: "Python",
-    framework: "none",
-    modelProvider: "Bedrock",
-    entrypoint: "main.py",
-  },
-  "strands-python": {
-    runtimeName: "strands_agent",
-    build: "CodeZip",
-    language: "Python",
-    framework: "strands",
-    modelProvider: "Bedrock",
-    entrypoint: "main.py",
-    runtimeVersion: "PYTHON_3_14",
-  },
-} as const satisfies Record<string, ScaffoldRuntimeInput>;
-
-export type RuntimeTemplateShortcutName = keyof typeof RUNTIME_TEMPLATE_SHORTCUTS;
-
-export const RUNTIME_TEMPLATE_SHORTCUT_NAMES = Object.keys(
-  RUNTIME_TEMPLATE_SHORTCUTS,
-) as unknown as readonly [RuntimeTemplateShortcutName, ...RuntimeTemplateShortcutName[]];
-
-export const DEFAULT_MEMORY_SHORTCUTS = {
-  none: (_runtimeName: string) => undefined,
-  short: (runtimeName: string): Memory => ({
-    name: `${runtimeName}Memory`,
-    eventExpiryDuration: 30,
-    strategies: [],
-  }),
-  shortAndLongTerm: (runtimeName: string): Memory => ({
-    name: `${runtimeName}Memory`,
-    eventExpiryDuration: 30,
-    strategies: (["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"] as const).map(
-      (type) => ({
-        type,
-        namespaceTemplates: DEFAULT_STRATEGY_NAMESPACE_TEMPLATES[type],
-        ...(type === "EPISODIC" && {
-          reflectionNamespaceTemplates: DEFAULT_EPISODIC_REFLECTION_NAMESPACE_TEMPLATES,
-        }),
-      }),
-    ),
-  }),
-} satisfies Record<string, (runtimeName: string) => Memory | undefined>;
-
-export type DefaultMemoryShortcutName = keyof typeof DEFAULT_MEMORY_SHORTCUTS;
-
-export const DEFAULT_MEMORY_SHORTCUT_NAMES = Object.keys(
-  DEFAULT_MEMORY_SHORTCUTS,
-) as unknown as readonly [DefaultMemoryShortcutName, ...DefaultMemoryShortcutName[]];
 
 type CreateProjectInputBase = {
   /** The name of the project; also the directory it is scaffolded into. */
@@ -87,7 +19,7 @@ type CreateProjectInputBase = {
   skipGit?: boolean;
 };
 
-/** Set of arguments needed to scaffold a new Runtime-based agent **/
+/** Set of arguments needed to scaffold a new Runtime-based agent. */
 export const ScaffoldRuntimeInputSchema = z
   .object({
     runtimeName: AgentNameSchema,

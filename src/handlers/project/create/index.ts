@@ -2,10 +2,12 @@ import z from "zod";
 import { createHandler, flag } from "../../../router";
 import { SourceResolver, type AppIO } from "../../../io";
 import {
-  DEFAULT_MEMORY_SHORTCUT_NAMES,
-  DEFAULT_MEMORY_SHORTCUTS,
+  MEMORY_SHORTCUT_NAMES,
+  MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
-  RUNTIME_TEMPLATE_SHORTCUTS,
+  resolveRuntimeTemplateShortcut,
+} from "../shortcuts";
+import {
   ScaffoldRuntimeInputSchema,
   type CreateProjectInput,
   type ProjectManager,
@@ -59,7 +61,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag(
         "memory",
         "memory option for the scaffolded runtime",
-        z.enum(DEFAULT_MEMORY_SHORTCUT_NAMES).optional(),
+        z.enum(MEMORY_SHORTCUT_NAMES).optional(),
       ),
       flag("runtime-name", "name of the scaffolded runtime", z.string().optional()),
       flag(
@@ -94,7 +96,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
 
       const runtimeName = flags["runtime-name"] ?? flags["name"];
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
-        ? RUNTIME_TEMPLATE_SHORTCUTS[flags["template"]!]
+        ? resolveRuntimeTemplateShortcut(flags["template"]!)
         : isCustom
           ? parseScaffoldRuntimeInput({
               runtimeName,
@@ -103,11 +105,11 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
               framework: flags["framework"],
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: DEFAULT_MEMORY_SHORTCUTS[flags["memory"] ?? "shortAndLongTerm"](runtimeName),
+              memory: MEMORY_SHORTCUTS[flags["memory"] ?? "shortAndLongTerm"](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
-          : RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
+          : resolveRuntimeTemplateShortcut("hello-world-python");
 
       const createInput: CreateProjectInput = {
         name: flags["name"],

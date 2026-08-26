@@ -8,13 +8,12 @@ import { RuntimeAuthorizerTypeSchema } from "../../../../projectSchemas/auth";
 import { NetworkModeSchema, ProtocolModeSchema } from "../../../../projectSchemas/constants";
 import { SourceResolver } from "../../../../io";
 import {
-  DEFAULT_MEMORY_SHORTCUT_NAMES,
-  DEFAULT_MEMORY_SHORTCUTS,
+  MEMORY_SHORTCUT_NAMES,
+  MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
-  RUNTIME_TEMPLATE_SHORTCUTS,
-  ScaffoldRuntimeInputSchema,
-  type ScaffoldRuntimeInput,
-} from "../../types";
+  resolveRuntimeTemplateShortcut,
+} from "../../shortcuts";
+import { ScaffoldRuntimeInputSchema, type ScaffoldRuntimeInput } from "../../types";
 import { RuntimeResourceConfigSchema } from "./types";
 
 export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
@@ -54,7 +53,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       flag(
         "memory",
         "memory option for the scaffolded runtime",
-        z.enum(DEFAULT_MEMORY_SHORTCUT_NAMES).optional(),
+        z.enum(MEMORY_SHORTCUT_NAMES).optional(),
       ),
       flag(
         "role-arn",
@@ -128,7 +127,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
 
       const runtimeName = flags.name;
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
-        ? RUNTIME_TEMPLATE_SHORTCUTS[flags.template!]
+        ? resolveRuntimeTemplateShortcut(flags.template!, runtimeName)
         : isCustom
           ? parseScaffoldRuntimeInput({
               runtimeName,
@@ -137,11 +136,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
               framework: flags.framework,
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: DEFAULT_MEMORY_SHORTCUTS[flags.memory ?? "shortAndLongTerm"](runtimeName),
+              memory: MEMORY_SHORTCUTS[flags.memory ?? "shortAndLongTerm"](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags.build === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
-          : RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
+          : resolveRuntimeTemplateShortcut("hello-world-python", runtimeName);
 
       const inputEnvironmentVariables = parseJsonFlag<Record<string, string>>(
         "environment-variables",

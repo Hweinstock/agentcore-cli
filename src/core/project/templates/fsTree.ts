@@ -107,6 +107,7 @@ export class FsTreeNode {
       for (const [index, segment] of segments.entries()) {
         const isDir = index < segments.length - 1;
         const name = isDir ? segment : renderName(segment);
+        // if the segment of a path rejects, reject the rest of the path so we jump to top-loop via assetPaths label.
         if (filter && !filter(name, isDir)) continue assetPaths;
 
         if (!isDir) {
