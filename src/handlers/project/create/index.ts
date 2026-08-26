@@ -96,6 +96,8 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
               modelProvider: flags["model-provider"],
               apiKey,
               memory: flags["memory"],
+              entrypoint: "main.py",
+              runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
           : RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
 

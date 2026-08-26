@@ -194,7 +194,16 @@ describe("project create", () => {
     ]);
 
     const projectRoot = join(directory, "MyAgent");
-    expect(await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).exists()).toBe(true);
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes).toEqual([
+      {
+        name: "MyAgent",
+        build: "CodeZip",
+        entrypoint: "main.py",
+        codeLocation: "app/MyAgent",
+        runtimeVersion: "PYTHON_3_14",
+      },
+    ]);
   });
 
   test("rejects an invalid --runtime-name before scaffolding", async () => {

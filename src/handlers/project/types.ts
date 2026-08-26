@@ -6,7 +6,8 @@ import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { RuntimeResourceConfig } from "./add/runtime/types";
 import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
-import { AgentNameSchema, BuildTypeSchema } from "../../projectSchemas/runtime";
+import { AgentNameSchema, BuildTypeSchema, EntrypointSchema } from "../../projectSchemas/runtime";
+import { RuntimeVersionSchema } from "../../projectSchemas/constants";
 import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
 
 export const RUNTIME_TEMPLATE_SHORTCUTS = {
@@ -17,6 +18,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "none",
     modelProvider: "Bedrock",
     memory: "none",
+    entrypoint: "main.py",
+    runtimeVersion: "PYTHON_3_14",
   },
   "hello-world-python-container": {
     runtimeName: "hello_world",
@@ -25,6 +28,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "none",
     modelProvider: "Bedrock",
     memory: "none",
+    entrypoint: "main.py",
   },
   "strands-python": {
     runtimeName: "strands_agent",
@@ -33,6 +37,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "strands",
     modelProvider: "Bedrock",
     memory: "none",
+    entrypoint: "main.py",
+    runtimeVersion: "PYTHON_3_14",
   },
 } as const satisfies Record<string, ScaffoldRuntimeInput>;
 
@@ -61,10 +67,28 @@ export const ScaffoldRuntimeInputSchema = z
     modelProvider: z.enum(["Bedrock"]),
     apiKey: z.string().min(1).optional(),
     memory: z.enum(["none"]),
+    entrypoint: EntrypointSchema,
+    runtimeVersion: RuntimeVersionSchema.optional(),
   })
   .refine(({ modelProvider, apiKey }) => !(modelProvider === "Bedrock" && apiKey !== undefined), {
     message: "API keys are not compatible with Bedrock model providers",
     path: ["apiKey"],
+  })
+  .superRefine(({ build, runtimeVersion }, ctx) => {
+    if (build === "CodeZip" && runtimeVersion === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "runtimeVersion is required for CodeZip builds",
+        path: ["runtimeVersion"],
+      });
+    }
+    if (build === "Container" && runtimeVersion !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: "runtimeVersion is not supported for Container builds",
+        path: ["runtimeVersion"],
+      });
+    }
   });
 
 export type ScaffoldRuntimeInput = z.infer<typeof ScaffoldRuntimeInputSchema>;

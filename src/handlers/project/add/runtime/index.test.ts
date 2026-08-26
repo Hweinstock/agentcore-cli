@@ -66,6 +66,10 @@ describe("project add runtime", () => {
 
   test.each<[string, string[]]>([
     ["template preset", ["--name", "my_agent", ...template]],
+    [
+      "container template preset",
+      ["--name", "my_agent", "--template", "hello-world-python-container"],
+    ],
     ["strands-python template preset", ["--name", "my_agent", "--template", "strands-python"]],
     ["custom — all scaffolding flags", ["--name", "my_agent", ...allScaffoldingFlags]],
     [
@@ -204,7 +208,12 @@ describe("project add runtime", () => {
 
     const name = flags[flags.indexOf("--name") + 1]!;
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect(spec.runtimes.some((runtime: { name: string }) => runtime.name === name)).toBe(true);
+    const runtime = spec.runtimes.find((candidate: { name: string }) => candidate.name === name);
+    expect(runtime).toMatchObject({ entrypoint: "main.py" });
+    const isContainer = flags.some(
+      (value) => value === "Container" || value === "hello-world-python-container",
+    );
+    expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
     expect(await Bun.file(join(projectRoot, "app", name, "main.py")).exists()).toBe(true);
   });
 

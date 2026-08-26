@@ -11,9 +11,11 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   return {
     name,
     build: scaffoldRuntimeInput.build,
-    entrypoint: "main.py",
+    entrypoint: scaffoldRuntimeInput.entrypoint,
     codeLocation: `app/${name}` as ProjectRuntime["codeLocation"],
-    ...(scaffoldRuntimeInput.build === "CodeZip" && { runtimeVersion: "PYTHON_3_14" as const }),
+    ...(scaffoldRuntimeInput.runtimeVersion && {
+      runtimeVersion: scaffoldRuntimeInput.runtimeVersion,
+    }),
     ...(scaffoldRuntimeInput.build === "Container" && { dockerfile: "Dockerfile" }),
     ...(infra.description && { description: infra.description }),
     ...(infra.executionRoleArn && { executionRoleArn: infra.executionRoleArn }),
@@ -32,7 +34,6 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
       filesystemConfigurations: infra.filesystemConfigurations,
     }),
     ...(infra.tags && { tags: infra.tags }),
-    ...(infra.runtimeVersion && { runtimeVersion: infra.runtimeVersion }),
   };
 }
 
