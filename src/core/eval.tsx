@@ -534,7 +534,7 @@ export class EvalClient implements CoreEvalClient {
       evaluationConfig: { onlineEvaluationConfigArn },
       roleArn,
       gatewayFilter: input.gatewayFilter,
-      enableOnCreate: !input.disableOnCreate,
+      enableOnCreate: input.enableOnCreate ?? true,
       clientToken: randomUUID(),
     });
 

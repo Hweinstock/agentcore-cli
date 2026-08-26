@@ -76,7 +76,7 @@ describe("eval ab-test config-bundle run", () => {
       treatmentWeight: 20,
       gatewayFilter: undefined,
       roleArn: undefined,
-      disableOnCreate: false,
+      enableOnCreate: undefined,
     });
     expect(call?.args[1]).toEqual({ region: "us-west-2" });
   });
@@ -94,17 +94,25 @@ describe("eval ab-test config-bundle run", () => {
     });
   });
 
-  test("passes --disable-on-create and --role-arn through", async () => {
+  test("passes --enable-on-create false and --role-arn through", async () => {
     const { core } = await run([
       ...BASE,
-      "--disable-on-create",
+      "--enable-on-create",
+      "false",
       "--role-arn",
       "arn:aws:iam::123456789012:role/customer-owned",
     ]);
     const call = core.eval.calls.find((c) => c.method === "createConfigBundleABTest");
-    const input = call?.args[0] as { disableOnCreate?: boolean; roleArn?: string };
-    expect(input.disableOnCreate).toBe(true);
+    const input = call?.args[0] as { enableOnCreate?: boolean; roleArn?: string };
+    expect(input.enableOnCreate).toBe(false);
     expect(input.roleArn).toBe("arn:aws:iam::123456789012:role/customer-owned");
+  });
+
+  test("--enable-on-create true is passed through", async () => {
+    const { core } = await run([...BASE, "--enable-on-create", "true"]);
+    const call = core.eval.calls.find((c) => c.method === "createConfigBundleABTest");
+    expect(call).toBeDefined();
+    expect((call!.args[0] as { enableOnCreate?: boolean }).enableOnCreate).toBe(true);
   });
 
   test("rejects equal control/treatment bundle-versions", async () => {

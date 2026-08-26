@@ -62,7 +62,11 @@ export const createConfigBundleRunHandler = (core: Core, io: AppIO) =>
         "execution-role override (default: auto-provisioned)",
         z.string().optional(),
       ),
-      flag("disable-on-create", "create without starting", z.boolean().optional()),
+      flag(
+        "enable-on-create",
+        "whether to start the test immediately (default true; pass false to create it paused)",
+        z.enum(["true", "false"]).optional(),
+      ),
     ],
     handle: async (ctx, flags) => {
       const required = ["name", "gateway", "control", "treatment", "online-eval"] as const;
@@ -110,7 +114,10 @@ export const createConfigBundleRunHandler = (core: Core, io: AppIO) =>
           treatmentWeight,
           gatewayFilter,
           roleArn: flags["role-arn"],
-          disableOnCreate: flags["disable-on-create"],
+          enableOnCreate:
+            flags["enable-on-create"] === undefined
+              ? undefined
+              : flags["enable-on-create"] === "true",
         },
         coreOptsFromCtx(ctx),
       );

@@ -244,7 +244,7 @@ export type CreateConfigBundleABTestInput = {
   treatmentWeight?: number;
   gatewayFilter?: GatewayFilter;
   roleArn?: string;
-  disableOnCreate?: boolean;
+  enableOnCreate?: boolean;
 };
 
 export type CreateDatasetInput = CreateDatasetRequest;
