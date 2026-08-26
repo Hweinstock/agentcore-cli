@@ -8,9 +8,12 @@ import { RuntimeAuthorizerTypeSchema } from "../../../../projectSchemas/auth";
 import { NetworkModeSchema, ProtocolModeSchema } from "../../../../projectSchemas/constants";
 import { SourceResolver } from "../../../../io";
 import {
+  DEFAULT_MEMORY_SHORTCUT_NAMES,
+  DEFAULT_MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
   RUNTIME_TEMPLATE_SHORTCUTS,
   ScaffoldRuntimeInputSchema,
+  type ScaffoldRuntimeInput,
 } from "../../types";
 import { RuntimeResourceConfigSchema } from "./types";
 
@@ -48,7 +51,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         z.string().optional(),
         { sensitive: true },
       ),
-      flag("memory", "memory option for the scaffolded runtime", z.enum(["none"]).optional()),
+      flag(
+        "memory",
+        "memory option for the scaffolded runtime",
+        z.enum(DEFAULT_MEMORY_SHORTCUT_NAMES).optional(),
+      ),
       flag(
         "role-arn",
         "IAM role ARN that provides permissions for the runtime",
@@ -119,17 +126,18 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       const source = new SourceResolver({ stdin: config.io.stdin });
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
-      const scaffoldRuntimeInput = isTemplate
+      const runtimeName = flags.name;
+      const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
         ? RUNTIME_TEMPLATE_SHORTCUTS[flags.template!]
         : isCustom
           ? parseScaffoldRuntimeInput({
-              runtimeName: flags.name,
+              runtimeName,
               build: flags.build,
               language: flags.language,
               framework: flags.framework,
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: flags.memory,
+              memory: DEFAULT_MEMORY_SHORTCUTS[flags.memory ?? "none"](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags.build === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
@@ -187,7 +195,7 @@ function toEnvironmentVariables(envVars: Record<string, string> | undefined): En
   return envVars ? Object.entries(envVars).map(([name, value]) => ({ name, value })) : [];
 }
 
-function parseScaffoldRuntimeInput(input: Record<string, unknown>) {
+function parseScaffoldRuntimeInput(input: Partial<ScaffoldRuntimeInput>) {
   const result = ScaffoldRuntimeInputSchema.safeParse(input);
   if (!result.success) throw new InputValidationError(z.prettifyError(result.error));
   return result.data;

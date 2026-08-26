@@ -1,7 +1,12 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
-import type { MemorySchema } from "../../projectSchemas/memory";
+import {
+  DEFAULT_EPISODIC_REFLECTION_NAMESPACE_TEMPLATES,
+  DEFAULT_STRATEGY_NAMESPACE_TEMPLATES,
+  MemorySchema,
+  type Memory,
+} from "../../projectSchemas/memory";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { RuntimeResourceConfig } from "./add/runtime/types";
@@ -17,7 +22,6 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "none",
     modelProvider: "Bedrock",
-    memory: "none",
     entrypoint: "main.py",
     runtimeVersion: "PYTHON_3_14",
   },
@@ -27,7 +31,6 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "none",
     modelProvider: "Bedrock",
-    memory: "none",
     entrypoint: "main.py",
   },
   "strands-python": {
@@ -36,7 +39,6 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "strands",
     modelProvider: "Bedrock",
-    memory: "none",
     entrypoint: "main.py",
     runtimeVersion: "PYTHON_3_14",
   },
@@ -48,6 +50,34 @@ export const RUNTIME_TEMPLATE_SHORTCUT_NAMES = Object.keys(
   RUNTIME_TEMPLATE_SHORTCUTS,
 ) as unknown as readonly [RuntimeTemplateShortcutName, ...RuntimeTemplateShortcutName[]];
 
+export const DEFAULT_MEMORY_SHORTCUTS = {
+  none: (_runtimeName: string) => undefined,
+  short: (runtimeName: string): Memory => ({
+    name: `${runtimeName}Memory`,
+    eventExpiryDuration: 30,
+    strategies: [],
+  }),
+  shortAndLongTerm: (runtimeName: string): Memory => ({
+    name: `${runtimeName}Memory`,
+    eventExpiryDuration: 30,
+    strategies: (["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"] as const).map(
+      (type) => ({
+        type,
+        namespaceTemplates: DEFAULT_STRATEGY_NAMESPACE_TEMPLATES[type],
+        ...(type === "EPISODIC" && {
+          reflectionNamespaceTemplates: DEFAULT_EPISODIC_REFLECTION_NAMESPACE_TEMPLATES,
+        }),
+      }),
+    ),
+  }),
+} satisfies Record<string, (runtimeName: string) => Memory | undefined>;
+
+export type DefaultMemoryShortcutName = keyof typeof DEFAULT_MEMORY_SHORTCUTS;
+
+export const DEFAULT_MEMORY_SHORTCUT_NAMES = Object.keys(
+  DEFAULT_MEMORY_SHORTCUTS,
+) as unknown as readonly [DefaultMemoryShortcutName, ...DefaultMemoryShortcutName[]];
+
 type CreateProjectInputBase = {
   /** The name of the project; also the directory it is scaffolded into. */
   name: string;
@@ -57,7 +87,7 @@ type CreateProjectInputBase = {
   skipGit?: boolean;
 };
 
-/** Set of flags needed to scaffold a new Runtime-based agent **/
+/** Set of arguments needed to scaffold a new Runtime-based agent **/
 export const ScaffoldRuntimeInputSchema = z
   .object({
     runtimeName: AgentNameSchema,
@@ -66,7 +96,7 @@ export const ScaffoldRuntimeInputSchema = z
     framework: z.enum(["strands", "none"]),
     modelProvider: z.enum(["Bedrock"]),
     apiKey: z.string().min(1).optional(),
-    memory: z.enum(["none"]),
+    memory: MemorySchema.optional(),
     entrypoint: EntrypointSchema,
     runtimeVersion: RuntimeVersionSchema.optional(),
   })

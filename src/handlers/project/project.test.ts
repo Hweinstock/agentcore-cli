@@ -129,6 +129,59 @@ describe("project create", () => {
     ).rejects.toThrow(/--template and --build are mutually exclusive/);
   });
 
+  test.each([
+    ["default", [], []],
+    ["none", ["--memory", "none"], []],
+    ["short", ["--memory", "short"], []],
+    [
+      "shortAndLongTerm",
+      ["--memory", "shortAndLongTerm"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
+  ])("custom strands %s memory", async (_label, memoryFlags, expectedStrategies) => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--build",
+      "CodeZip",
+      "--language",
+      "Python",
+      "--framework",
+      "strands",
+      "--model-provider",
+      "Bedrock",
+      ...memoryFlags,
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyAgent");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const memories = spec.memories ?? [];
+    const memory = memories[0];
+
+    if (memoryFlags.length === 0 || memoryFlags[1] === "none") {
+      expect(memories).toEqual([]);
+      return;
+    }
+
+    expect(memory).toMatchObject({
+      name: "MyAgentMemory",
+      eventExpiryDuration: 30,
+    });
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+
+    const main = await Bun.file(join(projectRoot, "app", "MyAgent", "main.py")).text();
+    const session = await Bun.file(
+      join(projectRoot, "app", "MyAgent", "memory", "session.py"),
+    ).text();
+    expect(main).toContain("from memory.session import get_memory_session_manager");
+    expect(session).toContain('MEMORY_ID = os.getenv("MEMORY_MYAGENTMEMORY_ID")');
+    expect(session.includes("RetrievalConfig")).toBe(expectedStrategies.length > 0);
+  });
+
   test("scaffolds from explicit custom flags", async () => {
     const directory = await inTempDirectory();
     await run([

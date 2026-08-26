@@ -72,7 +72,11 @@ describe("FsTreeNode.fromAssetSource", () => {
       },
     };
 
-    const tree = await FsTreeNode.fromAssetSource(source, "template", "root");
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource: source },
+      { assetDir: "template" },
+      { rootDirName: "root" },
+    );
 
     expect(tree.name).toBe("root");
     expect(tree.children.map((node) => node.name)).toEqual(["README.md", "src", ".gitignore"]);
@@ -82,5 +86,28 @@ describe("FsTreeNode.fromAssetSource", () => {
       "helpers.ts",
     ]);
     expect(await tree.children[2]?.bytes?.()).toBe("contents:template/gitignore.template");
+  });
+
+  test("transforms content and filters files and directories", async () => {
+    const source: AssetSource = {
+      async list() {
+        return ["template/keep.txt", "template/skip.txt", "template/optional/nested.txt"];
+      },
+      async read(assetPath) {
+        return `contents:${assetPath}`;
+      },
+    };
+
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource: source },
+      { assetDir: "template" },
+      {
+        transformContent: (content) => content.toUpperCase(),
+        filter: (name, isDir) => name !== "skip.txt" && !(isDir && name === "optional"),
+      },
+    );
+
+    expect(tree.children.map(({ name }) => name)).toEqual(["keep.txt"]);
+    expect(await tree.children[0]?.bytes?.()).toBe("CONTENTS:TEMPLATE/KEEP.TXT");
   });
 });

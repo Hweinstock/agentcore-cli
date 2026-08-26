@@ -61,11 +61,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError(`hello-world-python only supports HTTP protocol`);
     const tree = await FsTreeNode.fromAssetSource(
-      assetSource,
-      input.scaffoldRuntimeInput.build === "Container"
-        ? "templates/hello-world-python-container"
-        : "templates/hello-world-python",
-      input.name,
+      { assetSource },
+      {
+        assetDir:
+          input.scaffoldRuntimeInput.build === "Container"
+            ? "templates/hello-world-python-container"
+            : "templates/hello-world-python",
+      },
+      { rootDirName: input.name },
     );
     return { tree, spec: { runtimes: [buildRuntimeSpec(input)] } };
   },
@@ -87,10 +90,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         ? [{ mountPath: configuration.s3FilesAccessPoint.mountPath }]
         : [],
     );
+    const memory = input.scaffoldRuntimeInput.memory;
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
-      hasMemory: input.scaffoldRuntimeInput.memory !== "none",
+      hasMemory: memory !== undefined,
+      // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
+      memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
+      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
       hasIdentity: false,
       hasGateway: false,
       hasPayment: false,
@@ -105,14 +112,20 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       hasConfigBundle: false,
     };
     const tree = await FsTreeNode.fromAssetSource(
-      assetSource,
-      "templates/strands-http-python",
-      input.name,
-      (raw) => templateRenderer.render(raw, context),
+      { assetSource },
+      { assetDir: "templates/strands-http-python" },
+      {
+        rootDirName: input.name,
+        transformContent: (raw) => templateRenderer.render(raw, context),
+        filter: (name, isDir) => memory !== undefined || !isDir || name !== "memory",
+      },
     );
     return {
       tree,
-      spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }] },
+      spec: {
+        runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
+        ...(memory && { memories: [memory] }),
+      },
     };
   },
 });

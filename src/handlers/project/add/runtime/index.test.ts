@@ -292,6 +292,58 @@ describe("project add runtime", () => {
     expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
   });
 
+  test.each([
+    ["default", [], []],
+    ["none", ["--memory", "none"], []],
+    ["short", ["--memory", "short"], []],
+    [
+      "shortAndLongTerm",
+      ["--memory", "shortAndLongTerm"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
+  ])("custom strands %s memory", async (_label, memoryFlags, expectedStrategies) => {
+    const projectRoot = await inProject();
+    await run([
+      "add",
+      "runtime",
+      "--name",
+      "my_agent",
+      "--build",
+      "CodeZip",
+      "--language",
+      "Python",
+      "--framework",
+      "strands",
+      "--model-provider",
+      "Bedrock",
+      ...memoryFlags,
+    ]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const memory = spec.memories.find(
+      (candidate: { name: string }) => candidate.name === "my_agentMemory",
+    );
+
+    if (memoryFlags.length === 0 || memoryFlags[1] === "none") {
+      expect(memory).toBeUndefined();
+      return;
+    }
+
+    expect(memory).toMatchObject({
+      name: "my_agentMemory",
+      eventExpiryDuration: 30,
+    });
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+
+    const main = await Bun.file(join(projectRoot, "app", "my_agent", "main.py")).text();
+    const session = await Bun.file(
+      join(projectRoot, "app", "my_agent", "memory", "session.py"),
+    ).text();
+    expect(main).toContain("from memory.session import get_memory_session_manager");
+    expect(session).toContain('MEMORY_ID = os.getenv("MEMORY_MY_AGENTMEMORY_ID")');
+    expect(session.includes("RetrievalConfig")).toBe(expectedStrategies.length > 0);
+  });
+
   test.each<[string, string[]]>([
     ["missing --name", ["--template", "hello-world-python"]],
     [
@@ -327,7 +379,7 @@ describe("project add runtime", () => {
     ],
     [
       "--template and --memory are mutually exclusive",
-      ["--name", "my_agent", "--template", "hello-world-python", "--memory", "none"],
+      ["--name", "my_agent", "--template", "strands-python", "--memory", "short"],
     ],
     [
       "strands-python only supports HTTP",
