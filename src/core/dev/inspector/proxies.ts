@@ -1,0 +1,90 @@
+import type { HttpRequest, HttpResponse } from "../../../io/httpServer";
+import { apiError, asString, errorMessage, iterateBody, json, parseJsonBody } from "./respond";
+import type { InspectorDeps } from "./types";
+
+/** Cap the buffered MCP response so a runaway agent cannot exhaust memory. */
+const MAX_MCP_RESPONSE_BYTES = 10 * 1024 * 1024;
+
+export async function handleMcpProxy(
+  deps: InspectorDeps,
+  request: HttpRequest,
+): Promise<HttpResponse> {
+  const parsed = parseJsonBody(request.body);
+  if (!parsed) return apiError(400, "Invalid JSON");
+  const agentName = asString(parsed.agentName);
+  if (!agentName) return apiError(400, "agentName is required");
+  const body = parsed.body;
+  if (!body || typeof body !== "object") return apiError(400, "body is required");
+  const sessionId = asString(parsed.sessionId);
+
+  const running = deps.supervisor.running(agentName);
+  if (!running) return apiError(400, `Agent "${agentName}" is not running`);
+
+  let mcpResponse: Response;
+  try {
+    mcpResponse = await fetch(`http://127.0.0.1:${running.port}/mcp`, {
+      method: "POST",
+      // Accept JSON only because this proxy buffers the full response and never streams.
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+        ...(sessionId !== undefined && { "mcp-session-id": sessionId }),
+      },
+      body: JSON.stringify(body),
+      signal: request.signal,
+    });
+  } catch (error) {
+    return apiError(502, `Failed to connect to MCP agent: ${errorMessage(error)}`);
+  }
+  if (!mcpResponse.ok) return apiError(502, `MCP server returned status ${mcpResponse.status}`);
+
+  const responseText = await readCapped(mcpResponse, MAX_MCP_RESPONSE_BYTES);
+  if (responseText === undefined) return apiError(502, "MCP response exceeded the size limit");
+
+  const responseSessionId = mcpResponse.headers.get("mcp-session-id") ?? undefined;
+  let result: unknown;
+  try {
+    result = JSON.parse(responseText);
+  } catch {
+    result = responseText;
+  }
+  return json(200, { success: true, result, sessionId: responseSessionId });
+}
+
+export async function handleA2aAgentCard(
+  deps: InspectorDeps,
+  url: URL,
+  signal: AbortSignal,
+): Promise<HttpResponse> {
+  const agentName = url.searchParams.get("agentName") ?? undefined;
+  if (!agentName) return apiError(400, "agentName query parameter is required");
+
+  const running = deps.supervisor.running(agentName);
+  if (!running) return apiError(400, `Agent "${agentName}" is not running`);
+
+  try {
+    const cardResponse = await fetch(`http://127.0.0.1:${running.port}/.well-known/agent.json`, {
+      method: "GET",
+      headers: { Accept: "application/json" },
+      signal,
+    });
+    if (!cardResponse.ok) {
+      return apiError(502, `Agent card not available (${cardResponse.status})`);
+    }
+    const card: unknown = await cardResponse.json();
+    return json(200, { success: true, card });
+  } catch (error) {
+    return apiError(502, `Failed to fetch agent card: ${errorMessage(error)}`);
+  }
+}
+
+async function readCapped(response: Response, maxBytes: number): Promise<string | undefined> {
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for await (const value of iterateBody(response.body)) {
+    size += value.length;
+    if (size > maxBytes) return undefined;
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
+}

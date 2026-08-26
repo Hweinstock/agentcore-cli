@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { type HttpServerHandle, startHttpServer } from "./httpServer";
+import type { ServerResponse } from "node:http";
+import { type HttpServerHandle, startHttpServer, stream } from "./httpServer";
 
 let handle: HttpServerHandle | undefined;
 
@@ -71,6 +72,37 @@ describe("startHttpServer", () => {
     expect((await fetch(`http://127.0.0.1:${handle.port}/`)).status).toBe(200);
   });
 
+  test("streams an async-iterable body chunk by chunk", async () => {
+    handle = await startHttpServer(() => ({
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+      body: (async function* () {
+        yield new TextEncoder().encode("one\n");
+        yield new TextEncoder().encode("two\n");
+      })(),
+    }));
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("one\ntwo\n");
+  });
+
+  test("a handler stream that throws after starting ends the response without crashing", async () => {
+    handle = await startHttpServer(() => ({
+      status: 200,
+      headers: { "Content-Type": "text/plain" },
+      body: (async function* () {
+        yield new TextEncoder().encode("partial");
+        throw new Error("mid-stream boom");
+      })(),
+    }));
+
+    const response = await fetch(`http://127.0.0.1:${handle.port}/`);
+    expect(response.status).toBe(200);
+    expect(await response.text()).toBe("partial");
+    expect((await fetch(`http://127.0.0.1:${handle.port}/`)).status).toBe(200);
+  });
+
   test("aborting the signal closes the server", async () => {
     const controller = new AbortController();
     const server = await startHttpServer(() => ({ status: 200 }), { signal: controller.signal });
@@ -89,5 +121,79 @@ describe("startHttpServer", () => {
   test("listen failure rejects instead of hanging", async () => {
     handle = await startHttpServer(() => ({ status: 200 }));
     expect(startHttpServer(() => ({ status: 200 }), { port: handle.port })).rejects.toThrow();
+  });
+});
+
+describe("stream", () => {
+  function fakeResponse() {
+    const written: string[] = [];
+    let ended = false;
+    const response = {
+      write: (chunk: Uint8Array) => {
+        written.push(new TextDecoder().decode(chunk));
+        return true;
+      },
+      end: () => {
+        ended = true;
+      },
+    } as unknown as ServerResponse;
+    return { response, written, ended: () => ended };
+  }
+
+  test("pumps every chunk then ends the response", async () => {
+    const { response, written, ended } = fakeResponse();
+    async function* body() {
+      yield new TextEncoder().encode("a");
+      yield new TextEncoder().encode("b");
+    }
+    await stream(body(), response, new AbortController().signal);
+    expect(written).toEqual(["a", "b"]);
+    expect(ended()).toBe(true);
+  });
+
+  test("waits for a drain event when the socket applies backpressure", async () => {
+    const written: string[] = [];
+    let drainListener: (() => void) | undefined;
+    let ended = false;
+    const response = {
+      write: (chunk: Uint8Array) => {
+        written.push(new TextDecoder().decode(chunk));
+        // First write reports a full buffer, so the pump must await drain before continuing.
+        return written.length > 1;
+      },
+      once: (event: string, listener: () => void) => {
+        if (event === "drain") drainListener = listener;
+      },
+      off: () => {},
+      end: () => {
+        ended = true;
+      },
+    } as unknown as ServerResponse;
+
+    async function* body() {
+      yield new TextEncoder().encode("a");
+      yield new TextEncoder().encode("b");
+    }
+    const pumped = stream(body(), response, new AbortController().signal);
+    await Bun.sleep(0);
+    expect(drainListener).toBeDefined();
+    drainListener?.();
+    await pumped;
+
+    expect(written).toEqual(["a", "b"]);
+    expect(ended).toBe(true);
+  });
+
+  test("stops writing and skips end() once the signal aborts mid-stream", async () => {
+    const controller = new AbortController();
+    const { response, written, ended } = fakeResponse();
+    async function* body() {
+      yield new TextEncoder().encode("a");
+      controller.abort();
+      yield new TextEncoder().encode("b");
+    }
+    await stream(body(), response, controller.signal);
+    expect(written).toEqual(["a"]);
+    expect(ended()).toBe(false);
   });
 });
