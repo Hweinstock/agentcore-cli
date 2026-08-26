@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import type { AssetSource } from "../source";
 import { AgentCoreCLIError, ERROR_SOURCE } from "../../../errors";
-import { ProjectStateError } from "../../../errors/errors";
+import { InputValidationError, ProjectStateError } from "../../../errors/errors";
 
 /**
  * FsTreeNode represents a tree of directories and files.
@@ -56,6 +56,18 @@ export class FsTreeNode {
 
   static createDirectory(name: string, children: FsTreeNode[]): FsTreeNode {
     return new FsTreeNode(name, true, children);
+  }
+
+  /**
+   * A file node whose content is read from a local text file on disk at write time,
+   */
+  static fromTextFile(name: string, sourcePath: string): FsTreeNode {
+    return FsTreeNode.createFile(name, async () => {
+      if (!existsSync(sourcePath)) {
+        throw new InputValidationError(`file not found: '${sourcePath}'`);
+      }
+      return readFile(sourcePath, "utf-8");
+    });
   }
 
   /**

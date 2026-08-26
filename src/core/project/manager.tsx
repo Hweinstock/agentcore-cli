@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
-import { copyFile, rm } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { rm } from "node:fs/promises";
+import { dirname, join } from "node:path";
 import type {
   AddResourceInput,
   CreateProjectInput,
@@ -23,7 +23,7 @@ import {
 } from "../../io";
 import { defaultSource, type AssetSource } from "./source";
 import { ENV_LOCAL_RELATIVE_PATH, EnvLocalFile } from "./envLocal";
-import { createHarnessTreeFromSpec } from "./templates/harness";
+import { getHarnessTemplateResolver } from "./templates/harness";
 import { createProjectTree } from "./templates/project";
 import { getRuntimeTemplateResolver } from "./templates/runtime";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
@@ -38,7 +38,6 @@ import {
   NotImplementedError,
   ProjectStateError,
 } from "../../errors/errors";
-import type { HarnessSpecSchema } from "../../projectSchemas/harness";
 import z from "zod";
 import { CdkBackend } from "./backends/cdk";
 import type { ProjectBackend } from "./backends/types";
@@ -200,12 +199,11 @@ export class FsProjectManager implements ProjectManager {
         yield { message: `Scaffolding harness in project` };
         const outputPath = join(project.rootPath, "app", input.resourceConfig.name);
         scaffoldedPaths.push(outputPath);
-        const harnessPath = await this.scaffoldHarness(outputPath, input.resourceConfig);
 
-        projectSpec.harnesses.push({
-          name: input.resourceConfig.name,
-          path: relative(project.rootPath, harnessPath),
-        });
+        const resolver = getHarnessTemplateResolver();
+        const result = await resolver.resolve(input.resourceConfig);
+        await result.tree.write(dirname(outputPath));
+        if (result.spec.harnesses) projectSpec.harnesses.push(...result.spec.harnesses);
         break;
       }
       case "runtime": {
@@ -355,28 +353,6 @@ export class FsProjectManager implements ProjectManager {
       ...project,
       spec: newProjectSpec,
     };
-  }
-
-  private async scaffoldHarness(
-    outputPath: string,
-    harnessSpec: z.input<typeof HarnessSpecSchema>,
-  ): Promise<string> {
-    const harness = await createHarnessTreeFromSpec({
-      ...harnessSpec,
-      dockerfile: harnessSpec.dockerfile ? "Dockerfile" : undefined,
-    });
-
-    if (harnessSpec.dockerfile) {
-      if (!existsSync(harnessSpec.dockerfile))
-        throw new InputValidationError(`dockerfile not found: '${harnessSpec.dockerfile}'`);
-    }
-
-    await harness.write(outputPath);
-
-    if (harnessSpec.dockerfile) {
-      await copyFile(harnessSpec.dockerfile, join(outputPath, "Dockerfile"));
-    }
-    return outputPath;
   }
 
   private async scaffoldRuntimeResources(outputPath: string, input: RuntimeResourceConfig) {
