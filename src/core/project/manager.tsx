@@ -113,12 +113,12 @@ export class FsProjectManager implements ProjectManager {
     const destination = join(process.cwd(), input.name);
 
     yield { message: "Creating project tree" };
-    const projectTemplate = await createProjectTree(
+    const projectTree = await createProjectTree(
       { templateRenderer: this.templateRenderer, assetSource: this.assetSource },
       { projectName: input.name },
       { runtime: scaffoldRuntimeInput },
     );
-    await projectTemplate.write(destination);
+    await projectTree.write(destination);
 
     // A failed step leaves the scaffolded files in place; the error tells the
     // user how to rerun the step by hand.
