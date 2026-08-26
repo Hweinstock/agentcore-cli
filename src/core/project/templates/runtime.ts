@@ -75,27 +75,19 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     const context = {
       name: input.name,
-      projectName: input.name,
-      Name: input.name,
-      sdkFramework: "Strands",
-      targetLanguage: "Python",
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
       hasMemory: input.scaffoldRuntimeInput.memory !== "none",
       hasIdentity: false,
       hasGateway: false,
       hasPayment: false,
       isVpc: input.networkMode === "VPC",
-      buildType: input.scaffoldRuntimeInput.build,
-      memoryProviders: [],
       identityProviders: [],
       gatewayProviders: [],
       gatewayAuthTypes: [],
-      protocol: "HTTP",
       sessionStorageMountPath,
       efsMounts,
       s3Mounts,
       needsOs: filesystemConfigurations.length > 0,
-      enableOtel: true,
       hasConfigBundle: false,
     };
     const tree = await FsTreeNode.fromAssetSource(
