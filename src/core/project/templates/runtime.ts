@@ -45,7 +45,7 @@ function buildResolverKey(
 }
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
-  "none/Python": async (input: RuntimeResourceConfig) => {
+  [buildResolverKey("none", "Python")]: async (input: RuntimeResourceConfig) => {
     const tree = await FsTreeNode.fromAssetSource(
       assetSource,
       input.scaffoldRuntimeInput.build === "Container"
@@ -55,7 +55,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return { tree, spec: { runtimes: [buildRuntimeSpec(input)] } };
   },
-  "strands/Python": async (input: RuntimeResourceConfig) => {
+  [buildResolverKey("strands", "Python")]: async (input: RuntimeResourceConfig) => {
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError("the strands-python template only supports HTTP");
 
