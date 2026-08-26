@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetSource } from "./source";
-import { AgentCoreCLIError, ERROR_SOURCE } from "../../errors";
-import { ProjectStateError } from "../../errors/errors";
+import type { AssetSource } from "../source";
+import { AgentCoreCLIError, ERROR_SOURCE } from "../../../errors";
+import { ProjectStateError } from "../../../errors/errors";
 
 /**
  * FsTreeNode represents a tree of directories and files.
@@ -65,6 +65,7 @@ export class FsTreeNode {
     src: AssetSource,
     assetDir: string,
     rootDirName?: string,
+    transform?: (content: string) => string,
   ): Promise<FsTreeNode> {
     const paths = await src.list(assetDir);
     const root = FsTreeNode.createDirectory(rootDirName ?? assetDir, []);
@@ -82,7 +83,10 @@ export class FsTreeNode {
       segments.forEach((segment, index) => {
         if (index === segments.length - 1) {
           parent.children.push(
-            FsTreeNode.createFile(renderName(segment), () => src.read(assetPath)),
+            FsTreeNode.createFile(renderName(segment), async () => {
+              const raw = await src.read(assetPath);
+              return transform ? transform(raw) : raw;
+            }),
           );
           return;
         }

@@ -2,8 +2,8 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { ProjectStateError } from "../../errors/errors";
-import type { AssetSource } from "./source";
+import { ProjectStateError } from "../../../errors/errors";
+import type { AssetSource } from "../source";
 import { FsTreeNode } from "./fsTree";
 
 const tempDirectories: string[] = [];

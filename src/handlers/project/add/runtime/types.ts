@@ -16,6 +16,7 @@ const RuntimeInfraConfigSchema = z.object({
   requestHeaderAllowlist: ProjectRuntimeSchema.shape.requestHeaderAllowlist,
   lifecycleConfiguration: ProjectRuntimeSchema.shape.lifecycleConfiguration,
   filesystemConfigurations: ProjectRuntimeSchema.shape.filesystemConfigurations,
+  runtimeVersion: ProjectRuntimeSchema.shape.runtimeVersion,
   tags: ProjectRuntimeSchema.shape.tags,
 });
 

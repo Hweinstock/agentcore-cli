@@ -23,8 +23,14 @@ import {
 } from "../../io";
 import { defaultSource, type AssetSource } from "./source";
 import { ENV_LOCAL_RELATIVE_PATH, EnvLocalFile } from "./envLocal";
-import { createHarnessTreeFromSpec, createProjectTree } from "./templates";
+import { createHarnessTreeFromSpec } from "./templates/harness";
+import { createProjectTree } from "./templates/project";
+import { getRuntimeTemplateResolver } from "./templates/runtime";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
+import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
+import { CredentialSchema } from "../../projectSchemas/credential";
+import { MemorySchema } from "../../projectSchemas/memory";
+import { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
 import { enclosingProjectRoot } from "./fsUtils";
 import {
   AgentCoreCLIError,
@@ -37,16 +43,20 @@ import z from "zod";
 import { CdkBackend } from "./backends/cdk";
 import type { ProjectBackend } from "./backends/types";
 import { AwsDeploymentTargetsSchema } from "../../projectSchemas/aws-targets";
+import type { RuntimeResourceConfig } from "../../handlers/project/add/runtime/types";
+import type { TemplateRenderer } from "./templates/types";
+import { HandlebarsTemplateRenderer } from "./templates/renderer";
 
 const TARGETS_EXAMPLE = '[{ "name": "default", "account": "111122223333", "region": "us-east-1" }]';
 
 type ProjectManagerConfig = {
   logger: Logger;
-  source?: AssetSource; // Bun executable or dist/assets depending on runtime
-  runner?: ProcessRunner; // injectable so tests never spawn real processes
-  checkTool?: typeof requireTool; // injectable so tests don't depend on the host's PATH
-  json?: ReadWriteJson; // injectable so tests read fixtures instead of disk
+  source?: AssetSource;
+  runner?: ProcessRunner;
+  checkTool?: typeof requireTool;
+  json?: ReadWriteJson;
   backends?: Partial<Record<ManagedBy, ProjectBackend>>;
+  templateRenderer?: TemplateRenderer;
 };
 
 /**
@@ -54,7 +64,8 @@ type ProjectManagerConfig = {
  */
 export class FsProjectManager implements ProjectManager {
   private readonly logger: Logger;
-  private readonly source: AssetSource;
+  private readonly assetSource: AssetSource;
+  private readonly templateRenderer: TemplateRenderer;
   private readonly runner: ProcessRunner;
   private readonly checkTool: typeof requireTool;
   private readonly json: ReadWriteJson;
@@ -62,7 +73,7 @@ export class FsProjectManager implements ProjectManager {
 
   constructor(config: ProjectManagerConfig) {
     this.logger = config.logger;
-    this.source = config.source ?? defaultSource();
+    this.assetSource = config.source ?? defaultSource();
     this.runner = config.runner ?? runProcess;
     this.checkTool = config.checkTool ?? requireTool;
     this.json = config.json ?? new FsReadWriteJson({ logger: config.logger });
@@ -74,6 +85,7 @@ export class FsProjectManager implements ProjectManager {
         json: config.json,
       }),
     };
+    this.templateRenderer = config.templateRenderer ?? new HandlebarsTemplateRenderer();
   }
 
   public async resolve(input: ResolveProjectInput): Promise<Project | undefined> {
@@ -102,8 +114,12 @@ export class FsProjectManager implements ProjectManager {
     const destination = join(process.cwd(), input.name);
 
     yield { message: "Creating project tree" };
-    const tree = await createProjectTree(input.name, scaffoldRuntimeInput, this.source);
-    await tree.write(destination);
+    const projectTemplate = await createProjectTree(
+      { templateRenderer: this.templateRenderer, assetSource: this.assetSource },
+      { projectName: input.name },
+      { runtime: scaffoldRuntimeInput },
+    );
+    await projectTemplate.write(destination);
 
     // A failed step leaves the scaffolded files in place; the error tells the
     // user how to rerun the step by hand.
@@ -145,66 +161,67 @@ export class FsProjectManager implements ProjectManager {
     project: Project,
     input: AddResourceInput,
   ): AsyncGenerator<ProjectEvent, Project> {
-    const { resourceType, resourceConfig } = input;
     const agentCoreSpecPath = this.getProjectSpecPath(project);
-    const projectSpecKey = toProjectSpecKey(resourceType);
+    const projectSpecKey = toProjectSpecKey(input.resourceType);
 
     yield { message: `Reading project spec file at '${agentCoreSpecPath}'` };
-    const existingProjectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
+    const projectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
 
-    const existingResources = existingProjectSpec[projectSpecKey];
-    if (resourceType === "gateway-target") {
+    const existingResources = projectSpec[projectSpecKey];
+    if (input.resourceType === "gateway-target") {
       // Current L3 outputs are keyed only by Target name, so names must remain
       // project-unique until those outputs include the parent Gateway.
-      const gateway = existingProjectSpec.agentCoreGateways.find((candidate) =>
-        candidate.targets.some((target) => target.name === resourceConfig.name),
+      const gateway = projectSpec.agentCoreGateways.find((candidate) =>
+        candidate.targets.some((target) => target.name === input.resourceConfig.name),
       );
       if (gateway) {
         throw new InputValidationError(
-          `a gateway target with name '${resourceConfig.name}' already exists in gateway '${gateway.name}'`,
+          `a gateway target with name '${input.resourceConfig.name}' already exists in gateway '${gateway.name}'`,
         );
       }
       if (
-        existingProjectSpec.unassignedTargets?.some((target) => target.name === resourceConfig.name)
+        projectSpec.unassignedTargets?.some((target) => target.name === input.resourceConfig.name)
       ) {
         throw new InputValidationError(
-          `an unassigned gateway target with name '${resourceConfig.name}' already exists`,
+          `an unassigned gateway target with name '${input.resourceConfig.name}' already exists`,
         );
       }
-    } else if (existingResources.find((resource) => resource.name === resourceConfig.name)) {
+    } else if (existingResources.find((resource) => resource.name === input.resourceConfig.name)) {
       throw new InputValidationError(
-        `a ${resourceType} with name '${resourceConfig.name}' already exists`,
+        `a ${input.resourceType} with name '${input.resourceConfig.name}' already exists`,
       );
     }
 
-    // Widened: arms push their own shapes; the whole-spec safeParse below validates.
-    const newResources: unknown[] = [...existingResources];
     const scaffoldedPaths: string[] = [];
-    // Non-file work that a failed spec write must also reverse.
     let envFile: EnvLocalFile | undefined;
 
     switch (input.resourceType) {
       case "harness": {
         yield { message: `Scaffolding harness in project` };
-        const outputPath = join(project.rootPath, "app", resourceConfig.name);
+        const outputPath = join(project.rootPath, "app", input.resourceConfig.name);
         scaffoldedPaths.push(outputPath);
         const harnessPath = await this.scaffoldHarness(outputPath, input.resourceConfig);
 
-        newResources.push({
+        projectSpec.harnesses.push({
           name: input.resourceConfig.name,
           path: relative(project.rootPath, harnessPath),
         });
         break;
       }
       case "runtime": {
-        throw new NotImplementedError(
-          "runtime case not yet implemented in FsProjectManager.addResource",
-        );
+        yield { message: "Scaffolding runtime in project" };
+        const outputPath = join(project.rootPath, "app");
+        scaffoldedPaths.push(join(outputPath, input.resourceConfig.name));
+
+        const spec = await this.scaffoldRuntimeResources(outputPath, input.resourceConfig);
+        if (spec.runtimes) projectSpec.runtimes.push(...spec.runtimes);
+        if (spec.memories) projectSpec.memories.push(...spec.memories);
+        if (spec.credentials) projectSpec.credentials.push(...spec.credentials);
+        break;
       }
       case "credential": {
-        // No file scaffolding; the secret placeholder is staged into .env.local
-        // and reversed with the spec write if that commit fails.
-        newResources.push(input.resourceConfig);
+        const credential = parseResource(CredentialSchema, input.resourceConfig);
+        projectSpec.credentials.push(credential);
         if (input.envEntries?.length) {
           envFile = new EnvLocalFile(project.rootPath);
           yield { message: `Updating secrets file at '${envFile.path}'` };
@@ -217,15 +234,26 @@ export class FsProjectManager implements ProjectManager {
         }
         break;
       }
-      case "config-bundle":
+      case "config-bundle": {
+        projectSpec.configBundles.push(parseResource(ConfigBundleSchema, input.resourceConfig));
+        break;
+      }
       case "online-eval":
-      case "online-insight":
-      case "memory":
+      case "online-insight": {
+        projectSpec.onlineEvalConfigs.push(
+          parseResource(OnlineEvalConfigSchema, input.resourceConfig),
+        );
+        break;
+      }
+      case "memory": {
+        projectSpec.memories.push(parseResource(MemorySchema, input.resourceConfig));
+        break;
+      }
       case "gateway":
-        newResources.push(resourceConfig);
+        projectSpec.agentCoreGateways.push(input.resourceConfig);
         break;
       case "gateway-target": {
-        const gatewayIndex = existingProjectSpec.agentCoreGateways.findIndex(
+        const gatewayIndex = projectSpec.agentCoreGateways.findIndex(
           (gateway) => gateway.name === input.gatewayName,
         );
         if (gatewayIndex < 0) {
@@ -233,11 +261,7 @@ export class FsProjectManager implements ProjectManager {
             `gateway '${input.gatewayName}' does not exist in this project; check agentCoreGateways in agentcore.json`,
           );
         }
-        const gateway = existingProjectSpec.agentCoreGateways[gatewayIndex]!;
-        newResources[gatewayIndex] = {
-          ...gateway,
-          targets: [...gateway.targets, resourceConfig],
-        };
+        projectSpec.agentCoreGateways[gatewayIndex]!.targets.push(input.resourceConfig);
         break;
       }
       default: {
@@ -248,13 +272,9 @@ export class FsProjectManager implements ProjectManager {
 
     yield { message: `Updating project spec file at '${agentCoreSpecPath}'` };
 
-    const newSpec = { ...existingProjectSpec, [projectSpecKey]: newResources };
-
-    // Validate and write inside the same boundary so a rejected spec rolls back
-    // staged side effects (.env.local, scaffolded files) rather than leaving them.
     let newProjectSpec: z.infer<typeof ProjectSpecSchema>;
     try {
-      const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
+      const newSpecParseResult = ProjectSpecSchema.safeParse(projectSpec);
       if (!newSpecParseResult.success)
         throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
           cause: newSpecParseResult.error,
@@ -359,6 +379,19 @@ export class FsProjectManager implements ProjectManager {
     return outputPath;
   }
 
+  private async scaffoldRuntimeResources(outputPath: string, input: RuntimeResourceConfig) {
+    const resolver = getRuntimeTemplateResolver(
+      { assetSource: this.assetSource, templateRenderer: this.templateRenderer },
+      input,
+    );
+    if (!resolver)
+      throw new InputValidationError(`unable to find template that matches given parameters`);
+
+    const result = await resolver.resolve(input);
+    await result.tree.write(outputPath);
+    return result.spec;
+  }
+
   public async *build(project: Project): AsyncGenerator<ProjectEvent, void> {
     yield* this.backendFor(project).build(project);
   }
@@ -436,4 +469,14 @@ function toProjectSpecKey(resourceType: ProjectResource) {
     case "gateway-target":
       return "agentCoreGateways";
   }
+}
+
+function parseResource<TSchema extends z.ZodType>(
+  schema: TSchema,
+  input: z.input<TSchema>,
+): z.output<TSchema> {
+  const result = schema.safeParse(input);
+  if (!result.success)
+    throw new InputValidationError(z.prettifyError(result.error), { cause: result.error });
+  return result.data;
 }

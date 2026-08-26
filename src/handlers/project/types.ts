@@ -26,6 +26,14 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     modelProvider: "Bedrock",
     memory: "none",
   },
+  "strands-python": {
+    runtimeName: "strands_agent",
+    build: "CodeZip",
+    language: "Python",
+    framework: "strands",
+    modelProvider: "Bedrock",
+    memory: "none",
+  },
 } as const satisfies Record<string, ScaffoldRuntimeInput>;
 
 export type RuntimeTemplateShortcutName = keyof typeof RUNTIME_TEMPLATE_SHORTCUTS;
@@ -49,7 +57,7 @@ export const ScaffoldRuntimeInputSchema = z
     runtimeName: AgentNameSchema,
     build: BuildTypeSchema,
     language: z.enum(["Python"]),
-    framework: z.enum(["none"]),
+    framework: z.enum(["strands", "none"]),
     modelProvider: z.enum(["Bedrock"]),
     apiKey: z.string().min(1).optional(),
     memory: z.enum(["none"]),
