@@ -30,6 +30,7 @@ import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project"
 import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import { CredentialSchema } from "../../projectSchemas/credential";
 import { MemorySchema } from "../../projectSchemas/memory";
+import { EvaluatorSchema } from "../../projectSchemas/evaluator";
 import { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
 import { PolicyEngineSchema, PolicySchema } from "../../projectSchemas/policy";
 import { enclosingProjectRoot } from "./fsUtils";
@@ -251,6 +252,10 @@ export class FsProjectManager implements ProjectManager {
       }
       case "memory": {
         projectSpec.memories.push(parseResource(MemorySchema, input.resourceConfig));
+        break;
+      }
+      case "evaluator": {
+        projectSpec.evaluators.push(parseResource(EvaluatorSchema, input.resourceConfig));
         break;
       }
       case "gateway":
@@ -524,6 +529,8 @@ function toProjectSpecKey(resourceType: ProjectResource) {
       return "onlineEvalConfigs";
     case "memory":
       return "memories";
+    case "evaluator":
+      return "evaluators";
     case "gateway":
     case "gateway-target":
       return "agentCoreGateways";
