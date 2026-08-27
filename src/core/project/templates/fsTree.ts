@@ -1,9 +1,9 @@
 import { existsSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AssetSource } from "./source";
-import { AgentCoreCLIError, ERROR_SOURCE } from "../../errors";
-import { ProjectStateError } from "../../errors/errors";
+import type { AssetSource } from "../source";
+import { AgentCoreCLIError, ERROR_SOURCE } from "../../../errors";
+import { InputValidationError, ProjectStateError } from "../../../errors/errors";
 
 /**
  * FsTreeNode represents a tree of directories and files.
@@ -59,12 +59,25 @@ export class FsTreeNode {
   }
 
   /**
+   * A file node whose content is read from a local text file on disk at write time,
+   */
+  static fromTextFile(name: string, sourcePath: string): FsTreeNode {
+    return FsTreeNode.createFile(name, async () => {
+      if (!existsSync(sourcePath)) {
+        throw new InputValidationError(`file not found: '${sourcePath}'`);
+      }
+      return readFile(sourcePath, "utf-8");
+    });
+  }
+
+  /**
    * Expands the flat asset listing under assetDir into a nested tree of nodes.
    */
   static async fromAssetSource(
     src: AssetSource,
     assetDir: string,
     rootDirName?: string,
+    transform?: (content: string) => string,
   ): Promise<FsTreeNode> {
     const paths = await src.list(assetDir);
     const root = FsTreeNode.createDirectory(rootDirName ?? assetDir, []);
@@ -82,7 +95,10 @@ export class FsTreeNode {
       segments.forEach((segment, index) => {
         if (index === segments.length - 1) {
           parent.children.push(
-            FsTreeNode.createFile(renderName(segment), () => src.read(assetPath)),
+            FsTreeNode.createFile(renderName(segment), async () => {
+              const raw = await src.read(assetPath);
+              return transform ? transform(raw) : raw;
+            }),
           );
           return;
         }

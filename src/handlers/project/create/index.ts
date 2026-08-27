@@ -40,7 +40,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag(
         "framework",
         "agent framework for the scaffolded runtime code",
-        z.enum(["none"]).optional(),
+        z.enum(["strands", "none"]).optional(),
       ),
       flag(
         "model-provider",
@@ -96,6 +96,8 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
               modelProvider: flags["model-provider"],
               apiKey,
               memory: flags["memory"],
+              entrypoint: "main.py",
+              runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
           : RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
 

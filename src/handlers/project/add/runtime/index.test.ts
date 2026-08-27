@@ -9,7 +9,7 @@ import {
   TestGlobalConfigAccessor,
   testIO,
 } from "../../../../testing";
-import { InputValidationError, NotImplementedError } from "../../../../errors";
+import { InputValidationError } from "../../../../errors";
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -48,8 +48,6 @@ async function inProject(name = "TestProject"): Promise<string> {
   return projectRoot;
 }
 
-// TODO: Replace NotImplementedError assertions with output assertions once
-// FsProjectManager.addResource supports the "runtime" resource type.
 describe("project add runtime", () => {
   const template = ["--template", "hello-world-python"];
 
@@ -66,9 +64,89 @@ describe("project add runtime", () => {
     "none",
   ];
 
+  const allInfrastructureFlags = [
+    "--description",
+    "Configured runtime",
+    "--role-arn",
+    "arn:aws:iam::123456789012:role/MyRole",
+    "--additional-policies",
+    "arn:aws:iam::123456789012:policy/MyPolicy",
+    "--protocol",
+    "HTTP",
+    "--network-mode",
+    "VPC",
+    "--network-config",
+    '{"subnets":["subnet-0123456789abcdef0"],"securityGroups":["sg-0123456789abcdef0"]}',
+    "--authorizer-type",
+    "CUSTOM_JWT",
+    "--authorizer-configuration",
+    '{"customJwtAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
+    "--request-header-allowlist",
+    "X-Custom-Header",
+    "--lifecycle-configuration",
+    '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
+    "--environment-variables",
+    '{"LOG_LEVEL":"debug","APP_ENV":"staging"}',
+    "--filesystem-configurations",
+    '[{"sessionStorage":{"mountPath":"/mnt/data"}}]',
+    "--tags",
+    '{"team":"ml","env":"test"}',
+  ];
+
+  const expectedSpecByLabel: Record<string, Record<string, unknown>> = {
+    "all infrastructure flags": {
+      description: "Configured runtime",
+      executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
+      additionalPolicies: ["arn:aws:iam::123456789012:policy/MyPolicy"],
+      protocol: "HTTP",
+      networkMode: "VPC",
+      networkConfig: {
+        subnets: ["subnet-0123456789abcdef0"],
+        securityGroups: ["sg-0123456789abcdef0"],
+      },
+      authorizerType: "CUSTOM_JWT",
+      authorizerConfiguration: {
+        customJwtAuthorizer: {
+          discoveryUrl: "https://idp.example.com/.well-known/openid-configuration",
+          allowedAudience: ["app"],
+        },
+      },
+      requestHeaderAllowlist: ["X-Custom-Header"],
+      lifecycleConfiguration: { idleRuntimeSessionTimeout: 300, maxLifetime: 3600 },
+      envVars: [
+        { name: "LOG_LEVEL", value: "debug" },
+        { name: "APP_ENV", value: "staging" },
+      ],
+      filesystemConfigurations: [{ sessionStorage: { mountPath: "/mnt/data" } }],
+      tags: { team: "ml", env: "test" },
+    },
+  };
+
   test.each<[string, string[]]>([
     ["template preset", ["--name", "my_agent", ...template]],
+    [
+      "container template preset",
+      ["--name", "my_agent", "--template", "hello-world-python-container"],
+    ],
+    ["strands-python template preset", ["--name", "my_agent", "--template", "strands-python"]],
     ["custom — all scaffolding flags", ["--name", "my_agent", ...allScaffoldingFlags]],
+    [
+      "custom — framework strands",
+      [
+        "--name",
+        "strands_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "none",
+      ],
+    ],
     [
       "custom — container build",
       [
@@ -116,9 +194,6 @@ describe("project add runtime", () => {
         '{"customJwtAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
       ],
     ],
-    ["protocol — MCP", ["--name", "my_agent", ...template, "--protocol", "MCP"]],
-    ["protocol — A2A", ["--name", "my_agent", ...template, "--protocol", "A2A"]],
-    ["protocol — AGUI", ["--name", "my_agent", ...template, "--protocol", "AGUI"]],
     [
       "request-header-allowlist",
       [
@@ -166,6 +241,10 @@ describe("project add runtime", () => {
         "--name",
         "my_agent",
         ...template,
+        "--network-mode",
+        "VPC",
+        "--network-config",
+        '{"subnets":["subnet-0123456789abcdef0"],"securityGroups":["sg-0123456789abcdef0"]}',
         "--filesystem-configurations",
         '[{"efsAccessPoint":{"accessPointArn":"arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-0123456789abcdef0","mountPath":"/mnt/efs"}}]',
       ],
@@ -176,6 +255,10 @@ describe("project add runtime", () => {
         "--name",
         "my_agent",
         ...template,
+        "--network-mode",
+        "VPC",
+        "--network-config",
+        '{"subnets":["subnet-0123456789abcdef0"],"securityGroups":["sg-0123456789abcdef0"]}',
         "--filesystem-configurations",
         '[{"s3FilesAccessPoint":{"accessPointArn":"arn:aws:s3files:us-east-1:123456789012:file-system/fs-0123456789abcdef01/access-point/fsap-0123456789abcdef1","mountPath":"/mnt/s3"}}]',
       ],
@@ -191,9 +274,22 @@ describe("project add runtime", () => {
         "arn:aws:iam::123456789012:policy/MyPolicy",
       ],
     ],
-  ])("%s — accepts flags", async (_label, flags) => {
-    await inProject();
-    await expect(run(["add", "runtime", ...flags])).rejects.toBeInstanceOf(NotImplementedError);
+    [
+      "all infrastructure flags",
+      ["--name", "configured_agent", ...template, ...allInfrastructureFlags],
+    ],
+  ])("%s — accepts flags", async (label, flags) => {
+    const projectRoot = await inProject();
+    await run(["add", "runtime", ...flags]);
+
+    const name = flags[flags.indexOf("--name") + 1]!;
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const runtime = spec.runtimes.find((candidate: { name: string }) => candidate.name === name);
+    expect(runtime).toMatchObject({ entrypoint: "main.py", ...expectedSpecByLabel[label] });
+    const isContainer = flags.some(
+      (value) => value === "Container" || value === "hello-world-python-container",
+    );
+    expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
   });
 
   test.each<[string, string[]]>([
@@ -234,8 +330,16 @@ describe("project add runtime", () => {
       ["--name", "my_agent", "--template", "hello-world-python", "--memory", "none"],
     ],
     [
+      "strands-python only supports HTTP",
+      ["--name", "my_agent", "--template", "strands-python", "--protocol", "MCP"],
+    ],
+    [
       "invalid JSON in --network-config",
       ["--name", "my_agent", ...template, "--network-config", "{bad}"],
+    ],
+    [
+      "hello-world-python only supports HTTP",
+      ["--name", "my_agent", "--template", "hello-world-python", "--protocol", "MCP"],
     ],
   ])("%s", async (_label, flags) => {
     await inProject();
