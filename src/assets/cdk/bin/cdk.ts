@@ -124,12 +124,16 @@ async function main() {
   const connectorParametersByFile = resolveConnectorParametersByFile(specAny, projectRoot);
   const harnessConfigs = resolveHarnessConfigs(specAny, projectRoot);
 
-  // Read deployed state for credential ARNs (populated by pre-deploy identity setup)
+  // Read deployed state for credential ARNs (populated by pre-deploy identity setup).
+  // Under agentcore/.cli/ to match the released CLI's location.
   let deployedState: Record<string, unknown> | undefined;
   try {
     deployedState = JSON.parse(fs.readFileSync(path.join(configRoot, '.cli', 'deployed-state.json'), 'utf8'));
-  } catch {
-    // Deployed state may not exist on first deploy
+  } catch (err) {
+    // A missing file is the normal first-deploy case. A malformed one is not:
+    // surface it rather than silently synthesizing without the credential ARNs
+    // it holds (which would drop them from the stack).
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err;
   }
 
   const app = new App();

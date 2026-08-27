@@ -1,11 +1,13 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import type { DeployResult, Project, ProjectEvent } from "../../../handlers/project/types";
 import { ProjectSpecSchema } from "../../../projectSchemas/project";
 import { createSilentLogger } from "../../../testing";
 import { CdkBackend } from "./cdk";
+import { DEPLOYED_STATE_RELATIVE_PATH } from "./cdk/deployedState";
 import type { BootstrapState } from "./cdk/environment";
 import type { CdkCredentialProvider, CdkOperation, CdkOutputs, CdkRunOptions } from "./cdk/toolkit";
 
@@ -78,6 +80,8 @@ type HarnessOptions = {
   account?: string;
   bootstrap?: BootstrapState;
   outputs?: CdkOutputs;
+  stackArn?: string;
+  omitStackArn?: boolean;
   template?: boolean;
   failOperation?: CdkOperation["kind"];
   bootstrapError?: Error;
@@ -124,7 +128,19 @@ function harness(options: HarnessOptions = {}) {
       if (operation.kind === options.failOperation) {
         throw new Error(`${operation.kind} failed`);
       }
-      return operation.kind === "deploy" ? (options.outputs ?? {}) : {};
+      if (operation.kind !== "deploy") return { outputs: {} };
+      return {
+        outputs: options.outputs ?? {},
+        // A real deploy always carries a stack ARN; default one so tests exercise
+        // the persistence path, and use `omitStackArn` to test its absence.
+        ...(options.omitStackArn
+          ? {}
+          : {
+              stackArn:
+                options.stackArn ??
+                "arn:aws:cloudformation:us-east-1:111122223333:stack/AgentCore-example-default/deployed",
+            }),
+      };
     },
     loadBootstrapTemplate: async () => {
       templateLoads++;
@@ -237,6 +253,53 @@ describe("CdkBackend.deploy", () => {
     expect(subject.accountRegions).toEqual([TARGET.region]);
     expect(subject.bootstrapRegions).toEqual([TARGET.region]);
     expect(subject.templateLoads()).toBe(0);
+  });
+
+  test("persists the deployed stack ARN under the target", async () => {
+    const input = await project();
+    await writeAssembly(input, [TARGET.name]);
+    const subject = harness({
+      outputs: { RuntimeArn: "arn:runtime" },
+      stackArn: "arn:aws:cloudformation:us-east-1:111122223333:stack/AgentCore-example-default/abc",
+    });
+
+    await collectDeploy(subject.backend.deploy(input, { target: TARGET }));
+
+    const statePath = join(input.rootPath, DEPLOYED_STATE_RELATIVE_PATH);
+    expect(JSON.parse(await Bun.file(statePath).text())).toEqual({
+      targets: {
+        default: {
+          stackArn:
+            "arn:aws:cloudformation:us-east-1:111122223333:stack/AgentCore-example-default/abc",
+        },
+      },
+    });
+  });
+
+  test("fails a deploy whose result carries no stack ARN, recording nothing", async () => {
+    const input = await project();
+    await writeAssembly(input, [TARGET.name]);
+    const subject = harness({ outputs: { RuntimeArn: "arn:runtime" }, omitStackArn: true });
+
+    await expect(collectDeploy(subject.backend.deploy(input, { target: TARGET }))).rejects.toThrow(
+      /without a stack ARN/,
+    );
+    expect(existsSync(join(input.rootPath, DEPLOYED_STATE_RELATIVE_PATH))).toBe(false);
+  });
+
+  test("fails before touching AWS when the existing state file is malformed", async () => {
+    const input = await project();
+    const statePath = join(input.rootPath, DEPLOYED_STATE_RELATIVE_PATH);
+    await mkdir(dirname(statePath), { recursive: true });
+    await writeFile(statePath, "{ not valid json");
+    const subject = harness({ outputs: { RuntimeArn: "arn:runtime" } });
+
+    await expect(
+      collectDeploy(subject.backend.deploy(input, { target: TARGET })),
+    ).rejects.toThrow();
+    // Validated before synth/bootstrap/deploy, so nothing ran against AWS.
+    expect(subject.commands).toEqual([]);
+    expect(subject.runs).toEqual([]);
   });
 
   test.each([
