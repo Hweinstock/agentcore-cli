@@ -31,6 +31,7 @@ import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import { CredentialSchema } from "../../projectSchemas/credential";
 import { MemorySchema } from "../../projectSchemas/memory";
 import { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
+import { PolicyEngineSchema, PolicySchema } from "../../projectSchemas/policy";
 import { enclosingProjectRoot } from "./fsUtils";
 import {
   AgentCoreCLIError,
@@ -178,6 +179,16 @@ export class FsProjectManager implements ProjectManager {
           `an unassigned gateway target with name '${input.resourceConfig.name}' already exists`,
         );
       }
+    } else if (input.resourceType === "policy") {
+      // Policy names are account-unique on the service, so the check spans engines.
+      const engine = projectSpec.policyEngines.find((candidate) =>
+        candidate.policies.some((policy) => policy.name === input.resourceConfig.name),
+      );
+      if (engine) {
+        throw new InputValidationError(
+          `a policy with name '${input.resourceConfig.name}' already exists in policy engine '${engine.name}'`,
+        );
+      }
     } else if (existingResources.find((resource) => resource.name === input.resourceConfig.name)) {
       throw new InputValidationError(
         `a ${input.resourceType} with name '${input.resourceConfig.name}' already exists`,
@@ -245,6 +256,36 @@ export class FsProjectManager implements ProjectManager {
       case "gateway":
         projectSpec.agentCoreGateways.push(input.resourceConfig);
         break;
+      case "policy-engine": {
+        projectSpec.policyEngines.push(parseResource(PolicyEngineSchema, input.resourceConfig));
+        for (const gatewayName of input.attachGateways?.names ?? []) {
+          const gateway = projectSpec.agentCoreGateways.find(
+            (candidate) => candidate.name === gatewayName,
+          );
+          if (!gateway) {
+            throw new InputValidationError(
+              `gateway '${gatewayName}' does not exist in this project; check agentCoreGateways in agentcore.json`,
+            );
+          }
+          gateway.policyEngineConfiguration = {
+            policyEngineName: input.resourceConfig.name,
+            mode: input.attachGateways!.mode,
+          };
+        }
+        break;
+      }
+      case "policy": {
+        const engine = projectSpec.policyEngines.find(
+          (candidate) => candidate.name === input.engineName,
+        );
+        if (!engine) {
+          throw new InputValidationError(
+            `policy engine '${input.engineName}' does not exist in this project; check policyEngines in agentcore.json`,
+          );
+        }
+        engine.policies.push(parseResource(PolicySchema, input.resourceConfig));
+        break;
+      }
       case "gateway-target": {
         const gatewayIndex = projectSpec.agentCoreGateways.findIndex(
           (gateway) => gateway.name === input.gatewayName,
@@ -312,7 +353,39 @@ export class FsProjectManager implements ProjectManager {
 
     let removed = false;
     let newSpec: unknown;
-    if (input.resourceType === "gateway-target") {
+    if (input.resourceType === "policy") {
+      const candidates = existingProjectSpec.policyEngines.filter((engine) =>
+        engine.policies.some((policy) => policy.name === input.name),
+      );
+      if (!input.engineName && candidates.length > 1) {
+        throw new InputValidationError(
+          `policy '${input.name}' exists in multiple engines: ${candidates
+            .map((engine) => engine.name)
+            .join(", ")}; use --engine to choose one`,
+        );
+      }
+      const owner = input.engineName
+        ? candidates.find((engine) => engine.name === input.engineName)
+        : candidates[0];
+      removed = owner !== undefined;
+      const engines = existingProjectSpec.policyEngines.map((engine) =>
+        engine === owner
+          ? { ...engine, policies: engine.policies.filter((policy) => policy.name !== input.name) }
+          : engine,
+      );
+      newSpec = { ...existingProjectSpec, policyEngines: engines };
+    } else if (input.resourceType === "policy-engine") {
+      const engines = existingProjectSpec.policyEngines.filter(
+        (engine) => engine.name !== input.name,
+      );
+      removed = engines.length !== existingProjectSpec.policyEngines.length;
+      const gateways = existingProjectSpec.agentCoreGateways.map((gateway) =>
+        gateway.policyEngineConfiguration?.policyEngineName === input.name
+          ? { ...gateway, policyEngineConfiguration: undefined }
+          : gateway,
+      );
+      newSpec = { ...existingProjectSpec, policyEngines: engines, agentCoreGateways: gateways };
+    } else if (input.resourceType === "gateway-target") {
       const gateways = [...existingProjectSpec.agentCoreGateways];
       const gatewayIndex = gateways.findIndex((gateway) => gateway.name === input.gatewayName);
       if (gatewayIndex >= 0) {
@@ -454,6 +527,9 @@ function toProjectSpecKey(resourceType: ProjectResource) {
     case "gateway":
     case "gateway-target":
       return "agentCoreGateways";
+    case "policy-engine":
+    case "policy":
+      return "policyEngines";
   }
 }
 
