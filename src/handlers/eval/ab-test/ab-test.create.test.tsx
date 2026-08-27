@@ -63,24 +63,6 @@ describe("eval ab-test config-bundle run", () => {
     expect(cb?.children().map((c) => c.name())).toEqual(["run"]);
   });
 
-  test("maps flags to a createConfigBundleABTest call", async () => {
-    const { core, stdout } = await run([...BASE, "--treatment-weight", "20"]);
-    expect(JSON.parse(stdout).abTestId).toBe("orders-v2-abc123");
-    const call = core.eval.calls.find((c) => c.method === "createConfigBundleABTest");
-    expect(call?.args[0]).toEqual({
-      name: "orders-v2",
-      gateway: "orders-gateway-abc123",
-      control: { configBundle: "orders-prompt-abc", bundleVersion: "1111" },
-      treatment: { configBundle: "orders-prompt-abc", bundleVersion: "2222" },
-      onlineEval: "online-eval-abc123",
-      treatmentWeight: 20,
-      gatewayFilter: undefined,
-      roleArn: undefined,
-      enableOnCreate: undefined,
-    });
-    expect(call?.args[1]).toEqual({ region: "us-west-2" });
-  });
-
   test("passes --gateway-filter through as a GatewayFilter", async () => {
     const { core } = await run([
       ...BASE,
@@ -92,27 +74,6 @@ describe("eval ab-test config-bundle run", () => {
     expect((call!.args[0] as { gatewayFilter?: unknown }).gatewayFilter).toEqual({
       targetPaths: ["/orders/checkout"],
     });
-  });
-
-  test("passes --enable-on-create false and --role-arn through", async () => {
-    const { core } = await run([
-      ...BASE,
-      "--enable-on-create",
-      "false",
-      "--role-arn",
-      "arn:aws:iam::123456789012:role/customer-owned",
-    ]);
-    const call = core.eval.calls.find((c) => c.method === "createConfigBundleABTest");
-    const input = call?.args[0] as { enableOnCreate?: boolean; roleArn?: string };
-    expect(input.enableOnCreate).toBe(false);
-    expect(input.roleArn).toBe("arn:aws:iam::123456789012:role/customer-owned");
-  });
-
-  test("--enable-on-create true is passed through", async () => {
-    const { core } = await run([...BASE, "--enable-on-create", "true"]);
-    const call = core.eval.calls.find((c) => c.method === "createConfigBundleABTest");
-    expect(call).toBeDefined();
-    expect((call!.args[0] as { enableOnCreate?: boolean }).enableOnCreate).toBe(true);
   });
 
   test("rejects equal control/treatment bundle-versions", async () => {

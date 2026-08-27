@@ -2104,10 +2104,10 @@ function chunk<T>(items: T[], size: number): T[][] {
 // is created. It surfaces as one of two messages depending on which part has not
 // propagated yet.
 const ROLE_NOT_PROPAGATED =
-  /role cannot be assumed|does not have permissions to (create log group|access the specified log groups)/i;
+  /cannot be assumed|unable to assume|does not have permissions to (create log group|access the specified log groups)/i;
 
 async function retryWhileRolePropagates<T>(send: () => Promise<T>): Promise<T> {
-  const delaysMs = [1_000, 2_000, 4_000, 8_000];
+  const delaysMs = [2_000, 4_000, 8_000, 15_000];
   for (const delay of delaysMs) {
     try {
       return await send();
@@ -2120,6 +2120,7 @@ async function retryWhileRolePropagates<T>(send: () => Promise<T>): Promise<T> {
       const retryable =
         err.name === "AccessDeniedException" ||
         err.$metadata?.httpStatusCode === 403 ||
+        (err.name === "ValidationException" && /assume|role|trust/i.test(err.message ?? "")) ||
         ROLE_NOT_PROPAGATED.test(err.message ?? "");
       if (!retryable) throw error;
       await new Promise((resolve) => setTimeout(resolve, delay));
