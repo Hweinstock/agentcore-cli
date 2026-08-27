@@ -33,7 +33,7 @@ import { MemorySchema } from "../../projectSchemas/memory";
 import { EvaluatorSchema } from "../../projectSchemas/evaluator";
 import { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
 import { PolicyEngineSchema, PolicySchema } from "../../projectSchemas/policy";
-import { enclosingProjectRoot } from "./fsUtils";
+import { enclosingProjectRoot, projectSpecPath } from "./fsUtils";
 import {
   AgentCoreCLIError,
   InputValidationError,
@@ -93,7 +93,7 @@ export class FsProjectManager implements ProjectManager {
     const rootPath = enclosingProjectRoot(input.filePath);
     if (!rootPath) return undefined;
 
-    const configPath = join(rootPath, "agentcore", "agentcore.json");
+    const configPath = projectSpecPath(rootPath);
     const spec = await this.json.read(configPath, ProjectSpecSchema);
     return {
       name: spec.name,
@@ -349,7 +349,7 @@ export class FsProjectManager implements ProjectManager {
   }
 
   private getProjectSpecPath(project: Project): string {
-    return join(project.rootPath, "agentcore", "agentcore.json");
+    return projectSpecPath(project.rootPath);
   }
 
   public async removeResource(project: Project, input: RemoveResourceInput): Promise<Project> {
