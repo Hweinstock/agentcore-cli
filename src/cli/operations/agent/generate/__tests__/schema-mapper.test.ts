@@ -1,3 +1,4 @@
+import { AgentEnvSpecSchema } from '../../../../../schema';
 import { computeManagedOAuthCredentialName } from '../../../../primitives/credential-utils.js';
 import type { AddAgentConfig } from '../../../../tui/screens/agent/types.js';
 import { mapAddAgentConfigToGenerateConfig, mapByoConfigToAgent } from '../../../../tui/screens/agent/useAddAgent.js';
@@ -412,6 +413,35 @@ describe('mapByoConfigToAgent - VPC support', () => {
   });
 });
 
+describe('mapByoConfigToAgent - capacity provider', () => {
+  const baseByoConfig = {
+    name: 'MyByo',
+    agentType: 'byo' as const,
+    codeLocation: 'app/MyByo/',
+    entrypoint: 'main.py',
+    language: 'Python' as const,
+    buildType: 'CodeZip' as const,
+    protocol: 'HTTP' as const,
+    framework: 'Strands' as const,
+    modelProvider: 'Bedrock' as const,
+    pythonVersion: 'PYTHON_3_12' as const,
+    memory: 'none' as const,
+  };
+
+  // The AgentEnvSpec schema rejects a capacityProviderConfiguration combined with any networkMode, so
+  // the BYO mapper must leave networkMode unset for a CP-attached runtime (not default it to PUBLIC).
+  it('omits networkMode/networkConfig and stays schema-valid when a CP is attached', () => {
+    const result = mapByoConfigToAgent({
+      ...baseByoConfig,
+      capacityProviderConfiguration: { capacityProviderName: 'my_pool' },
+    });
+    expect(result.networkMode).toBeUndefined();
+    expect(result.networkConfig).toBeUndefined();
+    expect(result.capacityProviderConfiguration).toEqual({ capacityProviderName: 'my_pool' });
+    expect(AgentEnvSpecSchema.safeParse(result).success).toBe(true);
+  });
+});
+
 describe('mapGenerateConfigToAgent - lifecycleConfiguration', () => {
   it('includes lifecycleConfiguration when idleRuntimeSessionTimeout is set', () => {
     const result = mapGenerateConfigToAgent({ ...baseConfig, idleRuntimeSessionTimeout: 600 });
@@ -530,6 +560,36 @@ describe('mapGenerateConfigToAgent - filesystem configurations', () => {
       s3AccessPoints: [{ accessPointArn: S3_ARN, mountPath: '/mnt/s3' }],
     });
     expect(result.filesystemConfigurations).toHaveLength(3);
+  });
+
+  it('writes capacityProviderConfiguration (J2)', () => {
+    const result = mapGenerateConfigToAgent({
+      ...fsBase,
+      capacityProviderConfiguration: { capacityProviderName: 'my_pool' },
+    });
+    expect(result.capacityProviderConfiguration).toEqual({ capacityProviderName: 'my_pool' });
+  });
+
+  it('drops networkMode/networkConfig for a capacity-provider runtime (CP supplies its own network)', () => {
+    // fsBase requests VPC networking, but a CP is mutually exclusive with any networkMode — the
+    // mapper must emit neither networkMode nor networkConfig so the runtime is CP-only.
+    const result = mapGenerateConfigToAgent({
+      ...fsBase,
+      capacityProviderConfiguration: { capacityProviderName: 'my_pool' },
+    });
+    expect(result.networkMode).toBeUndefined();
+    expect(result.networkConfig).toBeUndefined();
+  });
+
+  it('writes capacityProviderVolume filesystem entry (J3)', () => {
+    const result = mapGenerateConfigToAgent({
+      ...fsBase,
+      capacityProviderConfiguration: { capacityProviderName: 'my_pool' },
+      capacityProviderVolumes: [{ volumeName: 'model-weights', mountPath: '/mnt/models' }],
+    });
+    expect(result.filesystemConfigurations).toContainEqual({
+      capacityProviderVolume: { volumeName: 'model-weights', mountPath: '/mnt/models' },
+    });
   });
 });
 

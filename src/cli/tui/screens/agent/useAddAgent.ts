@@ -81,7 +81,10 @@ export type AddAgentOutcome = AddAgentCreateResult | AddAgentByoResult | AddAgen
  * Maps AddAgentConfig (from BYO wizard) to v2 AgentEnvSpec for schema persistence.
  */
 export function mapByoConfigToAgent(config: AddAgentConfig): AgentEnvSpec {
-  const networkMode = config.networkMode ?? 'PUBLIC';
+  // A capacity provider supplies its own network topology, so a CP-attached runtime carries no
+  // networkMode/networkConfig at all — the AgentEnvSpec schema rejects a capacityProviderConfiguration
+  // combined with either. Leave networkMode unset when a CP is attached (do not default to PUBLIC).
+  const networkMode = config.capacityProviderConfiguration ? undefined : (config.networkMode ?? 'PUBLIC');
   return {
     name: config.name,
     build: config.buildType,
@@ -90,7 +93,7 @@ export function mapByoConfigToAgent(config: AddAgentConfig): AgentEnvSpec {
     codeLocation: config.codeLocation as DirectoryPath,
     runtimeVersion: config.pythonVersion,
     protocol: config.protocol ?? 'HTTP',
-    networkMode,
+    ...(networkMode !== undefined && { networkMode }),
     ...(networkMode === 'VPC' &&
       config.subnets &&
       config.securityGroups && {
@@ -118,7 +121,15 @@ export function mapByoConfigToAgent(config: AddAgentConfig): AgentEnvSpec {
           },
         }
       : {}),
-    ...buildFilesystemConfigurations(config.sessionStorageMountPath, config.efsAccessPoints, config.s3AccessPoints),
+    ...(config.capacityProviderConfiguration && {
+      capacityProviderConfiguration: config.capacityProviderConfiguration,
+    }),
+    ...buildFilesystemConfigurations(
+      config.sessionStorageMountPath,
+      config.efsAccessPoints,
+      config.s3AccessPoints,
+      config.capacityProviderVolumes
+    ),
   };
 }
 
@@ -151,6 +162,8 @@ export function mapAddAgentConfigToGenerateConfig(config: AddAgentConfig): Gener
     sessionStorageMountPath: config.sessionStorageMountPath,
     efsAccessPoints: config.efsAccessPoints,
     s3AccessPoints: config.s3AccessPoints,
+    capacityProviderConfiguration: config.capacityProviderConfiguration,
+    capacityProviderVolumes: config.capacityProviderVolumes,
     withConfigBundle: config.withConfigBundle,
   };
 }
@@ -183,6 +196,9 @@ export function useAddAgent() {
           memory_type: standardize(MemoryEnum, config.memory ?? 'none'),
           efs_mount_count: (config.efsAccessPoints ?? []).length,
           s3_mount_count: (config.s3AccessPoints ?? []).length,
+          has_capacity_provider: !!config.capacityProviderConfiguration,
+          capacity_provider_by_arn: !!config.capacityProviderConfiguration?.capacityProviderArn,
+          cp_volume_mount_count: (config.capacityProviderVolumes ?? []).length,
         },
         () => addAgentInner(config)
       );
@@ -393,6 +409,8 @@ async function handleImportPath(
     sessionStorageMountPath: config.sessionStorageMountPath,
     efsAccessPoints: config.efsAccessPoints,
     s3AccessPoints: config.s3AccessPoints,
+    capacityProviderConfiguration: config.capacityProviderConfiguration,
+    capacityProviderVolumes: config.capacityProviderVolumes,
   });
 
   if (!result.success) {
