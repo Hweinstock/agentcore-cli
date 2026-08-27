@@ -215,32 +215,41 @@ describe("project create", () => {
     ]);
   });
 
-  test("rejects an invalid --runtime-name before scaffolding", async () => {
-    const directory = await inTempDirectory();
-    await expect(
-      run([
-        "create",
-        "--name",
-        "MyProject",
-        "--runtime-name",
-        "../MyAgent",
-        "--build",
-        "CodeZip",
-        "--language",
-        "Python",
-        "--framework",
-        "none",
-        "--model-provider",
-        "Bedrock",
-        "--memory",
-        "none",
-        "--skip-install",
-        "--skip-git",
-      ]),
-    ).rejects.toThrow(/Must begin with a letter/);
+  test.each([
+    ["path traversal", "../MyAgent", /Must begin with a letter/],
+    ["starts with a digit", "1Agent", /Must begin with a letter/],
+    ["contains a hyphen", "my-agent", /Must begin with a letter/],
+    ["contains a space", "my agent", /Must begin with a letter/],
+    ["exceeds 42 chars", "a".repeat(43), /<=42 characters/],
+  ])(
+    "rejects an invalid --runtime-name before scaffolding (%s)",
+    async (_label, runtimeName, expectedError) => {
+      const directory = await inTempDirectory();
+      await expect(
+        run([
+          "create",
+          "--name",
+          "MyProject",
+          "--runtime-name",
+          runtimeName,
+          "--build",
+          "CodeZip",
+          "--language",
+          "Python",
+          "--framework",
+          "none",
+          "--model-provider",
+          "Bedrock",
+          "--memory",
+          "none",
+          "--skip-install",
+          "--skip-git",
+        ]),
+      ).rejects.toThrow(expectedError);
 
-    expect(existsSync(join(directory, "MyProject"))).toBe(false);
-  });
+      expect(existsSync(join(directory, "MyProject"))).toBe(false);
+    },
+  );
 
   test("rejects an API key with the Bedrock model provider before scaffolding", async () => {
     const directory = await inTempDirectory();

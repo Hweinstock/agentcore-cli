@@ -393,6 +393,7 @@ describe("project add runtime", () => {
       "hello-world-python only supports HTTP",
       ["--name", "my_agent", "--template", "hello-world-python", "--protocol", "MCP"],
     ],
+    ["runtime names are limited in length", ["--name", "x".repeat(43)]],
   ])("%s", async (_label, flags) => {
     await inProject();
     await expect(run(["add", "runtime", ...flags])).rejects.toBeInstanceOf(InputValidationError);

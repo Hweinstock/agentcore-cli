@@ -63,7 +63,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         "memory option for the scaffolded runtime",
         z.enum(MEMORY_SHORTCUT_NAMES).optional(),
       ),
-      flag("runtime-name", "name of the scaffolded runtime", z.string().optional()),
+      flag("runtime-name", "name of the scaffolded runtime", z.string().max(42).optional()),
       flag(
         "skip-install",
         "skip installing dependencies (npm install, uv sync)",

@@ -21,7 +21,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
     name: "runtime",
     description: "adds a runtime to the current project",
     flags: [
-      flag("name", "the name of the runtime", z.string().optional()),
+      flag("name", "the name of the runtime", z.string().max(42).optional()),
       flag("description", "an optional description of the runtime", z.string().optional()),
       flag(
         "template",
