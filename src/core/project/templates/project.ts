@@ -62,10 +62,12 @@ function mergeSpecEntries(entries: SpecEntries[]): SpecEntries {
   const runtimes = entries.flatMap(({ runtimes }) => runtimes ?? []);
   const credentials = entries.flatMap(({ credentials }) => credentials ?? []);
   const memories = entries.flatMap(({ memories }) => memories ?? []);
+  const harnesses = entries.flatMap(({ harnesses }) => harnesses ?? []);
 
   return {
     ...(runtimes.length > 0 && { runtimes }),
     ...(credentials.length > 0 && { credentials }),
     ...(memories.length > 0 && { memories }),
+    ...(harnesses.length > 0 && { harnesses }),
   };
 }
