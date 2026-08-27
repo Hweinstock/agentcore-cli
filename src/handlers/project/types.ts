@@ -2,6 +2,7 @@ import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import { MemorySchema } from "../../projectSchemas/memory";
+import type { EvaluatorSchema } from "../../projectSchemas/evaluator";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { RuntimeResourceConfig } from "./add/runtime/types";
@@ -9,6 +10,7 @@ import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-co
 import { AgentNameSchema, BuildTypeSchema, EntrypointSchema } from "../../projectSchemas/runtime";
 import { RuntimeVersionSchema } from "../../projectSchemas/constants";
 import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
+import type { PolicyEngineSchema, PolicySchema } from "../../projectSchemas/policy";
 
 type CreateProjectInputBase = {
   /** The name of the project; also the directory it is scaffolded into. */
@@ -134,6 +136,10 @@ export type AddResourceInput =
       resourceConfig: z.input<typeof MemorySchema>;
     }
   | {
+      resourceType: "evaluator";
+      resourceConfig: z.input<typeof EvaluatorSchema>;
+    }
+  | {
       resourceType: "gateway";
       resourceConfig: AgentCoreGateway;
     }
@@ -141,18 +147,33 @@ export type AddResourceInput =
       resourceType: "gateway-target";
       gatewayName: string;
       resourceConfig: AgentCoreGatewayTarget;
+    }
+  | {
+      resourceType: "policy-engine";
+      resourceConfig: z.input<typeof PolicyEngineSchema>;
+      attachGateways?: { names: string[]; mode: "ENFORCE" | "LOG_ONLY" };
+    }
+  | {
+      resourceType: "policy";
+      engineName: string;
+      resourceConfig: z.input<typeof PolicySchema>;
     };
 
 export type ProjectResource = AddResourceInput["resourceType"];
 
 export type RemoveResourceInput =
   | {
-      resourceType: Exclude<ProjectResource, "gateway-target">;
+      resourceType: Exclude<ProjectResource, "gateway-target" | "policy">;
       name: string;
     }
   | {
       resourceType: "gateway-target";
       gatewayName: string;
+      name: string;
+    }
+  | {
+      resourceType: "policy";
+      engineName?: string;
       name: string;
     };
 
