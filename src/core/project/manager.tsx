@@ -128,14 +128,7 @@ export class FsProjectManager implements ProjectManager {
       await this.run(["npm", "install"], join(destination, "agentcore", "cdk"));
 
       const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
-      if (existsSync(join(appDir, "pyproject.toml"))) {
-        await this.checkTool(
-          "uv",
-          "Install uv: https://docs.astral.sh/uv/getting-started/installation/",
-        );
-        yield { message: "Syncing Python dependencies with uv" };
-        await this.run(["uv", "sync"], appDir);
-      }
+      yield* this.installRuntimeDependencies(appDir);
     }
 
     if (!input.skipGit) {
@@ -215,6 +208,8 @@ export class FsProjectManager implements ProjectManager {
         if (spec.runtimes) projectSpec.runtimes.push(...spec.runtimes);
         if (spec.memories) projectSpec.memories.push(...spec.memories);
         if (spec.credentials) projectSpec.credentials.push(...spec.credentials);
+
+        yield* this.installRuntimeDependencies(outputPath);
         break;
       }
       case "credential": {
@@ -415,6 +410,21 @@ export class FsProjectManager implements ProjectManager {
       );
     }
     return backend;
+  }
+
+  /**
+   * Installs dependencies for a scaffolded runtime directory (e.g. `uv sync`
+   * for Python). No-ops if the runtime has no recognized dependency manifest.
+   */
+  private async *installRuntimeDependencies(appDir: string): AsyncGenerator<ProjectEvent, void> {
+    if (existsSync(join(appDir, "pyproject.toml"))) {
+      await this.checkTool(
+        "uv",
+        "Install uv: https://docs.astral.sh/uv/getting-started/installation/",
+      );
+      yield { message: "Syncing Python dependencies with uv" };
+      await this.run(["uv", "sync"], appDir);
+    }
   }
 
   // Runs a command with its output streamed to the file logger.
