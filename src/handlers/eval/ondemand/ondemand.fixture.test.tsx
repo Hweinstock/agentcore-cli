@@ -4,6 +4,7 @@ import { CoreClient } from "../../../core";
 import {
   createSilentLogger,
   fixtureFactories,
+  isRecording,
   matchGolden,
   TestGlobalConfigAccessor,
   testIO,
@@ -14,6 +15,7 @@ const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
 
 const FIXTURE_AGENT = "asdf_MyAgent-3s5axvBC6Q";
+const SIMULATE_DATASET = join(FIXTURES, "simulate-ds.jsonl");
 const FIXTURE_SESSION_IDS = [
   "67ebf93b-65e3-4127-9e13-483b239f256a",
   "7f983b9f-9569-4a4d-bdc2-5c997ff346dd",
@@ -70,4 +72,47 @@ describe("eval ondemand evaluate (fixture-backed)", () => {
     // Recording polls live CloudWatch Insights (1s between polls) and calls Evaluate
     // per session, so it needs well over bun's 5s default; replay is instant.
   }, 180_000);
+
+  test("simulate replays a dataset, then evaluates the created sessions client-side", async () => {
+    let n = 0;
+    const { createControlClient, createDataClient, createIamClient, createLogsClient } =
+      fixtureFactories(FIXTURES);
+    const core = new CoreClient({
+      createControlClient,
+      createDataClient,
+      createIamClient,
+      createLogsClient,
+      logger: createSilentLogger(),
+      newSessionId: () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
+      now: () => Date.parse("2026-08-28T00:00:00Z"),
+    });
+    const io = testIO();
+    const root = createRootHandler(core, {
+      io: io.io,
+      logger: createSilentLogger(),
+      globalConfigAccessor: new TestGlobalConfigAccessor(),
+    });
+
+    await root.route([
+      "node",
+      "agentcore",
+      "eval",
+      "ondemand",
+      "simulate",
+      "--runtime-id",
+      FIXTURE_AGENT,
+      "--payload-template",
+      '{"prompt":"{input}"}',
+      "--dataset",
+      SIMULATE_DATASET,
+      "--evaluator",
+      "Builtin.Helpfulness",
+      "--ingestion-wait-ms",
+      isRecording() ? "150000" : "0",
+      "--region",
+      REGION,
+    ]);
+
+    matchGolden(FIXTURES, "simulate.golden.json", io.stdout());
+  }, 200_000);
 });

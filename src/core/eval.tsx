@@ -225,6 +225,7 @@ export class EvalClient implements CoreEvalClient {
     // logger for batch-evaluation result-log diagnostics
     private readonly logger: Logger = noopLogger,
     private readonly newSessionId: () => string = randomUUID,
+    private readonly now: () => number = () => Date.now(),
   ) {}
 
   async createEvaluator(
@@ -591,7 +592,7 @@ export class EvalClient implements CoreEvalClient {
     const logGroupName = runtimeLogGroup(runtimeId, qualifier);
     const serviceName = runtimeServiceName(runtimeName, qualifier);
 
-    const endMs = input.window ? +input.window.endTime : Date.now();
+    const endMs = input.window ? +input.window.endTime : this.now();
     const startMs = input.window ? +input.window.startTime : endMs - SEVEN_DAYS_MS;
     const startSec = Math.floor(startMs / 1000);
     const endSec = Math.floor(endMs / 1000);

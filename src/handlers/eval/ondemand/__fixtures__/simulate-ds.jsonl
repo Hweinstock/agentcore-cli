@@ -1,0 +1,1 @@
+{"example_id":"greet","turns":[{"input":"Say hello and offer help"}],"assertions":["is polite"]}

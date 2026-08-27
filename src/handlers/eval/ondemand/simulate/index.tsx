@@ -9,9 +9,6 @@ import type { InvokedSession } from "../../types";
 import { coreOptsFromCtx } from "../../../utils";
 import { parseRuntimeInvokeHeaders } from "../../../runtime/invoke/request";
 
-// Composes invokeDataset (replay) → getTracesForAgent (gather) → evaluate (grade,
-// synchronous). The on-demand twin of batch-evaluation simulate: no async job, scores
-// print inline. Invoke flags mirror `runtime invoke`.
 export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
   createHandler({
     name: "simulate",
@@ -54,14 +51,12 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
         );
       }
 
-      // Ctrl-C aborts the run (invokes, the ingestion wait, the dataset download).
       const controller = new AbortController();
       const interrupt = () => controller.abort();
       process.once("SIGINT", interrupt);
       try {
         const opts = coreOptsFromCtx(ctx);
 
-        // 1. Replay the dataset — reuse invokeDataset verbatim (grader-agnostic).
         const replay = await core.eval.invokeDataset(
           {
             runtimeId: flags["runtime-id"],
@@ -85,7 +80,6 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
           );
         }
 
-        // 2. Gather the just-created sessions' traces (client-side CloudWatch read).
         const traces = await core.eval.getTracesForAgent(
           {
             agent: flags["runtime-id"],
@@ -95,7 +89,6 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
           opts,
         );
 
-        // 3. Adapt neutral ground truth → EvaluationReferenceInput[] and grade synchronously.
         const groundTruth = replay.sessions.flatMap(toReferenceInputs);
         const result = await core.eval.evaluate(
           { traces, evaluatorIds: flags["evaluator"], groundTruth },
@@ -118,10 +111,6 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
     },
   });
 
-// Adapt one invoked session's neutral InlineGroundTruth to the Evaluate API's
-// EvaluationReferenceInput, correlated by sessionId. assertions ({text}[]) and
-// expectedTrajectory ({toolNames}) map 1:1. Per-turn expectedResponse is trace-level and
-// needs a turn→trace id we don't have here, so it is omitted (batch simulate covers it).
 function toReferenceInputs(s: InvokedSession): EvaluationReferenceInput[] {
   const gt = s.groundTruth;
   if (!gt?.assertions?.length && !gt?.expectedTrajectory) return [];
