@@ -1,5 +1,4 @@
 import { existsSync } from "node:fs";
-import { join } from "node:path";
 import { ZodError, z } from "zod";
 import { HarnessSpecSchema } from "../../../projectSchemas/harness";
 import { FsTreeNode } from "./fsTree";
@@ -37,7 +36,7 @@ export function getHarnessTemplateResolver(): TemplateResolver<z.input<typeof Ha
       return {
         tree,
         spec: {
-          harnesses: [{ name: parsed.name, path: join("app", parsed.name) }],
+          harnesses: [{ name: parsed.name, path: `app/${parsed.name}` }],
         },
       };
     },
