@@ -1450,6 +1450,7 @@ export class TestEvalClient implements CoreEvalClient {
     sessions: [],
     invoked: 0,
     failed: 0,
+    failures: [],
   };
   private error?: Error;
 

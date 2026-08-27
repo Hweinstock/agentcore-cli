@@ -286,7 +286,10 @@ export type InvokeDatasetInput = {
   userId?: string;
   dataset: string; // local JSONL path or a dataset id
   datasetVersion?: string;
+  waitIngestionMs?: number;
 };
+
+export type InvokeFailure = { exampleId: string; error: string };
 
 // InvokedSession is one replayed example: the session created for it plus its neutral
 // ground truth. Grader-agnostic — the batch handler wraps `groundTruth` as
@@ -297,13 +300,11 @@ export type InvokedSession = {
   groundTruth?: InlineGroundTruth;
 };
 
-// InvokeDatasetResult reports the created sessions plus how many examples were invoked
-// vs dropped (a failed invoke is skipped, not fatal). firstError explains a total failure.
 export type InvokeDatasetResult = {
   sessions: InvokedSession[];
   invoked: number;
   failed: number;
-  firstError?: Error;
+  failures: InvokeFailure[];
 };
 
 export type SpanRecord = Record<string, unknown>;
