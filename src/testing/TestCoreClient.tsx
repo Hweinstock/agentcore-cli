@@ -148,6 +148,7 @@ import type {
   CoreEvalClient,
   CreateConfigurationBundleInput,
   CreateConfigBasedABTestInput,
+  CreateTargetBasedABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -1923,6 +1924,15 @@ export class TestEvalClient implements CoreEvalClient {
     options: CoreOptions,
   ): Promise<CreateABTestResponse> {
     this.calls.push({ method: "createConfigBasedABTest", args: [input, options] });
+    if (this.error) throw this.error;
+    return this.abTestCreateResponse;
+  }
+
+  async createTargetBasedABTest(
+    input: CreateTargetBasedABTestInput,
+    options: CoreOptions,
+  ): Promise<CreateABTestResponse> {
+    this.calls.push({ method: "createTargetBasedABTest", args: [input, options] });
     if (this.error) throw this.error;
     return this.abTestCreateResponse;
   }
