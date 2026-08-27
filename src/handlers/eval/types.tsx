@@ -35,8 +35,15 @@ import type {
   ABTestExecutionStatus,
   UpdateABTestResponse,
   DeleteABTestResponse,
+  DeleteRecommendationResponse,
   GetBatchEvaluationResponse,
+  GetRecommendationResponse,
+  ListRecommendationsResponse,
   ListBatchEvaluationsResponse,
+  RecommendationConfig,
+  RecommendationStatus,
+  RecommendationType,
+  StartRecommendationResponse,
   StartBatchEvaluationResponse,
   SessionMetadataShape,
   InlineGroundTruth,
@@ -225,6 +232,14 @@ export type RoleScopeWarning = {
 };
 
 export type CreateDatasetInput = CreateDatasetRequest;
+export type StartRecommendationInput = {
+  name: string;
+  description?: string;
+  type: RecommendationType;
+  recommendationConfig: RecommendationConfig;
+  kmsKeyArn?: string;
+  tags?: Record<string, string>;
+};
 export type CreateConfigurationBundleInput = Pick<
   CreateConfigurationBundleRequest,
   "bundleName" | "components" | "branchName" | "commitMessage" | "kmsKeyArn"
@@ -364,6 +379,19 @@ export interface CoreEvalClient {
     options: CoreOptions,
   ): Promise<ListEvaluatorsResponse>;
   deleteEvaluator(id: string, options: CoreOptions): Promise<DeleteEvaluatorResponse>;
+
+  startRecommendation(
+    input: StartRecommendationInput,
+    options: CoreOptions,
+  ): Promise<StartRecommendationResponse>;
+  getRecommendation(id: string, options: CoreOptions): Promise<GetRecommendationResponse>;
+  listRecommendations(
+    nextToken: string | undefined,
+    maxResults: number | undefined,
+    statusFilter: RecommendationStatus | undefined,
+    options: CoreOptions,
+  ): Promise<ListRecommendationsResponse>;
+  deleteRecommendation(id: string, options: CoreOptions): Promise<DeleteRecommendationResponse>;
 
   // getBatchEvaluation returns the service-side job and, unless `includeResults`
   // is false, the per-session results read from its per-job CloudWatch stream once
