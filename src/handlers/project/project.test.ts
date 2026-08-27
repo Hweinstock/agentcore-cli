@@ -132,10 +132,10 @@ describe("project create", () => {
   test.each([
     ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["none", ["--memory", "none"], []],
-    ["short", ["--memory", "short"], []],
+    ["short", ["--memory", "shortTerm"], []],
     [
       "shortAndLongTerm",
-      ["--memory", "shortAndLongTerm"],
+      ["--memory", "longAndShortTerm"],
       ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
     ],
   ])("custom strands %s memory", async (_label, memoryFlags, expectedStrategies) => {

@@ -7,12 +7,12 @@ import type { ScaffoldRuntimeInput } from "./types";
 
 export const MEMORY_SHORTCUTS = {
   none: (_runtimeName: string) => undefined,
-  short: (runtimeName: string): Memory => ({
+  shortTerm: (runtimeName: string): Memory => ({
     name: `${runtimeName}Memory`,
     eventExpiryDuration: 30,
     strategies: [],
   }),
-  shortAndLongTerm: (runtimeName: string): Memory => ({
+  longAndShortTerm: (runtimeName: string): Memory => ({
     name: `${runtimeName}Memory`,
     eventExpiryDuration: 30,
     strategies: (["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"] as const).map(
@@ -64,7 +64,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     modelProvider: "Bedrock",
     entrypoint: "main.py",
     runtimeVersion: "PYTHON_3_14",
-    memory: "shortAndLongTerm",
+    memory: "longAndShortTerm",
   },
 } as const satisfies Record<string, RuntimeTemplateShortcut>;
 
