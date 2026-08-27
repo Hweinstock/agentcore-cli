@@ -35,12 +35,6 @@ Command Prompt, or `.\.venv\Scripts\activate.ps1` in Windows PowerShell.
 
 `agentcore project dev` will start a local server on 0.0.0.0:8080.
 
-In a new terminal, you can invoke that server with:
-
-`agentcore project invoke --dev "What can you do"`
-
 # Deployment
 
 After providing credentials, `agentcore project deploy` will deploy your project into Amazon Bedrock AgentCore.
-
-Use `agentcore project invoke` to invoke your deployed agent.
