@@ -40,7 +40,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag(
         "framework",
         "agent framework for the scaffolded runtime code",
-        z.enum(["none"]).optional(),
+        z.enum(["strands", "none"]).optional(),
       ),
       flag(
         "model-provider",

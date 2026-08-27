@@ -131,6 +131,23 @@ describe("project add runtime", () => {
     ["strands-python template preset", ["--name", "my_agent", "--template", "strands-python"]],
     ["custom — all scaffolding flags", ["--name", "my_agent", ...allScaffoldingFlags]],
     [
+      "custom — framework strands",
+      [
+        "--name",
+        "strands_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "none",
+      ],
+    ],
+    [
       "custom — container build",
       [
         "--name",
