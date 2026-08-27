@@ -37,6 +37,18 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   };
 }
 
+/**
+ * Normalize a name for use as a Python package name per PEP 508.
+ * Valid names consist only of ASCII letters, numbers, period, underscore, and
+ * hyphen, and must start and end with a letter or number.
+ */
+function toPythonPackageName(name: string): string {
+  return name
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/^[^a-zA-Z0-9]+/, "")
+    .replace(/[^a-zA-Z0-9]+$/, "");
+}
+
 function buildResolverKey(
   framework: ScaffoldRuntimeInput["framework"],
   language: ScaffoldRuntimeInput["language"],
@@ -76,7 +88,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const context = {
-      name: input.name,
+      name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
       hasMemory: input.scaffoldRuntimeInput.memory !== "none",
       hasIdentity: false,
