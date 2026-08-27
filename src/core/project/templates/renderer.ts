@@ -7,6 +7,7 @@ export class HandlebarsTemplateRenderer implements TemplateRenderer {
 
   constructor() {
     this.hbs = Handlebars.create();
+    // taken from https://github.com/aws/agentcore-cli/blob/cad94708aeaaa4c7d3e17ecac423453172f3fa86/src/cli/templates/render.ts#L5
     this.hbs.registerHelper("eq", (a: unknown, b: unknown) => a === b);
     this.hbs.registerHelper(
       "includes",
@@ -31,10 +32,17 @@ export class HandlebarsTemplateRenderer implements TemplateRenderer {
     this.hbs.registerHelper("snakeCase", (str: string) =>
       str.replace(/[^a-zA-Z0-9]/g, "_").toLowerCase(),
     );
-    this.hbs.registerHelper("safeJson", (value: unknown) => JSON.stringify(value));
+    this.hbs.registerHelper(
+      "safeJson",
+      (value: unknown) => new Handlebars.SafeString(JSON.stringify(value)),
+    );
+    this.hbs.registerHelper(
+      "pyJsonStr",
+      (value: unknown) => new Handlebars.SafeString(JSON.stringify(JSON.stringify(value))),
+    );
     this.hbs.registerHelper("escapePyStr", (value: unknown) => {
       const str = typeof value === "string" ? value : "";
-      return str.replace(/\\/g, "\\\\").replace(/"""/g, '\\"\\"\\"');
+      return new Handlebars.SafeString(str.replace(/\\/g, "\\\\").replace(/"""/g, '\\"\\"\\"'));
     });
   }
 
