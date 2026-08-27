@@ -73,6 +73,9 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError("the strands-python template only supports HTTP");
 
+    if (input.scaffoldRuntimeInput.build !== "CodeZip")
+      throw new InputValidationError("the strands template only supports CodeZip builds");
+
     const filesystemConfigurations = input.filesystemConfigurations ?? [];
     const sessionStorageMountPath = filesystemConfigurations.flatMap((configuration) =>
       "sessionStorage" in configuration ? [configuration.sessionStorage.mountPath] : [],

@@ -343,6 +343,10 @@ describe("project add runtime", () => {
       ["--name", "my_agent", "--template", "strands-python", "--protocol", "MCP"],
     ],
     [
+      "strands-python only supports CodeZip builds",
+      ["--name", "my_agent", "--template", "strands-python", "--build", "Container"],
+    ],
+    [
       "invalid JSON in --network-config",
       ["--name", "my_agent", ...template, "--network-config", "{bad}"],
     ],
