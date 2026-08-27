@@ -46,6 +46,8 @@ function buildResolverKey(
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python")]: async (input: RuntimeResourceConfig) => {
+    if (input.protocol !== undefined && input.protocol !== "HTTP")
+      throw new InputValidationError(`hello-world-python only supports HTTP protocol`);
     const tree = await FsTreeNode.fromAssetSource(
       assetSource,
       input.scaffoldRuntimeInput.build === "Container"

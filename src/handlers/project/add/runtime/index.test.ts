@@ -177,9 +177,6 @@ describe("project add runtime", () => {
         '{"customJwtAuthorizer":{"discoveryUrl":"https://idp.example.com/.well-known/openid-configuration","allowedAudience":["app"]}}',
       ],
     ],
-    ["protocol — MCP", ["--name", "my_agent", ...template, "--protocol", "MCP"]],
-    ["protocol — A2A", ["--name", "my_agent", ...template, "--protocol", "A2A"]],
-    ["protocol — AGUI", ["--name", "my_agent", ...template, "--protocol", "AGUI"]],
     [
       "request-header-allowlist",
       [
@@ -322,6 +319,10 @@ describe("project add runtime", () => {
     [
       "invalid JSON in --network-config",
       ["--name", "my_agent", ...template, "--network-config", "{bad}"],
+    ],
+    [
+      "hello-world-python only supports HTTP",
+      ["--name", "my_agent", "--template", "hello-world-python", "--protocol", "MCP"],
     ],
   ])("%s", async (_label, flags) => {
     await inProject();
