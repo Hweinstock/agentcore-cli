@@ -6,8 +6,8 @@ import { DeserializationError, ProjectStateError } from "../../errors/errors";
 import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
 import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { FsProjectManager } from "./manager";
+import { RUNTIME_TEMPLATE_SHORTCUTS } from "../../handlers/project/shortcuts";
 import {
-  RUNTIME_TEMPLATE_SHORTCUTS,
   type CreateProjectInput,
   type DeployResult,
   type Project,
