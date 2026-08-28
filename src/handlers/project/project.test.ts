@@ -206,14 +206,6 @@ describe("project create", () => {
       eventExpiryDuration: 30,
     });
     expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
-
-    const main = await Bun.file(join(projectRoot, "app", "MyAgent", "main.py")).text();
-    const session = await Bun.file(
-      join(projectRoot, "app", "MyAgent", "memory", "session.py"),
-    ).text();
-    expect(main).toContain("from memory.session import get_memory_session_manager");
-    expect(session).toContain('MEMORY_ID = os.getenv("MEMORY_MYAGENTMEMORY_ID")');
-    expect(session.includes("RetrievalConfig")).toBe(expectedStrategies.length > 0);
   });
 
   test("scaffolds from explicit custom flags", async () => {

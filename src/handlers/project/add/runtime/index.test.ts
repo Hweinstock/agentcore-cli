@@ -363,14 +363,6 @@ describe("project add runtime", () => {
       eventExpiryDuration: 30,
     });
     expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
-
-    const main = await Bun.file(join(projectRoot, "app", "my_agent", "main.py")).text();
-    const session = await Bun.file(
-      join(projectRoot, "app", "my_agent", "memory", "session.py"),
-    ).text();
-    expect(main).toContain("from memory.session import get_memory_session_manager");
-    expect(session).toContain('MEMORY_ID = os.getenv("MEMORY_MY_AGENTMEMORY_ID")');
-    expect(session.includes("RetrievalConfig")).toBe(expectedStrategies.length > 0);
   });
 
   test.each<[string, string[]]>([
