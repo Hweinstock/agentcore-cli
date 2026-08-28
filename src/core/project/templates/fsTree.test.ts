@@ -110,4 +110,23 @@ describe("FsTreeNode.fromAssetSource", () => {
     expect(tree.children.map(({ name }) => name)).toEqual(["keep.txt"]);
     expect(await tree.children[0]?.bytes?.()).toBe("CONTENTS:TEMPLATE/KEEP.TXT");
   });
+
+  test("strips .template suffix from non-ignore files", async () => {
+    const source: AssetSource = {
+      async list() {
+        return ["template/Dockerfile.template", "template/dockerignore.template"];
+      },
+      async read(assetPath) {
+        return `contents:${assetPath}`;
+      },
+    };
+
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource: source },
+      { assetDir: "template" },
+      { rootDirName: "root" },
+    );
+
+    expect(tree.children.map((node) => node.name)).toEqual(["Dockerfile", ".dockerignore"]);
+  });
 });
