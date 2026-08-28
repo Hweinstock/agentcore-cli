@@ -311,6 +311,38 @@ describe("project add evaluator code-based", () => {
     expect(await Bun.file(join(appDir, "lambda_function.py")).exists()).toBe(false);
   });
 
+  test("empty stub warns it returns Pass until implemented, plus the not-deployed note", async () => {
+    await inProject();
+    const { io } = await run([
+      "add",
+      "evaluator",
+      "code-based",
+      "--name",
+      "stub",
+      "--level",
+      "SESSION",
+    ]);
+    expect(io.stderr()).toContain("returns Pass for every session");
+    expect(io.stderr()).toContain("not yet provisioned");
+  });
+
+  test("external mode prints neither managed note", async () => {
+    await inProject();
+    const { io } = await run([
+      "add",
+      "evaluator",
+      "code-based",
+      "--name",
+      "ext",
+      "--level",
+      "SESSION",
+      "--lambda-arn",
+      "arn:aws:lambda:us-west-2:123456789012:function:f",
+    ]);
+    expect(io.stderr()).not.toContain("returns Pass for every session");
+    expect(io.stderr()).not.toContain("not yet provisioned");
+  });
+
   test("remove evaluator drops it from the spec", async () => {
     const projectRoot = await inProject();
     await run(["add", "evaluator", "code-based", "--name", "gone", "--level", "SESSION"]);

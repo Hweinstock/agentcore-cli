@@ -152,6 +152,18 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
       }
 
       config.io.stderr.write(`added evaluator '${flags["name"]}' to '${project.name}'\n`);
+      // Make the inferred mode and its caveats visible: the empty stub silently
+      // passes every session, and no managed evaluator is provisioned by deploy
+      // yet (no CDK/L3 support) — both are silent footguns otherwise.
+      if (!hasLambda) {
+        if (!hasMetric)
+          config.io.stderr.write(
+            `note: this evaluator returns Pass for every session until you implement app/${flags["name"]}/lambda_function.py\n`,
+          );
+        config.io.stderr.write(
+          `note: managed code-based evaluators are scaffolded locally but not yet provisioned by 'project deploy' (pending CDK/L3 support)\n`,
+        );
+      }
     },
   });
 
