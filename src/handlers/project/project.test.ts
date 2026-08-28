@@ -215,6 +215,32 @@ describe("project create", () => {
     ]);
   });
 
+  test.each(["shortTerm", "longAndShortTerm"] as const)(
+    "rejects --memory %s with --framework none",
+    async (memoryShortcut) => {
+      await inTempDirectory();
+      await expect(
+        run([
+          "create",
+          "--name",
+          "MyAgent",
+          "--build",
+          "CodeZip",
+          "--language",
+          "Python",
+          "--framework",
+          "none",
+          "--model-provider",
+          "Bedrock",
+          "--memory",
+          memoryShortcut,
+          "--skip-install",
+          "--skip-git",
+        ]),
+      ).rejects.toBeInstanceOf(InputValidationError);
+    },
+  );
+
   test.each([
     ["path traversal", "../MyAgent", /Must begin with a letter/],
     ["starts with a digit", "1Agent", /Must begin with a letter/],

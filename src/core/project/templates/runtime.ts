@@ -60,6 +60,8 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
   [buildResolverKey("none", "Python")]: async (input: RuntimeResourceConfig) => {
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError(`hello-world-python only supports HTTP protocol`);
+    if (input.scaffoldRuntimeInput.memory !== undefined)
+      throw new InputValidationError(`memory is not supported with the hello-world template`);
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       {

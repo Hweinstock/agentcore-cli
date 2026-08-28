@@ -95,6 +95,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
       const runtimeName = flags["runtime-name"] ?? flags["name"];
+
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
         ? resolveRuntimeTemplateShortcut(flags["template"]!)
         : isCustom
@@ -105,7 +106,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
               framework: flags["framework"],
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: MEMORY_SHORTCUTS[flags["memory"] ?? "longAndShortTerm"](runtimeName),
+              memory: MEMORY_SHORTCUTS[flags["memory"] ?? "none"](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
