@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createRootHandler } from "../../../../index";
@@ -50,7 +50,7 @@ async function inProject(name = "TestProject"): Promise<string> {
 const spec = (projectRoot: string) =>
   Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
 const evaluator = async (projectRoot: string, name: string) =>
-  (await spec(projectRoot)).evaluators.find((e: { name: string }) => e.name === name);
+  ((await spec(projectRoot)).evaluators ?? []).find((e: { name: string }) => e.name === name);
 
 describe("project add evaluator code-based", () => {
   test("3P metric → managed config + scaffolded, rendered Lambda source", async () => {
@@ -243,6 +243,22 @@ describe("project add evaluator code-based", () => {
     ];
     await run(flags);
     await expect(run(flags)).rejects.toBeInstanceOf(InputValidationError);
+  });
+
+  test("errors before writing when app/<name> already exists (cross-resource collision)", async () => {
+    const projectRoot = await inProject();
+    const appDir = join(projectRoot, "app", "collide");
+    await mkdir(appDir, { recursive: true });
+    await Bun.write(join(appDir, "pyproject.toml"), "# pre-existing\n");
+
+    await expect(
+      run(["add", "evaluator", "code-based", "--name", "collide", "--level", "SESSION"]),
+    ).rejects.toBeInstanceOf(InputValidationError);
+
+    // no spec entry, and the pre-existing dir is left untouched (no mid-write orphans)
+    expect(await evaluator(projectRoot, "collide")).toBeUndefined();
+    expect(await Bun.file(join(appDir, "pyproject.toml")).text()).toBe("# pre-existing\n");
+    expect(await Bun.file(join(appDir, "lambda_function.py")).exists()).toBe(false);
   });
 
   test("remove evaluator drops it from the spec", async () => {
