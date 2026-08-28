@@ -46,11 +46,48 @@ exports[`FsProjectManager.create snapshots the Strands project manifest and runt
     "app/strands_agent/main.py",
     "app/strands_agent/mcp_client/__init__.py",
     "app/strands_agent/mcp_client/client.py",
+    "app/strands_agent/memory/__init__.py",
+    "app/strands_agent/memory/session.py",
     "app/strands_agent/model/__init__.py",
     "app/strands_agent/model/load.py",
     "app/strands_agent/model/mantle_compat.py",
     "app/strands_agent/pyproject.toml",
     "app/strands_agent/skills/fetcher.py",
+  ],
+  "memories": [
+    {
+      "eventExpiryDuration": 30,
+      "name": "strands_agentMemory",
+      "strategies": [
+        {
+          "namespaceTemplates": [
+            "/users/{actorId}/facts",
+          ],
+          "type": "SEMANTIC",
+        },
+        {
+          "namespaceTemplates": [
+            "/users/{actorId}/preferences",
+          ],
+          "type": "USER_PREFERENCE",
+        },
+        {
+          "namespaceTemplates": [
+            "/summaries/{actorId}/{sessionId}",
+          ],
+          "type": "SUMMARIZATION",
+        },
+        {
+          "namespaceTemplates": [
+            "/episodes/{actorId}/{sessionId}",
+          ],
+          "reflectionNamespaceTemplates": [
+            "/episodes/{actorId}",
+          ],
+          "type": "EPISODIC",
+        },
+      ],
+    },
   ],
   "runtimes": [
     {

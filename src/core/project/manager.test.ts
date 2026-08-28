@@ -6,7 +6,7 @@ import { DeserializationError, ProjectStateError } from "../../errors/errors";
 import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
 import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { FsProjectManager } from "./manager";
-import { RUNTIME_TEMPLATE_SHORTCUTS } from "../../handlers/project/shortcuts";
+import { resolveRuntimeTemplateShortcut } from "../../handlers/project/shortcuts";
 import {
   type CreateProjectInput,
   type DeployResult,
@@ -17,9 +17,9 @@ import {
 import { createSilentLogger } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
 
-const HELLO_WORLD_PYTHON = RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
-const HELLO_WORLD_PYTHON_CONTAINER = RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python-container"];
-const STRANDS_PYTHON = RUNTIME_TEMPLATE_SHORTCUTS["strands-python"];
+const HELLO_WORLD_PYTHON = resolveRuntimeTemplateShortcut("hello-world-python");
+const HELLO_WORLD_PYTHON_CONTAINER = resolveRuntimeTemplateShortcut("hello-world-python-container");
+const STRANDS_PYTHON = resolveRuntimeTemplateShortcut("strands-python");
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -102,6 +102,7 @@ describe("FsProjectManager.create", () => {
     expect({
       manifest: await projectManifest(projectRoot),
       runtimes: spec.runtimes,
+      memories: spec.memories,
     }).toMatchSnapshot();
   });
 

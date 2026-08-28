@@ -2,11 +2,17 @@ import z from "zod";
 import { createHandler, flag } from "../../../router";
 import { SourceResolver, type AppIO } from "../../../io";
 import {
+  MEMORY_SHORTCUT_NAMES,
+  MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
-  RUNTIME_TEMPLATE_SHORTCUTS,
   resolveRuntimeTemplateShortcut,
 } from "../shortcuts";
-import { ScaffoldRuntimeInputSchema, type CreateProjectInput, type ProjectManager } from "../types";
+import {
+  ScaffoldRuntimeInputSchema,
+  type CreateProjectInput,
+  type ProjectManager,
+  type ScaffoldRuntimeInput,
+} from "../types";
 import { ProjectNameSchema } from "../../../projectSchemas/project";
 import { InputValidationError } from "../../../errors";
 
@@ -52,8 +58,12 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         z.string().optional(),
         { sensitive: true },
       ),
-      flag("memory", "memory option for the scaffolded runtime", z.enum(["none"]).optional()),
-      flag("runtime-name", "name of the scaffolded runtime", z.string().optional()),
+      flag(
+        "memory",
+        "memory option for the scaffolded runtime",
+        z.enum(MEMORY_SHORTCUT_NAMES).optional(),
+      ),
+      flag("runtime-name", "name of the scaffolded runtime", z.string().max(42).optional()),
       flag(
         "skip-install",
         "skip installing dependencies (npm install, uv sync)",
@@ -68,8 +78,8 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         "framework",
         "model-provider",
         "api-key",
-        "memory",
         "runtime-name",
+        "memory",
       ] as const;
 
       const presentScaffoldingFlags = scaffoldingFlags.filter((f) => flags[f] !== undefined);
@@ -86,34 +96,30 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const source = new SourceResolver({ stdin: config.io.stdin });
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
-      const scaffoldRuntimeInput = isTemplate
+      const runtimeName = flags["runtime-name"] ?? flags["name"];
+      const defaultMemory = flags["framework"] === "strands" ? "longAndShortTerm" : "none";
+
+      const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
         ? resolveRuntimeTemplateShortcut(flags["template"]!, {
-            ...(flags["runtime-name"] !== undefined && {
-              runtimeName: flags["runtime-name"],
-            }),
-            ...(flags["build"] !== undefined && {
-              build: flags["build"],
-              runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
-            }),
-            ...(flags["model-provider"] !== undefined && {
-              modelProvider: flags["model-provider"],
-            }),
-            ...(apiKey !== undefined && { apiKey }),
-            ...(flags["memory"] !== undefined && { memory: flags["memory"] }),
+            runtimeName: flags["runtime-name"],
+            build: flags["build"],
+            modelProvider: flags["model-provider"],
+            apiKey,
+            memory: flags["memory"],
           })
         : isCustom
           ? parseScaffoldRuntimeInput({
-              runtimeName: flags["runtime-name"] ?? flags["name"],
+              runtimeName,
               build: flags["build"],
               language: flags["language"],
               framework: flags["framework"],
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: flags["memory"],
+              memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
-          : RUNTIME_TEMPLATE_SHORTCUTS["hello-world-python"];
+          : resolveRuntimeTemplateShortcut("hello-world-python");
 
       const createInput: CreateProjectInput = {
         name: flags["name"],
@@ -130,7 +136,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
     },
   });
 
-function parseScaffoldRuntimeInput(input: Record<string, unknown>) {
+function parseScaffoldRuntimeInput(input: Partial<ScaffoldRuntimeInput>) {
   const result = ScaffoldRuntimeInputSchema.safeParse(input);
   if (!result.success) throw new InputValidationError(z.prettifyError(result.error));
   return result.data;

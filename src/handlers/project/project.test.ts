@@ -163,6 +163,51 @@ describe("project create", () => {
     expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
   });
 
+  test.each([
+    ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
+    ["none", ["--memory", "none"], []],
+    ["short", ["--memory", "shortTerm"], []],
+    [
+      "shortAndLongTerm",
+      ["--memory", "longAndShortTerm"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
+  ])("custom strands %s memory", async (_label, memoryFlags, expectedStrategies) => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--build",
+      "CodeZip",
+      "--language",
+      "Python",
+      "--framework",
+      "strands",
+      "--model-provider",
+      "Bedrock",
+      ...memoryFlags,
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyAgent");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const memories = spec.memories ?? [];
+    const memory = memories[0];
+
+    if (memoryFlags.length > 1 && memoryFlags[1] === "none") {
+      expect(memories).toEqual([]);
+      return;
+    }
+
+    expect(memory).toMatchObject({
+      name: "MyAgentMemory",
+      eventExpiryDuration: 30,
+    });
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+  });
+
   test("scaffolds from explicit custom flags", async () => {
     const directory = await inTempDirectory();
     await run([
@@ -196,32 +241,67 @@ describe("project create", () => {
     ]);
   });
 
-  test("rejects an invalid --runtime-name before scaffolding", async () => {
-    const directory = await inTempDirectory();
-    await expect(
-      run([
-        "create",
-        "--name",
-        "MyProject",
-        "--runtime-name",
-        "../MyAgent",
-        "--build",
-        "CodeZip",
-        "--language",
-        "Python",
-        "--framework",
-        "none",
-        "--model-provider",
-        "Bedrock",
-        "--memory",
-        "none",
-        "--skip-install",
-        "--skip-git",
-      ]),
-    ).rejects.toThrow(/Must begin with a letter/);
+  test.each(["shortTerm", "longAndShortTerm"] as const)(
+    "rejects --memory %s with --framework none",
+    async (memoryShortcut) => {
+      await inTempDirectory();
+      await expect(
+        run([
+          "create",
+          "--name",
+          "MyAgent",
+          "--build",
+          "CodeZip",
+          "--language",
+          "Python",
+          "--framework",
+          "none",
+          "--model-provider",
+          "Bedrock",
+          "--memory",
+          memoryShortcut,
+          "--skip-install",
+          "--skip-git",
+        ]),
+      ).rejects.toBeInstanceOf(InputValidationError);
+    },
+  );
 
-    expect(existsSync(join(directory, "MyProject"))).toBe(false);
-  });
+  test.each([
+    ["path traversal", "../MyAgent", /Must begin with a letter/],
+    ["starts with a digit", "1Agent", /Must begin with a letter/],
+    ["contains a hyphen", "my-agent", /Must begin with a letter/],
+    ["contains a space", "my agent", /Must begin with a letter/],
+    ["exceeds 42 chars", "a".repeat(43), /<=42 characters/],
+  ])(
+    "rejects an invalid --runtime-name before scaffolding (%s)",
+    async (_label, runtimeName, expectedError) => {
+      const directory = await inTempDirectory();
+      await expect(
+        run([
+          "create",
+          "--name",
+          "MyProject",
+          "--runtime-name",
+          runtimeName,
+          "--build",
+          "CodeZip",
+          "--language",
+          "Python",
+          "--framework",
+          "none",
+          "--model-provider",
+          "Bedrock",
+          "--memory",
+          "none",
+          "--skip-install",
+          "--skip-git",
+        ]),
+      ).rejects.toThrow(expectedError);
+
+      expect(existsSync(join(directory, "MyProject"))).toBe(false);
+    },
+  );
 
   test("rejects an incompatible API-key template override before scaffolding", async () => {
     const directory = await inTempDirectory();

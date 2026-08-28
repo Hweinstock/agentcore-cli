@@ -1,7 +1,7 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
-import type { MemorySchema } from "../../projectSchemas/memory";
+import { MemorySchema } from "../../projectSchemas/memory";
 import type { EvaluatorSchema } from "../../projectSchemas/evaluator";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
@@ -21,7 +21,7 @@ type CreateProjectInputBase = {
   skipGit?: boolean;
 };
 
-/** Set of flags needed to scaffold a new Runtime-based agent **/
+/** Set of arguments needed to scaffold a new Runtime-based agent. */
 export const ScaffoldRuntimeInputSchema = z
   .object({
     runtimeName: AgentNameSchema,
@@ -30,7 +30,7 @@ export const ScaffoldRuntimeInputSchema = z
     framework: z.enum(["strands", "none"]),
     modelProvider: z.enum(["Bedrock"]),
     apiKey: z.string().min(1).optional(),
-    memory: z.enum(["none"]),
+    memory: MemorySchema.optional(),
     entrypoint: EntrypointSchema,
     runtimeVersion: RuntimeVersionSchema.optional(),
   })

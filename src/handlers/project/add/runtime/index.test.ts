@@ -321,6 +321,50 @@ describe("project add runtime", () => {
     expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
   });
 
+  test.each([
+    ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
+    ["none", ["--memory", "none"], []],
+    ["short", ["--memory", "shortTerm"], []],
+    [
+      "longAndShortTerm",
+      ["--memory", "longAndShortTerm"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
+  ])("custom strands %s memory", async (_label, memoryFlags, expectedStrategies) => {
+    const projectRoot = await inProject();
+    await run([
+      "add",
+      "runtime",
+      "--name",
+      "my_agent",
+      "--build",
+      "CodeZip",
+      "--language",
+      "Python",
+      "--framework",
+      "strands",
+      "--model-provider",
+      "Bedrock",
+      ...memoryFlags,
+    ]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const memory = spec.memories.find(
+      (candidate: { name: string }) => candidate.name === "my_agentMemory",
+    );
+
+    if (memoryFlags.length > 1 && memoryFlags[1] === "none") {
+      expect(memory).toBeUndefined();
+      return;
+    }
+
+    expect(memory).toMatchObject({
+      name: "my_agentMemory",
+      eventExpiryDuration: 30,
+    });
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+  });
+
   test.each<[string, string[]]>([
     ["missing --name", ["--template", "hello-world-python"]],
     [
@@ -354,6 +398,41 @@ describe("project add runtime", () => {
       "hello-world-python only supports HTTP",
       ["--name", "my_agent", "--template", "hello-world-python", "--protocol", "MCP"],
     ],
+    [
+      "--memory shortTerm is not supported with --framework none",
+      [
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "none",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "shortTerm",
+      ],
+    ],
+    [
+      "--memory longAndShortTerm is not supported with --framework none",
+      [
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "none",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "longAndShortTerm",
+      ],
+    ],
+    ["runtime names are limited in length", ["--name", "x".repeat(43)]],
   ])("%s", async (_label, flags) => {
     await inProject();
     await expect(run(["add", "runtime", ...flags])).rejects.toBeInstanceOf(InputValidationError);
