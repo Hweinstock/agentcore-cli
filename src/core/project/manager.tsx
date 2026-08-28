@@ -42,6 +42,7 @@ import {
 } from "./templates/export";
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import { FsTreeNode } from "./templates/fsTree";
+import { getEvaluatorTemplateResolver } from "./templates/evaluator";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
 import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import {
@@ -336,7 +337,27 @@ export class FsProjectManager implements ProjectManager {
         break;
       }
       case "evaluator": {
-        projectSpec.evaluators.push(parseResource(EvaluatorSchema, input.resourceConfig));
+        const evaluator = parseResource(EvaluatorSchema, input.resourceConfig);
+        // Managed code-based evaluators ship generated Lambda source; external
+        // and llm-as-a-judge evaluators are spec-only.
+        if (input.scaffold) {
+          yield { message: "Scaffolding evaluator in project" };
+          const outputPath = join(project.rootPath, "app", evaluator.name);
+          scaffoldedPaths.push(outputPath);
+          const resolver = getEvaluatorTemplateResolver({
+            assetSource: this.assetSource,
+            templateRenderer: this.templateRenderer,
+          });
+          const result = await resolver.resolve({
+            evaluator,
+            assetDir: input.scaffold.assetDir,
+            context: input.scaffold.context,
+          });
+          await result.tree.write(dirname(outputPath));
+          projectSpec.evaluators.push(...(result.spec.evaluators ?? []));
+        } else {
+          projectSpec.evaluators.push(evaluator);
+        }
         break;
       }
       case "gateway":

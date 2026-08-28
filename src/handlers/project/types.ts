@@ -210,6 +210,13 @@ export type AddResourceInput =
   | {
       resourceType: "evaluator";
       resourceConfig: z.input<typeof EvaluatorSchema>;
+      /**
+       * Present only for managed code-based evaluators, whose code the CLI
+       * generates. `assetDir` picks the template under src/assets/evaluators;
+       * `context` holds its Handlebars variables. External and llm-as-a-judge
+       * evaluators omit this and are spec-only.
+       */
+      scaffold?: { assetDir: string; context: Record<string, unknown> };
     }
   | {
       resourceType: "gateway";
