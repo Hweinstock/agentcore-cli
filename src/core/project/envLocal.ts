@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { chmod, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { atomicWrite, readTextFile } from "../../io";
 import { InputValidationError } from "../../errors";
@@ -8,6 +8,7 @@ import type { EnvLocalEntry } from "../../handlers/project/types";
 export const ENV_LOCAL_RELATIVE_PATH = join("agentcore", ".env.local");
 
 const KEY_LINE = /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/;
+const SECRET_FILE_MODE = 0o600;
 
 /**
  * The project's `.env.local` secrets file, edited transactionally. `insertIfNew`
@@ -35,6 +36,7 @@ export class EnvLocalFile {
    */
   async insertIfNew(entries: EnvLocalEntry[]): Promise<{ written: string[]; skipped: string[] }> {
     const existing = await this.readOrNull();
+    if (existing !== null) await this.enforcePermissions();
     const existingKeys = new Set(
       (existing ?? "")
         .split("\n")
@@ -58,7 +60,7 @@ export class EnvLocalFile {
 
     if (written.length > 0) {
       this.snapshot = existing;
-      await atomicWrite(this.path, content);
+      await atomicWrite(this.path, content, { mode: SECRET_FILE_MODE });
     }
     return { written, skipped };
   }
@@ -67,7 +69,7 @@ export class EnvLocalFile {
   async rollback(): Promise<void> {
     if (this.snapshot === undefined) return;
     if (this.snapshot === null) await rm(this.path, { force: true });
-    else await atomicWrite(this.path, this.snapshot);
+    else await atomicWrite(this.path, this.snapshot, { mode: SECRET_FILE_MODE });
   }
 
   private async readOrNull(): Promise<string | null> {
@@ -77,6 +79,10 @@ export class EnvLocalFile {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
       throw error;
     }
+  }
+
+  private async enforcePermissions(): Promise<void> {
+    if (process.platform !== "win32") await chmod(this.path, SECRET_FILE_MODE);
   }
 }
 
