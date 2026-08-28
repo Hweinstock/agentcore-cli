@@ -249,6 +249,27 @@ describe("eval ondemand simulate", () => {
     expect(out.failures).toEqual([{ exampleId: "bad", error: "HTTP 500" }]);
     expect(out.sessions).toEqual([{ exampleId: "ok1", sessionId: "s1" }]);
   });
+
+  test("forwards a turn's expectedResponse as a reference input", async () => {
+    const { core } = await run(BASE, (c) =>
+      c.eval.setInvokeDatasetResponse({
+        sessions: [
+          {
+            exampleId: "e1",
+            sessionId: "s1",
+            groundTruth: { turns: [{ input: { prompt: "q" }, expectedResponse: { text: "42" } }] },
+          },
+        ],
+        invoked: 1,
+        failed: 0,
+        failures: [],
+      }),
+    );
+    const evaluate = core.eval.calls.find((c) => c.method === "evaluate");
+    expect((evaluate!.args[0] as { groundTruth: unknown[] }).groundTruth).toEqual([
+      { context: { spanContext: { sessionId: "s1" } }, expectedResponse: { text: "42" } },
+    ]);
+  });
 });
 
 describe("eval ondemand evaluate validation", () => {

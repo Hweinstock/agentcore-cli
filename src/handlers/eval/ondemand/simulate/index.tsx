@@ -8,6 +8,7 @@ import type { Core } from "../../../types";
 import type { InvokedSession } from "../../types";
 import { coreOptsFromCtx } from "../../../utils";
 import { parseRuntimeInvokeHeaders } from "../../../runtime/invoke/request";
+import { withUserCancellation } from "../../../../runnable";
 
 export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
   createHandler({
@@ -51,26 +52,28 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
         );
       }
 
-      const controller = new AbortController();
-      const interrupt = () => controller.abort();
-      process.once("SIGINT", interrupt);
-      try {
+      const runtimeId = flags["runtime-id"];
+      const payloadTemplate = flags["payload-template"];
+      const dataset = flags["dataset"];
+      const evaluatorIds = flags["evaluator"];
+
+      await withUserCancellation(async (signal) => {
         const opts = coreOptsFromCtx(ctx);
 
         const replay = await core.eval.invokeDataset(
           {
-            runtimeId: flags["runtime-id"],
+            runtimeId,
             qualifier: flags["qualifier"],
-            payloadTemplate: flags["payload-template"],
+            payloadTemplate,
             headers: parseRuntimeInvokeHeaders(flags["header"]),
             bearerToken: flags["bearer-token"],
             userId: flags["user-id"],
-            dataset: flags["dataset"],
+            dataset,
             datasetVersion: flags["dataset-version"],
             waitIngestionMs: flags["ingestion-wait-ms"],
           },
           opts,
-          controller.signal,
+          signal,
         );
         if (replay.invoked === 0) {
           const first = replay.failures[0];
@@ -82,7 +85,7 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
 
         const traces = await core.eval.getTracesForAgent(
           {
-            agent: flags["runtime-id"],
+            agent: runtimeId,
             endpoint: flags["qualifier"],
             sessionIds: replay.sessions.map((s) => s.sessionId),
           },
@@ -90,10 +93,7 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
         );
 
         const groundTruth = replay.sessions.flatMap(toReferenceInputs);
-        const result = await core.eval.evaluate(
-          { traces, evaluatorIds: flags["evaluator"], groundTruth },
-          opts,
-        );
+        const result = await core.eval.evaluate({ traces, evaluatorIds, groundTruth }, opts);
 
         ctx.require(JsonRendererKey).renderJson({
           ...result,
@@ -105,20 +105,24 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
           })),
           failures: replay.failures,
         });
-      } finally {
-        process.off("SIGINT", interrupt);
-      }
+      });
     },
   });
 
 function toReferenceInputs(s: InvokedSession): EvaluationReferenceInput[] {
   const gt = s.groundTruth;
-  if (!gt?.assertions?.length && !gt?.expectedTrajectory) return [];
-  return [
-    {
-      context: { spanContext: { sessionId: s.sessionId } },
+  if (!gt) return [];
+  const context = { spanContext: { sessionId: s.sessionId } };
+  const refs: EvaluationReferenceInput[] = [];
+  if (gt.assertions?.length || gt.expectedTrajectory) {
+    refs.push({
+      context,
       ...(gt.assertions?.length && { assertions: gt.assertions }),
       ...(gt.expectedTrajectory && { expectedTrajectory: gt.expectedTrajectory }),
-    },
-  ];
+    });
+  }
+  for (const turn of gt.turns ?? []) {
+    if (turn.expectedResponse) refs.push({ context, expectedResponse: turn.expectedResponse });
+  }
+  return refs;
 }
