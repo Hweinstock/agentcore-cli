@@ -1,9 +1,11 @@
+import z from "zod";
 import {
   DEFAULT_EPISODIC_REFLECTION_NAMESPACE_TEMPLATES,
   DEFAULT_STRATEGY_NAMESPACE_TEMPLATES,
   type Memory,
 } from "../../projectSchemas/memory";
-import type { ScaffoldRuntimeInput } from "./types";
+import { InputValidationError } from "../../errors";
+import { ScaffoldRuntimeInputSchema, type ScaffoldRuntimeInput } from "./types";
 
 export const MEMORY_SHORTCUTS = {
   none: (_runtimeName: string) => undefined,
@@ -35,7 +37,7 @@ export const MEMORY_SHORTCUT_NAMES = Object.keys(MEMORY_SHORTCUTS) as unknown as
 ];
 
 type RuntimeTemplateShortcut = Omit<ScaffoldRuntimeInput, "memory"> & {
-  memory?: MemoryShortcutName;
+  memory: MemoryShortcutName;
 };
 
 export const RUNTIME_TEMPLATE_SHORTCUTS = {
@@ -45,6 +47,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "none",
     modelProvider: "Bedrock",
+    memory: "none",
     entrypoint: "main.py",
     runtimeVersion: "PYTHON_3_14",
   },
@@ -54,6 +57,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "none",
     modelProvider: "Bedrock",
+    memory: "none",
     entrypoint: "main.py",
   },
   "strands-python": {
@@ -62,9 +66,9 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "strands",
     modelProvider: "Bedrock",
+    memory: "longAndShortTerm",
     entrypoint: "main.py",
     runtimeVersion: "PYTHON_3_14",
-    memory: "longAndShortTerm",
   },
 } as const satisfies Record<string, RuntimeTemplateShortcut>;
 
@@ -74,16 +78,37 @@ export const RUNTIME_TEMPLATE_SHORTCUT_NAMES = Object.keys(
   RUNTIME_TEMPLATE_SHORTCUTS,
 ) as unknown as readonly [RuntimeTemplateShortcutName, ...RuntimeTemplateShortcutName[]];
 
+type RuntimeTemplateOverrides = {
+  runtimeName?: string;
+  build?: ScaffoldRuntimeInput["build"];
+  modelProvider?: ScaffoldRuntimeInput["modelProvider"];
+  apiKey?: string;
+  memory?: MemoryShortcutName;
+};
+
 export function resolveRuntimeTemplateShortcut(
   name: RuntimeTemplateShortcutName,
-  runtimeName: string = RUNTIME_TEMPLATE_SHORTCUTS[name].runtimeName,
+  overrides?: RuntimeTemplateOverrides,
 ): ScaffoldRuntimeInput {
-  const selected: RuntimeTemplateShortcut = RUNTIME_TEMPLATE_SHORTCUTS[name];
-  const { memory: memoryShortcut, ...shortcut } = selected;
-  const memory = memoryShortcut ? MEMORY_SHORTCUTS[memoryShortcut](runtimeName) : undefined;
-  return {
-    ...shortcut,
+  const template = RUNTIME_TEMPLATE_SHORTCUTS[name];
+  const runtimeName = overrides?.runtimeName ?? template.runtimeName;
+  const build = overrides?.build ?? template.build;
+  const memoryShortcutName = overrides?.memory ?? template.memory;
+  const memory = MEMORY_SHORTCUTS[memoryShortcutName](runtimeName);
+
+  const input = {
     runtimeName,
+    build,
+    language: template.language,
+    framework: template.framework,
+    modelProvider: overrides?.modelProvider ?? template.modelProvider,
+    ...(overrides?.apiKey !== undefined && { apiKey: overrides.apiKey }),
     ...(memory && { memory }),
+    entrypoint: template.entrypoint,
+    runtimeVersion: build === "CodeZip" ? "PYTHON_3_14" : undefined,
   };
+
+  const result = ScaffoldRuntimeInputSchema.safeParse(input);
+  if (!result.success) throw new InputValidationError(z.prettifyError(result.error));
+  return result.data;
 }

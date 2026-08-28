@@ -114,7 +114,10 @@ describe("project create", () => {
     expect(core.projectCommands).toEqual([]);
   });
 
-  test("rejects --template combined with scaffolding flags", async () => {
+  test.each([
+    ["language", "Python"],
+    ["framework", "none"],
+  ])("rejects --%s as a template override", async (flagName, value) => {
     await inTempDirectory();
     await expect(
       run([
@@ -123,10 +126,41 @@ describe("project create", () => {
         "MyAgent",
         "--template",
         "hello-world-python",
-        "--build",
-        "Container",
+        `--${flagName}`,
+        value,
       ]),
-    ).rejects.toThrow(/--template and --build are mutually exclusive/);
+    ).rejects.toThrow(`--${flagName} cannot override a template`);
+  });
+
+  test("applies compatible overrides to a template", async () => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyProject",
+      "--template",
+      "strands-python",
+      "--runtime-name",
+      "custom_agent",
+      "--build",
+      "CodeZip",
+      "--model-provider",
+      "Bedrock",
+      "--memory",
+      "none",
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyProject");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes[0]).toMatchObject({
+      name: "custom_agent",
+      build: "CodeZip",
+      codeLocation: "app/custom_agent",
+      runtimeVersion: "PYTHON_3_14",
+    });
+    expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
   });
 
   test.each([
@@ -277,7 +311,7 @@ describe("project create", () => {
     },
   );
 
-  test("rejects an API key with the Bedrock model provider before scaffolding", async () => {
+  test("rejects an incompatible API-key template override before scaffolding", async () => {
     const directory = await inTempDirectory();
     await expect(
       run(
@@ -285,18 +319,10 @@ describe("project create", () => {
           "create",
           "--name",
           "MyProject",
-          "--build",
-          "CodeZip",
-          "--language",
-          "Python",
-          "--framework",
-          "none",
-          "--model-provider",
-          "Bedrock",
+          "--template",
+          "hello-world-python",
           "--api-key",
           "-",
-          "--memory",
-          "none",
           "--skip-install",
           "--skip-git",
         ],

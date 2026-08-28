@@ -29,7 +29,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag("name", "name of the project to create", ProjectNameSchema),
       flag(
         "template",
-        "a preset of flags to be leveraged in scaffolding the runtime. mutually exclusive with all runtime scaffolding flags",
+        "a preset of flags for scaffolding the runtime; compatible flags override preset values",
         z.enum(RUNTIME_TEMPLATE_SHORTCUT_NAMES).optional(),
       ),
       flag(
@@ -84,10 +84,12 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
 
       const presentScaffoldingFlags = scaffoldingFlags.filter((f) => flags[f] !== undefined);
       const isTemplate = flags["template"] !== undefined;
-      if (presentScaffoldingFlags.length > 0 && isTemplate)
-        throw new InputValidationError(
-          `--template and --${presentScaffoldingFlags[0]} are mutually exclusive`,
-        );
+      const lockedFlag = (["language", "framework"] as const).find(
+        (flagName) => flags[flagName] !== undefined,
+      );
+      if (isTemplate && lockedFlag) {
+        throw new InputValidationError(`--${lockedFlag} cannot override a template`);
+      }
 
       const isCustom = presentScaffoldingFlags.length > 0;
 
@@ -95,9 +97,16 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
       const runtimeName = flags["runtime-name"] ?? flags["name"];
+      const defaultMemory = flags["framework"] === "strands" ? "longAndShortTerm" : "none";
 
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
-        ? resolveRuntimeTemplateShortcut(flags["template"]!)
+        ? resolveRuntimeTemplateShortcut(flags["template"]!, {
+            runtimeName: flags["runtime-name"],
+            build: flags["build"],
+            modelProvider: flags["model-provider"],
+            apiKey,
+            memory: flags["memory"],
+          })
         : isCustom
           ? parseScaffoldRuntimeInput({
               runtimeName,
@@ -106,7 +115,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
               framework: flags["framework"],
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: MEMORY_SHORTCUTS[flags["memory"] ?? "none"](runtimeName),
+              memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
             })

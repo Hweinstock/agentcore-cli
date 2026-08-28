@@ -25,7 +25,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       flag("description", "an optional description of the runtime", z.string().optional()),
       flag(
         "template",
-        "a preset of flags to be leveraged in scaffolding the runtime. mutually exclusive with all runtime scaffolding flags",
+        "a preset of flags for scaffolding the runtime; compatible flags override preset values",
         z.enum(RUNTIME_TEMPLATE_SHORTCUT_NAMES).optional(),
       ),
       flag("build", "build type: CodeZip or Container", BuildTypeSchema.optional()),
@@ -114,11 +114,12 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       ] as const;
       const presentScaffoldingFlags = scaffoldingFlags.filter((f) => flags[f] !== undefined);
       const isTemplate = flags["template"] !== undefined;
-
-      if (isTemplate && presentScaffoldingFlags.length > 0)
-        throw new InputValidationError(
-          `--template and --${presentScaffoldingFlags[0]} are mutually exclusive`,
-        );
+      const lockedFlag = (["language", "framework"] as const).find(
+        (flagName) => flags[flagName] !== undefined,
+      );
+      if (isTemplate && lockedFlag) {
+        throw new InputValidationError(`--${lockedFlag} cannot override a template`);
+      }
 
       const isCustom = presentScaffoldingFlags.length > 0;
 
@@ -126,8 +127,15 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
       const runtimeName = flags.name;
+      const defaultMemory = flags.framework === "strands" ? "longAndShortTerm" : "none";
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
-        ? resolveRuntimeTemplateShortcut(flags.template!, runtimeName)
+        ? resolveRuntimeTemplateShortcut(flags.template!, {
+            runtimeName: flags.name,
+            build: flags.build,
+            modelProvider: flags["model-provider"],
+            apiKey,
+            memory: flags.memory,
+          })
         : isCustom
           ? parseScaffoldRuntimeInput({
               runtimeName,
@@ -136,11 +144,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
               framework: flags.framework,
               modelProvider: flags["model-provider"],
               apiKey,
-              memory: MEMORY_SHORTCUTS[flags.memory ?? "none"](runtimeName),
+              memory: MEMORY_SHORTCUTS[flags.memory ?? defaultMemory](runtimeName),
               entrypoint: "main.py",
               runtimeVersion: flags.build === "CodeZip" ? "PYTHON_3_14" : undefined,
             })
-          : resolveRuntimeTemplateShortcut("hello-world-python", runtimeName);
+          : resolveRuntimeTemplateShortcut("hello-world-python", { runtimeName: flags.name });
 
       const inputEnvironmentVariables = parseJsonFlag<Record<string, string>>(
         "environment-variables",
