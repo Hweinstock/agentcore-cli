@@ -106,7 +106,7 @@ describe("eval ondemand evaluate (fixture-backed)", () => {
       "--dataset",
       SIMULATE_DATASET,
       "--evaluator",
-      "Builtin.Helpfulness",
+      "Builtin.Correctness",
       "--ingestion-wait-ms",
       isRecording() ? "150000" : "0",
       "--region",

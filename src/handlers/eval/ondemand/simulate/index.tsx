@@ -92,7 +92,10 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
           opts,
         );
 
-        const groundTruth = replay.sessions.flatMap(toReferenceInputs);
+        const traceIdsBySession = new Map(traces.map((t) => [t.sessionId, t.traceIds]));
+        const groundTruth = replay.sessions.flatMap((s) =>
+          toReferenceInputs(s, traceIdsBySession.get(s.sessionId) ?? []),
+        );
         const result = await core.eval.evaluate({ traces, evaluatorIds, groundTruth }, opts);
 
         ctx.require(JsonRendererKey).renderJson({
@@ -109,20 +112,28 @@ export const createSimulateOnDemandHandler = (core: Core, _io: AppIO) =>
     },
   });
 
-function toReferenceInputs(s: InvokedSession): EvaluationReferenceInput[] {
+// assertions + expectedTrajectory are session-level; expectedResponse is trace-level and the
+// Evaluate API rejects it under a session-only context, so each turn's expectedResponse is
+// correlated to its trace by position (turn i → the session's i-th trace).
+function toReferenceInputs(s: InvokedSession, traceIds: string[]): EvaluationReferenceInput[] {
   const gt = s.groundTruth;
   if (!gt) return [];
-  const context = { spanContext: { sessionId: s.sessionId } };
   const refs: EvaluationReferenceInput[] = [];
   if (gt.assertions?.length || gt.expectedTrajectory) {
     refs.push({
-      context,
+      context: { spanContext: { sessionId: s.sessionId } },
       ...(gt.assertions?.length && { assertions: gt.assertions }),
       ...(gt.expectedTrajectory && { expectedTrajectory: gt.expectedTrajectory }),
     });
   }
-  for (const turn of gt.turns ?? []) {
-    if (turn.expectedResponse) refs.push({ context, expectedResponse: turn.expectedResponse });
-  }
+  (gt.turns ?? []).forEach((turn, i) => {
+    const traceId = traceIds[i];
+    if (turn.expectedResponse && traceId) {
+      refs.push({
+        context: { spanContext: { sessionId: s.sessionId, traceId } },
+        expectedResponse: turn.expectedResponse,
+      });
+    }
+  });
   return refs;
 }

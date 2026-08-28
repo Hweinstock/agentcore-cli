@@ -26,28 +26,6 @@
     [
       {
         "field": "@message",
-        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787779917883212081,\"observedTimeUnixNano\":1787779918378532682,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":\"\\n                You are a helpful assistant. Use tools when appropriate.\\n            \"},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"message\":\"Hello! How can I help you today?\\n\",\"finish_reason\":\"end_turn\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f5b461983df572e2aca3264d32d4d\",\"spanId\":\"82fe397271c56f75\"}"
-      },
-      {
-        "field": "sessionId",
-        "value": "00000000-0000-4000-8000-000000000001"
-      },
-      {
-        "field": "traceId",
-        "value": "6a8f5b461983df572e2aca3264d32d4d"
-      },
-      {
-        "field": "spanId",
-        "value": "82fe397271c56f75"
-      },
-      {
-        "field": "@ptr",
-        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgakLY/QAAAAAD0Mr1AABqj1tJAAAAQCIAEo/63y/4M0MK/U8v+DNDgfQKbVAUikaFCmRyACEBwYAQ=="
-      }
-    ],
-    [
-      {
-        "field": "@message",
         "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787779917883063841,\"observedTimeUnixNano\":1787779918378428749,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f5b461983df572e2aca3264d32d4d\",\"spanId\":\"c9722c3dbb4e781e\"}"
       },
       {
@@ -70,7 +48,7 @@
     [
       {
         "field": "@message",
-        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787780030855720915,\"observedTimeUnixNano\":1787780033471228591,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"\\\\n                You are a helpful assistant. Use tools when appropriate.\\\\n            \\\"}]\"}},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"Hello! How can I help you today?\\\"}]\"}},{\"role\":\"assistant\",\"content\":{\"finish_reason\":\"end_turn\",\"message\":\"[{\\\"text\\\": \\\"Hi there! How can I assist you today?\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f5bbc1882c05547b64a9246f17ca4\",\"spanId\":\"2b53da16274ce9f5\"}"
+        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787779917883212081,\"observedTimeUnixNano\":1787779918378532682,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":\"\\n                You are a helpful assistant. Use tools when appropriate.\\n            \"},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"message\":\"Hello! How can I help you today?\\n\",\"finish_reason\":\"end_turn\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f5b461983df572e2aca3264d32d4d\",\"spanId\":\"82fe397271c56f75\"}"
       },
       {
         "field": "sessionId",
@@ -78,15 +56,15 @@
       },
       {
         "field": "traceId",
-        "value": "6a8f5bbc1882c05547b64a9246f17ca4"
+        "value": "6a8f5b461983df572e2aca3264d32d4d"
       },
       {
         "field": "spanId",
-        "value": "2b53da16274ce9f5"
+        "value": "82fe397271c56f75"
       },
       {
         "field": "@ptr",
-        "value": "Cs4BCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASOBoYAgakLY/QAAAAAD0NEwIABqj1vAAAAAQCIAEo1IL2/4M0MIjD+f+DNDgYQKiOAkj11wFQ9oABIAIQFRgB"
+        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgakLY/QAAAAAD0Mr1AABqj1tJAAAAQCIAEo/63y/4M0MK/U8v+DNDgfQKbVAUikaFCmRyACEBwYAQ=="
       }
     ],
     [
@@ -114,6 +92,28 @@
     [
       {
         "field": "@message",
+        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787780030855720915,\"observedTimeUnixNano\":1787780033471228591,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"\\\\n                You are a helpful assistant. Use tools when appropriate.\\\\n            \\\"}]\"}},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"Hello! How can I help you today?\\\"}]\"}},{\"role\":\"assistant\",\"content\":{\"finish_reason\":\"end_turn\",\"message\":\"[{\\\"text\\\": \\\"Hi there! How can I assist you today?\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f5bbc1882c05547b64a9246f17ca4\",\"spanId\":\"2b53da16274ce9f5\"}"
+      },
+      {
+        "field": "sessionId",
+        "value": "00000000-0000-4000-8000-000000000001"
+      },
+      {
+        "field": "traceId",
+        "value": "6a8f5bbc1882c05547b64a9246f17ca4"
+      },
+      {
+        "field": "spanId",
+        "value": "2b53da16274ce9f5"
+      },
+      {
+        "field": "@ptr",
+        "value": "Cs4BCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASOBoYAgakLY/QAAAAAD0NEwIABqj1vAAAAAQCIAEo1IL2/4M0MIjD+f+DNDgYQKiOAkj11wFQ9oABIAIQFRgB"
+      }
+    ],
+    [
+      {
+        "field": "@message",
         "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787780030856119726,\"observedTimeUnixNano\":1787780033471475805,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":\"\\n                You are a helpful assistant. Use tools when appropriate.\\n            \"},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"message\":\"Hi there! How can I assist you today?\\n\",\"finish_reason\":\"end_turn\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f5bbc1882c05547b64a9246f17ca4\",\"spanId\":\"324e3a835d1af5c4\"}"
       },
       {
@@ -131,6 +131,28 @@
       {
         "field": "@ptr",
         "value": "Cs4BCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASOBoYAgakLY/QAAAAAD0NEwIABqj1vAAAAAQCIAEo1IL2/4M0MIjD+f+DNDgYQKiOAkj11wFQ9oABIAIQFxgB"
+      }
+    ],
+    [
+      {
+        "field": "@message",
+        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787782045239215762,\"observedTimeUnixNano\":1787782046488222333,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"\\\\n                You are a helpful assistant. Use tools when appropriate.\\\\n            \\\"}]\"}},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"finish_reason\":\"end_turn\",\"message\":\"[{\\\"text\\\": \\\"Hello! How can I help you today?\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f639540ebe6cb6f30d5d80762c2e2\",\"spanId\":\"0925d4cc59be00d9\"}"
+      },
+      {
+        "field": "sessionId",
+        "value": "00000000-0000-4000-8000-000000000001"
+      },
+      {
+        "field": "traceId",
+        "value": "6a8f639540ebe6cb6f30d5d80762c2e2"
+      },
+      {
+        "field": "spanId",
+        "value": "0925d4cc59be00d9"
+      },
+      {
+        "field": "@ptr",
+        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgakLY/QAAAAAD0VMD0ABqj2OYAAAAQCIAEo7Z/0gIQ0MJ3G9ICENDggQLfZAUisaFCuRyACEBwYAQ=="
       }
     ],
     [
@@ -180,29 +202,7 @@
     [
       {
         "field": "@message",
-        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787782045239215762,\"observedTimeUnixNano\":1787782046488222333,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"\\\\n                You are a helpful assistant. Use tools when appropriate.\\\\n            \\\"}]\"}},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"hi\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"finish_reason\":\"end_turn\",\"message\":\"[{\\\"text\\\": \\\"Hello! How can I help you today?\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a8f639540ebe6cb6f30d5d80762c2e2\",\"spanId\":\"0925d4cc59be00d9\"}"
-      },
-      {
-        "field": "sessionId",
-        "value": "00000000-0000-4000-8000-000000000001"
-      },
-      {
-        "field": "traceId",
-        "value": "6a8f639540ebe6cb6f30d5d80762c2e2"
-      },
-      {
-        "field": "spanId",
-        "value": "0925d4cc59be00d9"
-      },
-      {
-        "field": "@ptr",
-        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgakLY/QAAAAAD0VMD0ABqj2OYAAAAQCIAEo7Z/0gIQ0MJ3G9ICENDggQLfZAUisaFCuRyACEBwYAQ=="
-      }
-    ],
-    [
-      {
-        "field": "@message",
-        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787864481907136303,\"observedTimeUnixNano\":1787864486789333679,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"\\\\n                You are a helpful assistant. Use tools when appropriate.\\\\n            \\\"}]\"}},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"Say hello and offer help\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"finish_reason\":\"end_turn\",\"message\":\"[{\\\"text\\\": \\\"Hello! 👋 \\\\n\\\\nI'm here to help you with a variety of tasks. I can:\\\\n\\\\n- **Search the web** for current information, news, facts, or answers to questions\\\\n- **Fetch and read webpages** to get detailed content from specific URLs\\\\n- **Perform calculations** like adding numbers together\\\\n\\\\nWhat can I help you with today?\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a90a5987755c6e457ada5616a16dddb\",\"spanId\":\"d473e096a2db85a8\"}"
+        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787864481907561373,\"observedTimeUnixNano\":1787864486789498361,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"Say hello and offer help\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a90a5987755c6e457ada5616a16dddb\",\"spanId\":\"17fb5fcf047ef303\"}"
       },
       {
         "field": "sessionId",
@@ -214,11 +214,11 @@
       },
       {
         "field": "spanId",
-        "value": "d473e096a2db85a8"
+        "value": "17fb5fcf047ef303"
       },
       {
         "field": "@ptr",
-        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgahOL2DAAAAAJJ5XU0ABqkKWdAAAAYyIAEojNybqIQ0MPOAnKiENDgkQJLgAUj9blD9TSACECEYAQ=="
+        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgahOL2DAAAAAJJ5XU0ABqkKWdAAAAYyIAEojNybqIQ0MPOAnKiENDgkQJLgAUj9blD9TSACECIYAQ=="
       }
     ],
     [
@@ -246,7 +246,7 @@
     [
       {
         "field": "@message",
-        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787864481907561373,\"observedTimeUnixNano\":1787864486789498361,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"Say hello and offer help\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a90a5987755c6e457ada5616a16dddb\",\"spanId\":\"17fb5fcf047ef303\"}"
+        "value": "{\"resource\":{\"attributes\":{\"telemetry.sdk.language\":\"python\",\"telemetry.sdk.name\":\"opentelemetry\",\"telemetry.sdk.version\":\"1.40.0\",\"service.name\":\"asdf_MyAgent.DEFAULT\",\"aws.log.group.names\":\"/aws/bedrock-agentcore/runtimes/asdf_MyAgent-3s5axvBC6Q-DEFAULT\",\"aws.log.stream.names\":\"otel-rt-logs\",\"deployment.environment.name\":\"bedrock-agentcore:default\",\"cloud.resource_id\":\"arn:aws:bedrock-agentcore:us-west-2:685197708687:runtime/asdf_MyAgent-3s5axvBC6Q/runtime-endpoint/DEFAULT:DEFAULT\",\"cloud.platform\":\"aws_bedrock_agentcore\",\"cloud.provider\":\"aws\",\"cloud.region\":\"us-west-2\",\"telemetry.auto.version\":\"0.17.0-aws\",\"aws.local.service\":\"asdf_MyAgent.DEFAULT\",\"aws.service.type\":\"gen_ai_agent\"}},\"scope\":{\"name\":\"strands.telemetry.tracer\"},\"timeUnixNano\":1787864481907136303,\"observedTimeUnixNano\":1787864486789333679,\"severityNumber\":9,\"severityText\":\"\",\"body\":{\"input\":{\"messages\":[{\"role\":\"system\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"\\\\n                You are a helpful assistant. Use tools when appropriate.\\\\n            \\\"}]\"}},{\"role\":\"user\",\"content\":{\"content\":\"[{\\\"text\\\": \\\"Say hello and offer help\\\"}]\"}}]},\"output\":{\"messages\":[{\"role\":\"assistant\",\"content\":{\"finish_reason\":\"end_turn\",\"message\":\"[{\\\"text\\\": \\\"Hello! 👋 \\\\n\\\\nI'm here to help you with a variety of tasks. I can:\\\\n\\\\n- **Search the web** for current information, news, facts, or answers to questions\\\\n- **Fetch and read webpages** to get detailed content from specific URLs\\\\n- **Perform calculations** like adding numbers together\\\\n\\\\nWhat can I help you with today?\\\"}]\"}}]}},\"attributes\":{\"session.id\":\"00000000-0000-4000-8000-000000000001\",\"event.name\":\"strands.telemetry.tracer\"},\"flags\":1,\"traceId\":\"6a90a5987755c6e457ada5616a16dddb\",\"spanId\":\"d473e096a2db85a8\"}"
       },
       {
         "field": "sessionId",
@@ -258,11 +258,11 @@
       },
       {
         "field": "spanId",
-        "value": "17fb5fcf047ef303"
+        "value": "d473e096a2db85a8"
       },
       {
         "field": "@ptr",
-        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgahOL2DAAAAAJJ5XU0ABqkKWdAAAAYyIAEojNybqIQ0MPOAnKiENDgkQJLgAUj9blD9TSACECIYAQ=="
+        "value": "CswBCo8BCkw2ODUxOTc3MDg2ODc6L2F3cy9iZWRyb2NrLWFnZW50Y29yZS9ydW50aW1lcy9hc2RmX015QWdlbnQtM3M1YXh2QkM2US1ERUZBVUxUEAAaJGY2ZGY3NDIyLWVlZTQtNDhkNS05NDg3LTE0NTZkYjdkZGE1YiIOCICQ+IyCNBDnn6qthDRA0cHR4dszSAASNhoYAgahOL2DAAAAAJJ5XU0ABqkKWdAAAAYyIAEojNybqIQ0MPOAnKiENDgkQJLgAUj9blD9TSACECEYAQ=="
       }
     ],
     [

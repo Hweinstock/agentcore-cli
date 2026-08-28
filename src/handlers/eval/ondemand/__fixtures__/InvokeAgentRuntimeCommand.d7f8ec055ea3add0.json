@@ -1,8 +1,0 @@
-{
-  "contentType": "text/event-stream; charset=utf-8",
-  "runtimeSessionId": "00000000-0000-4000-8000-000000000001",
-  "response": {
-    "$stream": "data: \"Hello! 👋 Welcome\"\n\ndata: \"!\"\n\ndata: \"\\n\\nI'm here to assist\"\n\ndata: \" you today\"\n\ndata: \". I can help you\"\n\ndata: \" with:\"\n\ndata: \"\\n\\n- **Web\"\n\ndata: \" searches** -\"\n\ndata: \" Find\"\n\ndata: \" current information, news, research\"\n\ndata: \", or answers\"\n\ndata: \" to questions on\"\n\ndata: \" any\"\n\ndata: \" topic\\n- **Reading\"\n\ndata: \" webpages** - Extract and\"\n\ndata: \" read content\"\n\ndata: \" from specific URLs or\"\n\ndata: \" articles\"\n\ndata: \"\\n- **Simple\"\n\ndata: \" calculations** - Add numbers together\"\n\ndata: \"\\n\\nWhat would you like help\"\n\ndata: \" with?\"\n\n"
-  },
-  "statusCode": 200
-}

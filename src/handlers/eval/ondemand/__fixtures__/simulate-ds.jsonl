@@ -1,1 +1,1 @@
-{"example_id":"greet","turns":[{"input":"Say hello and offer help"}],"assertions":["is polite"]}
+{"example_id":"greet","turns":[{"input":"What is 2+2? Reply with just the number.","expected_response":"4"}],"assertions":["is concise"]}

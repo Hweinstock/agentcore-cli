@@ -265,9 +265,13 @@ describe("eval ondemand simulate", () => {
         failures: [],
       }),
     );
+    // expectedResponse is trace-level: correlated to the session's first trace (TRACE.traceIds[0]).
     const evaluate = core.eval.calls.find((c) => c.method === "evaluate");
     expect((evaluate!.args[0] as { groundTruth: unknown[] }).groundTruth).toEqual([
-      { context: { spanContext: { sessionId: "s1" } }, expectedResponse: { text: "42" } },
+      {
+        context: { spanContext: { sessionId: "s1", traceId: "t1" } },
+        expectedResponse: { text: "42" },
+      },
     ]);
   });
 });
