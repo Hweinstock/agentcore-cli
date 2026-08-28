@@ -1,5 +1,12 @@
 export { parse, stringify } from "./serialization";
-export { fixtureFactories, fixtureFetch, isRecording, matchGolden, settle } from "./fixtures";
+export {
+  fixtureFactories,
+  fixtureFetch,
+  isRecording,
+  matchGolden,
+  settle,
+  uniquePerRecording,
+} from "./fixtures";
 export { testIO, ttyTestIO, type TestIO, type TestIOOptions, type TtyInput } from "./testIO";
 export { tick, waitFor, WaitForTimeoutError } from "./timing";
 export {

@@ -8,6 +8,7 @@ import {
   matchGolden,
   TestGlobalConfigAccessor,
   testIO,
+  uniquePerRecording,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
 
@@ -74,6 +75,12 @@ describe("eval ondemand evaluate (fixture-backed)", () => {
   }, 180_000);
 
   test("simulate replays a dataset, then evaluates the created sessions client-side", async () => {
+    const nonce = uniquePerRecording(FIXTURES, "session-nonce", () => Date.now().toString(16));
+    const windowNow = uniquePerRecording(
+      FIXTURES,
+      "trace-window-now",
+      () => Date.now() + 24 * 60 * 60 * 1000,
+    );
     let n = 0;
     const { createControlClient, createDataClient, createIamClient, createLogsClient } =
       fixtureFactories(FIXTURES);
@@ -83,8 +90,9 @@ describe("eval ondemand evaluate (fixture-backed)", () => {
       createIamClient,
       createLogsClient,
       logger: createSilentLogger(),
-      newSessionId: () => `00000000-0000-4000-8000-${String(++n).padStart(12, "0")}`,
-      now: () => Date.parse("2026-08-28T00:00:00Z"),
+      newSessionId: () =>
+        `00000000-0000-4000-8000-${nonce.slice(-8).padStart(8, "0")}${String(++n).padStart(4, "0")}`,
+      now: () => windowNow,
     });
     const io = testIO();
     const root = createRootHandler(core, {
