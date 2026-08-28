@@ -134,6 +134,10 @@ export class FsProjectManager implements ProjectManager {
 
       const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
       yield* this.installRuntimeDependencies(appDir);
+    } else if (scaffoldRuntimeInput.build === "Container") {
+      // containers require uv.lock to build, so even with no-install we must generate the lock.
+      const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
+      yield* this.ensureLockFileExists(appDir);
     }
 
     if (!input.skipGit) {
@@ -508,6 +512,26 @@ export class FsProjectManager implements ProjectManager {
       );
       yield { message: "Syncing Python dependencies with uv" };
       await this.run(["uv", "sync"], appDir);
+    }
+  }
+
+  /**
+   * Check if the uv.lock file exists within the project, and generate it if missing.
+   */
+  private async *ensureLockFileExists(appDir: string): AsyncGenerator<ProjectEvent, void> {
+    if (!existsSync(join(appDir, "pyproject.toml")) || existsSync(join(appDir, "uv.lock"))) {
+      return;
+    }
+    yield { message: "Generating uv.lock for container build" };
+    try {
+      await this.run(["uv", "lock"], appDir);
+    } catch {
+      yield {
+        message:
+          `Warning: could not generate uv.lock in ${appDir} (is uv installed?). ` +
+          "Run `uv lock` there before `agentcore project dev` or `deploy` — " +
+          "container builds install from uv.lock.",
+      };
     }
   }
 

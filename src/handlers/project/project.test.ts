@@ -208,6 +208,26 @@ describe("project create", () => {
     expect(await Bun.file(join(runtimeRoot, ".dockerignore")).exists()).toBe(false);
   });
 
+  test("generates uv.lock for a Container scaffold even with --skip-install", async () => {
+    const directory = await inTempDirectory();
+    const { core } = await run([
+      "create",
+      "--name",
+      "MyProject",
+      "--template",
+      "strands-python",
+      "--build",
+      "Container",
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    expect(core.projectCommands).toContainEqual({
+      command: ["uv", "lock"],
+      cwd: join(directory, "MyProject", "app", "strands_agent"),
+    });
+  });
+
   test.each([
     ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["none", ["--memory", "none"], []],
