@@ -205,6 +205,36 @@ describe("project add evaluator code-based", () => {
       ["--name", "x", "--level", "SESSION", "--metric", "ragas.Faithfulness"],
     ],
     ["metric without a class", ["--name", "x", "--level", "SESSION", "--metric", "deepeval"]],
+    [
+      "namespaced (multi-dot) metric class",
+      ["--name", "x", "--level", "SESSION", "--metric", "deepeval.metrics.Faithfulness"],
+    ],
+    [
+      "non-Bedrock --model",
+      [
+        "--name",
+        "x",
+        "--level",
+        "SESSION",
+        "--metric",
+        "deepeval.FaithfulnessMetric",
+        "--model",
+        "gpt-4o",
+      ],
+    ],
+    [
+      "--model bedrock with no slash/id",
+      [
+        "--name",
+        "x",
+        "--level",
+        "SESSION",
+        "--metric",
+        "autoevals.Factuality",
+        "--model",
+        "bedrock",
+      ],
+    ],
     ["--model without --metric", ["--name", "x", "--level", "SESSION", "--model", "bedrock/foo"]],
     [
       "managed flag with --lambda-arn",
@@ -226,6 +256,26 @@ describe("project add evaluator code-based", () => {
     await expect(run(["add", "evaluator", "code-based", ...flags])).rejects.toBeInstanceOf(
       InputValidationError,
     );
+  });
+
+  test("accepts a bare Bedrock inference-profile model id and renders it into the source", async () => {
+    const projectRoot = await inProject();
+    await run([
+      "add",
+      "evaluator",
+      "code-based",
+      "--name",
+      "prof",
+      "--level",
+      "SESSION",
+      "--metric",
+      "deepeval.FaithfulnessMetric",
+      "--model",
+      "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    ]);
+    expect(await evaluator(projectRoot, "prof")).toBeDefined();
+    const src = await Bun.file(join(projectRoot, "app", "prof", "lambda_function.py")).text();
+    expect(src).toContain("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
   });
 
   test("rejects a duplicate evaluator name", async () => {

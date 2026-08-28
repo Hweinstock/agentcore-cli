@@ -1,7 +1,7 @@
 import z from "zod";
 import { createHandler, flag, ProjectKey } from "../../../../../router";
 import { InputValidationError } from "../../../../../errors";
-import { EvaluatorSchema } from "../../../../../projectSchemas/evaluator";
+import { EvaluatorSchema, isValidBedrockModelId } from "../../../../../projectSchemas/evaluator";
 import { TagsSchema } from "../../../../../projectSchemas/tags";
 import { parseJsonFlagWithSchema } from "../../../../utils";
 import type { AddProjectResourceConfig } from "../../types";
@@ -104,13 +104,21 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
             throw new InputValidationError(
               `invalid --metric "${raw}": expected <library.Metric> where library is one of ${Object.keys(LIBRARIES).join(", ")} (e.g. deepeval.FaithfulnessMetric)`,
             );
+          // The class is rendered straight into `from <lib> import <class>` and
+          // `<class>(...)`, so it must be a single Python identifier. Reject
+          // dotted/namespaced values (e.g. deepeval.metrics.Faithfulness) that
+          // would emit invalid Python and only fail at deploy/runtime.
+          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(metricClass))
+            throw new InputValidationError(
+              `invalid metric class "${metricClass}" in --metric "${raw}": expected a single class name like FaithfulnessMetric`,
+            );
           assetDir = lib.assetDir;
           defaultTimeout = lib.defaultTimeoutSeconds;
 
-          const { modelProviderBedrock, model } = parseModel(flags["model"]);
+          const model = resolveBedrockModel(flags["model"]);
           context["EvaluatorClass"] = metricClass;
-          context["Model"] = model;
-          context["ModelProviderBedrock"] = modelProviderBedrock;
+          context["Model"] = model ?? "";
+          context["ModelProviderBedrock"] = model !== undefined;
           context["EvaluatorParams"] = "";
         }
 
@@ -147,15 +155,20 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
     },
   });
 
-// `bedrock/<id>` selects the Bedrock judge backend (Model = the id); anything
-// else (openai/gpt-4o, a bare name, or unset) falls through to the library's
-// default model.
-function parseModel(model: string | undefined): { modelProviderBedrock: boolean; model: string } {
-  if (!model) return { modelProviderBedrock: false, model: "" };
-  const slash = model.indexOf("/");
-  const provider = slash > 0 ? model.slice(0, slash) : "";
-  if (provider === "bedrock") return { modelProviderBedrock: true, model: model.slice(slash + 1) };
-  return { modelProviderBedrock: false, model };
+// Judge model for a 3P metric. Bedrock-only: accepts a bare Bedrock model id /
+// inference-profile-or-foundation-model ARN, optionally prefixed with
+// `bedrock/`, and returns the id with the prefix stripped. Anything else errors
+// rather than silently degrading — a non-Bedrock value is dropped by the
+// deepeval template and passed to the wrong client by autoevals. Returns
+// undefined when no --model was given (library default).
+function resolveBedrockModel(model: string | undefined): string | undefined {
+  if (!model) return undefined;
+  const id = model.startsWith("bedrock/") ? model.slice("bedrock/".length) : model;
+  if (!isValidBedrockModelId(id))
+    throw new InputValidationError(
+      `invalid --model "${model}": expected a Bedrock model ID (e.g. anthropic.claude-3-5-sonnet-20240620-v1:0) or an inference-profile/foundation-model ARN, optionally prefixed with "bedrock/"`,
+    );
+  return id;
 }
 
 // PEP 508 package name: ASCII letters/numbers/period/underscore/hyphen, must
