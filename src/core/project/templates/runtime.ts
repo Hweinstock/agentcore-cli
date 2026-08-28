@@ -113,8 +113,8 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       needsOs: filesystemConfigurations.length > 0,
       hasConfigBundle: false,
       enableOtel: true,
-      // entrypoint is only consumed on container path, where the docker file attempts to launch it as a module (without .py extension)
-      entrypoint: input.scaffoldRuntimeInput.entrypoint.replace(/\.py$/, ""),
+      // The strands template's entrypoint is fixed to main.py; the container Dockerfile launches it as the `main` module.
+      entrypoint: "main",
     };
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
