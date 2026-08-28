@@ -2,6 +2,7 @@ import z from "zod";
 import { createHandler, flag } from "../../../router";
 import { SourceResolver, type AppIO } from "../../../io";
 import {
+  LANGUAGE_VERSION_DEFAULTS,
   MEMORY_SHORTCUT_NAMES,
   MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
@@ -118,9 +119,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
               memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
               runtimeVersion:
                 flags["build"] === "CodeZip"
-                  ? flags["language"] === "TypeScript"
-                    ? "NODE_22"
-                    : "PYTHON_3_14"
+                  ? LANGUAGE_VERSION_DEFAULTS[flags["language"] ?? "Python"]
                   : undefined,
             })
           : resolveRuntimeTemplateShortcut("hello-world-python");
