@@ -537,3 +537,151 @@ describe("ObservabilityClient.streamRuntimeLogs", () => {
     );
   });
 });
+
+// insightsLogs fakes the StartQuery/GetQueryResults protocol: every query
+// completes immediately with `results`, and each StartQuery input is recorded.
+function insightsLogs(results: { field: string; value: string }[][]) {
+  const queries: {
+    logGroupNames?: string[];
+    queryString?: string;
+    startTime?: number;
+    endTime?: number;
+  }[] = [];
+  const logs = fakeLogs(async (command) => {
+    if (command instanceof StartQueryCommand) {
+      queries.push(command.input);
+      return { queryId: "q-traces" };
+    }
+    expect(command).toBeInstanceOf(GetQueryResultsCommand);
+    return { status: "Complete", results };
+  });
+  return { logs, queries };
+}
+
+describe("ObservabilityClient.listRuntimeTraces", () => {
+  const INPUT = {
+    runtimeId: "my_agent-AbC123XyZ9",
+    startTimeMs: 1_700_000_000_123,
+    endTimeMs: 1_700_003_600_456,
+    limit: 5,
+  };
+
+  test("aggregates traces with a stats-by-traceId query over the runtime log group", async () => {
+    const { logs, queries } = insightsLogs([]);
+
+    await clientWith(logs).listRuntimeTraces(INPUT, OPTIONS);
+
+    expect(queries).toHaveLength(1);
+    expect(queries[0]!.logGroupNames).toEqual([
+      "/aws/bedrock-agentcore/runtimes/my_agent-AbC123XyZ9-DEFAULT",
+    ]);
+    // Epoch ms narrows to whole seconds.
+    expect(queries[0]!.startTime).toBe(1_700_000_000);
+    expect(queries[0]!.endTime).toBe(1_700_003_600);
+    expect(queries[0]!.queryString).toBe(
+      'filter ispresent(traceId) and traceId != ""\n' +
+        "| stats earliest(@timestamp) as firstSeen, latest(@timestamp) as lastSeen, " +
+        "count(*) as spanCount, earliest(attributes.session.id) as sessionId by traceId\n" +
+        "| sort lastSeen desc\n" +
+        "| limit 5",
+    );
+  });
+
+  test("parses result rows into trace summaries, skipping rows without a trace id", async () => {
+    const { logs } = insightsLogs([
+      [
+        { field: "traceId", value: "abc123" },
+        { field: "firstSeen", value: "1700000000000" },
+        { field: "lastSeen", value: "1700000005000" },
+        { field: "spanCount", value: "12" },
+        { field: "sessionId", value: "session-1" },
+      ],
+      [{ field: "lastSeen", value: "1700000001000" }],
+      [
+        { field: "traceId", value: "def456" },
+        { field: "firstSeen", value: "1700000002000" },
+      ],
+    ]);
+
+    const traces = await clientWith(logs).listRuntimeTraces(INPUT, OPTIONS);
+
+    expect(traces).toEqual([
+      {
+        traceId: "abc123",
+        timestamp: "1700000005000",
+        sessionId: "session-1",
+        spanCount: "12",
+      },
+      // lastSeen falls back to firstSeen; sessionId/spanCount stay undefined.
+      { traceId: "def456", timestamp: "1700000002000", sessionId: undefined, spanCount: undefined },
+    ]);
+  });
+
+  test("translates a missing log group into invoked-yet guidance", async () => {
+    const logs = fakeLogs(async () => {
+      throw new ResourceNotFoundException({ message: "no such group", $metadata: {} });
+    });
+
+    await expect(clientWith(logs).listRuntimeTraces(INPUT, OPTIONS)).rejects.toThrow(
+      "Has the runtime been invoked yet?",
+    );
+  });
+});
+
+describe("ObservabilityClient.getRuntimeTrace", () => {
+  const INPUT = {
+    runtimeId: "my_agent-AbC123XyZ9",
+    traceId: "68b2fabc0000000000abcdef",
+    startTimeMs: 1_700_000_000_000,
+    endTimeMs: 1_700_003_600_000,
+  };
+
+  test("rejects a malformed trace id before querying", async () => {
+    const logs = fakeLogs(async () => {
+      throw new Error("must not be called");
+    });
+
+    await expect(
+      clientWith(logs).getRuntimeTrace({ ...INPUT, traceId: "not'a$trace" }, OPTIONS),
+    ).rejects.toThrow("Invalid trace ID format. Expected a hex string (e.g., abc123def456).");
+  });
+
+  test("downloads the trace's records with @message parsed when it is JSON", async () => {
+    const { logs, queries } = insightsLogs([
+      [
+        { field: "@timestamp", value: "2026-08-30 12:00:00.000" },
+        { field: "@message", value: '{"traceId":"68b2fabc","body":"hello"}' },
+        { field: "@ptr", value: "pointer-1" },
+      ],
+      [
+        { field: "@timestamp", value: "2026-08-30 12:00:01.000" },
+        { field: "@message", value: "not json" },
+      ],
+    ]);
+
+    const records = await clientWith(logs).getRuntimeTrace(INPUT, OPTIONS);
+
+    expect(queries[0]!.queryString).toBe(
+      "fields @timestamp, @message\n" +
+        "| filter traceId = '68b2fabc0000000000abcdef'\n" +
+        "| sort @timestamp asc\n" +
+        "| limit 10000",
+    );
+    expect(records).toEqual([
+      {
+        "@timestamp": "2026-08-30 12:00:00.000",
+        "@message": { traceId: "68b2fabc", body: "hello" },
+        "@ptr": "pointer-1",
+      },
+      { "@timestamp": "2026-08-30 12:00:01.000", "@message": "not json" },
+    ]);
+  });
+
+  test("fails when the trace has no records", async () => {
+    const { logs } = insightsLogs([]);
+
+    await expect(clientWith(logs).getRuntimeTrace(INPUT, OPTIONS)).rejects.toThrow(
+      "No trace data found for trace ID: 68b2fabc0000000000abcdef",
+    );
+  });
+});

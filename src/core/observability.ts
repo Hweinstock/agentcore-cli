@@ -23,9 +23,13 @@ import type { Project } from "../handlers/project/types";
 import type {
   CoreObservabilityClient,
   DeployedRuntime,
+  GetRuntimeTraceInput,
+  ListRuntimeTracesInput,
   RuntimeLogEvent,
   SearchRuntimeLogsInput,
   StreamRuntimeLogsInput,
+  TraceRecord,
+  TraceSummary,
 } from "../handlers/runtime/types";
 import { AwsDeploymentTargetsSchema } from "../projectSchemas/aws-targets";
 import { isStackNotFound } from "./project/backends/cdk/environment";
@@ -441,6 +445,114 @@ export class ObservabilityClient implements CoreObservabilityClient {
       nextToken = response.nextToken;
     } while (nextToken && (input.limit === undefined || yielded < input.limit));
   }
+
+  /**
+   * Lists the runtime's recent traces by aggregating its telemetry records with
+   * a Logs Insights `stats … by traceId` query (mirrors the old CLI's
+   * list-traces operation), newest first.
+   */
+  async listRuntimeTraces(
+    input: ListRuntimeTracesInput,
+    options: CoreOptions,
+  ): Promise<TraceSummary[]> {
+    const logGroupName = runtimeLogGroup(input.runtimeId, DEFAULT_ENDPOINT_QUALIFIER);
+    // Infrastructure records carry an empty traceId; excluding them before the
+    // aggregation keeps them from occupying one of the `limit` buckets (the old
+    // CLI filtered afterwards, silently returning one trace fewer).
+    const queryString =
+      `filter ispresent(traceId) and traceId != ""\n` +
+      `| stats earliest(@timestamp) as firstSeen, latest(@timestamp) as lastSeen, ` +
+      `count(*) as spanCount, earliest(attributes.session.id) as sessionId by traceId\n` +
+      `| sort lastSeen desc\n` +
+      `| limit ${Math.floor(input.limit)}`;
+
+    const rows = await this.runTraceQuery(input, logGroupName, queryString, options);
+
+    const traces: TraceSummary[] = [];
+    for (const row of rows) {
+      const fields = fieldMap(row);
+      if (!fields.traceId) continue;
+      traces.push({
+        traceId: fields.traceId,
+        timestamp: fields.lastSeen ?? fields.firstSeen ?? "unknown",
+        sessionId: fields.sessionId,
+        spanCount: fields.spanCount,
+      });
+    }
+    return traces;
+  }
+
+  /**
+   * Downloads every log record belonging to one trace, oldest first. The
+   * `@message` body is JSON-parsed when possible; other Insights fields pass
+   * through as returned.
+   */
+  async getRuntimeTrace(input: GetRuntimeTraceInput, options: CoreOptions): Promise<TraceRecord[]> {
+    if (!TRACE_ID_PATTERN.test(input.traceId)) {
+      throw new InputValidationError(
+        "Invalid trace ID format. Expected a hex string (e.g., abc123def456).",
+        { meta: { traceId: input.traceId } },
+      );
+    }
+
+    const logGroupName = runtimeLogGroup(input.runtimeId, DEFAULT_ENDPOINT_QUALIFIER);
+    const queryString =
+      `fields @timestamp, @message\n` +
+      `| filter traceId = '${sanitizeQueryValue(input.traceId)}'\n` +
+      `| sort @timestamp asc\n` +
+      `| limit 10000`;
+
+    const rows = await this.runTraceQuery(input, logGroupName, queryString, options);
+    if (rows.length === 0) {
+      throw new ResourceNotFoundError(`No trace data found for trace ID: ${input.traceId}`, {
+        meta: { traceId: input.traceId },
+      });
+    }
+
+    return rows.map((row) => {
+      const record: TraceRecord = fieldMap(row);
+      const message = record["@message"];
+      if (typeof message === "string") {
+        try {
+          record["@message"] = JSON.parse(message);
+        } catch {
+          // Keep the original string when the body is not valid JSON.
+        }
+      }
+      return record;
+    });
+  }
+
+  private async runTraceQuery(
+    input: { runtimeId: string; startTimeMs: number; endTimeMs: number },
+    logGroupName: string,
+    queryString: string,
+    options: CoreOptions,
+  ): Promise<ResultField[][]> {
+    const logs = this.clients.logs(toClientConfig(options));
+    const startSec = Math.floor(input.startTimeMs / 1000);
+    const endSec = Math.floor(input.endTimeMs / 1000);
+    try {
+      return await runInsightsQuery(logs, [logGroupName], queryString, startSec, endSec);
+    } catch (error) {
+      if (error instanceof ResourceNotFoundException) {
+        throw missingLogGroupError(input.runtimeId, logGroupName, error);
+      }
+      throw error;
+    }
+  }
+}
+
+// Trace ids are hex strings, optionally dash-separated (mirrors the old CLI).
+const TRACE_ID_PATTERN = /^[a-fA-F0-9-]+$/;
+
+// fieldMap flattens one Insights result row into a name -> value record.
+function fieldMap(row: ResultField[]): Record<string, string> {
+  const fields: Record<string, string> = {};
+  for (const field of row) {
+    if (field.field && field.value !== undefined) fields[field.field] = field.value;
+  }
+  return fields;
 }
 
 function missingLogGroupError(

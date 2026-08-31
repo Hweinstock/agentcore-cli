@@ -66,6 +66,9 @@ agentcore                          # interactive TUI
 │   ├── list                       # list Runtimes (server-side paginated)
 │   ├── invoke                     # invoke a Runtime headlessly or in a persistent console
 │   ├── logs                       # follow a Runtime's logs live, or search a time window
+│   ├── traces
+│   │   ├── list                   # list a Runtime's recent traces
+│   │   └── get                    # download a trace's log records to a JSON file
 │   ├── version
 │   │   ├── get                    # get a specific Runtime version
 │   │   └── list                   # list a Runtime's versions
@@ -203,6 +206,10 @@ agentcore runtime logs --id <runtimeId> --level error --query "database"
 # Search a past window instead (--since/--until switch to search mode)
 agentcore runtime logs --id <runtimeId> --since 1h --limit 100
 agentcore runtime logs --id <runtimeId> --since 2026-08-30T12:00:00Z --until now --json
+
+# List recent traces (they take 2-3 minutes to appear), then download one
+agentcore runtime traces list --id <runtimeId> --since 30m
+agentcore runtime traces get <traceId> --id <runtimeId> --output trace.json
 
 # Inspect AgentCore Memories without project configuration or deployment
 agentcore memory get --id <memoryId>

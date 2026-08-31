@@ -130,11 +130,15 @@ import type {
   CoreObservabilityClient,
   CoreRuntimeClient,
   DeployedRuntime,
+  GetRuntimeTraceInput,
+  ListRuntimeTracesInput,
   RuntimeInvokeRequest,
   RuntimeInvokeResponse,
   RuntimeLogEvent,
   SearchRuntimeLogsInput,
   StreamRuntimeLogsInput,
+  TraceRecord,
+  TraceSummary,
 } from "../handlers/runtime/types";
 import type {
   BatchEvaluationDetail,
@@ -2272,6 +2276,24 @@ export class TestObservabilityClient implements CoreObservabilityClient {
     this.calls.push({ method: "searchRuntimeLogs", args: [input, options, signal] });
     if (this.error) throw this.error;
     yield* this.logEvents;
+  }
+
+  traceSummaries: TraceSummary[] = [];
+  traceRecords: TraceRecord[] = [];
+
+  async listRuntimeTraces(
+    input: ListRuntimeTracesInput,
+    options: CoreOptions,
+  ): Promise<TraceSummary[]> {
+    this.calls.push({ method: "listRuntimeTraces", args: [input, options] });
+    if (this.error) throw this.error;
+    return this.traceSummaries;
+  }
+
+  async getRuntimeTrace(input: GetRuntimeTraceInput, options: CoreOptions): Promise<TraceRecord[]> {
+    this.calls.push({ method: "getRuntimeTrace", args: [input, options] });
+    if (this.error) throw this.error;
+    return this.traceRecords;
   }
 }
 
