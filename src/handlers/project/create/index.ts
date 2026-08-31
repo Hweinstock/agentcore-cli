@@ -2,6 +2,7 @@ import z from "zod";
 import { createHandler, flag } from "../../../router";
 import { SourceResolver, type AppIO } from "../../../io";
 import {
+  LANGUAGE_VERSION_DEFAULTS,
   MEMORY_SHORTCUT_NAMES,
   MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
@@ -90,7 +91,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag(
         "language",
         "target language for the scaffolded runtime code",
-        z.enum(["Python"]).optional(),
+        z.enum(["Python", "TypeScript"]).optional(),
       ),
       flag(
         "framework",
@@ -273,7 +274,7 @@ type RuntimePathFlagValues = {
   name: string;
   template?: (typeof RUNTIME_TEMPLATE_SHORTCUT_NAMES)[number];
   build?: "CodeZip" | "Container";
-  language?: "Python";
+  language?: "Python" | "TypeScript";
   framework?: "strands" | "none";
   "model-provider"?: "Bedrock";
   "api-key"?: string;
@@ -320,8 +321,10 @@ async function resolveScaffoldRuntimeInput(
         modelProvider: flags["model-provider"],
         apiKey,
         memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
-        entrypoint: "main.py",
-        runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
+        runtimeVersion:
+          flags["build"] === "CodeZip"
+            ? LANGUAGE_VERSION_DEFAULTS[flags["language"] ?? "Python"]
+            : undefined,
       });
 }
 

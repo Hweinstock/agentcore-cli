@@ -8,6 +8,7 @@ import { RuntimeAuthorizerTypeSchema } from "../../../../projectSchemas/auth";
 import { NetworkModeSchema, ProtocolModeSchema } from "../../../../projectSchemas/constants";
 import { SourceResolver } from "../../../../io";
 import {
+  LANGUAGE_VERSION_DEFAULTS,
   MEMORY_SHORTCUT_NAMES,
   MEMORY_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
@@ -53,7 +54,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       flag(
         "language",
         "target language for the scaffolded runtime code",
-        z.enum(["Python"]).optional(),
+        z.enum(["Python", "TypeScript"]).optional(),
       ),
       flag(
         "framework",
@@ -193,8 +194,10 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
                 modelProvider: flags["model-provider"],
                 apiKey,
                 memory: MEMORY_SHORTCUTS[flags.memory ?? defaultMemory](runtimeName),
-                entrypoint: "main.py",
-                runtimeVersion: flags.build === "CodeZip" ? "PYTHON_3_14" : undefined,
+                runtimeVersion:
+                  flags.build === "CodeZip"
+                    ? LANGUAGE_VERSION_DEFAULTS[flags.language ?? "Python"]
+                    : undefined,
               })
             : resolveRuntimeTemplateShortcut("hello-world-python", { runtimeName: flags.name });
 

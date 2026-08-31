@@ -11,7 +11,8 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   return {
     name,
     build: scaffoldRuntimeInput.build,
-    entrypoint: scaffoldRuntimeInput.entrypoint,
+    // TypeScript deploys a compiled main.js (esbuild runs at synth); Python runs main.py directly.
+    entrypoint: scaffoldRuntimeInput.language === "TypeScript" ? "main.js" : "main.py",
     codeLocation: `app/${name}` as ProjectRuntime["codeLocation"],
     ...(scaffoldRuntimeInput.runtimeVersion && {
       runtimeVersion: scaffoldRuntimeInput.runtimeVersion,
@@ -47,6 +48,21 @@ export function toPythonPackageName(name: string): string {
     .replace(/[^a-zA-Z0-9._-]/g, "-")
     .replace(/^[^a-zA-Z0-9]+/, "")
     .replace(/[^a-zA-Z0-9]+$/, "");
+}
+
+/**
+ * Normalize a name for use as an npm package name.
+ *
+ * @param name - The raw runtime/project name to normalize.
+ * @returns An npm-safe package name.
+ * @see {@link https://github.com/npm/validate-npm-package-name} for npm's package name rules.
+ */
+function toNpmPackageName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/^[._-]+/, "")
+    .replace(/[._-]+$/, "");
 }
 
 function buildResolverKey(
@@ -175,6 +191,49 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
           if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },
+      },
+    );
+    return {
+      tree,
+      spec: {
+        runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
+        ...(memory && { memories: [memory] }),
+      },
+    };
+  },
+  [buildResolverKey("strands", "TypeScript")]: async (input: RuntimeResourceConfig) => {
+    if (input.protocol !== undefined && input.protocol !== "HTTP")
+      throw new InputValidationError("the strands-ts template only supports HTTP");
+
+    if (input.scaffoldRuntimeInput.build !== "CodeZip")
+      throw new InputValidationError("the strands template only supports CodeZip builds");
+
+    const memory = input.scaffoldRuntimeInput.memory;
+    // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one
+    // namespace, so short-term-only memory (no long-term strategies) is unsupported.
+    // https://github.com/aws/bedrock-agentcore-sdk-typescript/blob/v0.3.0/src/memory/integrations/strands/factory.ts#L130-L133
+    if (memory !== undefined && memory.strategies.length === 0)
+      throw new InputValidationError(
+        "the strands-ts template does not support short-term-only memory; add long-term strategies or use --memory none",
+      );
+
+    const context = {
+      name: toNpmPackageName(input.name),
+      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      hasMemory: memory !== undefined,
+      // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
+      memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
+      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
+      hasIdentity: false,
+      identityProviders: [],
+    };
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource },
+      { assetDir: "templates/strands-http-typescript" },
+      {
+        rootDirName: input.name,
+        transformContent: (raw) => templateRenderer.render(raw, context),
+        filter: (name, isDir) => memory !== undefined || !isDir || name !== "memory",
       },
     );
     return {
