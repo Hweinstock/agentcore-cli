@@ -6,6 +6,7 @@ import type { PaymentConnectorSchema, PaymentManagerSchema } from "../../project
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import { MemorySchema } from "../../projectSchemas/memory";
 import type { EvaluatorSchema } from "../../projectSchemas/evaluator";
+import type { ManagedEvaluatorScaffoldInput } from "../../core/project/templates/evaluator";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { ImportBedrockAgentInput, RuntimeResourceConfig } from "./add/runtime/types";
@@ -210,13 +211,12 @@ export type AddResourceInput =
   | {
       resourceType: "evaluator";
       resourceConfig: z.input<typeof EvaluatorSchema>;
-      /**
-       * Present only for managed code-based evaluators, whose code the CLI
-       * generates. `assetDir` picks the template under src/assets/evaluators;
-       * `context` holds its Handlebars variables. External and llm-as-a-judge
-       * evaluators omit this and are spec-only.
-       */
-      scaffold?: { assetDir: string; context: Record<string, unknown> };
+      scaffold?: undefined;
+    }
+  | {
+      resourceType: "evaluator";
+      resourceConfig: { name: string };
+      scaffold: ManagedEvaluatorScaffoldInput;
     }
   | {
       resourceType: "gateway";
@@ -288,6 +288,7 @@ export type RemoveResourceInput =
         | "online-eval"
         | "online-insight"
         | "memory"
+        | "evaluator"
         | "gateway"
         | "policy-engine"
         | "payment-manager";

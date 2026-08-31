@@ -337,28 +337,22 @@ export class FsProjectManager implements ProjectManager {
         break;
       }
       case "evaluator": {
-        const evaluator = parseResource(EvaluatorSchema, input.resourceConfig);
         if (input.scaffold) {
           yield { message: "Scaffolding evaluator in project" };
-          const outputPath = join(project.rootPath, "app", evaluator.name);
+          const outputPath = join(project.rootPath, "app", input.scaffold.name);
           if (existsSync(outputPath))
             throw new InputValidationError(
-              `cannot scaffold evaluator '${evaluator.name}': 'app/${evaluator.name}' already exists (another resource may use this name, or a previous scaffold was left behind)`,
+              `cannot scaffold evaluator '${input.scaffold.name}': 'app/${input.scaffold.name}' already exists (another resource may use this name, or a previous scaffold was left behind)`,
             );
           scaffoldedPaths.push(outputPath);
-          const resolver = getEvaluatorTemplateResolver({
+          const result = await getEvaluatorTemplateResolver({
             assetSource: this.assetSource,
             templateRenderer: this.templateRenderer,
-          });
-          const result = await resolver.resolve({
-            evaluator,
-            assetDir: input.scaffold.assetDir,
-            context: input.scaffold.context,
-          });
+          }).resolve(input.scaffold);
           await result.tree.write(dirname(outputPath));
           projectSpec.evaluators.push(...(result.spec.evaluators ?? []));
         } else {
-          projectSpec.evaluators.push(evaluator);
+          projectSpec.evaluators.push(parseResource(EvaluatorSchema, input.resourceConfig));
         }
         break;
       }

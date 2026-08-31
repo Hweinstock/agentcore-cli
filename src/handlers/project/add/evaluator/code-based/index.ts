@@ -1,20 +1,19 @@
 import z from "zod";
 import { createHandler, flag, ProjectKey } from "../../../../../router";
 import { InputValidationError } from "../../../../../errors";
-import { EvaluatorSchema, isValidBedrockModelId } from "../../../../../projectSchemas/evaluator";
+import {
+  EvaluatorSchema,
+  EvaluationLevelSchema,
+  isValidBedrockModelId,
+} from "../../../../../projectSchemas/evaluator";
 import { TagsSchema } from "../../../../../projectSchemas/tags";
-import { toPythonPackageName } from "../../../../../core/project/fsUtils";
+import {
+  EVALUATOR_LIBRARIES,
+  type EvaluatorLibrary,
+  type ManagedEvaluatorScaffoldInput,
+} from "../../../../../core/project/templates/evaluator";
 import { parseJsonFlagWithSchema } from "../../../../utils";
 import type { AddProjectResourceConfig } from "../../types";
-
-const DEFAULT_TIMEOUT = 60;
-
-const LIBRARIES: Record<string, { assetDir: string; defaultTimeoutSeconds: number }> = {
-  deepeval: { assetDir: "evaluators/deepeval-lambda", defaultTimeoutSeconds: 300 },
-  autoevals: { assetDir: "evaluators/autoevals-lambda", defaultTimeoutSeconds: DEFAULT_TIMEOUT },
-};
-
-const EMPTY_ASSET_DIR = "evaluators/python-lambda";
 
 export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -53,6 +52,9 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
         throw new InputValidationError("required option '--name <name>' not specified");
       if (!flags["level"])
         throw new InputValidationError("required option '--level <level>' not specified");
+      const levelParsed = EvaluationLevelSchema.safeParse(flags["level"]);
+      if (!levelParsed.success) throw new InputValidationError(z.prettifyError(levelParsed.error));
+      const level = levelParsed.data;
 
       const hasMetric = flags["metric"] !== undefined;
       const hasLambda = flags["lambda-arn"] !== undefined;
@@ -64,97 +66,75 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
       const tags = parseJsonFlagWithSchema("tags", flags["tags"], TagsSchema);
       const base = {
         name: flags["name"],
-        level: flags["level"],
+        level,
         description: flags["description"],
         kmsKeyArn: flags["kms-key-arn"],
         tags,
       };
-
-      let candidate: Record<string, unknown>;
-      let scaffold: { assetDir: string; context: Record<string, unknown> } | undefined;
+      const project = ctx.require(ProjectKey);
 
       if (hasLambda) {
         if (flags["metric"] || flags["model"] || flags["timeout-seconds"] !== undefined)
           throw new InputValidationError(
             "--metric, --model, and --timeout-seconds are managed-only and not valid with --lambda-arn",
           );
-        candidate = {
+        const parsed = EvaluatorSchema.safeParse({
           ...base,
           config: { codeBased: { external: { lambdaArn: flags["lambda-arn"] } } },
-        };
-      } else {
-        if (flags["model"] && !hasMetric)
-          throw new InputValidationError("--model requires --metric");
-
-        let assetDir = EMPTY_ASSET_DIR;
-        let defaultTimeout = DEFAULT_TIMEOUT;
-        const context: Record<string, unknown> = { Name: toPythonPackageName(flags["name"]) };
-
-        if (hasMetric) {
-          const raw = flags["metric"]!;
-          const dot = raw.indexOf(".");
-          const library = dot > 0 ? raw.slice(0, dot) : "";
-          const metricClass = dot > 0 ? raw.slice(dot + 1) : "";
-          const lib = library && metricClass ? LIBRARIES[library] : undefined;
-          if (!lib)
-            throw new InputValidationError(
-              `invalid --metric "${raw}": expected <library.Metric> where library is one of ${Object.keys(LIBRARIES).join(", ")} (e.g. deepeval.FaithfulnessMetric)`,
-            );
-          if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(metricClass))
-            throw new InputValidationError(
-              `invalid metric class "${metricClass}" in --metric "${raw}": expected a single class name like FaithfulnessMetric`,
-            );
-          assetDir = lib.assetDir;
-          defaultTimeout = lib.defaultTimeoutSeconds;
-
-          const model = resolveBedrockModel(flags["model"]);
-          context["EvaluatorClass"] = metricClass;
-          context["Model"] = model ?? "";
-          context["ModelProviderBedrock"] = model !== undefined;
-          context["EvaluatorParams"] = "";
+        });
+        if (!parsed.success) throw new InputValidationError(z.prettifyError(parsed.error));
+        for await (const event of config.projectManager.addResource(project, {
+          resourceType: "evaluator",
+          resourceConfig: parsed.data,
+        })) {
+          config.io.stderr.write(`${event.message}\n`);
         }
-
-        const timeoutSeconds = flags["timeout-seconds"] ?? defaultTimeout;
-        candidate = {
-          ...base,
-          config: {
-            codeBased: {
-              managed: {
-                codeLocation: `app/${flags["name"]}`,
-                entrypoint: "lambda_function.handler",
-                timeoutSeconds,
-                additionalPolicies: ["execution-role-policy.json"],
-              },
-            },
-          },
-        };
-        scaffold = { assetDir, context };
+        config.io.stderr.write(`added evaluator '${flags["name"]}' to '${project.name}'\n`);
+        return;
       }
 
-      const parsed = EvaluatorSchema.safeParse(candidate);
-      if (!parsed.success) throw new InputValidationError(z.prettifyError(parsed.error));
+      if (flags["model"] && !hasMetric) throw new InputValidationError("--model requires --metric");
 
-      const project = ctx.require(ProjectKey);
+      const scaffold: ManagedEvaluatorScaffoldInput = {
+        ...base,
+        ...(hasMetric && { metric: parseMetric(flags["metric"]!) }),
+        ...(flags["model"] !== undefined && { model: resolveBedrockModel(flags["model"]) }),
+        ...(flags["timeout-seconds"] !== undefined && { timeoutSeconds: flags["timeout-seconds"] }),
+      };
+
       for await (const event of config.projectManager.addResource(project, {
         resourceType: "evaluator",
-        resourceConfig: parsed.data,
+        resourceConfig: { name: scaffold.name },
         scaffold,
       })) {
         config.io.stderr.write(`${event.message}\n`);
       }
 
       config.io.stderr.write(`added evaluator '${flags["name"]}' to '${project.name}'\n`);
-      if (!hasLambda) {
-        if (!hasMetric)
-          config.io.stderr.write(
-            `note: this evaluator returns Pass for every session until you implement app/${flags["name"]}/lambda_function.py\n`,
-          );
+      if (!hasMetric)
         config.io.stderr.write(
-          `note: managed code-based evaluators are scaffolded locally but not yet provisioned by 'project deploy' (pending CDK/L3 support)\n`,
+          `note: this evaluator returns Pass for every session until you implement app/${flags["name"]}/lambda_function.py\n`,
         );
-      }
+      config.io.stderr.write(
+        `note: managed code-based evaluators are scaffolded locally but not yet provisioned by 'project deploy' (pending CDK/L3 support)\n`,
+      );
     },
   });
+
+function parseMetric(raw: string): { library: EvaluatorLibrary; metricClass: string } {
+  const dot = raw.indexOf(".");
+  const library = dot > 0 ? raw.slice(0, dot) : "";
+  const metricClass = dot > 0 ? raw.slice(dot + 1) : "";
+  if (!(library in EVALUATOR_LIBRARIES))
+    throw new InputValidationError(
+      `invalid --metric "${raw}": expected <library.Metric> where library is one of ${Object.keys(EVALUATOR_LIBRARIES).join(", ")} (e.g. deepeval.FaithfulnessMetric)`,
+    );
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(metricClass))
+    throw new InputValidationError(
+      `invalid metric class "${metricClass}" in --metric "${raw}": expected a single class name like FaithfulnessMetric`,
+    );
+  return { library: library as EvaluatorLibrary, metricClass };
+}
 
 function resolveBedrockModel(model: string | undefined): string | undefined {
   if (!model) return undefined;
