@@ -13,7 +13,9 @@ export const createFeedbackHandler = (core: Core, io: AppIO) =>
   createHandler({
     name: "feedback",
     description: "Send feedback about the AgentCore CLI to the team.",
-    arguments: [argument("message", "the feedback message to send", z.string().max(1000))],
+    // Length/empty validation lives solely in core.submitFeedback so one code path
+    // guards every caller; the arg is unconstrained here beyond being a string.
+    arguments: [argument("message", "the feedback message to send", z.string())],
     flags: [
       flag(
         "screenshot",
