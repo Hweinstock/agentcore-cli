@@ -19,6 +19,7 @@ describe("createRootHandler", () => {
       "eval",
       "config",
       "project",
+      "update",
     ]);
   });
 });
