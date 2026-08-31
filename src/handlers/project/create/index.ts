@@ -68,7 +68,10 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
     name: "create",
     description: "create a new AgentCore project",
     flags: [
-      flag("name", "name of the project to create", ProjectNameSchema),
+      // Optional at the flag layer (and enforced in handle) so a bare
+      // interactive `project create` reaches the TUI wizard middleware instead
+      // of dying on Commander's mandatory-option check.
+      flag("name", "name of the project to create", ProjectNameSchema.optional()),
       flag(
         "defaults",
         "create a harness project with default settings (this is the default)",
@@ -172,6 +175,11 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag("skip-git", "skip initializing a git repository", z.boolean().default(false)),
     ],
     handle: async (ctx, flags) => {
+      const name = flags["name"];
+      if (name === undefined) {
+        throw new InputValidationError("required option '--name <name>' not specified");
+      }
+
       const presentRuntimeFlags: string[] = RUNTIME_PATH_FLAGS.filter(
         (f) => flags[f] !== undefined,
       );
@@ -231,19 +239,19 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
 
       const createInput: CreateProjectInput = isRuntimePath
         ? {
-            name: flags["name"],
+            name,
             skipInstall: flags["skip-install"],
             skipGit: flags["skip-git"],
             scaffoldRuntimeInput: isImport
-              ? importScaffoldRuntimeInput(flags["runtime-name"] ?? flags["name"])
-              : await resolveScaffoldRuntimeInput(config, flags),
+              ? importScaffoldRuntimeInput(flags["runtime-name"] ?? name)
+              : await resolveScaffoldRuntimeInput(config, { ...flags, name }),
             importBedrockAgent,
           }
         : {
-            name: flags["name"],
+            name,
             skipInstall: flags["skip-install"],
             skipGit: flags["skip-git"],
-            scaffoldHarnessInput: resolveScaffoldHarnessInput(flags),
+            scaffoldHarnessInput: resolveScaffoldHarnessInput({ ...flags, name }),
           };
 
       if (!isRuntimePath && !flags["defaults"] && presentHarnessFlags.length === 0) {
@@ -256,8 +264,8 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         config.io.stderr.write(`${event.message}\n`);
       }
 
-      config.io.stderr.write(`Created project '${flags["name"]}' in ./${flags["name"]}\n`);
-      config.io.stderr.write(`To deploy it: cd ${flags["name"]} && agentcore project deploy\n`);
+      config.io.stderr.write(`Created project '${name}' in ./${name}\n`);
+      config.io.stderr.write(`To deploy it: cd ${name} && agentcore project deploy\n`);
     },
   });
 
@@ -319,8 +327,9 @@ async function resolveScaffoldRuntimeInput(
 
 // The harness input validates against the same schema `project add harness`
 // uses, before any file is written; the manager then scaffolds it through the
-// same addResource path.
-function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): ScaffoldHarnessInput {
+// same addResource path. Exported so the TUI create wizard builds its harness
+// input through the exact same translation as the flag-driven path.
+export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): ScaffoldHarnessInput {
   const additionalParams = parseJsonFlag<Record<string, unknown>>(
     "additional-params",
     flags["additional-params"],

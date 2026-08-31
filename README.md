@@ -10,7 +10,8 @@ It gives you two ways to work, from the same binary:
   JSON (`--json`), so it can be used by codeing agents and can drop cleanly into
   scripts, CI, and automation.
 - **An interactive TUI** — bare Harness, Runtime, Memory, Identity, and Gateway
-  branches and leaves open their corresponding menus and selection flows.
+  branches and leaves open their corresponding menus and selection flows, and a
+  bare `project create` opens a guided create wizard.
 
 ```bash
 agentcore                      # launch the interactive TUI
@@ -27,7 +28,9 @@ responses. `agentcore` wraps all of that behind one ergonomic tool.
 ## Command surface
 
 Commands with operation flags run headlessly. Bare Harness, Runtime, Memory,
-Identity, and Gateway branches and leaves open their interactive flows.
+Identity, and Gateway branches and leaves open their interactive flows, as does
+a bare `project create` in a terminal (any flag, `--json`, or a non-TTY stays
+headless).
 
 ```
 agentcore                          # interactive TUI
@@ -110,7 +113,8 @@ agentcore                          # interactive TUI
 │       └── delete                 # delete an evaluator by id
 ├── project                        # manage an AgentCore project (scaffold → deploy)
 │   ├── create                     # create a project: a managed harness by default,
-│   │                              #   or scaffolded runtime code via --template/--framework
+│   │                              #   or scaffolded runtime code via --template/--framework;
+│   │                              #   bare `project create` opens an interactive wizard
 │   ├── add                        # add a resource to the project (runtime, harness, memory, …)
 │   ├── export
 │   │   └── harness                # convert a harness into an editable Strands runtime agent
@@ -156,6 +160,9 @@ Global flags (declared at the root, available on every command):
 # tune it.
 agentcore project create --name MyAssistant
 cd MyAssistant && agentcore project deploy
+# … or run `agentcore project create` bare in a terminal for the guided
+# wizard (name → harness or template → confirm), which drives the same
+# creation path.
 agentcore harness invoke --id <id from the deploy outputs> --prompt "hello"
 
 # Scaffold runtime code instead (pass a template or framework flags).
