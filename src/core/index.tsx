@@ -88,7 +88,6 @@ export class CoreClient implements AwsClients {
     const fetch = config.fetch ?? globalThis.fetch;
     this.runtime = new RuntimeClient(this, fetch, this.logger.child({ module: "runtime" }));
     this.gateway = new GatewayClient(this, fetch, this.logger.child({ module: "gateway" }));
-    // Feedback posts to the Aperture public API via the injected fetch, outside the SDK seam.
     this.feedback = new FeedbackClient(fetch);
     // EvalClient shares the injected fetch: dataset content is served from a
     // presigned S3 URL, outside the SDK seam the other operations use. The logger
