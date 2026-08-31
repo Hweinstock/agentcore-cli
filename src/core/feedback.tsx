@@ -218,6 +218,12 @@ export class FeedbackClient implements CoreFeedbackClient {
     if (!stats.isFile()) {
       throw new InputValidationError(`Screenshot path is not a regular file: ${filePath}`);
     }
+    // Reject oversized files from stat before readFile, so a hostile/huge file
+    // is never loaded into memory just to be rejected.
+    if (stats.size > MAX_SCREENSHOT_BYTES) {
+      const sizeMb = (stats.size / (1024 * 1024)).toFixed(1);
+      throw new InputValidationError(`Screenshot is ${sizeMb} MB; maximum allowed size is 100 MB.`);
+    }
 
     const ext = path.extname(filePath).toLowerCase();
     if (
@@ -236,11 +242,6 @@ export class FeedbackClient implements CoreFeedbackClient {
         `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
-    if (buffer.byteLength > MAX_SCREENSHOT_BYTES) {
-      const sizeMb = (buffer.byteLength / (1024 * 1024)).toFixed(1);
-      throw new InputValidationError(`Screenshot is ${sizeMb} MB; maximum allowed size is 100 MB.`);
-    }
-
     return {
       buffer: new Uint8Array(buffer),
       fileName: path.basename(filePath),
