@@ -1209,6 +1209,7 @@ type TestCoreClientOptions = {
   json?: ReadWriteJson;
   backends?: Partial<Record<ManagedBy, ProjectBackend>>;
   createCloudFormationClient?: CreateCloudFormationClient;
+  resolveAccount?: (region: string) => Promise<string>;
 };
 
 export class TestIdentityClient implements CoreIdentityClient {
@@ -2246,6 +2247,9 @@ export class TestCoreClient implements Core {
         this.projectCommands.push({ command, cwd });
       },
       checkTool: async () => {}, // CI hosts don't have uv installed
+      // Deploy synthesizes the default target through STS; stub the lookup so
+      // tests stay hermetic.
+      resolveAccount: options?.resolveAccount ?? (async () => "111122223333"),
     });
   }
 }

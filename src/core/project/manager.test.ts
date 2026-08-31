@@ -12,7 +12,6 @@ import {
   type DeployResult,
   type Project,
   type ProjectEvent,
-  type TeardownConfirmationHandler,
 } from "../../handlers/project/types";
 import { createSilentLogger } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
@@ -347,8 +346,11 @@ describe("FsProjectManager.build", () => {
 describe("FsProjectManager.deploy", () => {
   type DeployCall = { project: Project; input: DeployBackendInput };
 
-  function deployManager() {
+  const STS_ACCOUNT = "999900001111";
+
+  function deployManager(options?: { account?: string | Error }) {
     const calls: DeployCall[] = [];
+    const accountCalls: string[] = [];
     const backend: ProjectBackend = {
       async *build() {},
       async *deploy(project, input) {
@@ -359,9 +361,16 @@ describe("FsProjectManager.deploy", () => {
     };
     return {
       calls,
+      accountCalls,
       manager: new FsProjectManager({
         logger: createSilentLogger(),
         backends: { CDK: backend },
+        resolveAccount: async (region) => {
+          accountCalls.push(region);
+          const outcome = options?.account ?? STS_ACCOUNT;
+          if (outcome instanceof Error) throw outcome;
+          return outcome;
+        },
       }),
     };
   }
@@ -387,11 +396,12 @@ describe("FsProjectManager.deploy", () => {
     manager: FsProjectManager,
     project: Project,
     target: string,
-    confirmTeardown: TeardownConfirmationHandler = async () => false,
+    options: { region?: string } = {},
   ): Promise<{ events: ProjectEvent[]; result: DeployResult }> {
     const generator = manager.deploy(project, {
       target,
-      confirmTeardown,
+      region: options.region ?? "us-east-1",
+      confirmTeardown: async () => false,
     });
     const events: ProjectEvent[] = [];
     while (true) {
@@ -444,16 +454,20 @@ describe("FsProjectManager.deploy", () => {
   test.each([
     ["a missing file", undefined],
     ["an empty list", []],
-  ])("rejects %s before invoking the backend", async (_label, configured) => {
-    const root = await inTempDirectory();
-    const subject = deployManager();
-    const project = await projectWithTargets(root, configured);
+  ])(
+    "rejects %s before invoking the backend when a named target is requested",
+    async (_label, configured) => {
+      const root = await inTempDirectory();
+      const subject = deployManager();
+      const project = await projectWithTargets(root, configured);
 
-    await expect(deploy(subject.manager, project, "default")).rejects.toThrow(
-      /No deployment targets are configured/,
-    );
-    expect(subject.calls).toEqual([]);
-  });
+      await expect(deploy(subject.manager, project, "staging")).rejects.toThrow(
+        /No deployment targets are configured/,
+      );
+      expect(subject.calls).toEqual([]);
+      expect(subject.accountCalls).toEqual([]);
+    },
+  );
 
   test.each([
     ["malformed JSON", "{ not-json"],
@@ -482,6 +496,135 @@ describe("FsProjectManager.deploy", () => {
       DeserializationError,
     );
     expect(subject.calls).toEqual([]);
+  });
+
+  const targetsFile = (root: string) => join(root, "agentcore", "aws-targets.json");
+  const SYNTHESIZED: AwsDeploymentTarget = {
+    name: "default",
+    account: STS_ACCOUNT,
+    region: "us-east-2",
+  };
+  const CREATED_MESSAGE =
+    `Created default deployment target: account ${STS_ACCOUNT}, ` +
+    `region us-east-2 (${join("agentcore", "aws-targets.json")})`;
+
+  test.each([
+    ["a missing file", undefined],
+    ["an empty list", []],
+  ])("synthesizes the default target from %s", async (_label, configured) => {
+    const root = await inTempDirectory();
+    const subject = deployManager();
+    const project = await projectWithTargets(root, configured);
+
+    const deployed = await deploy(subject.manager, project, "default", { region: "us-east-2" });
+
+    expect(subject.accountCalls).toEqual(["us-east-2"]);
+    expect(subject.calls).toHaveLength(1);
+    expect(subject.calls[0]?.input.target).toEqual(SYNTHESIZED);
+    expect(deployed.events).toEqual([
+      { message: CREATED_MESSAGE },
+      { message: "Backend deployment started" },
+    ]);
+    expect(await Bun.file(targetsFile(root)).json()).toEqual([SYNTHESIZED]);
+  });
+
+  test("appends the default target and preserves other entries byte for byte", async () => {
+    const root = await inTempDirectory();
+    const subject = deployManager();
+    // Non-canonical key order plus a key the schema does not know about, so a
+    // rewrite through the schema (which would reorder and strip) is caught.
+    const existing =
+      `[\n` +
+      `  {\n` +
+      `    "region": "eu-west-1",\n` +
+      `    "name": "prod",\n` +
+      `    "account": "444455556666",\n` +
+      `    "note": "hand-tuned"\n` +
+      `  }\n` +
+      `]`;
+    const project = await projectWithTargets(root, existing);
+
+    await deploy(subject.manager, project, "default", { region: "us-east-2" });
+
+    expect(subject.calls[0]?.input.target).toEqual(SYNTHESIZED);
+    expect(await Bun.file(targetsFile(root)).text()).toBe(
+      `[\n` +
+        `  {\n` +
+        `    "region": "eu-west-1",\n` +
+        `    "name": "prod",\n` +
+        `    "account": "444455556666",\n` +
+        `    "note": "hand-tuned"\n` +
+        `  },\n` +
+        `  {\n` +
+        `    "name": "default",\n` +
+        `    "account": "${STS_ACCOUNT}",\n` +
+        `    "region": "us-east-2"\n` +
+        `  }\n` +
+        `]`,
+    );
+  });
+
+  test("never synthesizes a named target", async () => {
+    const root = await inTempDirectory();
+    const subject = deployManager();
+    const project = await projectWithTargets(root, targets);
+
+    await expect(deploy(subject.manager, project, "gamma")).rejects.toThrow(
+      /no deployment target named 'gamma'.*staging, prod/s,
+    );
+    expect(subject.calls).toEqual([]);
+    expect(subject.accountCalls).toEqual([]);
+    expect(await Bun.file(targetsFile(root)).json()).toEqual(targets);
+  });
+
+  test("rejects an unsupported region without calling STS or writing the file", async () => {
+    const root = await inTempDirectory();
+    const subject = deployManager();
+    const project = await projectWithTargets(root, undefined);
+
+    const attempt = deploy(subject.manager, project, "default", { region: "us-west-1" });
+
+    await expect(attempt).rejects.toThrow(/'us-west-1' is not an AgentCore-supported region/);
+    await expect(
+      deploy(subject.manager, project, "default", { region: "us-west-1" }),
+    ).rejects.toThrow(/Supported regions: .*us-east-1.*Re-run with --region/s);
+    expect(subject.calls).toEqual([]);
+    expect(subject.accountCalls).toEqual([]);
+    expect(await Bun.file(targetsFile(root)).exists()).toBe(false);
+  });
+
+  test("reports an actionable error when the account cannot be resolved", async () => {
+    const root = await inTempDirectory();
+    const subject = deployManager({
+      account: new Error("The security token included in the request is expired"),
+    });
+    const project = await projectWithTargets(root, undefined);
+
+    await expect(
+      deploy(subject.manager, project, "default", { region: "us-east-2" }),
+    ).rejects.toThrow(
+      /the AWS account could not be resolved: The security token included in the request is expired[\s\S]*aws configure/,
+    );
+    expect(subject.calls).toEqual([]);
+    expect(await Bun.file(targetsFile(root)).exists()).toBe(false);
+  });
+
+  test("leaves an existing default target alone", async () => {
+    const root = await inTempDirectory();
+    const subject = deployManager();
+    const configured: AwsDeploymentTarget[] = [
+      { name: "default", account: "111122223333", region: "us-west-2" },
+    ];
+    const contents = JSON.stringify(configured, null, 2);
+    const project = await projectWithTargets(root, contents);
+
+    // The requested region differs from the entry's; the entry must win.
+    const deployed = await deploy(subject.manager, project, "default", { region: "us-east-2" });
+
+    expect(subject.accountCalls).toEqual([]);
+    expect(subject.calls[0]?.input.target).toEqual(configured[0]!);
+    expect(deployed.events).toEqual([{ message: "Backend deployment started" }]);
+    expect(await Bun.file(targetsFile(root)).text()).toBe(contents);
   });
 });
 

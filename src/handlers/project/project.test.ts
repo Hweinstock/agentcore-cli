@@ -918,8 +918,13 @@ describe("project deploy", () => {
     await expect(run(["deploy"])).rejects.toThrow(/No AgentCore project found/);
   });
 
-  test("rejects a project with no deployment targets", async () => {
+  // A bare `deploy` on a fresh project synthesizes the default target instead
+  // of rejecting (covered with a stubbed backend in deploy/index.test.ts); only
+  // a named target still demands configuration.
+  test("rejects a project with no deployment targets for a named target", async () => {
     await inProject();
-    await expect(run(["deploy"])).rejects.toThrow(/No deployment targets are configured/);
+    await expect(run(["deploy", "--target", "staging"])).rejects.toThrow(
+      /No deployment targets are configured/,
+    );
   });
 });

@@ -85,6 +85,12 @@ export type TeardownConfirmationHandler = (
 export type DeployProjectInput = {
   /** Name of the aws-targets.json entry to deploy. */
   target: string;
+  /**
+   * The effective AWS region the CLI already resolved (--region flag, env,
+   * shared config file). Used to synthesize the default target when
+   * aws-targets.json does not define one — never to override a defined target.
+   */
+  region: string;
   /** Requests approval after the backend discovers that this deploy is a teardown. */
   confirmTeardown: TeardownConfirmationHandler;
 };

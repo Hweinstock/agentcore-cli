@@ -38,13 +38,22 @@ import { enclosingProjectRoot, projectSpecPath } from "./fsUtils";
 import {
   AgentCoreCLIError,
   InputValidationError,
+  InvalidEnvironmentError,
+  MalformedServiceResponseError,
   NotImplementedError,
   ProjectStateError,
 } from "../../errors/errors";
 import z from "zod";
 import { CdkBackend } from "./backends/cdk";
+import { resolveAwsAccount } from "./backends/cdk/environment";
 import type { ProjectBackend } from "./backends/types";
-import { AwsDeploymentTargetsSchema } from "../../projectSchemas/aws-targets";
+import {
+  AgentCoreRegionSchema,
+  AwsDeploymentTargetSchema,
+  AwsDeploymentTargetsSchema,
+  DEFAULT_TARGET_NAME,
+  type AwsDeploymentTarget,
+} from "../../projectSchemas/aws-targets";
 import type { RuntimeResourceConfig } from "../../handlers/project/add/runtime/types";
 import type { TemplateRenderer } from "./templates/types";
 import { HandlebarsTemplateRenderer } from "./templates/renderer";
@@ -61,6 +70,12 @@ type ProjectManagerConfig = {
   json?: ReadWriteJson;
   backends?: Partial<Record<ManagedBy, ProjectBackend>>;
   templateRenderer?: TemplateRenderer;
+  /**
+   * Resolves the AWS account behind the active credentials (STS
+   * GetCallerIdentity), used to synthesize the default deployment target.
+   * Injectable so unit tests never call AWS.
+   */
+  resolveAccount?: (region: string) => Promise<string>;
 };
 
 /**
@@ -74,6 +89,7 @@ export class FsProjectManager implements ProjectManager {
   private readonly checkTool: typeof requireTool;
   private readonly json: ReadWriteJson;
   private readonly backends: Partial<Record<ManagedBy, ProjectBackend>>;
+  private readonly resolveAccount: (region: string) => Promise<string>;
 
   constructor(config: ProjectManagerConfig) {
     this.logger = config.logger;
@@ -91,6 +107,7 @@ export class FsProjectManager implements ProjectManager {
       }),
     };
     this.templateRenderer = config.templateRenderer ?? new HandlebarsTemplateRenderer();
+    this.resolveAccount = config.resolveAccount ?? resolveAwsAccount;
   }
 
   public async resolve(input: ResolveProjectInput): Promise<Project | undefined> {
@@ -497,24 +514,37 @@ export class FsProjectManager implements ProjectManager {
     input: DeployProjectInput,
   ): AsyncGenerator<ProjectEvent, DeployResult> {
     const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
-    if (!existsSync(targetsPath)) {
-      throw new ProjectStateError(
-        `No deployment targets are configured for project '${project.name}'. ` +
-          `Add ${targetsPath}, for example:\n\n${TARGETS_EXAMPLE}`,
-      );
+    const fileExists = existsSync(targetsPath);
+    const targets = fileExists ? await this.json.read(targetsPath, AwsDeploymentTargetsSchema) : [];
+
+    let target = targets.find((candidate) => candidate.name === input.target);
+
+    // A freshly created project defines no targets, so the default one is
+    // synthesized from the environment rather than demanded up front. Only
+    // `default` gets this treatment: inventing a *named* target would turn a
+    // typo'd --target into a deployment somewhere unintended.
+    if (!target && input.target === DEFAULT_TARGET_NAME) {
+      target = await this.provisionDefaultTarget(project, targetsPath, input.region);
+      yield {
+        message:
+          `Created default deployment target: account ${target.account}, ` +
+          `region ${target.region} (${join("agentcore", "aws-targets.json")})`,
+      };
     }
 
-    const targets = await this.json.read(targetsPath, AwsDeploymentTargetsSchema);
-
-    if (targets.length === 0) {
-      throw new ProjectStateError(
-        `No deployment targets are configured for project '${project.name}'. ` +
-          `Add at least one to ${targetsPath}, for example:\n\n${TARGETS_EXAMPLE}`,
-      );
-    }
-
-    const target = targets.find((candidate) => candidate.name === input.target);
     if (!target) {
+      if (!fileExists) {
+        throw new ProjectStateError(
+          `No deployment targets are configured for project '${project.name}'. ` +
+            `Add ${targetsPath}, for example:\n\n${TARGETS_EXAMPLE}`,
+        );
+      }
+      if (targets.length === 0) {
+        throw new ProjectStateError(
+          `No deployment targets are configured for project '${project.name}'. ` +
+            `Add at least one to ${targetsPath}, for example:\n\n${TARGETS_EXAMPLE}`,
+        );
+      }
       throw new ProjectStateError(
         `Project '${project.name}' has no deployment target named '${input.target}'. ` +
           `${targetsPath} defines: ${targets.map(({ name }) => name).join(", ")}.`,
@@ -525,6 +555,63 @@ export class FsProjectManager implements ProjectManager {
       target,
       confirmTeardown: input.confirmTeardown,
     });
+  }
+
+  /**
+   * Builds the default deployment target from the environment — the active
+   * credentials' account and the CLI's effective region — and persists it to
+   * aws-targets.json alongside any targets already defined there.
+   */
+  private async provisionDefaultTarget(
+    project: Project,
+    targetsPath: string,
+    region: string,
+  ): Promise<AwsDeploymentTarget> {
+    const supportedRegion = AgentCoreRegionSchema.safeParse(region);
+    if (!supportedRegion.success) {
+      throw new InputValidationError(
+        `Cannot create the default deployment target for project '${project.name}': ` +
+          `'${region}' is not an AgentCore-supported region.\n` +
+          `Supported regions: ${AgentCoreRegionSchema.options.join(", ")}.\n` +
+          `Re-run with --region <region> or set AWS_REGION to one of them.`,
+      );
+    }
+
+    let account: string;
+    try {
+      account = await this.resolveAccount(supportedRegion.data);
+    } catch (error) {
+      const cause = AgentCoreCLIError.fromError(error);
+      throw new InvalidEnvironmentError(
+        `Cannot create the default deployment target for project '${project.name}' because ` +
+          `the AWS account could not be resolved: ${cause.message}\n` +
+          `Check that valid AWS credentials are configured (for example via 'aws configure', ` +
+          `AWS_PROFILE, or environment variables) and re-run 'agentcore project deploy'.`,
+        { cause: error },
+      );
+    }
+
+    const entry = AwsDeploymentTargetSchema.safeParse({
+      name: DEFAULT_TARGET_NAME,
+      account,
+      region: supportedRegion.data,
+    });
+    if (!entry.success) {
+      throw new MalformedServiceResponseError(
+        `STS returned an AWS account ID that is not usable as a deployment target:\n` +
+          z.prettifyError(entry.error),
+        { cause: entry.error },
+      );
+    }
+
+    // Merged into the raw file contents rather than the schema-parsed targets,
+    // so existing entries keep their exact key order and any fields the schema
+    // does not know about.
+    const existing = existsSync(targetsPath)
+      ? await this.json.read(targetsPath, z.array(z.record(z.string(), z.unknown())))
+      : [];
+    await this.json.write(targetsPath, [...existing, entry.data]);
+    return entry.data;
   }
 
   private backendFor(project: Project): ProjectBackend {
