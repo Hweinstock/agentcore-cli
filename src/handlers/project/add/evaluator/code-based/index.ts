@@ -115,9 +115,6 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
         config.io.stderr.write(
           `note: this evaluator returns Pass for every session until you implement app/${flags["name"]}/lambda_function.py\n`,
         );
-      config.io.stderr.write(
-        `note: managed code-based evaluators are scaffolded locally but not yet provisioned by 'project deploy' (pending CDK/L3 support)\n`,
-      );
     },
   });
 
