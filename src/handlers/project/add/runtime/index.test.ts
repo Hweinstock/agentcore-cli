@@ -105,6 +105,19 @@ describe("project add runtime", () => {
       build: "Container",
       dockerfile: "Dockerfile",
     },
+    "strands-py-mcp template preset": {
+      build: "CodeZip",
+      protocol: "MCP",
+    },
+    "strands-py-mcp overrides to Container": {
+      build: "Container",
+      dockerfile: "Dockerfile",
+      protocol: "MCP",
+    },
+    "custom strands MCP runtime": {
+      build: "CodeZip",
+      protocol: "MCP",
+    },
     "all infrastructure flags": {
       description: "Configured runtime",
       executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
@@ -162,6 +175,30 @@ describe("project add runtime", () => {
     [
       "strands template overrides to Container",
       ["--name", "my_agent", "--template", "strands-python", "--build", "Container"],
+    ],
+    ["strands-py-mcp template preset", ["--name", "my_mcp", "--template", "strands-py-mcp"]],
+    [
+      "strands-py-mcp overrides to Container",
+      ["--name", "my_mcp", "--template", "strands-py-mcp", "--build", "Container"],
+    ],
+    [
+      "custom strands MCP runtime",
+      [
+        "--name",
+        "mcp_custom",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--protocol",
+        "MCP",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "none",
+      ],
     ],
     ["custom — all scaffolding flags", ["--name", "my_agent", ...allScaffoldingFlags]],
     [
@@ -478,6 +515,29 @@ describe("project add runtime", () => {
     [
       "hello-world-python only supports HTTP",
       ["--name", "my_agent", "--template", "hello-world-python", "--protocol", "MCP"],
+    ],
+    [
+      "strands-py-mcp does not support memory",
+      ["--name", "my_agent", "--template", "strands-py-mcp", "--memory", "shortTerm"],
+    ],
+    [
+      "custom strands MCP runtime does not support memory",
+      [
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--protocol",
+        "MCP",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "shortTerm",
+      ],
     ],
     [
       "--memory shortTerm is not supported with --framework none",
