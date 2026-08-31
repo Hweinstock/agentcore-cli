@@ -14,6 +14,7 @@ import type { AppIO } from "../io";
 import type { Core } from "./types.tsx";
 import type { Logger } from "../logging";
 import type { GlobalConfigAccessor } from "../globalConfig";
+import { PACKAGE_VERSION } from "../constants";
 
 export interface RootHandlerConfig {
   io: AppIO;
@@ -24,6 +25,9 @@ export interface RootHandlerConfig {
 export function createRootHandler(core: Core, config: RootHandlerConfig): Router {
   const { io, logger } = config;
   const root = new Router("agentcore", "the platform for production AI agents");
+
+  // `agentcore --version` prints the build-time package version.
+  root.version(PACKAGE_VERSION);
 
   // Add global flags
   root.groupFlags(RegionKey, DebugKey, JsonKey, EndpointKey);
