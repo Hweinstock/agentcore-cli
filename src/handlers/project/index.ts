@@ -62,11 +62,6 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
     withProject({ projectManager: config.projectManager })(
-      createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io }),
-    ),
-  );
-  project.handler(
-    withProject({ projectManager: config.projectManager })(
       createDevProjectHandler({
         io: config.io,
         runners: {
@@ -90,6 +85,30 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
       createDeployProjectHandler({ projectManager: config.projectManager, io: config.io }),
     ),
   );
+  // A bare `agentcore project remove` in an interactive session opens the TUI
+  // resource picker; any supplied argument/flag or --json keeps the headless
+  // handler (and its `all` confirmation). Mirrors the create dispatch: the TTY
+  // gate wraps the middleware so a piped/CI invocation stays headless and
+  // reports the missing resource as a usage error instead of a TTY error.
+  const removeProject = createRemoveProjectHandler({
+    projectManager: config.projectManager,
+    io: config.io,
+  });
+  const removeProjectWithTui = withTuiOnEmptyFlagsAndArgs(core, io)(removeProject);
+  const removeProjectDispatch: Handler = {
+    name: () => removeProject.name(),
+    description: () => removeProject.description(),
+    flags: () => removeProject.flags(),
+    arguments: () => removeProject.arguments(),
+    doesSupportTui: () => removeProject.doesSupportTui(),
+    children: () => removeProject.children(),
+    handle: (ctx, flags, args) =>
+      isInteractive()
+        ? removeProjectWithTui.handle(ctx, flags, args)
+        : removeProject.handle(ctx, flags, args),
+  };
+  project.handler(withProject({ projectManager: config.projectManager })(removeProjectDispatch));
+
   project.handler(createProjectInvokeHandler(core, io));
   project.handler(createStatusProjectHandler());
   // withProject wraps only the commands that require an existing project, so

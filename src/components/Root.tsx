@@ -110,13 +110,14 @@ import { GatewayInvokeScreen } from "../handlers/gateway/invoke/screen.tsx";
 import { ProjectScreen, ProjectCommandNotImplementedScreen } from "../handlers/project/screen.tsx";
 import { ProjectCreateScreen } from "../handlers/project/create/screen.tsx";
 import { ProjectInvokePickerScreen } from "../handlers/project/invoke/screen.tsx";
+import { ProjectRemoveScreen } from "../handlers/project/remove/screen.tsx";
 import { RootScreen, HelpScreen } from "../handlers/screen.tsx";
 import type { Context } from "../router";
 
 // PROJECT_COMMANDS are the `agentcore project` subcommands that are listed in
 // the menu but have no screen of their own yet (`create` has the wizard). Each
 // is routed explicitly so selecting it reports "not implemented" error
-const PROJECT_COMMANDS = ["add", "export", "remove", "dev", "deploy", "status", "build"] as const;
+const PROJECT_COMMANDS = ["add", "export", "dev", "deploy", "status", "build"] as const;
 
 export interface RootProps {
   // path is the command path to the executing node (e.g. "/agentcore").
@@ -752,6 +753,18 @@ export function Root({ path, ctx, core, queryClient }: RootProps) {
           <Route
             path="agentcore/project/create"
             element={<ProjectCreateScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/project/remove"
+            element={<ProjectRemoveScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/project/remove/:resourceType"
+            element={<ProjectRemoveScreen ctx={ctx} core={core} />}
+          />
+          <Route
+            path="agentcore/project/remove/:resourceType/:name"
+            element={<ProjectRemoveScreen ctx={ctx} core={core} />}
           />
           {PROJECT_COMMANDS.map((command) => (
             <Route
