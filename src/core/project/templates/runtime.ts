@@ -211,7 +211,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const memory = input.scaffoldRuntimeInput.memory;
     // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one
     // namespace, so short-term-only memory (no long-term strategies) is unsupported.
-    // https://github.com/aws/bedrock-agentcore-sdk-typescript/blob/v0.3.0/src/memory/integrations/strands/factory.ts#L130-L133
+    // https://github.com/aws/bedrock-agentcore-sdk-typescript/issues/253
     if (memory !== undefined && memory.strategies.length === 0)
       throw new InputValidationError(
         "the strands-ts template does not support short-term-only memory; add long-term strategies or use --memory none",
