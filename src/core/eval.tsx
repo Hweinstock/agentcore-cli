@@ -76,6 +76,7 @@ import {
   type EvaluationReferenceInput,
   type EvaluationResultContent,
   type EvaluationTarget,
+  type CreateABTestRequest,
   type CreateABTestResponse,
   type GetABTestResponse,
   type ListABTestsResponse,
@@ -124,6 +125,7 @@ import type {
   CoreEvalClient,
   CreateConfigurationBundleInput,
   CreateConfigBasedABTestInput,
+  CreateTargetBasedABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -491,65 +493,38 @@ export class EvalClient implements CoreEvalClient {
       .send(new DeleteABTestCommand({ abTestId: id }));
   }
 
-  async createConfigBasedABTest(
-    input: CreateConfigBasedABTestInput,
+  private async createABTest(
+    name: string,
+    gateway: string,
+    callerRoleArn: string | undefined,
+    build: (context: {
+      gatewayArn: string;
+      accountId: string;
+      roleArn: string;
+    }) => CreateABTestRequest,
     options: CoreOptions,
   ): Promise<CreateABTestResponse> {
     const control = this.clients.control(toClientConfig(options));
-    const gateway = await control.send(new GetGatewayCommand({ gatewayIdentifier: input.gateway }));
-    const gatewayArn = gateway.gatewayArn!;
+    const gatewayArn = (await control.send(new GetGatewayCommand({ gatewayIdentifier: gateway })))
+      .gatewayArn!;
     const accountId = accountIdFromArn(gatewayArn);
 
-    const controlBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.control.configBundle}`;
-    const treatmentBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.treatment.configBundle}`;
-    const onlineEvaluationConfigArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:online-evaluation-config/${input.onlineEval}`;
-
-    const treatmentWeight = input.treatmentWeight ?? 50;
-    const variants = [
-      {
-        name: "C",
-        weight: 100 - treatmentWeight,
-        variantConfiguration: {
-          configurationBundle: {
-            bundleArn: controlBundleArn,
-            bundleVersion: input.control.bundleVersion,
-          },
-        },
-      },
-      {
-        name: "T1",
-        weight: treatmentWeight,
-        variantConfiguration: {
-          configurationBundle: {
-            bundleArn: treatmentBundleArn,
-            bundleVersion: input.treatment.bundleVersion,
-          },
-        },
-      },
-    ];
-
-    let roleArn = input.roleArn;
+    let roleArn = callerRoleArn;
     let provisionedRoleArn: string | undefined;
     if (!roleArn) {
-      const iam = this.clients.iam({ region: options.region });
-      const provisioned = await provisionAbTestRole(iam, input.name, gatewayArn, options.region);
+      const provisioned = await provisionAbTestRole(
+        this.clients.iam({ region: options.region }),
+        name,
+        gatewayArn,
+        options.region,
+      );
       roleArn = provisioned.roleArn;
       if (provisioned.created) provisionedRoleArn = provisioned.roleArn;
     }
 
-    const command = new CreateABTestCommand({
-      name: input.name,
-      gatewayArn,
-      variants,
-      evaluationConfig: { onlineEvaluationConfigArn },
-      roleArn,
-      gatewayFilter: input.gatewayFilter,
-      enableOnCreate: input.enableOnCreate ?? true,
-      clientToken: randomUUID(),
-    });
-
+    const command = new CreateABTestCommand(build({ gatewayArn, accountId, roleArn }));
     try {
-      return input.roleArn
+      return callerRoleArn
         ? await this.clients.data(toClientConfig(options)).send(command)
         : await retryWhileRolePropagates(() =>
             this.clients.data(toClientConfig(options)).send(command),
@@ -564,6 +539,99 @@ export class EvalClient implements CoreEvalClient {
       }
       throw error;
     }
+  }
+
+  async createConfigBasedABTest(
+    input: CreateConfigBasedABTestInput,
+    options: CoreOptions,
+  ): Promise<CreateABTestResponse> {
+    const treatmentWeight = input.treatmentWeight ?? 50;
+    return this.createABTest(
+      input.name,
+      input.gateway,
+      input.roleArn,
+      ({ gatewayArn, accountId, roleArn }) => {
+        const bundleArn = (id: string) =>
+          `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${id}`;
+        return {
+          name: input.name,
+          gatewayArn,
+          variants: [
+            {
+              name: "C",
+              weight: 100 - treatmentWeight,
+              variantConfiguration: {
+                configurationBundle: {
+                  bundleArn: bundleArn(input.control.configBundle),
+                  bundleVersion: input.control.bundleVersion,
+                },
+              },
+            },
+            {
+              name: "T1",
+              weight: treatmentWeight,
+              variantConfiguration: {
+                configurationBundle: {
+                  bundleArn: bundleArn(input.treatment.configBundle),
+                  bundleVersion: input.treatment.bundleVersion,
+                },
+              },
+            },
+          ],
+          evaluationConfig: {
+            onlineEvaluationConfigArn: `arn:aws:bedrock-agentcore:${options.region}:${accountId}:online-evaluation-config/${input.onlineEval}`,
+          },
+          roleArn,
+          gatewayFilter: input.gatewayFilter,
+          enableOnCreate: input.enableOnCreate ?? true,
+          clientToken: randomUUID(),
+        };
+      },
+      options,
+    );
+  }
+
+  async createTargetBasedABTest(
+    input: CreateTargetBasedABTestInput,
+    options: CoreOptions,
+  ): Promise<CreateABTestResponse> {
+    const treatmentWeight = input.treatmentWeight ?? 50;
+    return this.createABTest(
+      input.name,
+      input.gateway,
+      input.roleArn,
+      ({ gatewayArn, accountId, roleArn }) => {
+        const evalArn = (id: string) =>
+          `arn:aws:bedrock-agentcore:${options.region}:${accountId}:online-evaluation-config/${id}`;
+        return {
+          name: input.name,
+          gatewayArn,
+          variants: [
+            {
+              name: "C",
+              weight: 100 - treatmentWeight,
+              variantConfiguration: { target: { name: input.control.gatewayTarget } },
+            },
+            {
+              name: "T1",
+              weight: treatmentWeight,
+              variantConfiguration: { target: { name: input.treatment.gatewayTarget } },
+            },
+          ],
+          evaluationConfig: {
+            perVariantOnlineEvaluationConfig: [
+              { name: "C", onlineEvaluationConfigArn: evalArn(input.control.onlineEval) },
+              { name: "T1", onlineEvaluationConfigArn: evalArn(input.treatment.onlineEval) },
+            ],
+          },
+          roleArn,
+          gatewayFilter: input.gatewayFilter,
+          enableOnCreate: input.enableOnCreate ?? true,
+          clientToken: randomUUID(),
+        };
+      },
+      options,
+    );
   }
 
   async listBatchInsights(

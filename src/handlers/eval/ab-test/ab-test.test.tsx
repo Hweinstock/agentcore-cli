@@ -79,9 +79,12 @@ describe("eval ab-test command hierarchy", () => {
       "stop",
       "delete",
       "config-based",
+      "target-based",
     ]);
     const cb = group?.children().find((c) => c.name() === "config-based");
     expect(cb?.children().map((c) => c.name())).toEqual(["run"]);
+    const tb = group?.children().find((c) => c.name() === "target-based");
+    expect(tb?.children().map((c) => c.name())).toEqual(["run"]);
   });
 });
 
@@ -261,6 +264,89 @@ describe("eval ab-test config-based run validation", () => {
     expect(call).toBeDefined();
     expect((call!.args[0] as { gatewayFilter?: unknown }).gatewayFilter).toEqual({
       targetPaths: ["/orders/checkout"],
+    });
+  });
+});
+
+describe("eval ab-test target-based run validation", () => {
+  const TB_BASE = [
+    "eval",
+    "ab-test",
+    "target-based",
+    "run",
+    "--name",
+    "orders-v2-canary",
+    "--gateway",
+    "orders-gateway-abc123",
+    "--control",
+    '{"gateway-target":"orders-prod-target","online-eval":"prod-quality"}',
+    "--treatment",
+    '{"gateway-target":"orders-v2-target","online-eval":"v2-quality"}',
+    "--json",
+  ];
+
+  test.each(["name", "gateway", "control", "treatment"] as const)(
+    "requires --%s",
+    async (missing) => {
+      const args = TB_BASE.filter(
+        (a, i) => a !== `--${missing}` && TB_BASE[i - 1] !== `--${missing}`,
+      );
+      await expect(run(args)).rejects.toThrow(new RegExp(`--${missing}`));
+    },
+  );
+
+  test("rejects a mis-shaped --control object", async () => {
+    const args = TB_BASE.map((a) =>
+      a === '{"gateway-target":"orders-prod-target","online-eval":"prod-quality"}'
+        ? '{"wrong":"shape"}'
+        : a,
+    );
+    await expect(run(args)).rejects.toThrow(/--control must be/);
+  });
+
+  test("rejects identical control/treatment targets", async () => {
+    const same = '{"gateway-target":"t","online-eval":"e"}';
+    await expect(
+      run([
+        "eval",
+        "ab-test",
+        "target-based",
+        "run",
+        "--name",
+        "x",
+        "--gateway",
+        "g",
+        "--control",
+        same,
+        "--treatment",
+        same,
+        "--json",
+      ]),
+    ).rejects.toThrow(/different gateway targets/);
+  });
+
+  test("maps flags to a createTargetBasedABTest call", async () => {
+    const { core } = await run([...TB_BASE, "--treatment-weight", "20"], (c) =>
+      c.eval.setAbTestCreateResponse({
+        abTestId: "x",
+        abTestArn: ARN,
+        name: "x",
+        status: "CREATING",
+        executionStatus: "RUNNING",
+        createdAt: new Date("2026-08-26T10:00:00.000Z"),
+      }),
+    );
+    const call = core.eval.calls.find((c) => c.method === "createTargetBasedABTest");
+    expect(call).toBeDefined();
+    expect(call!.args[0]).toEqual({
+      name: "orders-v2-canary",
+      gateway: "orders-gateway-abc123",
+      control: { gatewayTarget: "orders-prod-target", onlineEval: "prod-quality" },
+      treatment: { gatewayTarget: "orders-v2-target", onlineEval: "v2-quality" },
+      treatmentWeight: 20,
+      gatewayFilter: undefined,
+      roleArn: undefined,
+      enableOnCreate: undefined,
     });
   });
 });
