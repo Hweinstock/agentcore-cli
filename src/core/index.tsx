@@ -3,6 +3,7 @@ import { BedrockAgentCoreClient } from "@aws-sdk/client-bedrock-agentcore";
 import { IAMClient } from "@aws-sdk/client-iam";
 import { CloudWatchLogsClient } from "@aws-sdk/client-cloudwatch-logs";
 import { EvalClient } from "./eval";
+import { FeedbackClient } from "./feedback";
 import { GatewayClient } from "./gateway";
 import { HarnessClient } from "./harness";
 import { IdentityClient } from "./identity";
@@ -72,6 +73,7 @@ export class CoreClient implements AwsClients {
   readonly runtime: RuntimeClient;
   readonly gateway: GatewayClient;
   readonly eval: EvalClient;
+  readonly feedback: FeedbackClient;
   readonly observability: ObservabilityClient;
 
   readonly projectManager: ProjectManager;
@@ -86,6 +88,8 @@ export class CoreClient implements AwsClients {
     const fetch = config.fetch ?? globalThis.fetch;
     this.runtime = new RuntimeClient(this, fetch, this.logger.child({ module: "runtime" }));
     this.gateway = new GatewayClient(this, fetch, this.logger.child({ module: "gateway" }));
+    // Feedback posts to the Aperture public API via the injected fetch, outside the SDK seam.
+    this.feedback = new FeedbackClient(this, fetch);
     // EvalClient shares the injected fetch: dataset content is served from a
     // presigned S3 URL, outside the SDK seam the other operations use. The logger
     // is used for batch-evaluation result-log diagnostics.
