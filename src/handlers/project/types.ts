@@ -58,10 +58,22 @@ export const ScaffoldRuntimeInputSchema = z
 
 export type ScaffoldRuntimeInput = z.infer<typeof ScaffoldRuntimeInputSchema>;
 
-export type CreateProjectInput = CreateProjectInputBase & {
-  /** The resolved template parameters. The handler maps --template to these before calling the manager. */
-  scaffoldRuntimeInput: ScaffoldRuntimeInput;
-};
+/** Set of arguments needed to create a project around a harness. */
+export type ScaffoldHarnessInput = z.input<typeof HarnessSpecSchema>;
+
+export type CreateProjectInput = CreateProjectInputBase &
+  (
+    | {
+        /** The resolved template parameters. The handler maps --template to these before calling the manager. */
+        scaffoldRuntimeInput: ScaffoldRuntimeInput;
+        scaffoldHarnessInput?: undefined;
+      }
+    | {
+        /** The harness the created project declares (the default create path). */
+        scaffoldHarnessInput: ScaffoldHarnessInput;
+        scaffoldRuntimeInput?: undefined;
+      }
+  );
 
 /** A progress step reported while a long-running project operation runs. */
 export type ProjectEvent = {

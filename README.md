@@ -104,6 +104,14 @@ agentcore                          # interactive TUI
 │       ├── get                    # get an evaluator by id (type-agnostic)
 │       ├── list                   # list evaluators (server-side paginated)
 │       └── delete                 # delete an evaluator by id
+├── project                        # manage an AgentCore project (scaffold → deploy)
+│   ├── create                     # create a project: a managed harness by default,
+│   │                              #   or scaffolded runtime code via --template/--framework
+│   ├── add                        # add a resource to the project (runtime, harness, memory, …)
+│   ├── remove                     # remove a resource from the project
+│   ├── build                      # synthesize the project's CloudFormation templates
+│   ├── deploy                     # deploy to AWS (auto-provisions the default target)
+│   └── dev                        # run the project's agents locally
 └── config                         # read/write global config values
 ```
 
@@ -117,6 +125,19 @@ Global flags (declared at the root, available on every command):
 | `--endpoint-url` | Override the service endpoint URL (e.g. for testing against a stub). |
 
 ### Examples
+
+```bash
+# Create a project. The default is a harness project: a managed agent
+# configured by spec, no model-loop code to maintain. --defaults says so
+# explicitly; harness flags (--model-id, --max-iterations, --timeout, …)
+# tune it.
+agentcore project create --name MyAssistant
+cd MyAssistant && agentcore project deploy
+agentcore harness invoke --id <id from the deploy outputs> --prompt "hello"
+
+# Scaffold runtime code instead (pass a template or framework flags).
+agentcore project create --name MyAgent --template strands-python
+```
 
 ```bash
 # Create a harness; a default execution role is created for you.

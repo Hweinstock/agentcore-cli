@@ -11,15 +11,45 @@ import {
   ScaffoldRuntimeInputSchema,
   type CreateProjectInput,
   type ProjectManager,
+  type ScaffoldHarnessInput,
   type ScaffoldRuntimeInput,
 } from "../types";
 import { ProjectNameSchema } from "../../../projectSchemas/project";
+import { CONTAINER_URI_PATTERN, HarnessSpecSchema } from "../../../projectSchemas/harness";
 import { InputValidationError } from "../../../errors";
+import { parseJsonFlag } from "../../utils";
+import { DEFAULT_HARNESS_MODEL } from "../add/harness";
 
 type CreateProjectHandlerConfig = {
   projectManager: ProjectManager;
   io: AppIO;
 };
+
+// Flags that select the runtime-scaffolding path. Any of these (or --template)
+// present routes create away from the default harness path, mirroring the
+// original CLI's agent-path dispatch.
+const RUNTIME_PATH_FLAGS = [
+  "build",
+  "language",
+  "framework",
+  "model-provider",
+  "api-key",
+  "runtime-name",
+  "memory",
+] as const;
+
+// Flags that only make sense for the harness path.
+const HARNESS_ONLY_FLAGS = [
+  "model-id",
+  "api-key-arn",
+  "api-base",
+  "additional-params",
+  "max-iterations",
+  "max-tokens",
+  "timeout",
+  "truncation-strategy",
+  "container",
+] as const;
 
 export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =>
   createHandler({
@@ -27,6 +57,11 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
     description: "create a new AgentCore project",
     flags: [
       flag("name", "name of the project to create", ProjectNameSchema),
+      flag(
+        "defaults",
+        "create a harness project with default settings (this is the default)",
+        z.boolean().default(false),
+      ),
       flag(
         "template",
         "a preset of flags for scaffolding the runtime; compatible flags override preset values",
@@ -64,6 +99,44 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         z.enum(MEMORY_SHORTCUT_NAMES).optional(),
       ),
       flag("runtime-name", "name of the scaffolded runtime", z.string().max(42).optional()),
+      flag("model-id", "model ID for the created harness", z.string().optional()),
+      flag(
+        "api-key-arn",
+        "API key credential ARN for the created harness's model provider",
+        z.string().optional(),
+      ),
+      flag(
+        "api-base",
+        "base URL for the harness model provider API endpoint (lite_llm)",
+        z.string().optional(),
+      ),
+      flag(
+        "additional-params",
+        "provider-specific harness model params as a JSON object (lite_llm)",
+        z.string().optional(),
+      ),
+      flag(
+        "no-harness-memory",
+        "disable memory for the created harness (this is the default)",
+        z.boolean().default(false),
+      ),
+      flag(
+        "max-iterations",
+        "max agent loop iterations per invocation (harness)",
+        z.number().optional(),
+      ),
+      flag("max-tokens", "max total output tokens per invocation (harness)", z.number().optional()),
+      flag("timeout", "max duration in seconds per invocation (harness)", z.number().optional()),
+      flag(
+        "truncation-strategy",
+        "context truncation strategy for the harness",
+        z.enum(["sliding_window", "summarization"]).optional(),
+      ),
+      flag(
+        "container",
+        "container image URI or Dockerfile path for the harness",
+        z.string().optional(),
+      ),
       flag(
         "skip-install",
         "skip installing dependencies (npm install, uv sync)",
@@ -72,18 +145,27 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag("skip-git", "skip initializing a git repository", z.boolean().default(false)),
     ],
     handle: async (_ctx, flags) => {
-      const scaffoldingFlags = [
-        "build",
-        "language",
-        "framework",
-        "model-provider",
-        "api-key",
-        "runtime-name",
-        "memory",
-      ] as const;
-
-      const presentScaffoldingFlags = scaffoldingFlags.filter((f) => flags[f] !== undefined);
+      const presentRuntimeFlags: string[] = RUNTIME_PATH_FLAGS.filter(
+        (f) => flags[f] !== undefined,
+      );
       const isTemplate = flags["template"] !== undefined;
+      if (isTemplate) presentRuntimeFlags.unshift("template");
+
+      const presentHarnessFlags: string[] = HARNESS_ONLY_FLAGS.filter(
+        (f) => flags[f] !== undefined,
+      );
+      if (flags["no-harness-memory"]) presentHarnessFlags.push("no-harness-memory");
+
+      // Mirrors the original CLI's dispatch: mixing the two paths is an error,
+      // while --defaults on the runtime path is simply ignored.
+      if (presentRuntimeFlags.length > 0 && presentHarnessFlags.length > 0) {
+        throw new InputValidationError(
+          `Cannot mix runtime scaffolding flags (${formatFlagList(presentRuntimeFlags)}) ` +
+            `with harness-only flags (${formatFlagList(presentHarnessFlags)}). ` +
+            `A project is created around either a harness (the default) or scaffolded runtime code.`,
+        );
+      }
+
       const lockedFlag = (["language", "framework"] as const).find(
         (flagName) => flags[flagName] !== undefined,
       );
@@ -91,50 +173,142 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         throw new InputValidationError(`--${lockedFlag} cannot override a template`);
       }
 
-      const isCustom = presentScaffoldingFlags.length > 0;
+      const isRuntimePath = presentRuntimeFlags.length > 0;
 
-      const source = new SourceResolver({ stdin: config.io.stdin });
-      const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
+      const createInput: CreateProjectInput = isRuntimePath
+        ? {
+            name: flags["name"],
+            skipInstall: flags["skip-install"],
+            skipGit: flags["skip-git"],
+            scaffoldRuntimeInput: await resolveScaffoldRuntimeInput(config, flags),
+          }
+        : {
+            name: flags["name"],
+            skipInstall: flags["skip-install"],
+            skipGit: flags["skip-git"],
+            scaffoldHarnessInput: resolveScaffoldHarnessInput(flags),
+          };
 
-      const runtimeName = flags["runtime-name"] ?? flags["name"];
-      const defaultMemory = flags["framework"] === "strands" ? "longAndShortTerm" : "none";
-
-      const scaffoldRuntimeInput: ScaffoldRuntimeInput = isTemplate
-        ? resolveRuntimeTemplateShortcut(flags["template"]!, {
-            runtimeName: flags["runtime-name"],
-            build: flags["build"],
-            modelProvider: flags["model-provider"],
-            apiKey,
-            memory: flags["memory"],
-          })
-        : isCustom
-          ? parseScaffoldRuntimeInput({
-              runtimeName,
-              build: flags["build"],
-              language: flags["language"],
-              framework: flags["framework"],
-              modelProvider: flags["model-provider"],
-              apiKey,
-              memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
-              entrypoint: "main.py",
-              runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
-            })
-          : resolveRuntimeTemplateShortcut("hello-world-python");
-
-      const createInput: CreateProjectInput = {
-        name: flags["name"],
-        skipInstall: flags["skip-install"],
-        skipGit: flags["skip-git"],
-        scaffoldRuntimeInput,
-      };
+      if (!isRuntimePath && !flags["defaults"] && presentHarnessFlags.length === 0) {
+        config.io.stderr.write(
+          "Creating a harness project (pass --framework or --template to scaffold agent code instead).\n",
+        );
+      }
 
       for await (const event of config.projectManager.create(createInput)) {
         config.io.stderr.write(`${event.message}\n`);
       }
 
       config.io.stderr.write(`Created project '${flags["name"]}' in ./${flags["name"]}\n`);
+      config.io.stderr.write(`To deploy it: cd ${flags["name"]} && agentcore project deploy\n`);
     },
   });
+
+type RuntimePathFlagValues = {
+  name: string;
+  template?: (typeof RUNTIME_TEMPLATE_SHORTCUT_NAMES)[number];
+  build?: "CodeZip" | "Container";
+  language?: "Python";
+  framework?: "strands" | "none";
+  "model-provider"?: "Bedrock";
+  "api-key"?: string;
+  memory?: (typeof MEMORY_SHORTCUT_NAMES)[number];
+  "runtime-name"?: string;
+};
+
+type HarnessPathFlagValues = {
+  name: string;
+  "model-id"?: string;
+  "api-key-arn"?: string;
+  "api-base"?: string;
+  "additional-params"?: string;
+  "max-iterations"?: number;
+  "max-tokens"?: number;
+  timeout?: number;
+  "truncation-strategy"?: "sliding_window" | "summarization";
+  container?: string;
+};
+
+async function resolveScaffoldRuntimeInput(
+  config: CreateProjectHandlerConfig,
+  flags: RuntimePathFlagValues,
+): Promise<ScaffoldRuntimeInput> {
+  const source = new SourceResolver({ stdin: config.io.stdin });
+  const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
+
+  const runtimeName = flags["runtime-name"] ?? flags["name"];
+  const defaultMemory = flags["framework"] === "strands" ? "longAndShortTerm" : "none";
+
+  return flags["template"] !== undefined
+    ? resolveRuntimeTemplateShortcut(flags["template"], {
+        runtimeName: flags["runtime-name"],
+        build: flags["build"],
+        modelProvider: flags["model-provider"],
+        apiKey,
+        memory: flags["memory"],
+      })
+    : parseScaffoldRuntimeInput({
+        runtimeName,
+        build: flags["build"],
+        language: flags["language"],
+        framework: flags["framework"],
+        modelProvider: flags["model-provider"],
+        apiKey,
+        memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
+        entrypoint: "main.py",
+        runtimeVersion: flags["build"] === "CodeZip" ? "PYTHON_3_14" : undefined,
+      });
+}
+
+// The harness input validates against the same schema `project add harness`
+// uses, before any file is written; the manager then scaffolds it through the
+// same addResource path.
+function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): ScaffoldHarnessInput {
+  const additionalParams = parseJsonFlag<Record<string, unknown>>(
+    "additional-params",
+    flags["additional-params"],
+  );
+
+  const input: ScaffoldHarnessInput = {
+    // A project name always satisfies the harness name grammar (letters and
+    // digits only), so the harness is named after the project like the
+    // original CLI does.
+    name: flags["name"],
+    model: {
+      provider: DEFAULT_HARNESS_MODEL.provider,
+      modelId: flags["model-id"] ?? DEFAULT_HARNESS_MODEL.modelId,
+      apiKeyArn: flags["api-key-arn"],
+      apiBase: flags["api-base"],
+      additionalParams,
+    },
+    maxIterations: flags["max-iterations"],
+    maxTokens: flags["max-tokens"],
+    timeoutSeconds: flags["timeout"],
+    truncation: flags["truncation-strategy"]
+      ? { strategy: flags["truncation-strategy"] }
+      : undefined,
+    // Harness memory is opt-in and disabled by default; --no-harness-memory
+    // documents the default explicitly.
+    ...parseContainerFlag(flags["container"]),
+  };
+
+  const result = HarnessSpecSchema.safeParse(input);
+  if (!result.success)
+    throw new InputValidationError(z.prettifyError(result.error), { cause: result.error });
+  return input;
+}
+
+/** A --container value is either an ECR image URI or a local Dockerfile path. */
+function parseContainerFlag(
+  value: string | undefined,
+): Pick<ScaffoldHarnessInput, "containerUri" | "dockerfile"> {
+  if (value === undefined) return {};
+  return CONTAINER_URI_PATTERN.test(value) ? { containerUri: value } : { dockerfile: value };
+}
+
+function formatFlagList(flagNames: string[]): string {
+  return flagNames.map((name) => `--${name}`).join(", ");
+}
 
 function parseScaffoldRuntimeInput(input: Partial<ScaffoldRuntimeInput>) {
   const result = ScaffoldRuntimeInputSchema.safeParse(input);

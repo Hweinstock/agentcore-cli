@@ -143,6 +143,22 @@ export class FsProjectManager implements ProjectManager {
     );
     await projectTree.write(destination);
 
+    // A harness project scaffolds through the same addResource flow that
+    // `project add harness` uses, so a create-time harness and an added one can
+    // never drift apart.
+    if (input.scaffoldHarnessInput) {
+      const scaffolded = await this.resolve({ filePath: destination });
+      if (!scaffolded) {
+        throw new ProjectStateError(
+          `the project scaffolded at ${destination} could not be read back`,
+        );
+      }
+      yield* this.addResource(scaffolded, {
+        resourceType: "harness",
+        resourceConfig: input.scaffoldHarnessInput,
+      });
+    }
+
     // A failed step leaves the scaffolded files in place; the error tells the
     // user how to rerun the step by hand.
     if (!input.skipInstall) {
@@ -150,9 +166,11 @@ export class FsProjectManager implements ProjectManager {
       yield { message: "Installing CDK dependencies with npm" };
       await this.run(["npm", "install"], join(destination, "agentcore", "cdk"));
 
-      const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
-      yield* this.installRuntimeDependencies(appDir);
-    } else if (scaffoldRuntimeInput.build === "Container") {
+      if (scaffoldRuntimeInput) {
+        const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
+        yield* this.installRuntimeDependencies(appDir);
+      }
+    } else if (scaffoldRuntimeInput?.build === "Container") {
       // containers require uv.lock to build, so even with no-install we must generate the lock.
       const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
       yield* this.ensureLockFileExists(appDir);

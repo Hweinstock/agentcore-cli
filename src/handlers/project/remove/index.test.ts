@@ -43,7 +43,15 @@ async function run(args: string[]) {
 
 async function inProject(name = "TestProject"): Promise<string> {
   const directory = await inTempDirectory();
-  await run(["create", "--name", name, "--skip-install", "--skip-git"]);
+  await run([
+    "create",
+    "--name",
+    name,
+    "--template",
+    "hello-world-python",
+    "--skip-install",
+    "--skip-git",
+  ]);
   const projectRoot = join(directory, name);
   process.chdir(projectRoot);
   return projectRoot;
