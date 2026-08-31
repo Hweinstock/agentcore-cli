@@ -34,4 +34,10 @@ export interface GlobalConfigAccessor {
   get(): Promise<GlobalConfig>;
   /** Validates and persists a new config. Throws on invalid shape. */
   set(newConfig: GlobalConfig): Promise<GlobalConfig>;
+  /**
+   * Returns true on the first run of the CLI, i.e. when no installationId has
+   * yet been persisted to the config file. Reflects the state before {@link get}
+   * populates an installationId, so the result is stable across the process.
+   */
+  isFirstRun(): Promise<boolean>;
 }
