@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtempSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { createSilentLogger, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/globalConfig";
 import { createRootHandler } from "../../index";
@@ -174,6 +174,10 @@ describe("runtime traces get", () => {
 describe("resolveTraceOutputPath", () => {
   const project = { name: "Proj", rootPath: "/work/proj", spec: {} } as unknown as Project;
 
+  // Expected paths are built with the same node:path primitives the resolver
+  // uses: what these tests pin down is which branch wins (--output > project
+  // > cwd), not the platform's separator (Windows resolves to drive-letter
+  // backslash paths).
   test("an explicit --output wins, resolved against the cwd", () => {
     expect(
       resolveTraceOutputPath({
@@ -183,18 +187,18 @@ describe("resolveTraceOutputPath", () => {
         traceId: "abc",
         cwd: "/work/elsewhere",
       }),
-    ).toBe("/work/elsewhere/out/trace.json");
+    ).toBe(resolve("/work/elsewhere", "out/trace.json"));
   });
 
   test("inside a project the file lands under agentcore/.cli/traces", () => {
     expect(
       resolveTraceOutputPath({ project, runtimeId: "my_agent-AbC", traceId: "abc123", cwd: "/x" }),
-    ).toBe("/work/proj/agentcore/.cli/traces/my_agent-AbC-abc123.json");
+    ).toBe(join("/work/proj", "agentcore", ".cli", "traces", "my_agent-AbC-abc123.json"));
   });
 
   test("outside a project the file lands in the working directory", () => {
     expect(resolveTraceOutputPath({ runtimeId: "rt-1", traceId: "abc123", cwd: "/tmp/x" })).toBe(
-      "/tmp/x/abc123.json",
+      resolve("/tmp/x", "abc123.json"),
     );
   });
 });
