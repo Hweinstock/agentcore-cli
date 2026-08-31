@@ -9,7 +9,7 @@ import type { Logger } from "../logging";
 import { globalConfigFileSchema } from "./types";
 import { DEFAULT_GLOBAL_CONFIG, applyOverrides } from "./config";
 import z from "zod";
-import { DeserializationError, InputValidationError } from "../errors";
+import { InputValidationError } from "../errors";
 
 type DefaultGlobalConfigAccessorConfig = {
   logger: Logger;
@@ -25,7 +25,6 @@ type DefaultGlobalConfigAccessorConfig = {
  */
 export class DefaultGlobalConfigAccessor implements GlobalConfigAccessor {
   private cachedConfig: GlobalConfig | undefined;
-  private firstRun: boolean | undefined;
   private readonly json: ReadWriteJson;
   private readonly filePath: string;
   private readonly logger: Logger;
@@ -46,45 +45,8 @@ export class DefaultGlobalConfigAccessor implements GlobalConfigAccessor {
 
     const configFileData = await this.readConfigFile();
 
-    // capture first-run state before we populate an installationId below, so a
-    // later isFirstRun() call isn't fooled by the id we're about to persist.
-    this.firstRun ??= !configFileData.installationId;
-
-    // if no installationId is present, generate one and merge it into the file data
-    if (!configFileData.installationId) {
-      configFileData.installationId = DEFAULT_GLOBAL_CONFIG.installationId;
-      this.logger.info(`no installationId found, persisting one`);
-
-      try {
-        await this.writeToConfigFile(configFileData);
-      } catch (e) {
-        const error = e instanceof Error ? e : new Error(String(e));
-        this.logger
-          .child({ errorName: error.name, errorMessage: error.message })
-          .warn(`failed to write initial config file data`);
-        // best effort
-      }
-    }
-
     this.cachedConfig = applyOverrides(DEFAULT_GLOBAL_CONFIG, configFileData);
     return this.cachedConfig;
-  }
-
-  public async isFirstRun(): Promise<boolean> {
-    if (this.firstRun !== undefined) return this.firstRun;
-
-    // A first run is one where no installationId has been persisted yet. A
-    // missing (readConfigFile returns {}) or malformed config counts as a first
-    // run; a config that exists but is otherwise unreadable does not, so an
-    // install that already has an installationId isn't repeatedly nagged.
-    try {
-      const configFileData = await this.readConfigFile();
-      this.firstRun = !configFileData.installationId;
-    } catch (e) {
-      this.firstRun = e instanceof DeserializationError;
-    }
-
-    return this.firstRun;
   }
 
   public async set(newConfig: GlobalConfig): Promise<GlobalConfig> {

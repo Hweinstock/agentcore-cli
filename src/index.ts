@@ -61,9 +61,16 @@ process.exit(
       exit_reason: "success",
     });
 
-    // Capture first-run state up front: routing and telemetry emission both read
-    // the global config, which persists an installationId as a side effect.
-    const isFirstRun = await globalConfigAccessor.isFirstRun();
+    const globalConfig = await globalConfigAccessor.get();
+    const isFirstRun = globalConfig.installationId === undefined;
+    if (isFirstRun) {
+      try {
+        await globalConfigAccessor.set({ ...globalConfig, installationId: crypto.randomUUID() });
+      } catch (e) {
+        const error = AgentCoreCLIError.fromError(e);
+        rootLogger.child({ error: error.json() }).warn("failed to persist installationId");
+      }
+    }
 
     try {
       rootLogger.info(`running CLI`);
@@ -117,8 +124,6 @@ process.exit(
       await telemetryClient.shutdown();
       await rootLogger.end();
 
-      // On a fresh install, inform the user that telemetry is collected and how
-      // to opt out. Printed last so it isn't buried by command output.
       printFirstRunNotice(isFirstRun, io.stderr);
     }
   }),

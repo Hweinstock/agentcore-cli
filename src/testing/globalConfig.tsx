@@ -9,8 +9,7 @@ type TestGlobalConfigAccessorOptions = {
 };
 
 /**
- * In-memory GlobalConfigAccessor for tests. Represents an already-installed
- * environment, so isFirstRun is always false.
+ * In-memory GlobalConfigAccessor for tests.
  */
 export class TestGlobalConfigAccessor implements GlobalConfigAccessor {
   private configData: GlobalConfig;
@@ -26,9 +25,5 @@ export class TestGlobalConfigAccessor implements GlobalConfigAccessor {
   public async set(newConfig: GlobalConfig): Promise<GlobalConfig> {
     this.configData = newConfig;
     return this.configData;
-  }
-
-  public async isFirstRun(): Promise<boolean> {
-    return false;
   }
 }

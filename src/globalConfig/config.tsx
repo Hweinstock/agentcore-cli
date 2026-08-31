@@ -1,7 +1,7 @@
 import type { DeepPartial, GlobalConfig } from "./types";
 
 /**
- * Default values for the global config. Includes a unique installationId for each process.
+ * Default values for the global config.
  */
 export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   telemetry: {
@@ -9,7 +9,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
     audit: false,
     endpoint: "https://telemetry.agentcore.aws.dev",
   },
-  installationId: crypto.randomUUID(),
+  installationId: undefined,
 };
 
 /**

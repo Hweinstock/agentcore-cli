@@ -154,26 +154,6 @@ describe("config", () => {
     expect(JSON.parse(readOutput)).toBe(newEndpoint);
   });
 
-  test("writes installationId when config missing, preserves it when present", async () => {
-    await rm(configPath);
-    const firstOutput = await run(["installationId"]);
-    const firstId = JSON.parse(firstOutput);
-    expect(firstId).toMatch(/^[0-9a-f-]{36}$/);
-
-    const secondOutput = await run(["installationId"]);
-    expect(JSON.parse(secondOutput)).toBe(firstId);
-  });
-
-  test("writes installationId when config exists but installationId is missing", async () => {
-    await writeFile(configPath, JSON.stringify({ telemetry: { enabled: true } }));
-
-    const firstOutput = await run(["installationId"]);
-    const firstId = JSON.parse(firstOutput);
-
-    const secondOutput = await run(["installationId"]);
-    expect(JSON.parse(secondOutput)).toBe(firstId);
-  });
-
   test("creates the config directory if it does not exist", async () => {
     await rm(tempDir, { recursive: true, force: true });
 

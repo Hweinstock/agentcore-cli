@@ -25,8 +25,13 @@ export const globalConfigFileSchema = z.object({
 /** The raw shape stored on disk for overriding defaults. */
 export type GlobalConfigFileData = z.infer<typeof globalConfigFileSchema>;
 
-/** The fully resolved config after applying defaults — all fields required. */
-export type GlobalConfig = DeepRequired<GlobalConfigFileData>;
+/**
+ * The fully resolved config after applying defaults. All fields are required
+ * except installationId, which is unset until the first run persists one.
+ */
+export type GlobalConfig = DeepRequired<Omit<GlobalConfigFileData, "installationId">> & {
+  installationId?: string;
+};
 
 /** Manages access to a set of configuration values for the CLI  */
 export interface GlobalConfigAccessor {
@@ -34,10 +39,4 @@ export interface GlobalConfigAccessor {
   get(): Promise<GlobalConfig>;
   /** Validates and persists a new config. Throws on invalid shape. */
   set(newConfig: GlobalConfig): Promise<GlobalConfig>;
-  /**
-   * Returns true on the first run of the CLI, i.e. when no installationId has
-   * yet been persisted to the config file. Reflects the state before {@link get}
-   * populates an installationId, so the result is stable across the process.
-   */
-  isFirstRun(): Promise<boolean>;
 }
