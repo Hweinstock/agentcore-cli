@@ -9,6 +9,7 @@ import { createPauseAbTestHandler } from "./pause";
 import { createResumeAbTestHandler } from "./resume";
 import { createStopAbTestHandler } from "./stop";
 import { createDeleteAbTestHandler } from "./delete";
+import { createConfigBasedAbTestHandler } from "./config-based";
 
 export function createAbTestHandler(core: Core, io: AppIO): Router {
   return new Router("ab-test", "inspect AgentCore A/B tests")
@@ -20,7 +21,8 @@ export function createAbTestHandler(core: Core, io: AppIO): Router {
     .handler(createPauseAbTestHandler(core))
     .handler(createResumeAbTestHandler(core))
     .handler(createStopAbTestHandler(core))
-    .handler(createDeleteAbTestHandler(core));
+    .handler(createDeleteAbTestHandler(core))
+    .handler(createConfigBasedAbTestHandler(core, io));
 }
 
 export { AbTestScreen } from "./screen.tsx";

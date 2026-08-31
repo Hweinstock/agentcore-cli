@@ -16,6 +16,7 @@ import {
   GetDatasetCommand,
   GetEvaluatorCommand,
   GetHarnessCommand,
+  GetGatewayCommand,
   GetOnlineEvaluationConfigCommand,
   ListConfigurationBundlesCommand,
   ListConfigurationBundleVersionsCommand,
@@ -60,6 +61,7 @@ import {
 import {
   DeleteRecommendationCommand,
   EvaluateCommand,
+  CreateABTestCommand,
   GetABTestCommand,
   ListABTestsCommand,
   UpdateABTestCommand,
@@ -74,6 +76,7 @@ import {
   type EvaluationReferenceInput,
   type EvaluationResultContent,
   type EvaluationTarget,
+  type CreateABTestResponse,
   type GetABTestResponse,
   type ListABTestsResponse,
   type ABTestExecutionStatus,
@@ -120,6 +123,7 @@ import type {
   RoleScopeWarning,
   CoreEvalClient,
   CreateConfigurationBundleInput,
+  CreateConfigBasedABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -166,6 +170,7 @@ import {
   revokeOnlineEvalScope,
   scopePolicyName,
 } from "./onlineEvalExecutionRole";
+import { accountIdFromArn, deleteAbTestRole, provisionAbTestRole } from "./abTestExecutionRole";
 
 const DEFAULT_INGESTION_WAIT_MS = 180_000;
 const DATASET_EXAMPLES_BATCH_LIMIT = 1000;
@@ -484,6 +489,81 @@ export class EvalClient implements CoreEvalClient {
     return this.clients
       .data(toClientConfig(options))
       .send(new DeleteABTestCommand({ abTestId: id }));
+  }
+
+  async createConfigBasedABTest(
+    input: CreateConfigBasedABTestInput,
+    options: CoreOptions,
+  ): Promise<CreateABTestResponse> {
+    const control = this.clients.control(toClientConfig(options));
+    const gateway = await control.send(new GetGatewayCommand({ gatewayIdentifier: input.gateway }));
+    const gatewayArn = gateway.gatewayArn!;
+    const accountId = accountIdFromArn(gatewayArn);
+
+    const controlBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.control.configBundle}`;
+    const treatmentBundleArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:configuration-bundle/${input.treatment.configBundle}`;
+    const onlineEvaluationConfigArn = `arn:aws:bedrock-agentcore:${options.region}:${accountId}:online-evaluation-config/${input.onlineEval}`;
+
+    const treatmentWeight = input.treatmentWeight ?? 50;
+    const variants = [
+      {
+        name: "C",
+        weight: 100 - treatmentWeight,
+        variantConfiguration: {
+          configurationBundle: {
+            bundleArn: controlBundleArn,
+            bundleVersion: input.control.bundleVersion,
+          },
+        },
+      },
+      {
+        name: "T1",
+        weight: treatmentWeight,
+        variantConfiguration: {
+          configurationBundle: {
+            bundleArn: treatmentBundleArn,
+            bundleVersion: input.treatment.bundleVersion,
+          },
+        },
+      },
+    ];
+
+    let roleArn = input.roleArn;
+    let provisionedRoleArn: string | undefined;
+    if (!roleArn) {
+      const iam = this.clients.iam({ region: options.region });
+      const provisioned = await provisionAbTestRole(iam, input.name, gatewayArn, options.region);
+      roleArn = provisioned.roleArn;
+      if (provisioned.created) provisionedRoleArn = provisioned.roleArn;
+    }
+
+    const command = new CreateABTestCommand({
+      name: input.name,
+      gatewayArn,
+      variants,
+      evaluationConfig: { onlineEvaluationConfigArn },
+      roleArn,
+      gatewayFilter: input.gatewayFilter,
+      enableOnCreate: input.enableOnCreate ?? true,
+      clientToken: randomUUID(),
+    });
+
+    try {
+      return input.roleArn
+        ? await this.clients.data(toClientConfig(options)).send(command)
+        : await retryWhileRolePropagates(() =>
+            this.clients.data(toClientConfig(options)).send(command),
+          );
+    } catch (error) {
+      if (provisionedRoleArn) {
+        try {
+          await deleteAbTestRole(this.clients.iam({ region: options.region }), provisionedRoleArn);
+        } catch {
+          void 0;
+        }
+      }
+      throw error;
+    }
   }
 
   async listBatchInsights(
@@ -1981,19 +2061,25 @@ function chunk<T>(items: T[], size: number): T[][] {
 // is created. It surfaces as one of two messages depending on which part has not
 // propagated yet.
 const ROLE_NOT_PROPAGATED =
-  /role cannot be assumed|does not have permissions to (create log group|access the specified log groups)/i;
+  /cannot be assumed|unable to assume|does not have permissions to (create log group|access the specified log groups)/i;
 
-// retryWhileRolePropagates retries `send` while the service reports the execution
-// role as unusable, which is how a not-yet-propagated role or policy surfaces.
-// Bounded and short: propagation is normally a few seconds, and a role that is
-// genuinely misconfigured should fail fast rather than hang.
 async function retryWhileRolePropagates<T>(send: () => Promise<T>): Promise<T> {
-  const delaysMs = [1_000, 2_000, 4_000, 8_000];
+  const delaysMs = [2_000, 4_000, 8_000, 15_000];
   for (const delay of delaysMs) {
     try {
       return await send();
     } catch (error) {
-      if (!ROLE_NOT_PROPAGATED.test((error as Error).message)) throw error;
+      const err = error as {
+        name?: string;
+        message?: string;
+        $metadata?: { httpStatusCode?: number };
+      };
+      const retryable =
+        err.name === "AccessDeniedException" ||
+        err.$metadata?.httpStatusCode === 403 ||
+        (err.name === "ValidationException" && /assume|role|trust/i.test(err.message ?? "")) ||
+        ROLE_NOT_PROPAGATED.test(err.message ?? "");
+      if (!retryable) throw error;
       await new Promise((resolve) => setTimeout(resolve, delay));
     }
   }
