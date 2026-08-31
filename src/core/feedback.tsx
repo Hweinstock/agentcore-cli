@@ -4,7 +4,7 @@ import * as os from "node:os";
 import * as path from "node:path";
 import { AgentCoreCLIError, ERROR_SOURCE, InputValidationError } from "../errors";
 import { PACKAGE_VERSION } from "../constants";
-import type { AwsClients, CoreFetch, CoreOptions } from "./types";
+import type { CoreFetch, CoreOptions } from "./types";
 import type {
   CoreFeedbackClient,
   FeedbackSubmissionResult,
@@ -75,10 +75,9 @@ interface ApertureFormPayload {
 }
 
 export class FeedbackClient implements CoreFeedbackClient {
-  constructor(
-    private readonly clients: AwsClients,
-    private readonly fetch: CoreFetch,
-  ) {}
+  // Feedback posts to the Aperture public API via the injected fetch only; it makes
+  // no AWS SDK calls, so it does not take the AwsClients aggregate its siblings do.
+  constructor(private readonly fetch: CoreFetch) {}
 
   async submitFeedback(
     input: SubmitFeedbackInput,
