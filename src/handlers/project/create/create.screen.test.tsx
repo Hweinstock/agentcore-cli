@@ -297,6 +297,25 @@ describe("project create wizard", () => {
     r.unmount();
   });
 
+  test("a pasted chunk with a trailing return keeps the name clean", async () => {
+    const r = renderScreen("/agentcore/project/create");
+
+    await waitForText(r.lastFrame, "name your project");
+    // A terminal paste (or keystrokes coalesced under load) arrives as one
+    // stdin chunk whose key.return is false even though it ends in "\r". The
+    // control byte must be stripped, not stored as an invisible character
+    // that fails validation with a message the user can't act on.
+    await r.write("PasteName\r");
+    await waitForText(r.lastFrame, "PasteName");
+    expect(r.lastFrame()).not.toContain("must start with a letter");
+
+    // The embedded "\r" is not a submit; a real enter advances with the
+    // clean value — which it could not do if the control byte had stuck.
+    await r.press("return");
+    await waitForText(r.lastFrame, "what should the project be built around?");
+    r.unmount();
+  });
+
   test("esc steps back through the flow and leaves from the first step", async () => {
     const r = renderScreen("/agentcore/project/create");
 
