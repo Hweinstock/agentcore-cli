@@ -77,6 +77,7 @@ describe("runtime command hierarchy", () => {
       "invoke",
       "version",
       "endpoint",
+      "logs",
     ]);
     expect(
       runtime

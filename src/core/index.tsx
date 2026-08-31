@@ -7,7 +7,9 @@ import { GatewayClient } from "./gateway";
 import { HarnessClient } from "./harness";
 import { IdentityClient } from "./identity";
 import { MemoryClient } from "./memory";
+import { ObservabilityClient } from "./observability";
 import { RuntimeClient } from "./runtime";
+import { FsReadWriteJson } from "../io";
 import type {
   AwsClients,
   ClientConfig,
@@ -69,6 +71,7 @@ export class CoreClient implements AwsClients {
   readonly runtime: RuntimeClient;
   readonly gateway: GatewayClient;
   readonly eval: EvalClient;
+  readonly observability: ObservabilityClient;
 
   readonly projectManager: ProjectManager;
   readonly describeBedrockAgent: DescribeBedrockAgent;
@@ -91,6 +94,15 @@ export class CoreClient implements AwsClients {
       this.logger.child({ module: "eval" }),
       config.newSessionId,
     );
+
+    // Observability resolves a project's deployed runtime from its stack
+    // outputs, so it reads aws-targets.json through the same JSON layer the
+    // project manager uses.
+    this.observability = new ObservabilityClient(this, {
+      readJson: new FsReadWriteJson({
+        logger: this.logger.child({ module: "observability" }),
+      }),
+    });
 
     this.projectManager = new FsProjectManager({
       logger: this.logger.child({ module: "projectManager" }),

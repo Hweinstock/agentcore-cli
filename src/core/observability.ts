@@ -1,15 +1,36 @@
 import {
+  DescribeLogGroupsCommand,
+  FilterLogEventsCommand,
   GetQueryResultsCommand,
+  ResourceNotFoundException,
+  StartLiveTailCommand,
   StartQueryCommand,
   type CloudWatchLogsClient,
   type ResultField,
 } from "@aws-sdk/client-cloudwatch-logs";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
 import {
   CloudWatchQueryError,
   InputValidationError,
+  ProjectStateError,
+  ResourceNotFoundError,
   ResultTruncationError,
   type AgentCoreCLIError,
 } from "../errors";
+import type { ReadWriteJson } from "../io";
+import type { Project } from "../handlers/project/types";
+import type {
+  CoreObservabilityClient,
+  DeployedRuntime,
+  RuntimeLogEvent,
+  SearchRuntimeLogsInput,
+  StreamRuntimeLogsInput,
+} from "../handlers/runtime/types";
+import { AwsDeploymentTargetsSchema } from "../projectSchemas/aws-targets";
+import { isStackNotFound } from "./project/backends/cdk/environment";
+import type { AwsClients, CoreOptions } from "./types";
+import { toClientConfig } from "./utils";
 
 // Shared CloudWatch observability helpers. AgentCore Runtimes write their logs
 // and OTel telemetry to per-runtime CloudWatch log groups; both the eval flows
@@ -165,5 +186,271 @@ export function parseTimeString(input: string, now: () => number = Date.now): nu
 
   throw new InputValidationError(
     `Invalid time string: "${input}". Use relative durations (5m, 1h, 2d), ISO 8601, epoch ms, or "now".`,
+  );
+}
+
+/**
+ * Reads one stack's outputs via CloudFormation DescribeStacks, returning
+ * undefined when the stack does not exist. Injectable so unit tests never call
+ * AWS.
+ */
+export type DescribeStackOutputs = (
+  stackName: string,
+  region: string,
+) => Promise<{ OutputKey?: string; OutputValue?: string }[] | undefined>;
+
+// Real describer: lazily imports the CloudFormation SDK (kept off the CLI
+// startup path, like the CDK backend's stackReader) and resolves credentials
+// through the SDK's default provider chain, matching every other client
+// factory in src/core/factories.tsx.
+const describeStackOutputsWithSdk: DescribeStackOutputs = async (stackName, region) => {
+  const { CloudFormationClient, DescribeStacksCommand } =
+    await import("@aws-sdk/client-cloudformation");
+  const client = new CloudFormationClient({ region });
+  try {
+    const response = await client.send(new DescribeStacksCommand({ StackName: stackName }));
+    return response.Stacks?.[0]?.Outputs ?? [];
+  } catch (error) {
+    // A missing stack surfaces as a thrown ValidationError, not an empty result.
+    if (isStackNotFound(error)) return undefined;
+    throw error;
+  } finally {
+    client.destroy();
+  }
+};
+
+// The vended CDK app names project stacks `AgentCore-<project>-<target>` with
+// underscores sanitized to hyphens (see src/assets/cdk/bin/cdk.ts). Deriving it
+// here lets deployed state be read live from CloudFormation without a local
+// state file.
+function targetStackName(projectName: string, targetName: string): string {
+  const sanitize = (name: string) => name.replace(/_/g, "-");
+  return `AgentCore-${sanitize(projectName)}-${sanitize(targetName)}`;
+}
+
+// The L3 constructs export each runtime's id as a stack output whose
+// CDK-generated logical id ends in `RuntimeIdOutput` plus an optional 8-char
+// uppercase-hex uniquifier (e.g. ApplicationAgentHelloWorldRuntimeIdOutput1CCED486).
+const RUNTIME_ID_OUTPUT_RE = /RuntimeIdOutput([0-9A-F]{8})?$/;
+
+export interface ObservabilityClientDeps {
+  /** Reads agentcore/aws-targets.json. */
+  readJson: ReadWriteJson;
+  /** Stack-output reader; defaults to a live CloudFormation DescribeStacks. */
+  describeStackOutputs?: DescribeStackOutputs;
+}
+
+/**
+ * ObservabilityClient reads the CloudWatch-backed telemetry of deployed
+ * AgentCore Runtimes: live-tail and search over the per-runtime log group, and
+ * resolution of a project's deployed runtime id from its CloudFormation stack
+ * outputs (runtime ids are not persisted locally, so the stack is the source
+ * of truth).
+ */
+export class ObservabilityClient implements CoreObservabilityClient {
+  private readonly clients: AwsClients;
+  private readonly readJson: ReadWriteJson;
+  private readonly describeStackOutputs: DescribeStackOutputs;
+
+  constructor(clients: AwsClients, deps: ObservabilityClientDeps) {
+    this.clients = clients;
+    this.readJson = deps.readJson;
+    this.describeStackOutputs = deps.describeStackOutputs ?? describeStackOutputsWithSdk;
+  }
+
+  /**
+   * Resolves the single deployed runtime of `project`'s `targetName` target by
+   * reading the target's CloudFormation stack outputs. Exactly one deployed
+   * runtime resolves; none or several fail with guidance (pass --id to choose).
+   * The returned region is the deployment target's — that is where the stack
+   * and its log groups live.
+   */
+  async resolveDeployedRuntime(project: Project, targetName: string): Promise<DeployedRuntime> {
+    const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
+    if (!existsSync(targetsPath)) {
+      throw new ProjectStateError(
+        `Project '${project.name}' has no deployment targets (${targetsPath} not found). ` +
+          `Run 'agentcore project deploy' first, or pass --id <runtimeId>.`,
+      );
+    }
+    const targets = await this.readJson.read(targetsPath, AwsDeploymentTargetsSchema);
+    const target = targets.find((candidate) => candidate.name === targetName);
+    if (!target) {
+      throw new ProjectStateError(
+        `Project '${project.name}' has no deployment target named '${targetName}'. ` +
+          `${targetsPath} defines: ${targets.map(({ name }) => name).join(", ") || "none"}.`,
+      );
+    }
+
+    const stackName = targetStackName(project.name, target.name);
+    const outputs = await this.describeStackOutputs(stackName, target.region);
+    if (outputs === undefined) {
+      throw new ProjectStateError(
+        `Stack '${stackName}' is not deployed in ${target.region}. ` +
+          `Run 'agentcore project deploy' first, or pass --id <runtimeId>.`,
+      );
+    }
+
+    const runtimeIds = outputs
+      .filter((output) => output.OutputKey && RUNTIME_ID_OUTPUT_RE.test(output.OutputKey))
+      .map((output) => output.OutputValue)
+      .filter((value): value is string => Boolean(value));
+
+    if (runtimeIds.length === 0) {
+      throw new ResourceNotFoundError(
+        `Stack '${stackName}' in ${target.region} exports no runtime ids. ` +
+          `Deploy a runtime first, or pass --id <runtimeId>.`,
+      );
+    }
+    if (runtimeIds.length > 1) {
+      throw new InputValidationError(
+        `Project '${project.name}' has multiple deployed runtimes; choose one with ` +
+          `--id: ${runtimeIds.join(", ")}`,
+      );
+    }
+
+    return {
+      runtimeId: runtimeIds[0]!,
+      region: target.region,
+      stackName,
+      targetName: target.name,
+    };
+  }
+
+  /**
+   * Live-tails a runtime's log group via StartLiveTail, yielding events as they
+   * arrive. A live-tail session is server-capped (~3h); when it times out a new
+   * session is started transparently, so the stream runs until `signal` aborts
+   * (in which case the generator simply returns).
+   */
+  async *streamRuntimeLogs(
+    input: StreamRuntimeLogsInput,
+    options: CoreOptions,
+    signal: AbortSignal,
+  ): AsyncGenerator<RuntimeLogEvent, void> {
+    const logGroupName = runtimeLogGroup(input.runtimeId, DEFAULT_ENDPOINT_QUALIFIER);
+    const logs = this.clients.logs(toClientConfig(options));
+
+    // StartLiveTail addresses log groups by ARN. DescribeLogGroups resolves it
+    // without hand-assembling one (partition/account), and doubles as the
+    // existence check so a never-invoked runtime fails with guidance instead of
+    // an opaque service error.
+    const described = await logs.send(
+      new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName }),
+      { abortSignal: signal },
+    );
+    const group = (described.logGroups ?? []).find(
+      (candidate) => candidate.logGroupName === logGroupName,
+    );
+    // The legacy `arn` field carries a trailing `:*` that StartLiveTail rejects.
+    const logGroupArn = group?.logGroupArn ?? group?.arn?.replace(/:\*$/, "");
+    if (!logGroupArn) {
+      throw missingLogGroupError(input.runtimeId, logGroupName);
+    }
+
+    while (!signal.aborted) {
+      let response;
+      try {
+        response = await logs.send(
+          new StartLiveTailCommand({
+            logGroupIdentifiers: [logGroupArn],
+            ...(input.filterPattern ? { logEventFilterPattern: input.filterPattern } : {}),
+          }),
+          { abortSignal: signal },
+        );
+      } catch (error) {
+        if (signal.aborted) return;
+        throw error;
+      }
+      if (!response.responseStream) return;
+
+      let sessionTimedOut = false;
+      try {
+        for await (const event of response.responseStream) {
+          if (signal.aborted) return;
+          if (event.sessionUpdate) {
+            for (const logEvent of event.sessionUpdate.sessionResults ?? []) {
+              yield {
+                timestamp: logEvent.timestamp ?? Date.now(),
+                message: logEvent.message ?? "",
+              };
+            }
+          }
+          if (event.SessionTimeoutException) {
+            sessionTimedOut = true;
+            break;
+          }
+        }
+      } catch (error) {
+        if (signal.aborted) return;
+        if ((error as { name?: string }).name === "SessionTimeoutException") {
+          sessionTimedOut = true;
+        } else {
+          throw error;
+        }
+      }
+
+      // A stream that ended without timing out was closed deliberately
+      // (server-side or by the caller); only a timeout warrants a reconnect.
+      if (!sessionTimedOut) return;
+    }
+  }
+
+  /**
+   * Searches a runtime's log group over a closed time window via
+   * FilterLogEvents, paginating to completion and yielding events oldest to
+   * newest. `limit` caps the total number of events yielded.
+   */
+  async *searchRuntimeLogs(
+    input: SearchRuntimeLogsInput,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): AsyncGenerator<RuntimeLogEvent, void> {
+    const logGroupName = runtimeLogGroup(input.runtimeId, DEFAULT_ENDPOINT_QUALIFIER);
+    const logs = this.clients.logs(toClientConfig(options));
+
+    let nextToken: string | undefined;
+    let yielded = 0;
+    do {
+      let response;
+      try {
+        response = await logs.send(
+          new FilterLogEventsCommand({
+            logGroupName,
+            startTime: input.startTimeMs,
+            endTime: input.endTimeMs,
+            ...(input.filterPattern ? { filterPattern: input.filterPattern } : {}),
+            ...(nextToken ? { nextToken } : {}),
+            // FilterLogEvents accepts at most 10k events per page.
+            ...(input.limit ? { limit: Math.min(input.limit - yielded, 10_000) } : {}),
+          }),
+          { abortSignal: signal },
+        );
+      } catch (error) {
+        if (error instanceof ResourceNotFoundException) {
+          throw missingLogGroupError(input.runtimeId, logGroupName, error);
+        }
+        throw error;
+      }
+
+      for (const event of response.events ?? []) {
+        if (input.limit !== undefined && yielded >= input.limit) return;
+        yield { timestamp: event.timestamp ?? Date.now(), message: event.message ?? "" };
+        yielded++;
+      }
+      nextToken = response.nextToken;
+    } while (nextToken && (input.limit === undefined || yielded < input.limit));
+  }
+}
+
+function missingLogGroupError(
+  runtimeId: string,
+  logGroupName: string,
+  cause?: unknown,
+): ResourceNotFoundError {
+  return new ResourceNotFoundError(
+    `No logs found for runtime '${runtimeId}': log group ${logGroupName} does not exist. ` +
+      `Has the runtime been invoked yet?`,
+    { cause, meta: { runtimeId, logGroupName } },
   );
 }

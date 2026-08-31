@@ -65,6 +65,7 @@ agentcore                          # interactive TUI
 │   ├── get                        # fetch a Runtime by id
 │   ├── list                       # list Runtimes (server-side paginated)
 │   ├── invoke                     # invoke a Runtime headlessly or in a persistent console
+│   ├── logs                       # follow a Runtime's logs live, or search a time window
 │   ├── version
 │   │   ├── get                    # get a specific Runtime version
 │   │   └── list                   # list a Runtime's versions
@@ -194,6 +195,14 @@ agentcore runtime version get --id <runtimeId> --version <version>
 agentcore runtime version list --id <runtimeId> --max-results 20
 agentcore runtime endpoint get --id <runtimeId> --qualifier DEFAULT
 agentcore runtime endpoint list --id <runtimeId> --max-results 20
+
+# Follow a Runtime's logs live (Ctrl+C to stop); inside a project --id is optional
+agentcore runtime logs --id <runtimeId>
+agentcore runtime logs --id <runtimeId> --level error --query "database"
+
+# Search a past window instead (--since/--until switch to search mode)
+agentcore runtime logs --id <runtimeId> --since 1h --limit 100
+agentcore runtime logs --id <runtimeId> --since 2026-08-30T12:00:00Z --until now --json
 
 # Inspect AgentCore Memories without project configuration or deployment
 agentcore memory get --id <memoryId>

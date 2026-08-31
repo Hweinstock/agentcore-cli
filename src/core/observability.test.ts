@@ -1,15 +1,34 @@
 import { describe, expect, test } from "bun:test";
 import {
+  DescribeLogGroupsCommand,
+  FilterLogEventsCommand,
   GetQueryResultsCommand,
+  ResourceNotFoundException,
+  StartLiveTailCommand,
   StartQueryCommand,
   type CloudWatchLogsClient,
+  type StartLiveTailResponseStream,
 } from "@aws-sdk/client-cloudwatch-logs";
-import { CloudWatchQueryError, InputValidationError, ResultTruncationError } from "../errors";
+import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
+  CloudWatchQueryError,
+  InputValidationError,
+  ProjectStateError,
+  ResourceNotFoundError,
+  ResultTruncationError,
+} from "../errors";
+import type { ReadWriteJson } from "../io";
+import type { Project } from "../handlers/project/types";
+import type { AwsClients } from "./types";
+import {
+  ObservabilityClient,
   parseTimeString,
   runInsightsQuery,
   runtimeLogGroup,
   sanitizeQueryValue,
+  type DescribeStackOutputs,
 } from "./observability";
 
 describe("runtimeLogGroup", () => {
@@ -154,5 +173,367 @@ describe("runInsightsQuery", () => {
         buildError: () => new InputValidationError("narrow the scope"),
       }),
     ).rejects.toThrow(InputValidationError);
+  });
+});
+
+const OPTIONS = { region: "us-east-1" };
+
+function clientWith(logs: CloudWatchLogsClient, describeStackOutputs?: DescribeStackOutputs) {
+  const clients = { logs: () => logs } as unknown as AwsClients;
+  const readJson: ReadWriteJson = {
+    read: async (filePath, schema) =>
+      schema.parse(JSON.parse(await Bun.file(filePath).text())) as never,
+    write: async () => {
+      throw new Error("not implemented");
+    },
+  } as ReadWriteJson;
+  return new ObservabilityClient(clients, { readJson, describeStackOutputs });
+}
+
+function fakeProject(rootPath: string, name = "My_Project"): Project {
+  return { name, rootPath, spec: {} } as unknown as Project;
+}
+
+function projectWithTargets(
+  targets: { name: string; account: string; region: string }[] | undefined,
+): Project {
+  const root = mkdtempSync(join(tmpdir(), "obs-test-"));
+  if (targets) {
+    mkdirSync(join(root, "agentcore"), { recursive: true });
+    writeFileSync(join(root, "agentcore", "aws-targets.json"), JSON.stringify(targets));
+  }
+  return fakeProject(root);
+}
+
+const TARGETS = [{ name: "default", account: "111122223333", region: "us-east-2" }];
+
+describe("ObservabilityClient.resolveDeployedRuntime", () => {
+  const noLogs = fakeLogs(async () => {
+    throw new Error("unexpected CloudWatch call");
+  });
+
+  test("resolves the single deployed runtime from the target stack's outputs", async () => {
+    const described: { stackName?: string; region?: string } = {};
+    const client = clientWith(noLogs, async (stackName, region) => {
+      described.stackName = stackName;
+      described.region = region;
+      return [
+        { OutputKey: "StackNameOutput", OutputValue: "AgentCore-My-Project-default" },
+        {
+          OutputKey: "ApplicationAgentHelloWorldRuntimeArnOutput0DF4BB9A",
+          OutputValue: "arn:aws:bedrock-agentcore:us-east-2:1:runtime/hello_world-AbC",
+        },
+        {
+          OutputKey: "ApplicationAgentHelloWorldRuntimeIdOutput1CCED486",
+          OutputValue: "hello_world-AbC123XyZ9",
+        },
+      ];
+    });
+
+    const resolved = await client.resolveDeployedRuntime(projectWithTargets(TARGETS), "default");
+
+    // The stack name mirrors the vended CDK app: underscores sanitized to hyphens.
+    expect(described).toEqual({ stackName: "AgentCore-My-Project-default", region: "us-east-2" });
+    expect(resolved).toEqual({
+      runtimeId: "hello_world-AbC123XyZ9",
+      region: "us-east-2",
+      stackName: "AgentCore-My-Project-default",
+      targetName: "default",
+    });
+  });
+
+  test("lists the candidates when several runtimes are deployed", async () => {
+    const client = clientWith(noLogs, async () => [
+      { OutputKey: "ApplicationAgentOneRuntimeIdOutputAAAAAAAA", OutputValue: "one-AAAA" },
+      { OutputKey: "ApplicationAgentTwoRuntimeIdOutputBBBBBBBB", OutputValue: "two-BBBB" },
+    ]);
+
+    await expect(
+      client.resolveDeployedRuntime(projectWithTargets(TARGETS), "default"),
+    ).rejects.toThrow("choose one with --id: one-AAAA, two-BBBB");
+  });
+
+  test("fails with deploy guidance when the stack does not exist", async () => {
+    const client = clientWith(noLogs, async () => undefined);
+
+    await expect(
+      client.resolveDeployedRuntime(projectWithTargets(TARGETS), "default"),
+    ).rejects.toThrow(
+      "Stack 'AgentCore-My-Project-default' is not deployed in us-east-2. " +
+        "Run 'agentcore project deploy' first, or pass --id <runtimeId>.",
+    );
+  });
+
+  test("fails when the stack exports no runtime ids", async () => {
+    const client = clientWith(noLogs, async () => [
+      { OutputKey: "StackNameOutput", OutputValue: "AgentCore-My-Project-default" },
+    ]);
+
+    await expect(
+      client.resolveDeployedRuntime(projectWithTargets(TARGETS), "default"),
+    ).rejects.toThrow(ResourceNotFoundError);
+  });
+
+  test("fails when the named target is not configured", async () => {
+    const client = clientWith(noLogs, async () => []);
+
+    await expect(
+      client.resolveDeployedRuntime(projectWithTargets(TARGETS), "production"),
+    ).rejects.toThrow("has no deployment target named 'production'");
+  });
+
+  test("fails when the project has no aws-targets.json", async () => {
+    const client = clientWith(noLogs, async () => []);
+
+    await expect(
+      client.resolveDeployedRuntime(projectWithTargets(undefined), "default"),
+    ).rejects.toThrow(ProjectStateError);
+  });
+});
+
+describe("ObservabilityClient.searchRuntimeLogs", () => {
+  const SEARCH = {
+    runtimeId: "my_agent-AbC123XyZ9",
+    startTimeMs: 1_000,
+    endTimeMs: 2_000,
+  };
+
+  async function collect(events: AsyncGenerator<{ timestamp: number; message: string }>) {
+    const out: { timestamp: number; message: string }[] = [];
+    for await (const event of events) out.push(event);
+    return out;
+  }
+
+  test("paginates FilterLogEvents to completion, oldest to newest", async () => {
+    const inputs: unknown[] = [];
+    const logs = fakeLogs(async (command) => {
+      expect(command).toBeInstanceOf(FilterLogEventsCommand);
+      const input = (command as FilterLogEventsCommand).input;
+      inputs.push(input);
+      if (input.nextToken === "page-2") {
+        return { events: [{ timestamp: 3, message: "three" }] };
+      }
+      return {
+        events: [
+          { timestamp: 1, message: "one" },
+          { timestamp: 2, message: "two" },
+        ],
+        nextToken: "page-2",
+      };
+    });
+
+    const events = await collect(clientWith(logs).searchRuntimeLogs(SEARCH, OPTIONS));
+
+    expect(events).toEqual([
+      { timestamp: 1, message: "one" },
+      { timestamp: 2, message: "two" },
+      { timestamp: 3, message: "three" },
+    ]);
+    expect(inputs[0]).toEqual({
+      logGroupName: "/aws/bedrock-agentcore/runtimes/my_agent-AbC123XyZ9-DEFAULT",
+      startTime: 1_000,
+      endTime: 2_000,
+    });
+    expect(inputs[1]).toMatchObject({ nextToken: "page-2" });
+  });
+
+  test("caps yielded events at limit and requests no more than needed", async () => {
+    const limits: (number | undefined)[] = [];
+    const logs = fakeLogs(async (command) => {
+      const input = (command as FilterLogEventsCommand).input;
+      limits.push(input.limit);
+      if (input.nextToken === "page-2") {
+        return {
+          events: [
+            { timestamp: 3, message: "three" },
+            { timestamp: 4, message: "four" },
+          ],
+        };
+      }
+      return {
+        events: [
+          { timestamp: 1, message: "one" },
+          { timestamp: 2, message: "two" },
+        ],
+        nextToken: "page-2",
+      };
+    });
+
+    const events = await collect(
+      clientWith(logs).searchRuntimeLogs({ ...SEARCH, limit: 3 }, OPTIONS),
+    );
+
+    expect(events.map((event) => event.message)).toEqual(["one", "two", "three"]);
+    expect(limits).toEqual([3, 1]);
+  });
+
+  test("passes the filter pattern through to FilterLogEvents", async () => {
+    const logs = fakeLogs(async (command) => {
+      expect((command as FilterLogEventsCommand).input.filterPattern).toBe("ERROR database");
+      return { events: [] };
+    });
+
+    await collect(
+      clientWith(logs).searchRuntimeLogs({ ...SEARCH, filterPattern: "ERROR database" }, OPTIONS),
+    );
+  });
+
+  test("translates a missing log group into invoked-yet guidance", async () => {
+    const logs = fakeLogs(async () => {
+      throw new ResourceNotFoundException({
+        message: "The specified log group does not exist.",
+        $metadata: {},
+      });
+    });
+
+    await expect(collect(clientWith(logs).searchRuntimeLogs(SEARCH, OPTIONS))).rejects.toThrow(
+      "No logs found for runtime 'my_agent-AbC123XyZ9': log group " +
+        "/aws/bedrock-agentcore/runtimes/my_agent-AbC123XyZ9-DEFAULT does not exist. " +
+        "Has the runtime been invoked yet?",
+    );
+  });
+});
+
+describe("ObservabilityClient.streamRuntimeLogs", () => {
+  const STREAM = { runtimeId: "my_agent-AbC123XyZ9" };
+  const LOG_GROUP = "/aws/bedrock-agentcore/runtimes/my_agent-AbC123XyZ9-DEFAULT";
+  const GROUP_ARN = `arn:aws:logs:us-east-1:111122223333:log-group:${LOG_GROUP}`;
+
+  type LiveTailEvent = Partial<StartLiveTailResponseStream>;
+
+  function liveTailLogs(
+    sessions: (LiveTailEvent[] | Error)[],
+    groups: { logGroupName?: string; logGroupArn?: string; arn?: string }[] = [
+      { logGroupName: LOG_GROUP, logGroupArn: GROUP_ARN },
+    ],
+  ) {
+    const starts: unknown[] = [];
+    const logs = fakeLogs(async (command) => {
+      if (command instanceof DescribeLogGroupsCommand) {
+        expect(command.input.logGroupNamePrefix).toBe(LOG_GROUP);
+        return { logGroups: groups };
+      }
+      expect(command).toBeInstanceOf(StartLiveTailCommand);
+      starts.push((command as StartLiveTailCommand).input);
+      const session = sessions[starts.length - 1] ?? [];
+      return {
+        responseStream: (async function* () {
+          if (session instanceof Error) throw session;
+          yield* session as StartLiveTailResponseStream[];
+        })(),
+      };
+    });
+    return { logs, starts };
+  }
+
+  function update(...messages: string[]): LiveTailEvent {
+    return {
+      sessionUpdate: {
+        sessionResults: messages.map((message, i) => ({ timestamp: 1_000 + i, message })),
+      },
+    };
+  }
+
+  async function collect(client: ObservabilityClient, signal: AbortSignal) {
+    const out: string[] = [];
+    for await (const event of client.streamRuntimeLogs(STREAM, OPTIONS, signal)) {
+      out.push(event.message);
+    }
+    return out;
+  }
+
+  test("yields live-tail session updates and stops when the stream ends normally", async () => {
+    const { logs, starts } = liveTailLogs([[update("one", "two"), update("three")]]);
+
+    const messages = await collect(clientWith(logs), new AbortController().signal);
+
+    expect(messages).toEqual(["one", "two", "three"]);
+    expect(starts).toEqual([{ logGroupIdentifiers: [GROUP_ARN] }]);
+  });
+
+  test("reconnects when the session reports a timeout event", async () => {
+    const { logs, starts } = liveTailLogs([
+      [update("one"), { SessionTimeoutException: { name: "SessionTimeoutException" } } as never],
+      [update("two")],
+    ]);
+
+    const messages = await collect(clientWith(logs), new AbortController().signal);
+
+    expect(messages).toEqual(["one", "two"]);
+    expect(starts).toHaveLength(2);
+  });
+
+  test("reconnects when the stream throws a session timeout", async () => {
+    const timeout = Object.assign(new Error("session timed out"), {
+      name: "SessionTimeoutException",
+    });
+    const { logs, starts } = liveTailLogs([timeout, [update("after-reconnect")]]);
+
+    const messages = await collect(clientWith(logs), new AbortController().signal);
+
+    expect(messages).toEqual(["after-reconnect"]);
+    expect(starts).toHaveLength(2);
+  });
+
+  test("propagates non-timeout stream errors", async () => {
+    const { logs } = liveTailLogs([new Error("stream exploded")]);
+
+    await expect(collect(clientWith(logs), new AbortController().signal)).rejects.toThrow(
+      "stream exploded",
+    );
+  });
+
+  test("returns cleanly when aborted mid-session", async () => {
+    const controller = new AbortController();
+    const { logs, starts } = liveTailLogs([
+      [update("one"), { SessionTimeoutException: { name: "SessionTimeoutException" } } as never],
+    ]);
+
+    const messages: string[] = [];
+    for await (const event of clientWith(logs).streamRuntimeLogs(
+      STREAM,
+      OPTIONS,
+      controller.signal,
+    )) {
+      messages.push(event.message);
+      controller.abort();
+    }
+
+    // The timeout after the abort must not trigger a reconnect.
+    expect(messages).toEqual(["one"]);
+    expect(starts).toHaveLength(1);
+  });
+
+  test("passes the filter pattern to the live tail", async () => {
+    const { logs, starts } = liveTailLogs([[]]);
+
+    for await (const _ of clientWith(logs).streamRuntimeLogs(
+      { ...STREAM, filterPattern: "ERROR" },
+      OPTIONS,
+      new AbortController().signal,
+    )) {
+      // drain
+    }
+
+    expect(starts).toEqual([{ logGroupIdentifiers: [GROUP_ARN], logEventFilterPattern: "ERROR" }]);
+  });
+
+  test("strips the legacy ARN's trailing :* when the modern field is absent", async () => {
+    const { logs, starts } = liveTailLogs(
+      [[]],
+      [{ logGroupName: LOG_GROUP, arn: `${GROUP_ARN}:*` }],
+    );
+
+    await collect(clientWith(logs), new AbortController().signal);
+
+    expect(starts).toEqual([{ logGroupIdentifiers: [GROUP_ARN] }]);
+  });
+
+  test("fails with invoked-yet guidance when the log group does not exist", async () => {
+    const { logs } = liveTailLogs([[]], []);
+
+    await expect(collect(clientWith(logs), new AbortController().signal)).rejects.toThrow(
+      "Has the runtime been invoked yet?",
+    );
   });
 });
