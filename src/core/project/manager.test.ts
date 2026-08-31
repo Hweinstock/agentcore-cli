@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
@@ -178,6 +179,26 @@ describe("FsProjectManager.create", () => {
 
     await runCreate(manager().manager, input);
     await expect(runCreate(manager().manager, input)).rejects.toBeInstanceOf(ProjectStateError);
+  });
+
+  test("validates a harness Dockerfile before writing the project tree", async () => {
+    const directory = await inTempDirectory();
+    const dockerfile = join(directory, "MissingDockerfile");
+
+    await expect(
+      runCreate(manager().manager, {
+        name: "example",
+        skipInstall: true,
+        skipGit: true,
+        scaffoldHarnessInput: {
+          name: "example",
+          model: { provider: "bedrock", modelId: "global.anthropic.claude-sonnet-4-6" },
+          dockerfile,
+        },
+      }),
+    ).rejects.toThrow(`dockerfile not found: '${dockerfile}'`);
+
+    expect(existsSync(join(directory, "example"))).toBe(false);
   });
 
   test("runs npm install, uv sync, and git init after scaffolding", async () => {

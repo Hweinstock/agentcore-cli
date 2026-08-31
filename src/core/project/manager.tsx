@@ -30,7 +30,7 @@ import {
 } from "../../io";
 import { defaultSource, type AssetSource } from "./source";
 import { ENV_LOCAL_RELATIVE_PATH, EnvLocalFile } from "./envLocal";
-import { getHarnessTemplateResolver } from "./templates/harness";
+import { getHarnessTemplateResolver, validateHarnessTemplateSource } from "./templates/harness";
 import { createProjectTree } from "./templates/project";
 import { getRuntimeTemplateResolver } from "./templates/runtime";
 import {
@@ -150,6 +150,10 @@ export class FsProjectManager implements ProjectManager {
       throw new ProjectStateError(
         `You cannot create a project inside an existing project: ${enclosing}`,
       );
+    }
+
+    if (input.scaffoldHarnessInput) {
+      validateHarnessTemplateSource(input.scaffoldHarnessInput);
     }
 
     const scaffoldRuntimeInput = input.scaffoldRuntimeInput;

@@ -16,7 +16,12 @@ import {
   type ScaffoldRuntimeInput,
 } from "../types";
 import { ProjectNameSchema } from "../../../projectSchemas/project";
-import { CONTAINER_URI_PATTERN, HarnessSpecSchema } from "../../../projectSchemas/harness";
+import {
+  CONTAINER_URI_PATTERN,
+  HarnessModelProviderSchema,
+  HarnessSpecSchema,
+  type HarnessModelProvider,
+} from "../../../projectSchemas/harness";
 import { InputValidationError } from "../../../errors";
 import { parseJsonFlag } from "../../utils";
 import { DEFAULT_HARNESS_MODEL } from "../add/harness";
@@ -42,7 +47,6 @@ const RUNTIME_PATH_FLAGS = [
   "build",
   "language",
   "framework",
-  "model-provider",
   "api-key",
   "runtime-name",
   "memory",
@@ -63,6 +67,16 @@ const HARNESS_ONLY_FLAGS = [
   "truncation-strategy",
   "container",
 ] as const;
+
+const ModelProviderFlagSchema = z.union([z.literal("Bedrock"), HarnessModelProviderSchema]);
+type ModelProviderFlag = z.infer<typeof ModelProviderFlagSchema>;
+
+const HARNESS_DEFAULT_MODEL_IDS: Record<HarnessModelProvider, string> = {
+  bedrock: DEFAULT_HARNESS_MODEL.modelId,
+  open_ai: "gpt-5",
+  gemini: "gemini-2.5-flash",
+  lite_llm: "anthropic/claude-sonnet-4-5",
+};
 
 export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =>
   createHandler({
@@ -100,8 +114,8 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       ),
       flag(
         "model-provider",
-        "model provider for the scaffolded runtime code",
-        z.enum(["Bedrock"]).optional(),
+        "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; Bedrock for runtime code",
+        ModelProviderFlagSchema.optional(),
       ),
       flag(
         "api-key",
@@ -147,9 +161,9 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         z.string().optional(),
       ),
       flag(
-        "no-harness-memory",
+        "harness-memory",
         "disable memory for the created harness (this is the default)",
-        z.boolean().default(false),
+        z.boolean().default(true),
       ),
       flag(
         "max-iterations",
@@ -190,7 +204,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const presentHarnessFlags: string[] = HARNESS_ONLY_FLAGS.filter(
         (f) => flags[f] !== undefined,
       );
-      if (flags["no-harness-memory"]) presentHarnessFlags.push("no-harness-memory");
+      if (flags["harness-memory"] === false) presentHarnessFlags.push("no-harness-memory");
 
       // Mirrors the original CLI's dispatch: mixing the two paths is an error,
       // while --defaults on the runtime path is simply ignored.
@@ -276,7 +290,7 @@ type RuntimePathFlagValues = {
   build?: "CodeZip" | "Container";
   language?: "Python" | "TypeScript";
   framework?: "strands" | "none";
-  "model-provider"?: "Bedrock";
+  "model-provider"?: ModelProviderFlag;
   "api-key"?: string;
   memory?: (typeof MEMORY_SHORTCUT_NAMES)[number];
   "runtime-name"?: string;
@@ -284,6 +298,7 @@ type RuntimePathFlagValues = {
 
 type HarnessPathFlagValues = {
   name: string;
+  "model-provider"?: ModelProviderFlag;
   "model-id"?: string;
   "api-key-arn"?: string;
   "api-base"?: string;
@@ -299,6 +314,7 @@ async function resolveScaffoldRuntimeInput(
   config: CreateProjectHandlerConfig,
   flags: RuntimePathFlagValues,
 ): Promise<ScaffoldRuntimeInput> {
+  const modelProvider = resolveRuntimeModelProvider(flags["model-provider"]);
   const source = new SourceResolver({ stdin: config.io.stdin });
   const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
@@ -309,7 +325,7 @@ async function resolveScaffoldRuntimeInput(
     ? resolveRuntimeTemplateShortcut(flags["template"], {
         runtimeName: flags["runtime-name"],
         build: flags["build"],
-        modelProvider: flags["model-provider"],
+        modelProvider,
         apiKey,
         memory: flags["memory"],
       })
@@ -318,7 +334,7 @@ async function resolveScaffoldRuntimeInput(
         build: flags["build"],
         language: flags["language"],
         framework: flags["framework"],
-        modelProvider: flags["model-provider"],
+        modelProvider,
         apiKey,
         memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
         runtimeVersion:
@@ -333,6 +349,7 @@ async function resolveScaffoldRuntimeInput(
 // same addResource path. Exported so the TUI create wizard builds its harness
 // input through the exact same translation as the flag-driven path.
 export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): ScaffoldHarnessInput {
+  const provider = resolveHarnessModelProvider(flags["model-provider"]);
   const additionalParams = parseJsonFlag<Record<string, unknown>>(
     "additional-params",
     flags["additional-params"],
@@ -344,8 +361,8 @@ export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): Scaff
     // original CLI does.
     name: flags["name"],
     model: {
-      provider: DEFAULT_HARNESS_MODEL.provider,
-      modelId: flags["model-id"] ?? DEFAULT_HARNESS_MODEL.modelId,
+      provider,
+      modelId: flags["model-id"] ?? HARNESS_DEFAULT_MODEL_IDS[provider],
       apiKeyArn: flags["api-key-arn"],
       apiBase: flags["api-base"],
       additionalParams,
@@ -365,6 +382,20 @@ export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): Scaff
   if (!result.success)
     throw new InputValidationError(z.prettifyError(result.error), { cause: result.error });
   return input;
+}
+
+function resolveHarnessModelProvider(value: ModelProviderFlag | undefined): HarnessModelProvider {
+  return value === undefined || value === "Bedrock" ? "bedrock" : value;
+}
+
+function resolveRuntimeModelProvider(
+  value: ModelProviderFlag | undefined,
+): ScaffoldRuntimeInput["modelProvider"] | undefined {
+  if (value === undefined) return undefined;
+  if (value === "Bedrock" || value === "bedrock") return "Bedrock";
+  throw new InputValidationError(
+    `runtime scaffolding only supports the Bedrock model provider; received '${value}'`,
+  );
 }
 
 /** A --container value is either an ECR image URI or a local Dockerfile path. */
