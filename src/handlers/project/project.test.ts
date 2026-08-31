@@ -133,6 +133,64 @@ describe("project create", () => {
     expect(harness.memory).toBeUndefined();
   });
 
+  test.each([
+    ["bedrock", "global.anthropic.claude-sonnet-4-6", undefined],
+    [
+      "open_ai",
+      "gpt-5",
+      "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/openai",
+    ],
+    [
+      "gemini",
+      "gemini-2.5-flash",
+      "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/gemini",
+    ],
+  ])(
+    "--model-provider %s selects the harness path with its provider default",
+    async (provider, modelId, apiKeyArn) => {
+      const directory = await inTempDirectory();
+      const args = ["create", "--name", "MyAgent", "--model-provider", provider];
+      if (apiKeyArn) args.push("--api-key-arn", apiKeyArn);
+
+      await run(args);
+
+      const projectRoot = join(directory, "MyAgent");
+      const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+      const harness = await Bun.file(join(projectRoot, "app", "MyAgent", "harness.json")).json();
+      expect(spec.runtimes).toEqual([]);
+      expect(harness.model).toEqual({
+        provider,
+        modelId,
+        ...(apiKeyArn && { apiKeyArn }),
+      });
+    },
+  );
+
+  test("supports LiteLLM model configuration on the harness path", async () => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--model-provider",
+      "lite_llm",
+      "--api-base",
+      "https://litellm.example.com/v1",
+      "--additional-params",
+      '{"max_retries":2}',
+    ]);
+
+    const harness = await Bun.file(
+      join(directory, "MyAgent", "app", "MyAgent", "harness.json"),
+    ).json();
+    expect(harness.model).toEqual({
+      provider: "lite_llm",
+      modelId: "anthropic/claude-sonnet-4-5",
+      apiBase: "https://litellm.example.com/v1",
+      additionalParams: { max_retries: 2 },
+    });
+  });
+
   test("--container with an image URI records containerUri on the harness", async () => {
     const directory = await inTempDirectory();
     await run([
@@ -169,6 +227,16 @@ describe("project create", () => {
     await expect(
       run(["create", "--name", "MyAgent", "--template", "hello-world-python", "--timeout", "9"]),
     ).rejects.toThrow(/harness-only flags \(--timeout\)/);
+    await expect(
+      run([
+        "create",
+        "--name",
+        "MyAgent",
+        "--template",
+        "hello-world-python",
+        "--no-harness-memory",
+      ]),
+    ).rejects.toThrow(/harness-only flags \(--no-harness-memory\)/);
   });
 
   test("--defaults is ignored when a runtime path flag routes to scaffolding", async () => {
@@ -366,6 +434,22 @@ describe("project create", () => {
       runtimeVersion: "PYTHON_3_14",
     });
     expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
+  });
+
+  test("rejects non-Bedrock model providers on the runtime path", async () => {
+    const directory = await inTempDirectory();
+    await expect(
+      run([
+        "create",
+        "--name",
+        "MyProject",
+        "--template",
+        "strands-python",
+        "--model-provider",
+        "open_ai",
+      ]),
+    ).rejects.toThrow(/runtime scaffolding only supports the Bedrock model provider/);
+    expect(existsSync(join(directory, "MyProject"))).toBe(false);
   });
 
   test("scaffolds a Container agent from the strands template", async () => {
