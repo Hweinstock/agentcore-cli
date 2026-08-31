@@ -1,31 +1,34 @@
 import z from "zod";
 import { InputValidationError } from "../../../errors";
-import { createHandler, flag, PathKey } from "../../../router";
 import type { AppIO } from "../../../io";
-import type { Core } from "../../types";
-import { coreOptsFromCtx } from "../../utils";
-import { JsonKey } from "../../keys";
 import { ExitCode, withUserCancellation } from "../../../runnable";
+import { createHandler, flag, ProjectKey } from "../../../router";
 import { renderTuiAt } from "../../../tui";
+import { JsonKey, RegionKey } from "../../keys";
+import { RuntimeInvokeLaunchContextKey } from "../../runtime/invoke/launchContext";
+import { invokeRuntimeTarget } from "../../runtime/invoke/operation";
 import {
   parseRuntimeInvokeHeaders,
   resolveRuntimeInvokeSources,
   resolveRuntimeInvokeTuiBearerToken,
-  runtimeIdSchema,
-} from "./request";
-import { writeRuntimeInvokeResponse } from "./response";
-import { RuntimeInvokeLaunchContextKey } from "./launchContext";
-import { invokeRuntimeTarget } from "./operation";
+} from "../../runtime/invoke/request";
+import { writeRuntimeInvokeResponse } from "../../runtime/invoke/response";
+import type { Core } from "../../types";
+import { coreOptsFromCtx } from "../../utils";
+import { selectProjectResource } from "./selection";
 
-export const createInvokeRuntimeHandler = (core: Core, io: AppIO) =>
+export const createProjectInvokeRuntimeHandler = (
+  core: Core,
+  io: AppIO,
+  renderInvokeTui: typeof renderTuiAt = renderTuiAt,
+) =>
   createHandler({
-    name: "invoke",
-    description: "invoke a Runtime",
+    name: "runtime",
+    description: "invoke a Runtime from the current project",
     flags: [
-      flag("id", "the ID of the Runtime", runtimeIdSchema.optional()),
-      flag("payload", "the inline payload to send", z.string().optional(), {
-        sensitive: true,
-      }),
+      flag("name", "the logical project Runtime name", z.string().optional()),
+      flag("target", "project deployment target", z.string().default("default")),
+      flag("payload", "the inline payload to send", z.string().optional(), { sensitive: true }),
       flag("qualifier", "the Runtime endpoint qualifier", z.string().optional()),
       flag("content-type", "the payload content type", z.string().optional()),
       flag("accept", "the accepted response content type", z.string().optional()),
@@ -52,72 +55,70 @@ export const createInvokeRuntimeHandler = (core: Core, io: AppIO) =>
       ),
     ],
     handle: async (ctx, flags) => {
-      if (flags.id === undefined) {
-        throw new InputValidationError("required option '--id <id>' not specified", {
-          exitCode: ExitCode.USAGE,
-        });
-      }
+      const project = ctx.require(ProjectKey);
+      const name = selectProjectResource(project, "runtime", flags.name);
+      const deployed = await core.projectManager.resolveDeployedResource(project, {
+        target: flags.target,
+        resourceType: "runtime",
+        name,
+      });
+      const invokeCtx = ctx.withValue(RegionKey, deployed.target.region);
+
       if (flags.payload === undefined) {
         const hasHeadlessOnlyFlag = Object.entries(flags).some(
-          ([name, value]) =>
+          ([flagName, value]) =>
             ![
-              "id",
+              "name",
+              "target",
               "qualifier",
               "payload",
               "session-id",
               "user-id",
               "header",
               "bearer-token",
-            ].includes(name) && value !== undefined,
+            ].includes(flagName) && value !== undefined,
         );
-        if (ctx.require(JsonKey) || hasHeadlessOnlyFlag) {
+        if (invokeCtx.require(JsonKey) || hasHeadlessOnlyFlag) {
           throw new InputValidationError("required option '--payload <payload>' not specified", {
             exitCode: ExitCode.USAGE,
           });
         }
-        let path = `${ctx.require(PathKey)}/${encodeURIComponent(flags.id)}`;
-        if (flags.qualifier !== undefined) {
-          path += `/${encodeURIComponent(flags.qualifier)}`;
-        }
+        let path = `/agentcore/runtime/invoke/${encodeURIComponent(deployed.id)}`;
+        if (flags.qualifier !== undefined) path += `/${encodeURIComponent(flags.qualifier)}`;
         const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
         const bearerToken = await resolveRuntimeInvokeTuiBearerToken(
           flags["bearer-token"],
           io.stdin,
         );
-        const launchContext = {
-          runtimeId: flags.id,
-          runtimeSessionId: flags["session-id"],
-          runtimeUserId: flags["user-id"],
-          applicationHeaders,
-          bearerToken,
-        };
-        await renderTuiAt(
+        await renderInvokeTui(
           path,
-          ctx.withValue(RuntimeInvokeLaunchContextKey, launchContext),
+          invokeCtx.withValue(RuntimeInvokeLaunchContextKey, {
+            runtimeId: deployed.id,
+            runtimeSessionId: flags["session-id"],
+            runtimeUserId: flags["user-id"],
+            applicationHeaders,
+            bearerToken,
+          }),
           core,
           io,
         );
         return;
       }
 
-      const jsonOutput = ctx.require(JsonKey);
-      if (jsonOutput && flags["output-file"] !== undefined) {
+      if (invokeCtx.require(JsonKey) && flags["output-file"] !== undefined) {
         throw new InputValidationError("--json cannot be used with --output-file");
       }
-      const runtimeId = flags.id;
-      const payload = flags.payload;
       await withUserCancellation(async (signal) => {
         const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
         const sources = await resolveRuntimeInvokeSources(
-          { payload, bearerToken: flags["bearer-token"] },
+          { payload: flags.payload!, bearerToken: flags["bearer-token"] },
           io.stdin,
           signal,
         );
-        const options = coreOptsFromCtx(ctx);
         const response = await invokeRuntimeTarget(
           core.runtime,
           {
-            runtimeId,
+            runtimeId: deployed.id,
             qualifier: flags.qualifier,
             payload: sources.payload,
             contentType: flags["content-type"],
@@ -135,14 +136,14 @@ export const createInvokeRuntimeHandler = (core: Core, io: AppIO) =>
             traceState: flags["trace-state"],
             baggage: flags.baggage,
           },
-          options,
+          coreOptsFromCtx(invokeCtx),
           signal,
         );
         await writeRuntimeInvokeResponse(response, {
           stdout: io.stdout,
           stderr: io.stderr,
           outputFile: flags["output-file"],
-          json: jsonOutput,
+          json: invokeCtx.require(JsonKey),
           signal,
         });
       });

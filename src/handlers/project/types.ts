@@ -14,6 +14,7 @@ import { AgentNameSchema, BuildTypeSchema } from "../../projectSchemas/runtime";
 import { RuntimeVersionSchema } from "../../projectSchemas/constants";
 import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
 import type { PolicyEngineSchema, PolicySchema } from "../../projectSchemas/policy";
+import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
 
 type CreateProjectInputBase = {
   /** The name of the project; also the directory it is scaffolded into. */
@@ -133,6 +134,32 @@ export type ResolveProjectInput = {
   filePath: string;
 };
 
+export type ResolveDeployedResourceInput = {
+  target: string;
+  resourceType: ProjectInvokableResource;
+  name: string;
+};
+
+export type ResolveDeployedResourcesInput = {
+  target: string;
+};
+
+export type DeployedProjectResource = {
+  resourceType: ProjectInvokableResource;
+  name: string;
+  id: string;
+};
+
+export type ResolvedDeployedResource = {
+  id: string;
+  target: AwsDeploymentTarget;
+};
+
+export type ResolvedDeployedResources = {
+  resources: DeployedProjectResource[];
+  target: AwsDeploymentTarget;
+};
+
 export type Project = {
   name: string;
   /** Absolute path to the project root (the parent of agentcore/). */
@@ -242,6 +269,8 @@ export type ExportHarnessResult = {
   notes: ExportNote[];
 };
 
+export type ProjectInvokableResource = Extract<ProjectResource, "harness" | "runtime">;
+
 export type RemoveResourceInput =
   | {
       resourceType:
@@ -295,6 +324,18 @@ export interface ProjectManager {
 
   /** Locate an existing AgentCore project. Returns undefined if no project can be found. */
   resolve(input: ResolveProjectInput): Promise<Project | undefined>;
+
+  /** Resolve a logical project resource to its deployed physical ID and target. */
+  resolveDeployedResource(
+    project: Project,
+    input: ResolveDeployedResourceInput,
+  ): Promise<ResolvedDeployedResource>;
+
+  /** Resolve every configured Runtime and Harness present in the deployed target stack. */
+  resolveDeployedResources(
+    project: Project,
+    input: ResolveDeployedResourcesInput,
+  ): Promise<ResolvedDeployedResources>;
 
   /** Add a resource to an existing AgentCore project. */
   addResource(project: Project, input: AddResourceInput): AsyncGenerator<ProjectEvent, Project>;

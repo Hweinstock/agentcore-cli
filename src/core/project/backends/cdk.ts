@@ -1,7 +1,13 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import type { Stack } from "@aws-sdk/client-cloudformation";
 import { MalformedServiceResponseError, ProjectStateError } from "../../../errors/errors";
-import type { DeployResult, Project, ProjectEvent } from "../../../handlers/project/types";
+import type {
+  DeployedProjectResource,
+  DeployResult,
+  Project,
+  ProjectEvent,
+} from "../../../handlers/project/types";
 import {
   FsReadWriteJson,
   requireTool,
@@ -10,7 +16,12 @@ import {
   type ReadWriteJson,
 } from "../../../io";
 import type { Logger } from "../../../logging";
-import type { DeployBackendInput, ProjectBackend } from "./types";
+import type { AwsDeploymentTarget } from "../../../projectSchemas/aws-targets";
+import type {
+  DeployBackendInput,
+  ProjectBackend,
+  ResolveDeployedResourcesBackendInput,
+} from "./types";
 import { createCloudFormationClient } from "../../factories";
 import type { CreateCloudFormationClient } from "../../types";
 import {
@@ -23,11 +34,9 @@ import {
   bootstrapStackReader,
   createCloudFormationStackReader,
   probeBootstrap,
-  probeStack,
   resolveAwsAccount,
   type AccountResolver,
   type BootstrapProbe,
-  type StackProbe,
 } from "./cdk/environment";
 import {
   createCdkCredentialResolver,
@@ -38,6 +47,22 @@ import {
   type CdkRunner,
   type CdkRunOptions,
 } from "./cdk/toolkit";
+import { describeStack } from "./cdk/stackReader";
+
+type StackDescriber = typeof describeStack;
+
+function findDeployedResourceId(
+  stack: Stack,
+  input: Pick<DeployedProjectResource, "resourceType" | "name">,
+): string | undefined {
+  if (!stack.StackName) return undefined;
+  const exportResourceName = input.name.replaceAll("_", "-");
+  const exportName =
+    input.resourceType === "runtime"
+      ? `${stack.StackName}-${exportResourceName}-RuntimeId`
+      : `${stack.StackName}-Harness-${exportResourceName}-Id`;
+  return stack.Outputs?.find((output) => output.ExportName === exportName)?.OutputValue;
+}
 
 export type CdkBackendConfig = {
   logger: Logger;
@@ -48,9 +73,9 @@ export type CdkBackendConfig = {
   cdk?: CdkRunner;
   resolveCredentials?: CdkCredentialResolver;
   bootstrap?: BootstrapProbe;
-  stack?: StackProbe;
   resolveAccount?: AccountResolver;
   loadBootstrapTemplate?: BootstrapTemplateLoader;
+  describeStack?: StackDescriber;
 };
 
 /** Builds and deploys projects through the scaffolded CDK app. */
@@ -62,9 +87,9 @@ export class CdkBackend implements ProjectBackend {
   private readonly cdk: CdkRunner;
   private readonly resolveCredentials: CdkCredentialResolver;
   private readonly bootstrap: BootstrapProbe;
-  private readonly stack: StackProbe;
   private readonly resolveAccount: AccountResolver;
   private readonly loadBootstrapTemplate: BootstrapTemplateLoader;
+  private readonly describeStack: StackDescriber;
 
   constructor(config: CdkBackendConfig) {
     this.logger = config.logger;
@@ -81,11 +106,14 @@ export class CdkBackend implements ProjectBackend {
     this.bootstrap =
       config.bootstrap ??
       ((region, credentials) => probeBootstrap(region, credentials, readBootstrapStack));
-    this.stack =
-      config.stack ??
-      ((stackName, region, credentials) => probeStack(stackName, region, credentials, readStack));
     this.resolveAccount = config.resolveAccount ?? resolveAwsAccount;
     this.loadBootstrapTemplate = config.loadBootstrapTemplate ?? loadBootstrapTemplate;
+    this.describeStack =
+      config.describeStack ??
+      ((region, credentials, stackName) =>
+        describeStack(region, credentials, stackName, (name) =>
+          readStack(name, region, credentials),
+        ));
   }
 
   public async *build(project: Project): AsyncGenerator<ProjectEvent, void> {
@@ -115,14 +143,7 @@ export class CdkBackend implements ProjectBackend {
   ): AsyncGenerator<ProjectEvent, DeployResult> {
     const { target } = input;
     yield { message: `Verifying AWS account ${target.account}` };
-    const credentials = await this.resolveCredentials(target.region);
-    const account = await this.resolveAccount(target.region, credentials);
-    if (account !== target.account) {
-      throw new ProjectStateError(
-        `Deployment target '${target.name}' expects AWS account ${target.account}, ` +
-          `but the active credentials belong to ${account}.`,
-      );
-    }
+    const credentials = await this.credentialsForTarget(target);
 
     // Validate any existing deployed state before mutating AWS. A malformed file
     // must fail here — not after bootstrap/deploy — so we never leave AWS changed
@@ -212,7 +233,7 @@ export class CdkBackend implements ProjectBackend {
     options: CdkRunOptions;
   }): AsyncGenerator<ProjectEvent, DeployResult> {
     const { target } = input;
-    if (!(await this.stack(artifact.stackName, target.region, options.credentials))) {
+    if (!(await this.describeStack(target.region, options.credentials, artifact.stackName))) {
       throw new ProjectStateError(
         `Project '${project.name}' declares no resources to deploy, and no stack ` +
           `'${artifact.stackName}' exists in ${target.account}/${target.region} to remove. ` +
@@ -239,6 +260,51 @@ export class CdkBackend implements ProjectBackend {
     await this.cdk({ kind: "destroy", stackArtifactId: artifact.id }, options);
     await removeTargetState(this.json, project.rootPath, target.name);
     return { outputs: {}, tornDown: true };
+  }
+
+  public async resolveDeployedResources(
+    project: Project,
+    input: ResolveDeployedResourcesBackendInput,
+  ): Promise<DeployedProjectResource[]> {
+    const { target } = input;
+    const deployedState = await readDeployedState(this.json, project.rootPath);
+    const stackArn = deployedState.targets[target.name]?.stackArn;
+    if (!stackArn) {
+      throw new ProjectStateError(
+        `Project '${project.name}' is not deployed to target '${target.name}'. ` +
+          `Run 'agentcore project deploy --target ${target.name}' first.`,
+      );
+    }
+
+    const credentials = await this.credentialsForTarget(target);
+    const stack = await this.describeStack(target.region, credentials, stackArn);
+    if (!stack) {
+      throw new ProjectStateError(
+        `Project '${project.name}' is not deployed to target '${target.name}'. ` +
+          `Run 'agentcore project deploy --target ${target.name}' first.`,
+      );
+    }
+
+    const resources = [
+      ...project.spec.runtimes.map(({ name }) => ({ resourceType: "runtime" as const, name })),
+      ...project.spec.harnesses.map(({ name }) => ({ resourceType: "harness" as const, name })),
+    ];
+    return resources.flatMap((resource) => {
+      const id = findDeployedResourceId(stack, resource);
+      return id ? [{ ...resource, id }] : [];
+    });
+  }
+
+  private async credentialsForTarget(target: AwsDeploymentTarget) {
+    const credentials = await this.resolveCredentials(target.region);
+    const account = await this.resolveAccount(target.region, credentials);
+    if (account !== target.account) {
+      throw new ProjectStateError(
+        `Deployment target '${target.name}' expects AWS account ${target.account}, ` +
+          `but the active credentials belong to ${account}.`,
+      );
+    }
+    return credentials;
   }
 
   private cdkDirectory(project: Project): string {
