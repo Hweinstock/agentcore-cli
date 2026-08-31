@@ -29,12 +29,19 @@ export const createFeedbackHandler = (core: Core, io: AppIO) =>
       ),
     ],
     handle: async (ctx, flags, args) => {
+      // An explicitly-empty --screenshot "" is a mistake, not "no screenshot":
+      // reject it rather than silently submitting without an attachment.
+      const screenshotPath = flags["screenshot"];
+      if (screenshotPath !== undefined && screenshotPath.trim() === "") {
+        throw new InputValidationError("--screenshot requires a file path");
+      }
+
       await confirmConsent(io, ctx.require(JsonKey), flags.yes);
 
       const result = await core.feedback.submitFeedback(
         {
           message: args["message"],
-          screenshot: flags["screenshot"] ? { path: flags["screenshot"] } : undefined,
+          screenshot: screenshotPath ? { path: screenshotPath } : undefined,
         },
         coreOptsFromCtx(ctx),
       );
