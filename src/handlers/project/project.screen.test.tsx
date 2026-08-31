@@ -76,8 +76,9 @@ describe("project subcommands without a screen", () => {
   // Reading the cases off the router also guards Root's hand-written
   // PROJECT_COMMANDS: an unrouted subcommand hits the catch-all, which resolves
   // instead of rejecting. Frames can't detect that — the catch-all exits before
-  // painting, so it and this screen both render empty.
-  test.each(projectSubcommands())(
+  // painting, so it and this screen both render empty. `create` is excluded:
+  // it has a real screen now (the create wizard, see create/screen.tsx).
+  test.each(projectSubcommands().filter((command) => command !== "create"))(
     "%s tears down the TUI with NotImplementedError",
     async (command) => {
       const { streams } = ttyTestIO();

@@ -7,7 +7,9 @@ import { GatewayClient } from "./gateway";
 import { HarnessClient } from "./harness";
 import { IdentityClient } from "./identity";
 import { MemoryClient } from "./memory";
+import { ObservabilityClient } from "./observability";
 import { RuntimeClient } from "./runtime";
+import { FsReadWriteJson } from "../io";
 import type {
   AwsClients,
   ClientConfig,
@@ -21,6 +23,7 @@ import type {
 import type { Logger } from "../logging";
 import type { ProjectManager } from "../handlers/project/types";
 import { FsProjectManager } from "./project";
+import { describeBedrockAgent, type DescribeBedrockAgent } from "./project/bedrockAgent";
 
 export type {
   AwsClients,
@@ -42,6 +45,7 @@ type CoreClientConfig = {
   logger: Logger;
   fetch?: CoreFetch;
   newSessionId?: () => string;
+  describeBedrockAgent?: DescribeBedrockAgent;
 };
 
 // CoreClient is the single entry point to the Bedrock AgentCore APIs. It owns the
@@ -67,8 +71,10 @@ export class CoreClient implements AwsClients {
   readonly runtime: RuntimeClient;
   readonly gateway: GatewayClient;
   readonly eval: EvalClient;
+  readonly observability: ObservabilityClient;
 
   readonly projectManager: ProjectManager;
+  readonly describeBedrockAgent: DescribeBedrockAgent;
 
   constructor(config: CoreClientConfig) {
     this.createControlClient = config.createControlClient;
@@ -89,10 +95,20 @@ export class CoreClient implements AwsClients {
       config.newSessionId,
     );
 
+    // Observability resolves a project's deployed runtime from its stack
+    // outputs, so it reads aws-targets.json through the same JSON layer the
+    // project manager uses.
+    this.observability = new ObservabilityClient(this, {
+      readJson: new FsReadWriteJson({
+        logger: this.logger.child({ module: "observability" }),
+      }),
+    });
+
     this.projectManager = new FsProjectManager({
       logger: this.logger.child({ module: "projectManager" }),
       createCloudFormationClient: config.createCloudFormationClient,
     });
+    this.describeBedrockAgent = config.describeBedrockAgent ?? describeBedrockAgent;
   }
 
   // control returns the control-plane client for `config`, creating and caching it

@@ -150,7 +150,11 @@ export async function probeStack(
   }
 }
 
-export const resolveAwsAccount: AccountResolver = async (region, credentials) => {
+/** Omitting `credentials` resolves through the default AWS SDK provider chain. */
+export const resolveAwsAccount = async (
+  region: string,
+  credentials?: CdkCredentialProvider,
+): Promise<string> => {
   const { GetCallerIdentityCommand, STSClient } = await import("@aws-sdk/client-sts");
   const client = new STSClient({ credentials, region });
   try {

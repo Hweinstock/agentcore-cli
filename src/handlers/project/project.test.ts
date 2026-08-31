@@ -64,14 +64,219 @@ async function inProject(name = "TestProject"): Promise<string> {
 }
 
 describe("project create", () => {
-  test("scaffolds the project into a fresh directory named for the project", async () => {
+  test("scaffolds a harness project by default, named for the project", async () => {
     const directory = await inTempDirectory();
-    await run(["create", "--name", "MyAgent"]);
+    const { io } = await run(["create", "--name", "MyAgent"]);
 
-    // One existence check proves the handler→manager pipe; the full manifest
-    // is covered by the FsProjectManager snapshot test.
     const projectRoot = join(directory, "MyAgent");
-    expect(await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).exists()).toBe(true);
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.harnesses).toEqual([{ name: "MyAgent", path: "app/MyAgent" }]);
+    expect(spec.runtimes).toEqual([]);
+
+    const harness = await Bun.file(join(projectRoot, "app", "MyAgent", "harness.json")).json();
+    expect(harness.model).toEqual({
+      provider: "bedrock",
+      modelId: "global.anthropic.claude-sonnet-4-6",
+    });
+    expect(harness.memory).toBeUndefined();
+    expect(await Bun.file(join(projectRoot, "app", "MyAgent", "system-prompt.md")).exists()).toBe(
+      true,
+    );
+    expect(io.stderr()).toContain("Creating a harness project");
+  });
+
+  test("--defaults selects the harness path explicitly, without the implicit-default notice", async () => {
+    const directory = await inTempDirectory();
+    const { io } = await run(["create", "--name", "MyAgent", "--defaults"]);
+
+    const spec = await Bun.file(join(directory, "MyAgent", "agentcore", "agentcore.json")).json();
+    expect(spec.harnesses).toHaveLength(1);
+    expect(io.stderr()).not.toContain("Creating a harness project");
+  });
+
+  test("harness-only flags flow into the harness spec", async () => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--model-id",
+      "us.amazon.nova-lite-v1:0",
+      "--api-key-arn",
+      "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/k",
+      "--max-iterations",
+      "5",
+      "--max-tokens",
+      "2048",
+      "--timeout",
+      "60",
+      "--truncation-strategy",
+      "sliding_window",
+      "--no-harness-memory",
+    ]);
+
+    const harness = await Bun.file(
+      join(directory, "MyAgent", "app", "MyAgent", "harness.json"),
+    ).json();
+    expect(harness).toMatchObject({
+      model: {
+        provider: "bedrock",
+        modelId: "us.amazon.nova-lite-v1:0",
+        apiKeyArn:
+          "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/k",
+      },
+      maxIterations: 5,
+      maxTokens: 2048,
+      timeoutSeconds: 60,
+      truncation: { strategy: "sliding_window" },
+    });
+    expect(harness.memory).toBeUndefined();
+  });
+
+  test("--container with an image URI records containerUri on the harness", async () => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--container",
+      "111122223333.dkr.ecr.us-east-1.amazonaws.com/agents:latest",
+    ]);
+
+    const harness = await Bun.file(
+      join(directory, "MyAgent", "app", "MyAgent", "harness.json"),
+    ).json();
+    expect(harness.containerUri).toBe("111122223333.dkr.ecr.us-east-1.amazonaws.com/agents:latest");
+    expect(harness.dockerfile).toBeUndefined();
+  });
+
+  test("--container with a Dockerfile path vendors the Dockerfile into the harness", async () => {
+    const directory = await inTempDirectory();
+    await Bun.write(join(directory, "MyDockerfile"), "FROM public.ecr.aws/docker/library/python");
+    await run(["create", "--name", "MyAgent", "--container", "MyDockerfile"]);
+
+    const harnessRoot = join(directory, "MyAgent", "app", "MyAgent");
+    const harness = await Bun.file(join(harnessRoot, "harness.json")).json();
+    expect(harness.dockerfile).toBe("Dockerfile");
+    expect(await Bun.file(join(harnessRoot, "Dockerfile")).text()).toContain("FROM ");
+  });
+
+  test("rejects mixing runtime scaffolding flags with harness-only flags", async () => {
+    await inTempDirectory();
+    await expect(
+      run(["create", "--name", "MyAgent", "--framework", "strands", "--model-id", "x"]),
+    ).rejects.toThrow(/Cannot mix runtime scaffolding flags \(--framework\)/);
+    await expect(
+      run(["create", "--name", "MyAgent", "--template", "hello-world-python", "--timeout", "9"]),
+    ).rejects.toThrow(/harness-only flags \(--timeout\)/);
+  });
+
+  test("--defaults is ignored when a runtime path flag routes to scaffolding", async () => {
+    const directory = await inTempDirectory();
+    await run(["create", "--name", "MyAgent", "--defaults", "--template", "hello-world-python"]);
+
+    const spec = await Bun.file(join(directory, "MyAgent", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes[0]).toMatchObject({ name: "hello_world" });
+    expect(spec.harnesses).toBeUndefined();
+  });
+
+  test("a harness create installs CDK dependencies and git only (no uv sync)", async () => {
+    const directory = await inTempDirectory();
+    const { core } = await run(["create", "--name", "MyAgent"]);
+
+    const projectRoot = join(directory, "MyAgent");
+    expect(core.projectCommands).toEqual([
+      { command: ["npm", "install"], cwd: join(projectRoot, "agentcore", "cdk") },
+      { command: ["git", "init"], cwd: projectRoot },
+    ]);
+  });
+
+  test("--type import scaffolds a Bedrock Agent proxy project", async () => {
+    const directory = await inTempDirectory();
+    const core = new TestCoreClient();
+    core.bedrockAgentDescriptions["A1B2C3D4E5/TSTALIASID"] = {
+      agentName: "SupportAgent",
+      agentStatus: "PREPARED",
+      agentAliasArn: "arn:aws:bedrock:us-east-1:111122223333:agent-alias/A1B2C3D4E5/TSTALIASID",
+      agentAliasName: "live",
+      agentAliasStatus: "PREPARED",
+    };
+
+    await run(
+      [
+        "create",
+        "--name",
+        "MyImport",
+        "--type",
+        "import",
+        "--agent-id",
+        "A1B2C3D4E5",
+        "--agent-alias-id",
+        "TSTALIASID",
+        "--region",
+        "us-east-1",
+      ],
+      { core },
+    );
+
+    const projectRoot = join(directory, "MyImport");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.harnesses).toBeUndefined();
+    expect(spec.runtimes[0]).toMatchObject({
+      name: "MyImport",
+      build: "CodeZip",
+      runtimeVersion: "PYTHON_3_14",
+      additionalPolicies: ["bedrock-agent-policy.json"],
+    });
+
+    const main = await Bun.file(join(projectRoot, "app", "MyImport", "main.py")).text();
+    expect(main).toContain('"A1B2C3D4E5"');
+    const policy = await Bun.file(
+      join(projectRoot, "app", "MyImport", "bedrock-agent-policy.json"),
+    ).json();
+    expect(policy.Statement[0].Resource).toBe(
+      "arn:aws:bedrock:us-east-1:111122223333:agent-alias/A1B2C3D4E5/TSTALIASID",
+    );
+  });
+
+  test("--type import conflicts with harness-only and scaffolding flags", async () => {
+    await inTempDirectory();
+    await expect(
+      run(["create", "--name", "MyImport", "--type", "import", "--model-id", "x"]),
+    ).rejects.toThrow(/Cannot mix runtime scaffolding flags \(--type\)/);
+    await expect(
+      run([
+        "create",
+        "--name",
+        "MyImport",
+        "--type",
+        "import",
+        "--agent-id",
+        "A",
+        "--agent-alias-id",
+        "B",
+        "--framework",
+        "strands",
+      ]),
+    ).rejects.toThrow(/--framework is a scaffolding flag/);
+    await expect(run(["create", "--name", "MyImport", "--agent-id", "A"])).rejects.toThrow(
+      /--agent-id and --agent-alias-id require --type import/,
+    );
+  });
+
+  test("rejects invalid harness flag combinations before scaffolding anything", async () => {
+    const directory = await inTempDirectory();
+    // apiBase is a lite_llm-only model setting; the bedrock harness path
+    // surfaces the schema's guidance without writing a partial project.
+    await expect(
+      run(["create", "--name", "MyAgent", "--api-base", "https://example.com"]),
+    ).rejects.toThrow(/lite_llm/);
+    expect(await Bun.file(join(directory, "MyAgent")).exists()).toBe(false);
+
+    await expect(
+      run(["create", "--name", "MyAgent", "--additional-params", "{not-json"]),
+    ).rejects.toThrow(/JSON/i);
+    expect(await Bun.file(join(directory, "MyAgent")).exists()).toBe(false);
   });
 
   test("rejects an invalid --project-name", async () => {
@@ -890,7 +1095,8 @@ describe("project build", () => {
 
   test("resolves the project from a nested directory", async () => {
     const projectRoot = await inBuildableProject();
-    process.chdir(join(projectRoot, "app", "hello_world"));
+    // The default create scaffolds a harness directory named for the project.
+    process.chdir(join(projectRoot, "app", "MyAgent"));
 
     const { core } = await run(["build"]);
 
@@ -918,8 +1124,13 @@ describe("project deploy", () => {
     await expect(run(["deploy"])).rejects.toThrow(/No AgentCore project found/);
   });
 
-  test("rejects a project with no deployment targets", async () => {
+  // A bare `deploy` on a fresh project synthesizes the default target instead
+  // of rejecting (covered with a stubbed backend in deploy/index.test.ts); only
+  // a named target still demands configuration.
+  test("rejects a project with no deployment targets for a named target", async () => {
     await inProject();
-    await expect(run(["deploy"])).rejects.toThrow(/No deployment targets are configured/);
+    await expect(run(["deploy", "--target", "staging"])).rejects.toThrow(
+      /No deployment targets are configured/,
+    );
   });
 });
