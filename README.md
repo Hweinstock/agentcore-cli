@@ -137,6 +137,13 @@ agentcore harness invoke --id <id from the deploy outputs> --prompt "hello"
 
 # Scaffold runtime code instead (pass a template or framework flags).
 agentcore project create --name MyAgent --template strands-python
+
+# Wrap an existing Amazon Bedrock Agent as a runtime: a generated proxy
+# forwards prompts to the agent, so it deploys and invokes like any other
+# runtime. --region names the Bedrock Agent's region. Also available as
+# `project add runtime --type import` inside a project.
+agentcore project create --name MyProxy --type import \
+  --agent-id A1B2C3D4E5 --agent-alias-id TSTALIASID --region us-east-1
 ```
 
 ```bash

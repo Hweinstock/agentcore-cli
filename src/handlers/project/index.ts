@@ -24,14 +24,20 @@ type ProjectHandlerConfig = {
 
 export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router {
   const projectManager: ProjectManager = core.projectManager;
-  const config = { projectManager, io };
+  const config = { projectManager, io, describeBedrockAgent: core.describeBedrockAgent };
   const project = new Router("project", "manage an AgentCore project");
 
   // Without a default, a bare `agentcore project` falls back to Commander's help
   // and a usage exit code instead of the menu every sibling router opens.
   project.default(renderTui(core, io));
 
-  project.handler(createCreateProjectHandler({ projectManager, io }));
+  project.handler(
+    createCreateProjectHandler({
+      projectManager,
+      io,
+      describeBedrockAgent: core.describeBedrockAgent,
+    }),
+  );
   project.handler(createAddProjectResourceHandler(config));
   project.handler(
     withProject({ projectManager: config.projectManager })(

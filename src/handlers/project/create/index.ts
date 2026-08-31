@@ -19,10 +19,19 @@ import { CONTAINER_URI_PATTERN, HarnessSpecSchema } from "../../../projectSchema
 import { InputValidationError } from "../../../errors";
 import { parseJsonFlag } from "../../utils";
 import { DEFAULT_HARNESS_MODEL } from "../add/harness";
+import {
+  describeBedrockAgent,
+  type DescribeBedrockAgent,
+} from "../../../core/project/bedrockAgent";
+import { importScaffoldRuntimeInput, resolveImportBedrockAgentInput } from "../importBedrockAgent";
+import type { ImportBedrockAgentInput } from "../add/runtime/types";
+import { RegionKey } from "../../keys";
 
 type CreateProjectHandlerConfig = {
   projectManager: ProjectManager;
   io: AppIO;
+  /** Describes a Bedrock Agent for --type import; injectable for tests. */
+  describeBedrockAgent?: DescribeBedrockAgent;
 };
 
 // Flags that select the runtime-scaffolding path. Any of these (or --template)
@@ -36,6 +45,9 @@ const RUNTIME_PATH_FLAGS = [
   "api-key",
   "runtime-name",
   "memory",
+  "type",
+  "agent-id",
+  "agent-alias-id",
 ] as const;
 
 // Flags that only make sense for the harness path.
@@ -99,6 +111,21 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         z.enum(MEMORY_SHORTCUT_NAMES).optional(),
       ),
       flag("runtime-name", "name of the scaffolded runtime", z.string().max(42).optional()),
+      flag(
+        "type",
+        "create scaffolds new agent code (the default); import wraps an existing Bedrock Agent",
+        z.enum(["create", "import"]).optional(),
+      ),
+      flag(
+        "agent-id",
+        "Bedrock Agent ID to import (requires --type import)",
+        z.string().optional(),
+      ),
+      flag(
+        "agent-alias-id",
+        "Bedrock Agent Alias ID to import (requires --type import)",
+        z.string().optional(),
+      ),
       flag("model-id", "model ID for the created harness", z.string().optional()),
       flag(
         "api-key-arn",
@@ -144,7 +171,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       ),
       flag("skip-git", "skip initializing a git repository", z.boolean().default(false)),
     ],
-    handle: async (_ctx, flags) => {
+    handle: async (ctx, flags) => {
       const presentRuntimeFlags: string[] = RUNTIME_PATH_FLAGS.filter(
         (f) => flags[f] !== undefined,
       );
@@ -173,14 +200,44 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         throw new InputValidationError(`--${lockedFlag} cannot override a template`);
       }
 
+      const isImport = flags["type"] === "import";
+      const scaffoldingChoiceFlags = (
+        ["build", "language", "framework", "model-provider", "api-key", "memory"] as const
+      ).filter((f) => flags[f] !== undefined);
+      if (isImport && (isTemplate || scaffoldingChoiceFlags.length > 0)) {
+        const offending = isTemplate ? "template" : scaffoldingChoiceFlags[0];
+        throw new InputValidationError(
+          `--type import wraps an existing Bedrock Agent; --${offending} is a scaffolding ` +
+            `flag and cannot be combined with it`,
+        );
+      }
+      if (!isImport && (flags["agent-id"] !== undefined || flags["agent-alias-id"] !== undefined)) {
+        throw new InputValidationError("--agent-id and --agent-alias-id require --type import");
+      }
+
       const isRuntimePath = presentRuntimeFlags.length > 0;
+
+      let importBedrockAgent: ImportBedrockAgentInput | undefined;
+      if (isImport) {
+        const { imported, warnings } = await resolveImportBedrockAgentInput({
+          describeBedrockAgent: config.describeBedrockAgent ?? describeBedrockAgent,
+          region: ctx.require(RegionKey),
+          agentId: flags["agent-id"],
+          agentAliasId: flags["agent-alias-id"],
+        });
+        importBedrockAgent = imported;
+        for (const warning of warnings) config.io.stderr.write(`${warning}\n`);
+      }
 
       const createInput: CreateProjectInput = isRuntimePath
         ? {
             name: flags["name"],
             skipInstall: flags["skip-install"],
             skipGit: flags["skip-git"],
-            scaffoldRuntimeInput: await resolveScaffoldRuntimeInput(config, flags),
+            scaffoldRuntimeInput: isImport
+              ? importScaffoldRuntimeInput(flags["runtime-name"] ?? flags["name"])
+              : await resolveScaffoldRuntimeInput(config, flags),
+            importBedrockAgent,
           }
         : {
             name: flags["name"],

@@ -165,6 +165,11 @@ import type { Logger } from "../logging";
 import type { ReadWriteJson } from "../io";
 import { createSilentLogger } from "./logging";
 import { FsProjectManager, type ProjectBackend } from "../core/project";
+import type {
+  BedrockAgentMetadata,
+  DescribeBedrockAgent,
+  DescribeBedrockAgentInput,
+} from "../core/project/bedrockAgent";
 import type { ManagedBy } from "../projectSchemas/project";
 import { InputValidationError } from "../errors";
 
@@ -2236,6 +2241,22 @@ export class TestCoreClient implements Core {
   // Commands the project manager would have run (npm install, git init, ...),
   // recorded instead of spawned so tests stay fast and hermetic.
   readonly projectCommands: { command: string[]; cwd: string }[] = [];
+
+  // Seed with `agentId/agentAliasId` keys to make Bedrock Agents resolvable
+  // through describeBedrockAgent; unseeded ids reject like the service would.
+  readonly bedrockAgentDescriptions: Record<string, BedrockAgentMetadata> = {};
+  readonly describedBedrockAgents: DescribeBedrockAgentInput[] = [];
+  readonly describeBedrockAgent: DescribeBedrockAgent = async (input) => {
+    this.describedBedrockAgents.push(input);
+    const metadata = this.bedrockAgentDescriptions[`${input.agentId}/${input.agentAliasId}`];
+    if (!metadata) {
+      throw new InputValidationError(
+        `no Bedrock Agent with id '${input.agentId}' exists in ${input.region}; ` +
+          `check --agent-id and --region`,
+      );
+    }
+    return metadata;
+  };
 
   constructor(options?: TestCoreClientOptions) {
     this.projectManager = new FsProjectManager({

@@ -191,6 +191,79 @@ describe("project create", () => {
     ]);
   });
 
+  test("--type import scaffolds a Bedrock Agent proxy project", async () => {
+    const directory = await inTempDirectory();
+    const core = new TestCoreClient();
+    core.bedrockAgentDescriptions["A1B2C3D4E5/TSTALIASID"] = {
+      agentName: "SupportAgent",
+      agentStatus: "PREPARED",
+      agentAliasArn: "arn:aws:bedrock:us-east-1:111122223333:agent-alias/A1B2C3D4E5/TSTALIASID",
+      agentAliasName: "live",
+      agentAliasStatus: "PREPARED",
+    };
+
+    await run(
+      [
+        "create",
+        "--name",
+        "MyImport",
+        "--type",
+        "import",
+        "--agent-id",
+        "A1B2C3D4E5",
+        "--agent-alias-id",
+        "TSTALIASID",
+        "--region",
+        "us-east-1",
+      ],
+      { core },
+    );
+
+    const projectRoot = join(directory, "MyImport");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.harnesses).toBeUndefined();
+    expect(spec.runtimes[0]).toMatchObject({
+      name: "MyImport",
+      build: "CodeZip",
+      runtimeVersion: "PYTHON_3_14",
+      additionalPolicies: ["bedrock-agent-policy.json"],
+    });
+
+    const main = await Bun.file(join(projectRoot, "app", "MyImport", "main.py")).text();
+    expect(main).toContain('"A1B2C3D4E5"');
+    const policy = await Bun.file(
+      join(projectRoot, "app", "MyImport", "bedrock-agent-policy.json"),
+    ).json();
+    expect(policy.Statement[0].Resource).toBe(
+      "arn:aws:bedrock:us-east-1:111122223333:agent-alias/A1B2C3D4E5/TSTALIASID",
+    );
+  });
+
+  test("--type import conflicts with harness-only and scaffolding flags", async () => {
+    await inTempDirectory();
+    await expect(
+      run(["create", "--name", "MyImport", "--type", "import", "--model-id", "x"]),
+    ).rejects.toThrow(/Cannot mix runtime scaffolding flags \(--type\)/);
+    await expect(
+      run([
+        "create",
+        "--name",
+        "MyImport",
+        "--type",
+        "import",
+        "--agent-id",
+        "A",
+        "--agent-alias-id",
+        "B",
+        "--framework",
+        "strands",
+      ]),
+    ).rejects.toThrow(/--framework is a scaffolding flag/);
+    await expect(run(["create", "--name", "MyImport", "--agent-id", "A"])).rejects.toThrow(
+      /--agent-id and --agent-alias-id require --type import/,
+    );
+  });
+
   test("rejects invalid harness flag combinations before scaffolding anything", async () => {
     const directory = await inTempDirectory();
     // apiBase is a lite_llm-only model setting; the bedrock harness path

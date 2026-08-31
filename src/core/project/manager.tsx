@@ -139,7 +139,7 @@ export class FsProjectManager implements ProjectManager {
     const projectTree = await createProjectTree(
       { templateRenderer: this.templateRenderer, assetSource: this.assetSource },
       { projectName: input.name },
-      { runtime: scaffoldRuntimeInput },
+      { runtime: scaffoldRuntimeInput, importBedrockAgent: input.importBedrockAgent },
     );
     await projectTree.write(destination);
 

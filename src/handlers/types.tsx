@@ -6,6 +6,7 @@ import type { CoreMemoryClient } from "./memory/types.tsx";
 import type { CoreRuntimeClient } from "./runtime/types.tsx";
 import type { Context } from "../router";
 import type { ProjectManager } from "./project/types.ts";
+import type { DescribeBedrockAgent } from "../core/project/bedrockAgent";
 
 export interface Core {
   harness: CoreHarnessClient;
@@ -15,6 +16,8 @@ export interface Core {
   gateway: CoreGatewayClient;
   eval: CoreEvalClient;
   projectManager: ProjectManager;
+  /** Describes a Bedrock Agent + alias for `--type import`. */
+  describeBedrockAgent: DescribeBedrockAgent;
 }
 
 // ScreenProps is the common prop set every TUI screen receives. `ctx` carries the

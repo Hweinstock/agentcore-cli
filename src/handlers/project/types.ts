@@ -6,7 +6,7 @@ import { MemorySchema } from "../../projectSchemas/memory";
 import type { EvaluatorSchema } from "../../projectSchemas/evaluator";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
-import type { RuntimeResourceConfig } from "./add/runtime/types";
+import type { ImportBedrockAgentInput, RuntimeResourceConfig } from "./add/runtime/types";
 import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
 import { AgentNameSchema, BuildTypeSchema, EntrypointSchema } from "../../projectSchemas/runtime";
 import { RuntimeVersionSchema } from "../../projectSchemas/constants";
@@ -66,12 +66,15 @@ export type CreateProjectInput = CreateProjectInputBase &
     | {
         /** The resolved template parameters. The handler maps --template to these before calling the manager. */
         scaffoldRuntimeInput: ScaffoldRuntimeInput;
+        /** Present when the runtime proxies an imported Bedrock Agent. */
+        importBedrockAgent?: ImportBedrockAgentInput;
         scaffoldHarnessInput?: undefined;
       }
     | {
         /** The harness the created project declares (the default create path). */
         scaffoldHarnessInput: ScaffoldHarnessInput;
         scaffoldRuntimeInput?: undefined;
+        importBedrockAgent?: undefined;
       }
   );
 
