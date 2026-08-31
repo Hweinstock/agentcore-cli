@@ -78,23 +78,23 @@ describe("project subcommands without a screen", () => {
   // instead of rejecting. Frames can't detect that — the catch-all exits before
   // painting, so it and this screen both render empty. `create`, `invoke`, and
   // `remove` are excluded because all three have real screens.
-  test.each(
-    projectSubcommands().filter(
-      (command) => command !== "create" && command !== "invoke" && command !== "remove",
-    ),
-  )("%s tears down the TUI with NotImplementedError", async (command) => {
-    const { streams } = ttyTestIO();
+  const withScreens = ["create", "invoke", "remove"];
+  test.each(projectSubcommands().filter((command) => !withScreens.includes(command)))(
+    "%s tears down the TUI with NotImplementedError",
+    async (command) => {
+      const { streams } = ttyTestIO();
 
-    const rendering = renderTuiAt(
-      `/agentcore/project/${command}`,
-      ValueContext.EmptyContext(),
-      new TestCoreClient(),
-      streams.io,
-    );
+      const rendering = renderTuiAt(
+        `/agentcore/project/${command}`,
+        ValueContext.EmptyContext(),
+        new TestCoreClient(),
+        streams.io,
+      );
 
-    await expect(rendering).rejects.toThrow(NotImplementedError);
-    await expect(rendering).rejects.toThrow(`'agentcore project ${command}'`);
-  });
+      await expect(rendering).rejects.toThrow(NotImplementedError);
+      await expect(rendering).rejects.toThrow(`'agentcore project ${command}'`);
+    },
+  );
 
   test("the error names the command to run instead", async () => {
     const { streams } = ttyTestIO();
