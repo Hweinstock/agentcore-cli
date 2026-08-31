@@ -88,13 +88,7 @@ import {
   type DataSourceConfig as DataPlaneDataSourceConfig,
   type CloudWatchFilterConfig,
 } from "@aws-sdk/client-bedrock-agentcore";
-import {
-  GetQueryResultsCommand,
-  ResourceNotFoundException,
-  StartQueryCommand,
-  type CloudWatchLogsClient,
-  type ResultField,
-} from "@aws-sdk/client-cloudwatch-logs";
+import { ResourceNotFoundException, type ResultField } from "@aws-sdk/client-cloudwatch-logs";
 import type { DocumentType } from "@smithy/types";
 import { randomUUID } from "node:crypto";
 import { unlink } from "node:fs/promises";
@@ -104,13 +98,20 @@ import { Transform } from "node:stream";
 import { setTimeout as sleep } from "node:timers/promises";
 import {
   AgentCoreCLIError,
-  CloudWatchQueryError,
   ERROR_SOURCE,
   FileWriteError,
   InputValidationError,
   NetworkingError,
   ResourceNotFoundError,
 } from "../errors";
+import {
+  DEFAULT_ENDPOINT_QUALIFIER,
+  INSIGHTS_MAX_ROWS,
+  runInsightsQuery,
+  runtimeLogGroup,
+  sanitizeQueryValue,
+  type InsightsRowLimit,
+} from "./observability";
 import type {
   BatchEvaluationDetail,
   CodeBasedUpdate,
@@ -166,7 +167,6 @@ import {
   scopePolicyName,
 } from "./onlineEvalExecutionRole";
 
-const DEFAULT_ENDPOINT_QUALIFIER = "DEFAULT";
 const DEFAULT_INGESTION_WAIT_MS = 180_000;
 const DATASET_EXAMPLES_BATCH_LIMIT = 1000;
 const DATASET_MUTATION_PAYLOAD_LIMIT_BYTES = 5 * 1024 * 1024;
@@ -190,8 +190,17 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 // A hard Evaluate limit: at most 10 trace/span ids per request.
 const EVALUATE_TARGET_BATCH = 10;
 
-// CloudWatch Logs Insights hard ceiling: a query returns at most 100k rows.
-const INSIGHTS_MAX_ROWS = 100_000;
+// Eval's row-ceiling policy for the shared Insights runner: overflowing the
+// CloudWatch hard ceiling means a partial conversation would be scored, so the
+// remedy is eval-specific (narrow the session scope or go through batch).
+const EVAL_INSIGHTS_ROW_LIMIT: InsightsRowLimit = {
+  maxRows: INSIGHTS_MAX_ROWS,
+  buildError: (maxRows) =>
+    new InputValidationError(
+      `Too many spans in scope (>= ${maxRows}). Narrow --session-ids or the time ` +
+        `window, or use 'eval batch-evaluation' for large jobs.`,
+    ),
+};
 
 const DEFAULT_BATCH_INSIGHTS_PAGE_SIZE = 50;
 
@@ -593,7 +602,14 @@ export class EvalClient implements CoreEvalClient {
     // Runtime group required (missing = agent has no traces); aws/spans optional now
     // https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-configure.html#observability-configure-unified-traces
     const [runtimeRows, sharedRows] = await Promise.all([
-      runInsightsQuery(logs, [logGroupName], queryString, startSec, endSec).catch((error) => {
+      runInsightsQuery(
+        logs,
+        [logGroupName],
+        queryString,
+        startSec,
+        endSec,
+        EVAL_INSIGHTS_ROW_LIMIT,
+      ).catch((error) => {
         if (error instanceof ResourceNotFoundException) {
           throw new ResourceNotFoundError(
             `No telemetry found for agent "${input.agent}": its runtime log group ${logGroupName} ` +
@@ -603,7 +619,14 @@ export class EvalClient implements CoreEvalClient {
         }
         throw error;
       }),
-      runInsightsQuery(logs, [SPANS_LOG_GROUP], queryString, startSec, endSec).catch((error) => {
+      runInsightsQuery(
+        logs,
+        [SPANS_LOG_GROUP],
+        queryString,
+        startSec,
+        endSec,
+        EVAL_INSIGHTS_ROW_LIMIT,
+      ).catch((error) => {
         if (error instanceof ResourceNotFoundException) return [];
         throw error;
       }),
@@ -1736,13 +1759,6 @@ function endWithNewline(): Transform {
   });
 }
 
-// runtimeLogGroup mirrors the old CLI's derivation (src/cli/aws/cloudwatch.ts):
-// AgentCore always writes a runtime endpoint's traces to this fixed path, keyed
-// by the runtime *id*.
-function runtimeLogGroup(runtimeId: string, endpoint: string): string {
-  return `/aws/bedrock-agentcore/runtimes/${runtimeId}-${endpoint}`;
-}
-
 // runtimeServiceName derives the CloudWatch trace service name that scopes a
 // CreateOnlineEvaluationConfig data source to one runtime endpoint's sessions:
 // `{runtimeName}.{endpoint}`, keyed by the runtime *name* (verified against
@@ -1805,12 +1821,6 @@ async function agentDataSource(
   };
 }
 
-// sanitizeQueryValue strips single quotes so an id can't break out of the quoted
-// Insights filter literal it is interpolated into (matches the old CLI).
-function sanitizeQueryValue(value: string): string {
-  return value.replace(/'/g, "");
-}
-
 function buildSpanQuery(serviceName: string, sessionIds?: string[], traceId?: string): string {
   let query = `fields @message, attributes.session.id as sessionId, traceId, spanId
      | filter resource.attributes.service.name in ['${sanitizeQueryValue(serviceName)}']`;
@@ -1823,60 +1833,6 @@ function buildSpanQuery(serviceName: string, sessionIds?: string[], traceId?: st
   }
   query += `\n     | sort @timestamp asc\n     | limit ${INSIGHTS_MAX_ROWS}`;
   return query;
-}
-
-// runInsightsQuery starts a CloudWatch Logs Insights query, waits for it to finish,
-// then drains all result pages. GetQueryResults returns <=10k rows per call, so a
-// long session's spans span multiple pages (nextToken); dropping any would score a
-// partial conversation. Fails fast if the ceiling is hit — that belongs in batch.
-async function runInsightsQuery(
-  logs: CloudWatchLogsClient,
-  logGroupNames: string[],
-  queryString: string,
-  startSec: number,
-  endSec: number,
-): Promise<ResultField[][]> {
-  const started = await logs.send(
-    new StartQueryCommand({ logGroupNames, queryString, startTime: startSec, endTime: endSec }),
-  );
-  const queryId = started.queryId;
-
-  // Phase 1: wait for completion. A large scan can take minutes, so the deadline is
-  // generous; each poll costs one cheap GetQueryResults call.
-  let status = "Running";
-  for (let i = 0; i < 300 && status !== "Complete"; i++) {
-    const result = await logs.send(new GetQueryResultsCommand({ queryId }));
-    status = result.status ?? "Unknown";
-    if (status === "Failed" || status === "Cancelled" || status === "Timeout") {
-      throw new CloudWatchQueryError(`CloudWatch Logs Insights query ${status.toLowerCase()}`, {
-        meta: { queryId, status },
-      });
-    }
-    if (status !== "Complete") await new Promise((resolve) => setTimeout(resolve, 1000));
-  }
-  if (status !== "Complete") {
-    throw new CloudWatchQueryError("CloudWatch Logs Insights query did not finish in time", {
-      meta: { queryId, status },
-    });
-  }
-
-  // Phase 2: drain pages. Terminates on nextToken; total is bounded by the query's
-  // `| limit INSIGHTS_MAX_ROWS`.
-  const rows: ResultField[][] = [];
-  let nextToken: string | undefined;
-  do {
-    const result = await logs.send(new GetQueryResultsCommand({ queryId, nextToken }));
-    rows.push(...(result.results ?? []));
-    nextToken = result.nextToken;
-  } while (nextToken);
-
-  if (rows.length >= INSIGHTS_MAX_ROWS) {
-    throw new InputValidationError(
-      `Too many spans in scope (>= ${INSIGHTS_MAX_ROWS}). Narrow --session-ids or the time ` +
-        `window, or use 'eval batch-evaluation' for large jobs.`,
-    );
-  }
-  return rows;
 }
 
 // Group parsed @message docs by session, keeping only sessions with >=1 span
