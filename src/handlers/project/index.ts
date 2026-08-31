@@ -16,6 +16,7 @@ import { createStatusProjectHandler } from "./status";
 import { createBuildProjectHandler } from "./build";
 import type { ProjectManager } from "./types";
 import { createAddProjectResourceHandler } from "./add";
+import { createExportProjectResourceHandler } from "./export";
 
 type ProjectHandlerConfig = {
   core: Core;
@@ -39,6 +40,7 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
     }),
   );
   project.handler(createAddProjectResourceHandler(config));
+  project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
     withProject({ projectManager: config.projectManager })(
       createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io }),

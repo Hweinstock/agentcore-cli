@@ -1,11 +1,13 @@
 import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { copyFile, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type {
   AddResourceInput,
   CreateProjectInput,
   DeployProjectInput,
   DeployResult,
+  ExportHarnessInput,
+  ExportHarnessResult,
   ResolveProjectInput,
   Project,
   ProjectManager,
@@ -27,6 +29,15 @@ import { ENV_LOCAL_RELATIVE_PATH, EnvLocalFile } from "./envLocal";
 import { getHarnessTemplateResolver } from "./templates/harness";
 import { createProjectTree } from "./templates/project";
 import { getRuntimeTemplateResolver } from "./templates/runtime";
+import {
+  DEFAULT_EXPORT_SYSTEM_PROMPT,
+  EXPORT_NOTES_FILENAME,
+  buildDockerfileStub,
+  buildExportNotesMarkdown,
+  mapHarnessToExportPlan,
+} from "./templates/export";
+import { HarnessSpecSchema } from "../../projectSchemas/harness";
+import { FsTreeNode } from "./templates/fsTree";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
 import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import {
@@ -602,6 +613,198 @@ export class FsProjectManager implements ProjectManager {
     }
   }
 
+  public async *exportHarness(
+    project: Project,
+    input: ExportHarnessInput,
+  ): AsyncGenerator<ProjectEvent, ExportHarnessResult> {
+    const agentCoreSpecPath = this.getProjectSpecPath(project);
+    const { targetAgentName } = input;
+
+    yield { message: `Reading project spec file at '${agentCoreSpecPath}'` };
+    const projectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
+
+    // Resolve the harness spec + system prompt: from the prefetched service
+    // payload (--arn) or from the in-project harness files (--name).
+    let harnessName: string;
+    let spec: z.output<typeof HarnessSpecSchema>;
+    let systemPrompt: string;
+    let harnessDir: string | undefined;
+    if (input.prefetched) {
+      spec = input.prefetched.spec;
+      harnessName = spec.name;
+      const prompt = input.prefetched.systemPrompt?.trim();
+      systemPrompt =
+        prompt && prompt.length > 0 ? prompt : (spec.systemPrompt ?? DEFAULT_EXPORT_SYSTEM_PROMPT);
+    } else {
+      harnessName = input.harnessName!;
+      const entry = projectSpec.harnesses.find((candidate) => candidate.name === harnessName);
+      if (!entry) {
+        const available = projectSpec.harnesses.map((candidate) => candidate.name).join(", ");
+        throw new ResourceNotFoundError(
+          `Harness '${harnessName}' not found in agentcore.json. ` +
+            `Available harnesses: ${available || "none"}`,
+        );
+      }
+      harnessDir = join(project.rootPath, entry.path);
+      yield { message: `Reading harness configuration from '${join(entry.path, "harness.json")}'` };
+      spec = await this.json.read(join(harnessDir, "harness.json"), HarnessSpecSchema);
+      const promptPath = join(harnessDir, "system-prompt.md");
+      const filePrompt = existsSync(promptPath)
+        ? (await readFile(promptPath, "utf-8")).trim()
+        : undefined;
+      systemPrompt =
+        filePrompt && filePrompt.length > 0
+          ? filePrompt
+          : (spec.systemPrompt ?? DEFAULT_EXPORT_SYSTEM_PROMPT);
+    }
+
+    // Refuse to overwrite anything: the target name must be free in the spec
+    // (runtimes AND harnesses share the app/ namespace) and on disk. A leftover
+    // directory with no spec entry would otherwise be silently overwritten.
+    if (projectSpec.runtimes.some((runtime) => runtime.name === targetAgentName)) {
+      throw new InputValidationError(
+        `a runtime with name '${targetAgentName}' already exists; choose a different --target-agent-name`,
+      );
+    }
+    if (projectSpec.harnesses.some((harness) => harness.name === targetAgentName)) {
+      throw new InputValidationError(
+        `a harness with name '${targetAgentName}' already exists; choose a different --target-agent-name`,
+      );
+    }
+    const agentDir = join(project.rootPath, "app", targetAgentName);
+    if (existsSync(agentDir)) {
+      throw new InputValidationError(
+        `the directory 'app/${targetAgentName}/' already exists; remove it or choose a different --target-agent-name`,
+      );
+    }
+
+    yield { message: `Mapping harness '${harnessName}' to the Strands runtime template` };
+    const plan = mapHarnessToExportPlan({
+      harnessName,
+      targetAgentName,
+      spec,
+      systemPrompt,
+      projectSpec,
+      build: input.build,
+      harnessDockerfileExists:
+        spec.dockerfile !== undefined &&
+        harnessDir !== undefined &&
+        existsSync(join(harnessDir, spec.dockerfile)),
+    });
+
+    const isContainer = plan.buildType === "Container";
+    yield { message: `Rendering agent code at 'app/${targetAgentName}'` };
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource: this.assetSource },
+      { assetDir: "templates/strands-http-python" },
+      {
+        rootDirName: targetAgentName,
+        transformContent: (raw) => this.templateRenderer.render(raw, plan.context),
+        filter: (name, isDir) => {
+          if (isDir && name === "memory") return plan.hasMemory;
+          if (isDir && name === "hooks") return plan.hasExecutionLimits;
+          // The template's own Dockerfile is used only for a plain Container
+          // export; containerUri/custom-Dockerfile harnesses replace it below.
+          if (name === "Dockerfile")
+            return isContainer && plan.dockerfilePlan.source === "template";
+          if (name === ".dockerignore") return isContainer;
+          return true;
+        },
+      },
+    );
+
+    // Everything under agentDir is created by this export; remove it when a
+    // later step fails so no orphan directory outlives its spec entry.
+    const cleanupAgentDir = () =>
+      rm(agentDir, { recursive: true, force: true }).catch((e) => {
+        const error = AgentCoreCLIError.fromError(e);
+        this.logger
+          .child({ errorName: error.name, errorMessage: error.message })
+          .warn(`failed to clean up ${agentDir}`);
+      });
+
+    let envFile: EnvLocalFile | undefined;
+    try {
+      await tree.write(join(project.rootPath, "app"));
+
+      // Post-render files the template cannot express.
+      if (plan.dockerfilePlan.source === "stub") {
+        await writeFile(
+          join(agentDir, "Dockerfile"),
+          buildDockerfileStub(plan.dockerfilePlan.containerUri),
+        );
+      } else if (plan.dockerfilePlan.source === "harnessCopy") {
+        await copyFile(join(harnessDir!, spec.dockerfile!), join(agentDir, "Dockerfile"));
+      }
+      for (const [fileName, policyDoc] of Object.entries(plan.policyFiles)) {
+        await writeFile(join(agentDir, fileName), `${JSON.stringify(policyDoc, null, 2)}\n`);
+      }
+
+      yield { message: `Writing ${EXPORT_NOTES_FILENAME}` };
+      const notesPath = join(agentDir, EXPORT_NOTES_FILENAME);
+      await writeFile(
+        notesPath,
+        buildExportNotesMarkdown(
+          plan.notes,
+          harnessName,
+          targetAgentName,
+          await readStrandsVersion(agentDir),
+        ),
+      );
+
+      if (plan.envEntries.length > 0) {
+        envFile = new EnvLocalFile(project.rootPath);
+        yield { message: `Updating secrets file at '${envFile.path}'` };
+        const { skipped } = await envFile.insertIfNew(plan.envEntries);
+        for (const key of skipped) {
+          yield {
+            message: `'${key}' already exists in ${ENV_LOCAL_RELATIVE_PATH}; left unchanged`,
+          };
+        }
+      }
+
+      yield { message: `Updating project spec file at '${agentCoreSpecPath}'` };
+      projectSpec.runtimes.push(plan.runtime);
+      for (const credential of plan.credentials) {
+        if (!projectSpec.credentials.some((candidate) => candidate.name === credential.name)) {
+          projectSpec.credentials.push(credential);
+        }
+      }
+      const parsed = ProjectSpecSchema.safeParse(projectSpec);
+      if (!parsed.success) {
+        throw new ProjectStateError(z.prettifyError(parsed.error), { cause: parsed.error });
+      }
+      await this.json.write(agentCoreSpecPath, parsed.data);
+    } catch (err) {
+      this.logger.warn(
+        `harness export failed; attempting best-effort cleanup of staged changes under ${agentDir}`,
+      );
+      await Promise.all([
+        cleanupAgentDir(),
+        envFile?.rollback().catch((e) => {
+          const error = AgentCoreCLIError.fromError(e);
+          this.logger
+            .child({ errorName: error.name, errorMessage: error.message })
+            .warn(`failed to roll back ${ENV_LOCAL_RELATIVE_PATH}`);
+        }),
+      ]);
+      throw err;
+    }
+
+    // Deps go in only after the spec commit: a sync failure past this point
+    // leaves a consistent project the user can finish with a manual `uv sync`,
+    // so it must NOT trigger the cleanup above.
+    yield* this.installRuntimeDependencies(agentDir);
+
+    return {
+      harnessName,
+      agentName: targetAgentName,
+      agentPath: agentDir,
+      notesPath: join(agentDir, EXPORT_NOTES_FILENAME),
+      notes: plan.notes,
+    };
+  }
+
   private async scaffoldRuntimeResources(outputPath: string, input: RuntimeResourceConfig) {
     const resolver = getRuntimeTemplateResolver(
       { assetSource: this.assetSource, templateRenderer: this.templateRenderer },
@@ -807,6 +1010,17 @@ function toProjectSpecKey(resourceType: ProjectResource) {
     case "payment-manager":
     case "payment-connector":
       return "payments";
+  }
+}
+
+/** The strands-agents requirement from the rendered pyproject.toml, for EXPORT_NOTES.md. */
+async function readStrandsVersion(agentDir: string): Promise<string> {
+  try {
+    const pyproject = await readFile(join(agentDir, "pyproject.toml"), "utf-8");
+    const match = /strands-agents\s*([~><=]+\s*[\d.]+)/.exec(pyproject);
+    return match ? `strands-agents ${match[1]}` : "strands-agents (version unknown)";
+  } catch {
+    return "strands-agents (version unknown)";
   }
 }
 

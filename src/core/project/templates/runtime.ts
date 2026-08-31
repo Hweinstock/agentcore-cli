@@ -42,7 +42,7 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
  * Valid names consist only of ASCII letters, numbers, period, underscore, and
  * hyphen, and must start and end with a letter or number.
  */
-function toPythonPackageName(name: string): string {
+export function toPythonPackageName(name: string): string {
   return name
     .replace(/[^a-zA-Z0-9._-]/g, "-")
     .replace(/^[^a-zA-Z0-9]+/, "")
@@ -168,6 +168,10 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         transformContent: (raw) => templateRenderer.render(raw, context),
         filter: (name, isDir) => {
           if (isDir && name === "memory") return memory !== undefined;
+          // hooks/ carries the execution-limits capability, which only
+          // `project export harness` renders (harnesses can cap
+          // iterations/tokens/time; scaffolded runtimes cannot).
+          if (isDir && name === "hooks") return false;
           if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },

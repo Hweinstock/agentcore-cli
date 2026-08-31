@@ -1,4 +1,6 @@
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
+import type { BuildType } from "../../projectSchemas/runtime";
+import type { ExportNote } from "../../core/project/templates/export";
 import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { PaymentConnectorSchema, PaymentManagerSchema } from "../../projectSchemas/payment";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
@@ -214,6 +216,33 @@ export type AddResourceInput =
 
 export type ProjectResource = AddResourceInput["resourceType"];
 
+/** Input for {@link ProjectManager.exportHarness}. */
+export type ExportHarnessInput = {
+  /** Name of an in-project harness. Mutually exclusive with `prefetched`. */
+  harnessName?: string;
+  /** A harness spec + system prompt fetched from the service (the `--arn` path). */
+  prefetched?: {
+    spec: z.output<typeof HarnessSpecSchema>;
+    systemPrompt?: string;
+  };
+  /** Name of the runtime agent to generate. */
+  targetAgentName: string;
+  /** Build override; when absent the harness spec decides (CodeZip unless it demands Container). */
+  build?: BuildType;
+};
+
+/** Result of {@link ProjectManager.exportHarness}. */
+export type ExportHarnessResult = {
+  harnessName: string;
+  agentName: string;
+  /** Absolute path of the generated agent directory. */
+  agentPath: string;
+  /** Absolute path of the EXPORT_NOTES.md file inside it. */
+  notesPath: string;
+  /** Manual follow-up items also written to EXPORT_NOTES.md. */
+  notes: ExportNote[];
+};
+
 export type RemoveResourceInput =
   | {
       resourceType:
@@ -284,4 +313,15 @@ export interface ProjectManager {
    * deploy can tear down the target's stack.
    */
   removeAllResources(project: Project): Promise<RemoveResourceResult>;
+
+  /**
+   * Convert a harness into an editable Strands runtime agent: render the agent
+   * code under app/<targetAgentName>/, register the runtime in agentcore.json
+   * (the source harness entry is kept), and write EXPORT_NOTES.md for anything
+   * that could not be mapped mechanically.
+   */
+  exportHarness(
+    project: Project,
+    input: ExportHarnessInput,
+  ): AsyncGenerator<ProjectEvent, ExportHarnessResult>;
 }

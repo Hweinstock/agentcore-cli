@@ -108,6 +108,8 @@ agentcore                          # interactive TUI
 │   ├── create                     # create a project: a managed harness by default,
 │   │                              #   or scaffolded runtime code via --template/--framework
 │   ├── add                        # add a resource to the project (runtime, harness, memory, …)
+│   ├── export
+│   │   └── harness                # convert a harness into an editable Strands runtime agent
 │   ├── remove                     # remove a resource from the project spec (spec-level;
 │   │                              #   code under app/ is kept). Resource types: harness,
 │   │                              #   runtime, credential, config-bundle, online-eval,
@@ -121,6 +123,16 @@ agentcore                          # interactive TUI
 │   └── dev                        # run the project's agents locally
 └── config                         # read/write global config values
 ```
+
+`project export harness` "ejects" a harness to code you own: it renders a
+Python Strands agent under `app/<target-agent-name>/` mapping the harness spec
+(model, system prompt, tools, skills, memory, execution limits), registers the
+new runtime in `agentcore.json` (the harness entry stays), and writes an
+`EXPORT_NOTES.md` in the agent directory listing anything that could not be
+mapped mechanically. Pass `--name <harness>` for an in-project harness or
+`--arn <harnessArn>` to fetch a deployed one (the fetch uses the region
+embedded in the ARN); `--target-agent-name` overrides the default
+`<harnessName>Agent`, and `--build CodeZip|Container` overrides the build type.
 
 Global flags (declared at the root, available on every command):
 
