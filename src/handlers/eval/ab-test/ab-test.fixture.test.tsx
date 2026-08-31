@@ -27,7 +27,7 @@ const FIXTURES = join(import.meta.dir, "__fixtures__");
 // matching the config-bundle fixtures). Replay is offline and account-agnostic;
 // re-record each describe under its own account:
 //   RECORD=1 bun test -t "fixture-backed reads"
-//   RECORD=1 bun test -t "config-bundle run"
+//   RECORD=1 bun test -t "config-based run"
 const FIXTURE_ABTEST_ID = "abvfylatest_abtargettest-a5f5674e07";
 const MISSING_ABTEST_ID = "missing-abtest-0000000000";
 
@@ -148,7 +148,7 @@ afterAll(async () => {
   }
 });
 
-describe("eval ab-test config-bundle run", () => {
+describe("eval ab-test config-based run", () => {
   test("provisions a bundle with two versions", async () => {
     const v1 = await run([
       "eval",
@@ -202,11 +202,11 @@ describe("eval ab-test config-bundle run", () => {
     created.onlineEvalId = JSON.parse(out).onlineEvaluationConfigId;
   }, 180_000);
 
-  test("runs a paused config-bundle A/B test", async () => {
+  test("runs a paused config-based A/B test", async () => {
     const out = await run([
       "eval",
       "ab-test",
-      "config-bundle",
+      "config-based",
       "run",
       "--name",
       AB_TEST_NAME,

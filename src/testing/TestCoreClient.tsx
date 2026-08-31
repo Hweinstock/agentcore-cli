@@ -138,7 +138,7 @@ import type {
   CodeBasedUpdate,
   CoreEvalClient,
   CreateConfigurationBundleInput,
-  CreateConfigBundleABTestInput,
+  CreateConfigBasedABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -1903,11 +1903,11 @@ export class TestEvalClient implements CoreEvalClient {
     return this.abTestDeleteResponse;
   }
 
-  async createConfigBundleABTest(
-    input: CreateConfigBundleABTestInput,
+  async createConfigBasedABTest(
+    input: CreateConfigBasedABTestInput,
     options: CoreOptions,
   ): Promise<CreateABTestResponse> {
-    this.calls.push({ method: "createConfigBundleABTest", args: [input, options] });
+    this.calls.push({ method: "createConfigBasedABTest", args: [input, options] });
     if (this.error) throw this.error;
     return this.abTestCreateResponse;
   }

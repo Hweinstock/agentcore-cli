@@ -29,7 +29,7 @@ function toBundleRef(name: string, raw: unknown): BundleRef {
   };
 }
 
-export const createConfigBundleRunHandler = (core: Core, io: AppIO) =>
+export const createConfigBasedRunHandler = (core: Core, io: AppIO) =>
   createHandler({
     name: "run",
     description: "run an A/B test between two config-bundle versions on one gateway",
@@ -104,7 +104,7 @@ export const createConfigBundleRunHandler = (core: Core, io: AppIO) =>
         throw new InputValidationError("--treatment-weight must be between 1 and 99");
       }
 
-      const result = await core.eval.createConfigBundleABTest(
+      const result = await core.eval.createConfigBasedABTest(
         {
           name: flags["name"]!,
           gateway: flags["gateway"]!,

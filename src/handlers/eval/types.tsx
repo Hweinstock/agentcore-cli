@@ -235,7 +235,7 @@ export type RoleScopeWarning = {
 
 export type BundleRef = { configBundle: string; bundleVersion: string };
 
-export type CreateConfigBundleABTestInput = {
+export type CreateConfigBasedABTestInput = {
   name: string;
   gateway: string;
   control: BundleRef;
@@ -443,8 +443,8 @@ export interface CoreEvalClient {
     options: CoreOptions,
   ): Promise<UpdateABTestResponse>;
   deleteABTest(id: string, options: CoreOptions): Promise<DeleteABTestResponse>;
-  createConfigBundleABTest(
-    input: CreateConfigBundleABTestInput,
+  createConfigBasedABTest(
+    input: CreateConfigBasedABTestInput,
     options: CoreOptions,
   ): Promise<CreateABTestResponse>;
   // startBatchEvaluation submits an async, service-side evaluation over sessions

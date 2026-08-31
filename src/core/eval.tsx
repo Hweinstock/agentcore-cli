@@ -122,7 +122,7 @@ import type {
   RoleScopeWarning,
   CoreEvalClient,
   CreateConfigurationBundleInput,
-  CreateConfigBundleABTestInput,
+  CreateConfigBasedABTestInput,
   CreateDatasetInput,
   CreateOnlineEvalInput,
   CreateOnlineInsightInput,
@@ -481,8 +481,8 @@ export class EvalClient implements CoreEvalClient {
       .send(new DeleteABTestCommand({ abTestId: id }));
   }
 
-  async createConfigBundleABTest(
-    input: CreateConfigBundleABTestInput,
+  async createConfigBasedABTest(
+    input: CreateConfigBasedABTestInput,
     options: CoreOptions,
   ): Promise<CreateABTestResponse> {
     const control = this.clients.control(toClientConfig(options));

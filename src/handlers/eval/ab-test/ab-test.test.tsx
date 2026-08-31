@@ -43,7 +43,7 @@ const LIST_RESPONSE = {
 const RUN_BASE = [
   "eval",
   "ab-test",
-  "config-bundle",
+  "config-based",
   "run",
   "--name",
   "orders-v2",
@@ -59,7 +59,7 @@ const RUN_BASE = [
 ];
 
 describe("eval ab-test command hierarchy", () => {
-  test("registers get, list, pause, resume, stop, delete, config-bundle", () => {
+  test("registers get, list, pause, resume, stop, delete, config-based", () => {
     const io = testIO();
     const root = createRootHandler(new TestCoreClient(), {
       io: io.io,
@@ -78,9 +78,9 @@ describe("eval ab-test command hierarchy", () => {
       "resume",
       "stop",
       "delete",
-      "config-bundle",
+      "config-based",
     ]);
-    const cb = group?.children().find((c) => c.name() === "config-bundle");
+    const cb = group?.children().find((c) => c.name() === "config-based");
     expect(cb?.children().map((c) => c.name())).toEqual(["run"]);
   });
 });
@@ -190,7 +190,7 @@ describe("eval ab-test delete", () => {
   });
 });
 
-describe("eval ab-test config-bundle run validation", () => {
+describe("eval ab-test config-based run validation", () => {
   test.each(["name", "gateway", "control", "treatment", "online-eval"] as const)(
     "requires --%s",
     async (missing) => {
@@ -223,7 +223,7 @@ describe("eval ab-test config-bundle run validation", () => {
       run([
         "eval",
         "ab-test",
-        "config-bundle",
+        "config-based",
         "run",
         "--name",
         "x",
@@ -257,7 +257,7 @@ describe("eval ab-test config-bundle run validation", () => {
           createdAt: new Date("2026-08-26T10:00:00.000Z"),
         }),
     );
-    const call = core.eval.calls.find((c) => c.method === "createConfigBundleABTest");
+    const call = core.eval.calls.find((c) => c.method === "createConfigBasedABTest");
     expect(call).toBeDefined();
     expect((call!.args[0] as { gatewayFilter?: unknown }).gatewayFilter).toEqual({
       targetPaths: ["/orders/checkout"],
