@@ -263,7 +263,13 @@ function expandTilde(filePath: string): string {
 // fabricating one client-side risks pointing at a nonexistent object if
 // Aperture's bucket layout or region shifts.
 function objectKeyFromPresignedUrl(presignedUrl: string): string {
-  return decodeURIComponent(new URL(presignedUrl).pathname.replace(/^\/+/, ""));
+  try {
+    return decodeURIComponent(new URL(presignedUrl).pathname.replace(/^\/+/, ""));
+  } catch {
+    // A 2xx presign body that isn't a URL is a service fault, not a bare TypeError —
+    // classify it so telemetry attributes it to the service, not internal.
+    throw new ApertureError("Feedback service returned an invalid screenshot upload URL.");
+  }
 }
 
 function buildFeedbackPayload(input: {
