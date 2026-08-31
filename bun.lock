@@ -1,5 +1,5 @@
 {
-  "lockfileVersion": 1,
+  "lockfileVersion": 3,
   "configVersion": 1,
   "workspaces": {
     "": {
@@ -52,6 +52,9 @@
     },
   },
   "overrides": {
+    "@aws-cdk/toolkit-lib": {
+      "yaml": "^1",
+    },
     "@opentelemetry/core": "^2.10.0",
   },
   "packages": {
