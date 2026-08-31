@@ -18,7 +18,7 @@ function toTargetRef(name: string, raw: unknown): TargetVariantRef {
   const parsed = targetRefSchema.safeParse(raw);
   if (!parsed.success) {
     throw new InputValidationError(
-      `--${name} must be {"gateway-target": "<id>", "online-eval": "<id>"}`,
+      `--${name} must be {"gateway-target": "<name>", "online-eval": "<id>"}`,
     );
   }
   return { gatewayTarget: parsed.data["gateway-target"], onlineEval: parsed.data["online-eval"] };
@@ -33,12 +33,12 @@ export const createTargetBasedRunHandler = (core: Core, io: AppIO) =>
       flag("gateway", "deployed gateway id", z.string().optional()),
       flag(
         "control",
-        'control JSON {"gateway-target","online-eval"} (inline, file://, or -)',
+        'control JSON {"gateway-target":"<name>","online-eval":"<id>"} (inline, file://, or -)',
         z.string().optional(),
       ),
       flag(
         "treatment",
-        'treatment JSON {"gateway-target","online-eval"} (inline, file://, or -)',
+        'treatment JSON {"gateway-target":"<name>","online-eval":"<id>"} (inline, file://, or -)',
         z.string().optional(),
       ),
       flag(
