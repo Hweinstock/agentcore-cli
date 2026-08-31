@@ -45,6 +45,7 @@ type CoreClientConfig = {
   logger: Logger;
   fetch?: CoreFetch;
   newSessionId?: () => string;
+  now?: () => number;
   describeBedrockAgent?: DescribeBedrockAgent;
 };
 
@@ -93,6 +94,7 @@ export class CoreClient implements AwsClients {
       fetch,
       this.logger.child({ module: "eval" }),
       config.newSessionId,
+      config.now,
     );
 
     // Observability resolves a project's deployed runtime from its stack
