@@ -1,19 +1,34 @@
-import { useQuery } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router";
+import { Text } from "ink";
+import { Navigate, useNavigate, useParams } from "react-router";
 import { Layout } from "../../../components/Layout";
 import { ConfirmAction } from "../../../components/ConfirmAction";
-import { DataTable, type DataTableColumn } from "../../../components/ui/data-table";
-import { Spinner } from "../../../components/ui/spinner";
-import { Text } from "ink";
+import { StaticTablePicker } from "../../../components/StaticTablePicker";
+import type { DataTableColumn } from "../../../components/ui/data-table";
 import { ProjectKey } from "../../../router";
 import type { ProjectSpec } from "../../../projectSchemas/project";
 import type { ScreenProps } from "../../types";
-import type { Project } from "../types";
+import type { Project, RemoveResourceInput } from "../types";
 
-// The resource types whose removal is fully specified by a name alone. Nested
-// sub-resources — gateway targets and connectors, policies, payment connectors
-// — need a parent selection and stay CLI-only for now.
-type SimpleResourceType =
+// A single removable resource: its display name, the parent it belongs to (for
+// nested resources), and the input that removes it.
+interface RemovableResource {
+  name: string;
+  parent?: string;
+  input: RemoveResourceInput;
+}
+
+// A removable resource type shown in the picker: how to label it, what to head
+// the parent column with (nested types only), and how to read its resources
+// off the project spec.
+interface RemovableType {
+  resourceType: string;
+  label: string;
+  parentLabel?: string;
+  getNamedFromSpec: (spec: ProjectSpec) => RemovableResource[];
+}
+
+// The resource types removed by name alone (RemoveResourceInput's first branch).
+type NameOnlyType =
   | "runtime"
   | "harness"
   | "memory"
@@ -24,141 +39,135 @@ type SimpleResourceType =
   | "policy-engine"
   | "payment-manager";
 
-// A removable resource type as shown in the picker: how to label it and how to
-// read the names it currently holds from the project spec.
-interface RemovableType {
-  resourceType: SimpleResourceType;
-  label: string;
-  names: (spec: ProjectSpec) => string[];
+// nameOnly builds a type whose resources are removed by name alone.
+function nameOnly(
+  resourceType: NameOnlyType,
+  read: (spec: ProjectSpec) => { name: string }[],
+): RemovableType {
+  return {
+    resourceType,
+    label: resourceType,
+    getNamedFromSpec: (spec) =>
+      read(spec).map(({ name }) => ({ name, input: { resourceType, name } })),
+  };
 }
 
 const REMOVABLE_TYPES: RemovableType[] = [
-  { resourceType: "runtime", label: "runtime", names: (s) => s.runtimes.map((r) => r.name) },
-  { resourceType: "harness", label: "harness", names: (s) => s.harnesses.map((h) => h.name) },
-  { resourceType: "memory", label: "memory", names: (s) => s.memories.map((m) => m.name) },
+  nameOnly("runtime", (s) => s.runtimes),
+  nameOnly("harness", (s) => s.harnesses),
+  nameOnly("memory", (s) => s.memories),
+  nameOnly("credential", (s) => s.credentials),
+  nameOnly("config-bundle", (s) => s.configBundles),
+  nameOnly("online-eval", (s) => s.onlineEvalConfigs),
+  nameOnly("gateway", (s) => s.agentCoreGateways),
+  nameOnly("policy-engine", (s) => s.policyEngines),
+  nameOnly("payment-manager", (s) => s.payments ?? []),
   {
-    resourceType: "credential",
-    label: "credential",
-    names: (s) => s.credentials.map((c) => c.name),
+    resourceType: "gateway-target",
+    label: "gateway-target",
+    parentLabel: "gateway",
+    getNamedFromSpec: (s) =>
+      s.agentCoreGateways.flatMap((gateway) =>
+        gateway.targets
+          .filter((target) => target.targetType !== "connector")
+          .map((target) => ({
+            name: target.name,
+            parent: gateway.name,
+            input: { resourceType: "gateway-target", gatewayName: gateway.name, name: target.name },
+          })),
+      ),
   },
   {
-    resourceType: "config-bundle",
-    label: "config-bundle",
-    names: (s) => s.configBundles.map((b) => b.name),
+    resourceType: "gateway-connector",
+    label: "gateway-connector",
+    parentLabel: "gateway",
+    getNamedFromSpec: (s) =>
+      s.agentCoreGateways.flatMap((gateway) =>
+        gateway.targets
+          .filter((target) => target.targetType === "connector")
+          .map((target) => ({
+            name: target.name,
+            parent: gateway.name,
+            input: { resourceType: "gateway-target", gatewayName: gateway.name, name: target.name },
+          })),
+      ),
   },
   {
-    resourceType: "online-eval",
-    label: "online-eval",
-    names: (s) => s.onlineEvalConfigs.map((c) => c.name),
+    resourceType: "policy",
+    label: "policy",
+    parentLabel: "engine",
+    getNamedFromSpec: (s) =>
+      s.policyEngines.flatMap((engine) =>
+        engine.policies.map((policy) => ({
+          name: policy.name,
+          parent: engine.name,
+          input: { resourceType: "policy", engineName: engine.name, name: policy.name },
+        })),
+      ),
   },
   {
-    resourceType: "gateway",
-    label: "gateway",
-    names: (s) => s.agentCoreGateways.map((g) => g.name),
-  },
-  {
-    resourceType: "policy-engine",
-    label: "policy-engine",
-    names: (s) => s.policyEngines.map((e) => e.name),
-  },
-  {
-    resourceType: "payment-manager",
-    label: "payment-manager",
-    names: (s) => (s.payments ?? []).map((p) => p.name),
+    resourceType: "payment-connector",
+    label: "payment-connector",
+    parentLabel: "manager",
+    getNamedFromSpec: (s) =>
+      (s.payments ?? []).flatMap((manager) =>
+        manager.connectors.map((connector) => ({
+          name: connector.name,
+          parent: manager.name,
+          input: {
+            resourceType: "payment-connector",
+            managerName: manager.name,
+            name: connector.name,
+          },
+        })),
+      ),
   },
 ];
 
 const REMOVE_ROOT = "/agentcore/project/remove";
 
-// ProjectRemoveScreen removes resources from the current project's spec. It
-// resolves the project once, then routes on its `:resourceType`/`:name` params:
-// no params → a picker of the resource types the project holds plus `all`; a
-// type → a picker of that type's resources; a type + name (or `all`) → the
-// shared ConfirmAction. esc walks back one level, matching harness delete.
 export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
-  const { resourceType, name } = useParams();
-
-  const fromCtx = ctx.value(ProjectKey);
-  const cwd = process.cwd();
-  const query = useQuery({
-    queryKey: ["project", "remove", cwd],
-    // react-query rejects an undefined resolution; normalize "no project" to null.
-    queryFn: async () => (await core.projectManager.resolve({ filePath: cwd })) ?? null,
-    enabled: !fromCtx,
-  });
-  const project = fromCtx ?? query.data ?? undefined;
-
-  const breadcrumb = ["agentcore", "project", "remove"];
+  const { resourceType, index } = useParams();
+  const project = ctx.value(ProjectKey);
 
   if (!project) {
-    const backHints = [
-      { key: "esc", label: "back" },
-      { key: "ctl+c", label: "quit" },
-    ];
-    if (!fromCtx && query.isPending) {
-      return (
-        <Layout
-          breadcrumb={breadcrumb}
-          description="resolving the current project"
-          keyHints={backHints}
-        >
-          <Spinner label="Resolving project…" />
-        </Layout>
-      );
-    }
-    // A resolve that threw (e.g. a malformed agentcore.json) is a real failure,
-    // distinct from simply not finding a project; surface its message rather
-    // than the misleading "no project found".
-    if (query.isError) {
-      return (
-        <Layout
-          breadcrumb={breadcrumb}
-          description="unable to resolve the project"
-          keyHints={backHints}
-        >
-          <Text color="red">{(query.error as Error).message}</Text>
-        </Layout>
-      );
-    }
     return (
-      <Layout breadcrumb={breadcrumb} description="no project found" keyHints={backHints}>
-        <Text color="red">
-          {`No AgentCore project found at ${cwd} or any parent directory ` +
-            `(looked for agentcore/agentcore.json). Run 'agentcore project create' to scaffold one.`}
-        </Text>
+      <Layout
+        breadcrumb={["agentcore", "project", "remove"]}
+        description="no project loaded"
+        keyHints={[
+          { key: "esc", label: "back" },
+          { key: "ctl+c", label: "quit" },
+        ]}
+      >
+        <Text color="red">No AgentCore project is loaded.</Text>
       </Layout>
     );
   }
 
   if (!resourceType) {
-    return <ResourceTypePicker project={project} />;
+    return <TypePicker project={project} />;
   }
 
   if (resourceType === "all") {
     return <RemoveAllConfirm project={project} core={core} />;
   }
 
-  const removable = REMOVABLE_TYPES.find((entry) => entry.resourceType === resourceType);
-  if (!removable) {
-    return (
-      <Layout
-        breadcrumb={[...breadcrumb, resourceType]}
-        description="unknown resource type"
-        keyHints={[
-          { key: "esc", label: "back" },
-          { key: "ctl+c", label: "quit" },
-        ]}
-      >
-        <Text color="red">{`'${resourceType}' cannot be removed from the interactive screen.`}</Text>
-      </Layout>
-    );
+  const type = REMOVABLE_TYPES.find((entry) => entry.resourceType === resourceType);
+  if (!type) {
+    return <Navigate to={REMOVE_ROOT} replace />;
   }
 
-  if (!name) {
-    return <ResourceNamePicker project={project} removable={removable} />;
+  if (index === undefined) {
+    return <ResourcePicker project={project} type={type} />;
   }
 
-  return <RemoveConfirm project={project} core={core} removable={removable} name={name} />;
+  const resource = type.getNamedFromSpec(project.spec)[Number(index)];
+  if (!resource) {
+    return <Navigate to={`${REMOVE_ROOT}/${type.resourceType}`} replace />;
+  }
+
+  return <RemoveConfirm project={project} core={core} type={type} resource={resource} />;
 }
 
 type TypeRow = Record<string, unknown> & { type: string; count: string; value: string };
@@ -168,120 +177,89 @@ const typeColumns = [
   { key: "count", header: "count", width: 8, align: "right" },
 ] satisfies DataTableColumn<TypeRow>[];
 
-// ResourceTypePicker lists the resource types the project holds plus an `all`
-// row that empties every collection.
-function ResourceTypePicker({ project }: { project: Project }) {
+function TypePicker({ project }: { project: Project }) {
   const navigate = useNavigate();
 
   const rows: TypeRow[] = REMOVABLE_TYPES.flatMap((entry) => {
-    const count = entry.names(project.spec).length;
+    const count = entry.getNamedFromSpec(project.spec).length;
     if (count === 0) return [];
     return [{ type: entry.label, count: String(count), value: entry.resourceType }];
   });
   rows.push({ type: "all", count: "", value: "all" });
 
   return (
-    <Layout
+    <StaticTablePicker
       breadcrumb={["agentcore", "project", "remove"]}
       description={`choose a resource to remove from project ${project.name}`}
-      keyHints={[
-        { key: "↑↓/jk", label: "navigate" },
-        { key: "/", label: "filter" },
-        { key: "enter", label: "select" },
-        { key: "esc", label: "cancel" },
-        { key: "ctl+c", label: "quit" },
-      ]}
-    >
-      <DataTable
-        borderStyle="none"
-        showFooter={false}
-        focus
-        columns={typeColumns}
-        data={rows}
-        emptyMessage="This project has no resources to remove."
-        onSelect={(row) => navigate(`${REMOVE_ROOT}/${row.value}`)}
-        onEscape={() => navigate("/agentcore/project")}
-      />
-    </Layout>
+      columns={typeColumns}
+      rows={rows}
+      emptyMessage="This project has no resources to remove."
+      onSelect={(row) => navigate(`${REMOVE_ROOT}/${row.value}`)}
+      onBack={() => navigate("/agentcore/project")}
+    />
   );
 }
 
-type NameRow = Record<string, unknown> & { name: string };
+type ResourceRow = Record<string, unknown> & { index: string; name: string; parent: string };
 
-const nameColumns = [
-  { key: "name", header: "name", flex: true },
-] satisfies DataTableColumn<NameRow>[];
-
-// ResourceNamePicker lists the individual resources of one type. Selecting one
-// opens its confirmation; esc returns to the resource-type list.
-function ResourceNamePicker({
-  project,
-  removable,
-}: {
-  project: Project;
-  removable: RemovableType;
-}) {
+function ResourcePicker({ project, type }: { project: Project; type: RemovableType }) {
   const navigate = useNavigate();
-  const rows: NameRow[] = removable.names(project.spec).map((name) => ({ name }));
+  const rows: ResourceRow[] = type.getNamedFromSpec(project.spec).map((resource, i) => ({
+    index: String(i),
+    name: resource.name,
+    parent: resource.parent ?? "",
+  }));
+  const columns: DataTableColumn<ResourceRow>[] = type.parentLabel
+    ? [
+        { key: "parent", header: type.parentLabel, width: 24 },
+        { key: "name", header: "name", flex: true },
+      ]
+    : [{ key: "name", header: "name", flex: true }];
 
   return (
-    <Layout
-      breadcrumb={["agentcore", "project", "remove", removable.label]}
-      description={`choose a ${removable.label} to remove`}
-      keyHints={[
-        { key: "↑↓/jk", label: "navigate" },
-        { key: "/", label: "filter" },
-        { key: "enter", label: "select" },
-        { key: "esc", label: "back" },
-        { key: "ctl+c", label: "quit" },
-      ]}
-    >
-      <DataTable
-        borderStyle="none"
-        showFooter={false}
-        focus
-        columns={nameColumns}
-        data={rows}
-        emptyMessage={`This project has no ${removable.label} resources.`}
-        onSelect={(row) => navigate(`${REMOVE_ROOT}/${removable.resourceType}/${row.name}`)}
-        onEscape={() => navigate(REMOVE_ROOT)}
-      />
-    </Layout>
+    <StaticTablePicker
+      breadcrumb={["agentcore", "project", "remove", type.label]}
+      description={`choose a ${type.label} to remove`}
+      columns={columns}
+      rows={rows}
+      emptyMessage={`This project has no ${type.label} resources.`}
+      onSelect={(row) => navigate(`${REMOVE_ROOT}/${type.resourceType}/${row.index}`)}
+      onBack={() => navigate(REMOVE_ROOT)}
+    />
   );
 }
 
-// RemoveConfirm confirms and performs the removal of a single named resource.
 function RemoveConfirm({
   project,
   core,
-  removable,
-  name,
+  type,
+  resource,
 }: {
   project: Project;
   core: ScreenProps["core"];
-  removable: RemovableType;
-  name: string;
+  type: RemovableType;
+  resource: RemovableResource;
 }) {
   const navigate = useNavigate();
 
   return (
     <ConfirmAction
-      breadcrumb={["agentcore", "project", "remove", removable.label, name]}
-      title={name}
+      breadcrumb={["agentcore", "project", "remove", type.label, resource.name]}
+      title={resource.name}
       rows={[
-        { label: "type", value: removable.label },
+        { label: "type", value: type.label },
+        ...(resource.parent
+          ? [{ label: type.parentLabel ?? "parent", value: resource.parent }]
+          : []),
         { label: "project", value: project.name },
       ]}
-      message={`Remove ${removable.label} '${name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`}
+      message={`Remove ${type.label} '${resource.name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`}
       isPending={false}
       error={null}
       action={async () => {
-        const result = await core.projectManager.removeResource(project, {
-          resourceType: removable.resourceType,
-          name,
-        });
+        const result = await core.projectManager.removeResource(project, resource.input);
         return [
-          { label: "removed", value: `${removable.label} '${name}'` },
+          { label: "removed", value: `${type.label} '${resource.name}'` },
           ...result.removedEnvKeys.map((key) => ({ label: "env", value: `removed ${key}` })),
         ];
       }}
@@ -292,13 +270,11 @@ function RemoveConfirm({
   );
 }
 
-// RemoveAllConfirm confirms and performs a spec-level reset of every resource
-// collection, mirroring `project remove all --yes`.
 function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenProps["core"] }) {
   const navigate = useNavigate();
 
   const populated = REMOVABLE_TYPES.flatMap((entry) => {
-    const count = entry.names(project.spec).length;
+    const count = entry.getNamedFromSpec(project.spec).length;
     return count === 0 ? [] : [{ label: entry.label, value: String(count) }];
   });
 
