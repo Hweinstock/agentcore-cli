@@ -124,7 +124,7 @@ process.exit(
       await telemetryClient.shutdown();
       await rootLogger.end();
 
-      printFirstRunNotice(isFirstRun, io.stderr);
+      printFirstRunNotice(isFirstRun, globalConfig.telemetry.enabled, io.stderr);
     }
   }),
 );

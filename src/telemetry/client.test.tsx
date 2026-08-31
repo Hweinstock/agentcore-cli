@@ -107,10 +107,13 @@ describe("DefaultTelemetryClient", () => {
     const enabledSessionId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
     const disabledSessionId = "ffffffff-1111-2222-3333-444444444444";
 
+    const installationId = "00000000-0000-0000-0000-000000000000";
+
     const enabledConfigAccessor = new TestGlobalConfigAccessor();
     const enabledConfig = await enabledConfigAccessor.get();
     await enabledConfigAccessor.set({
       ...enabledConfig,
+      installationId,
       telemetry: { ...enabledConfig.telemetry, audit: true },
     });
 
@@ -118,6 +121,7 @@ describe("DefaultTelemetryClient", () => {
     const disabledConfig = await disabledConfigAccessor.get();
     await disabledConfigAccessor.set({
       ...disabledConfig,
+      installationId,
       telemetry: { ...disabledConfig.telemetry, audit: false },
     });
 
@@ -158,7 +162,7 @@ describe("DefaultTelemetryClient", () => {
       attrs: {
         "service.name": "agentcore-cli",
         "service.version": PACKAGE_VERSION,
-        "agentcore-cli.installation_id": enabledConfig.installationId,
+        "agentcore-cli.installation_id": installationId,
         "agentcore-cli.session_id": enabledSessionId,
         "os.type": os.type(),
         "os.version": os.release(),
@@ -321,6 +325,7 @@ describe("OtelHistogramSink", () => {
       const globalConfigAccessor = new TestGlobalConfigAccessor({
         initialConfigData: {
           ...DEFAULT_GLOBAL_CONFIG,
+          installationId: "00000000-0000-0000-0000-000000000000",
           telemetry: {
             enabled,
             audit: false,
