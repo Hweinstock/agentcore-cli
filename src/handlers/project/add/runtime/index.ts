@@ -181,6 +181,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
           ? resolveRuntimeTemplateShortcut(flags.template!, {
               runtimeName: flags.name,
               build: flags.build,
+              protocol: flags.protocol,
               modelProvider: flags["model-provider"],
               apiKey,
               memory: flags.memory,
@@ -191,6 +192,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
                 build: flags.build,
                 language: flags.language,
                 framework: flags.framework,
+                protocol: flags.protocol,
                 modelProvider: flags["model-provider"],
                 apiKey,
                 memory: MEMORY_SHORTCUTS[flags.memory ?? defaultMemory](runtimeName),

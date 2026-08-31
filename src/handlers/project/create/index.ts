@@ -22,6 +22,7 @@ import {
   HarnessSpecSchema,
   type HarnessModelProvider,
 } from "../../../projectSchemas/harness";
+import { ProtocolModeSchema } from "../../../projectSchemas/constants";
 import { InputValidationError } from "../../../errors";
 import { parseJsonFlag } from "../../utils";
 import { DEFAULT_HARNESS_MODEL } from "../add/harness";
@@ -47,6 +48,7 @@ const RUNTIME_PATH_FLAGS = [
   "build",
   "language",
   "framework",
+  "protocol",
   "api-key",
   "runtime-name",
   "memory",
@@ -112,6 +114,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         "agent framework for the scaffolded runtime code",
         z.enum(["strands", "none"]).optional(),
       ),
+      flag("protocol", "server protocol: HTTP, MCP, A2A, AGUI", ProtocolModeSchema.optional()),
       flag(
         "model-provider",
         "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; Bedrock for runtime code",
@@ -225,7 +228,15 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
 
       const isImport = flags["type"] === "import";
       const scaffoldingChoiceFlags = (
-        ["build", "language", "framework", "model-provider", "api-key", "memory"] as const
+        [
+          "build",
+          "language",
+          "framework",
+          "protocol",
+          "model-provider",
+          "api-key",
+          "memory",
+        ] as const
       ).filter((f) => flags[f] !== undefined);
       if (isImport && (isTemplate || scaffoldingChoiceFlags.length > 0)) {
         const offending = isTemplate ? "template" : scaffoldingChoiceFlags[0];
@@ -290,6 +301,7 @@ type RuntimePathFlagValues = {
   build?: "CodeZip" | "Container";
   language?: "Python" | "TypeScript";
   framework?: "strands" | "none";
+  protocol?: z.infer<typeof ProtocolModeSchema>;
   "model-provider"?: ModelProviderFlag;
   "api-key"?: string;
   memory?: (typeof MEMORY_SHORTCUT_NAMES)[number];
@@ -325,6 +337,7 @@ async function resolveScaffoldRuntimeInput(
     ? resolveRuntimeTemplateShortcut(flags["template"], {
         runtimeName: flags["runtime-name"],
         build: flags["build"],
+        protocol: flags["protocol"],
         modelProvider,
         apiKey,
         memory: flags["memory"],
@@ -334,6 +347,7 @@ async function resolveScaffoldRuntimeInput(
         build: flags["build"],
         language: flags["language"],
         framework: flags["framework"],
+        protocol: flags["protocol"],
         modelProvider,
         apiKey,
         memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
