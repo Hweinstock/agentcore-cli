@@ -3,12 +3,9 @@ import type { AssetSource } from "../source";
 import type { Evaluator } from "../../../projectSchemas/evaluator";
 import type { TemplateRenderer, TemplateResolver } from "./types";
 
-/** Inputs for scaffolding a managed code-based evaluator's Lambda source. */
 export type EvaluatorScaffoldInput = {
   evaluator: Evaluator;
-  /** Template directory under src/assets/evaluators, e.g. "evaluators/deepeval-lambda". */
   assetDir: string;
-  /** Handlebars variables for the template (EvaluatorClass, Model, ModelProviderBedrock, ...). */
   context: Record<string, unknown>;
 };
 
@@ -17,7 +14,6 @@ type GetEvaluatorTemplateResolverConfig = {
   templateRenderer: TemplateRenderer;
 };
 
-/** Resolves the template that renders a managed code-based evaluator's code directory. */
 export function getEvaluatorTemplateResolver(
   config: GetEvaluatorTemplateResolverConfig,
 ): TemplateResolver<EvaluatorScaffoldInput> {

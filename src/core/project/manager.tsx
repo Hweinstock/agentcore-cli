@@ -338,15 +338,9 @@ export class FsProjectManager implements ProjectManager {
       }
       case "evaluator": {
         const evaluator = parseResource(EvaluatorSchema, input.resourceConfig);
-        // Managed code-based evaluators ship generated Lambda source; external
-        // and llm-as-a-judge evaluators are spec-only.
         if (input.scaffold) {
           yield { message: "Scaffolding evaluator in project" };
           const outputPath = join(project.rootPath, "app", evaluator.name);
-          // Runtimes, harnesses, and evaluators all scaffold into app/<name>,
-          // but the dup-name guard above is per-resource-type. Fail up front
-          // rather than let FsTreeNode.write throw mid-write (outside the
-          // rollback try/catch below) and orphan partial files.
           if (existsSync(outputPath))
             throw new InputValidationError(
               `cannot scaffold evaluator '${evaluator.name}': 'app/${evaluator.name}' already exists (another resource may use this name, or a previous scaffold was left behind)`,

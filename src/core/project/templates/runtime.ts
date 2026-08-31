@@ -5,6 +5,7 @@ import type { ProjectRuntime } from "../../../projectSchemas/runtime";
 import type { TemplateRenderer, TemplateResolver } from "./types";
 import type { ScaffoldRuntimeInput } from "../../../handlers/project/types";
 import { InputValidationError } from "../../../errors";
+import { toPythonPackageName } from "../fsUtils";
 
 function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   const { scaffoldRuntimeInput, name, ...infra } = input;
@@ -36,18 +37,6 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
     }),
     ...(infra.tags && { tags: infra.tags }),
   };
-}
-
-/**
- * Normalize a name for use as a Python package name per PEP 508.
- * Valid names consist only of ASCII letters, numbers, period, underscore, and
- * hyphen, and must start and end with a letter or number.
- */
-export function toPythonPackageName(name: string): string {
-  return name
-    .replace(/[^a-zA-Z0-9._-]/g, "-")
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .replace(/[^a-zA-Z0-9]+$/, "");
 }
 
 /**

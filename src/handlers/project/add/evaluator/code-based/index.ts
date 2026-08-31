@@ -3,19 +3,18 @@ import { createHandler, flag, ProjectKey } from "../../../../../router";
 import { InputValidationError } from "../../../../../errors";
 import { EvaluatorSchema, isValidBedrockModelId } from "../../../../../projectSchemas/evaluator";
 import { TagsSchema } from "../../../../../projectSchemas/tags";
+import { toPythonPackageName } from "../../../../../core/project/fsUtils";
 import { parseJsonFlagWithSchema } from "../../../../utils";
 import type { AddProjectResourceConfig } from "../../types";
 
-// 3P evaluator libraries the CLI can scaffold. The metric class is passed
-// through to the library (not allowlisted here) — only the library prefix is
-// validated. Default timeouts mirror the old CLI's THIRD_PARTY_EVALUATOR_LIBRARIES.
+const DEFAULT_TIMEOUT = 60;
+
 const LIBRARIES: Record<string, { assetDir: string; defaultTimeoutSeconds: number }> = {
   deepeval: { assetDir: "evaluators/deepeval-lambda", defaultTimeoutSeconds: 300 },
-  autoevals: { assetDir: "evaluators/autoevals-lambda", defaultTimeoutSeconds: 60 },
+  autoevals: { assetDir: "evaluators/autoevals-lambda", defaultTimeoutSeconds: DEFAULT_TIMEOUT },
 };
 
 const EMPTY_ASSET_DIR = "evaluators/python-lambda";
-const EMPTY_DEFAULT_TIMEOUT_SECONDS = 60;
 
 export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -71,8 +70,6 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
         tags,
       };
 
-      // Kept loose so `--level` stays a plain string for EvaluatorSchema to
-      // validate (mirrors the llm-as-a-judge handler); safeParse narrows it.
       let candidate: Record<string, unknown>;
       let scaffold: { assetDir: string; context: Record<string, unknown> } | undefined;
 
@@ -86,12 +83,11 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
           config: { codeBased: { external: { lambdaArn: flags["lambda-arn"] } } },
         };
       } else {
-        // managed: 3P metric, or empty stub when no metric is given.
         if (flags["model"] && !hasMetric)
           throw new InputValidationError("--model requires --metric");
 
         let assetDir = EMPTY_ASSET_DIR;
-        let defaultTimeout = EMPTY_DEFAULT_TIMEOUT_SECONDS;
+        let defaultTimeout = DEFAULT_TIMEOUT;
         const context: Record<string, unknown> = { Name: toPythonPackageName(flags["name"]) };
 
         if (hasMetric) {
@@ -104,10 +100,6 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
             throw new InputValidationError(
               `invalid --metric "${raw}": expected <library.Metric> where library is one of ${Object.keys(LIBRARIES).join(", ")} (e.g. deepeval.FaithfulnessMetric)`,
             );
-          // The class is rendered straight into `from <lib> import <class>` and
-          // `<class>(...)`, so it must be a single Python identifier. Reject
-          // dotted/namespaced values (e.g. deepeval.metrics.Faithfulness) that
-          // would emit invalid Python and only fail at deploy/runtime.
           if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(metricClass))
             throw new InputValidationError(
               `invalid metric class "${metricClass}" in --metric "${raw}": expected a single class name like FaithfulnessMetric`,
@@ -152,9 +144,6 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
       }
 
       config.io.stderr.write(`added evaluator '${flags["name"]}' to '${project.name}'\n`);
-      // Make the inferred mode and its caveats visible: the empty stub silently
-      // passes every session, and no managed evaluator is provisioned by deploy
-      // yet (no CDK/L3 support) — both are silent footguns otherwise.
       if (!hasLambda) {
         if (!hasMetric)
           config.io.stderr.write(
@@ -167,12 +156,6 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
     },
   });
 
-// Judge model for a 3P metric. Bedrock-only: accepts a bare Bedrock model id /
-// inference-profile-or-foundation-model ARN, optionally prefixed with
-// `bedrock/`, and returns the id with the prefix stripped. Anything else errors
-// rather than silently degrading — a non-Bedrock value is dropped by the
-// deepeval template and passed to the wrong client by autoevals. Returns
-// undefined when no --model was given (library default).
 function resolveBedrockModel(model: string | undefined): string | undefined {
   if (!model) return undefined;
   const id = model.startsWith("bedrock/") ? model.slice("bedrock/".length) : model;
@@ -181,13 +164,4 @@ function resolveBedrockModel(model: string | undefined): string | undefined {
       `invalid --model "${model}": expected a Bedrock model ID (e.g. anthropic.claude-3-5-sonnet-20240620-v1:0) or an inference-profile/foundation-model ARN, optionally prefixed with "bedrock/"`,
     );
   return id;
-}
-
-// PEP 508 package name: ASCII letters/numbers/period/underscore/hyphen, must
-// start and end alphanumeric. Mirrors the runtime template helper.
-function toPythonPackageName(name: string): string {
-  return name
-    .replace(/[^a-zA-Z0-9._-]/g, "-")
-    .replace(/^[^a-zA-Z0-9]+/, "")
-    .replace(/[^a-zA-Z0-9]+$/, "");
 }

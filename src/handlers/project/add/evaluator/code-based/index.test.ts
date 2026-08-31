@@ -90,7 +90,6 @@ describe("project add evaluator code-based", () => {
     expect(handler).toContain("AmazonBedrockModel");
     expect(handler).toContain("anthropic.claude-3-5-sonnet-20240620-v1:0");
     expect(await Bun.file(join(appDir, "execution-role-policy.json")).exists()).toBe(true);
-    // no unrendered Handlebars left behind
     expect(handler).not.toContain("{{");
   });
 
@@ -305,7 +304,6 @@ describe("project add evaluator code-based", () => {
       run(["add", "evaluator", "code-based", "--name", "collide", "--level", "SESSION"]),
     ).rejects.toBeInstanceOf(InputValidationError);
 
-    // no spec entry, and the pre-existing dir is left untouched (no mid-write orphans)
     expect(await evaluator(projectRoot, "collide")).toBeUndefined();
     expect(await Bun.file(join(appDir, "pyproject.toml")).text()).toBe("# pre-existing\n");
     expect(await Bun.file(join(appDir, "lambda_function.py")).exists()).toBe(false);
