@@ -20,7 +20,7 @@ import { FsReadWriteJson } from "./io";
 import { createFileLogger, LOG_LEVEL } from "./logging";
 import { runWithExitCode } from "./runnable";
 import { DefaultGlobalConfigAccessor } from "./globalConfig";
-import { DefaultTelemetryClient } from "./telemetry";
+import { DefaultTelemetryClient, printFirstRunNotice } from "./telemetry";
 import { AgentCoreCLIError } from "./errors";
 import { PACKAGE_VERSION } from "./constants";
 import { CommandRunMetricEventKey, ValueContext } from "./router";
@@ -60,6 +60,10 @@ process.exit(
     const commandRunMetricEvent = telemetryClient.createMetricEvent("cli.command_run", {
       exit_reason: "success",
     });
+
+    // Capture first-run state up front: routing and telemetry emission both read
+    // the global config, which persists an installationId as a side effect.
+    const isFirstRun = await globalConfigAccessor.isFirstRun();
 
     try {
       rootLogger.info(`running CLI`);
@@ -112,6 +116,10 @@ process.exit(
       }
       await telemetryClient.shutdown();
       await rootLogger.end();
+
+      // On a fresh install, inform the user that telemetry is collected and how
+      // to opt out. Printed last so it isn't buried by command output.
+      printFirstRunNotice(isFirstRun, io.stderr);
     }
   }),
 );
