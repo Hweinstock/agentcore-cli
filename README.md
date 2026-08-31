@@ -108,7 +108,14 @@ agentcore                          # interactive TUI
 │   ├── create                     # create a project: a managed harness by default,
 │   │                              #   or scaffolded runtime code via --template/--framework
 │   ├── add                        # add a resource to the project (runtime, harness, memory, …)
-│   ├── remove                     # remove a resource from the project
+│   ├── remove                     # remove a resource from the project spec (spec-level;
+│   │                              #   code under app/ is kept). Resource types: harness,
+│   │                              #   runtime, credential, config-bundle, online-eval,
+│   │                              #   online-insight, memory, gateway, gateway-target,
+│   │                              #   gateway-connector, policy-engine, policy,
+│   │                              #   payment-manager, payment-connector — or `all`, which
+│   │                              #   empties every resource collection (y/N prompt; --yes
+│   │                              #   skips it for non-interactive use)
 │   ├── build                      # synthesize the project's CloudFormation templates
 │   ├── deploy                     # deploy to AWS (auto-provisions the default target)
 │   └── dev                        # run the project's agents locally
@@ -236,6 +243,13 @@ agentcore eval evaluator code-based create \
 agentcore eval evaluator get --id <evaluatorId> --json
 agentcore eval evaluator list --max-results 20 --json
 agentcore eval evaluator delete --id <evaluatorId> --json
+
+# Remove resources from a project's spec (run inside the project)
+agentcore project remove memory --name recall
+agentcore project remove credential --name svc-key   # also deletes its .env.local entries
+agentcore project remove gateway-target --gateway tools --name search
+agentcore project remove all                         # y/N prompt; empties every collection
+agentcore project remove all --yes                   # non-interactive
 ```
 
 Source-aware values: any field flag documented as such accepts the value inline,

@@ -245,6 +245,13 @@ export type RemoveResourceInput =
       name: string;
     };
 
+/** The outcome of a spec-level removal. */
+export type RemoveResourceResult = {
+  project: Project;
+  /** .env.local keys deleted because the removed credential(s) reserved them. */
+  removedEnvKeys: string[];
+};
+
 /**
  * The primary interface for interacting with projects
  */
@@ -264,6 +271,17 @@ export interface ProjectManager {
   /** Add a resource to an existing AgentCore project. */
   addResource(project: Project, input: AddResourceInput): AsyncGenerator<ProjectEvent, Project>;
 
-  /** Remove a resource from an existing AgentCore project. */
-  removeResource(project: Project, input: RemoveResourceInput): Promise<Project>;
+  /**
+   * Remove a resource from an existing AgentCore project. Throws
+   * ResourceNotFoundError when nothing with the given name exists.
+   */
+  removeResource(project: Project, input: RemoveResourceInput): Promise<RemoveResourceResult>;
+
+  /**
+   * Empty every resource collection in the project spec, leaving name,
+   * version, managedBy, and other non-resource fields intact. Spec-level only:
+   * code directories under app/ and aws-targets.json survive, so a following
+   * deploy can tear down the target's stack.
+   */
+  removeAllResources(project: Project): Promise<RemoveResourceResult>;
 }

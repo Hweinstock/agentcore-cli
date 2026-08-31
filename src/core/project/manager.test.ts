@@ -2,12 +2,20 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
-import { DeserializationError, ProjectStateError } from "../../errors/errors";
+import {
+  DeserializationError,
+  InputValidationError,
+  ProjectStateError,
+  ResourceNotFoundError,
+} from "../../errors/errors";
 import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
+import { credentialEnvVarName } from "../../projectSchemas/credential";
 import { ProjectSpecSchema } from "../../projectSchemas/project";
+import { ENV_LOCAL_RELATIVE_PATH } from "./envLocal";
 import { FsProjectManager } from "./manager";
 import { resolveRuntimeTemplateShortcut } from "../../handlers/project/shortcuts";
 import {
+  type AddResourceInput,
   type CreateProjectInput,
   type DeployResult,
   type Project,
@@ -684,5 +692,148 @@ describe("FsProjectManager.resolve", () => {
     await expect(manager().manager.resolve({ filePath: root })).rejects.toThrow(
       "runtimeVersion is required for CodeZip builds",
     );
+  });
+});
+
+describe("FsProjectManager removal", () => {
+  async function runAdd(
+    subject: FsProjectManager,
+    project: Project,
+    input: AddResourceInput,
+  ): Promise<Project> {
+    const iterator = subject.addResource(project, input);
+    while (true) {
+      const next = await iterator.next();
+      if (next.done) return next.value;
+    }
+  }
+
+  async function createdProject(): Promise<{ subject: FsProjectManager; project: Project }> {
+    await inTempDirectory();
+    const subject = manager().manager;
+    const { project } = await runCreate(subject, {
+      name: "example",
+      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+    });
+    return { subject, project };
+  }
+
+  test.each(["harness", "memory", "credential", "config-bundle", "online-eval"] as const)(
+    "removeResource throws ResourceNotFoundError for an unknown %s",
+    async (resourceType) => {
+      const { subject, project } = await createdProject();
+
+      const removal = subject.removeResource(project, { resourceType, name: "ghost" });
+
+      await expect(removal).rejects.toBeInstanceOf(ResourceNotFoundError);
+      await expect(removal).rejects.toThrow(
+        `no ${resourceType} named 'ghost' exists in this project`,
+      );
+    },
+  );
+
+  test("removing a credential deletes the .env.local keys it reserved", async () => {
+    const { subject, project } = await createdProject();
+    const envKey = credentialEnvVarName("svc-key");
+    const updated = await runAdd(subject, project, {
+      resourceType: "credential",
+      resourceConfig: { authorizerType: "ApiKeyCredentialProvider", name: "svc-key" },
+      envEntries: [{ key: envKey, value: "sekret", comment: "API key for 'svc-key'" }],
+    });
+    const envPath = join(project.rootPath, ENV_LOCAL_RELATIVE_PATH);
+    expect(await Bun.file(envPath).text()).toContain(envKey);
+
+    const result = await subject.removeResource(updated, {
+      resourceType: "credential",
+      name: "svc-key",
+    });
+
+    expect(result.removedEnvKeys).toEqual([envKey]);
+    expect(result.project.spec.credentials).toEqual([]);
+    expect(await Bun.file(envPath).text()).not.toContain(envKey);
+  });
+
+  test("a removal that fails spec validation rolls back the .env.local edit", async () => {
+    const { subject, project } = await createdProject();
+    // A payment connector references the credential, so removing the
+    // credential must be rejected — and the staged env deletion undone.
+    let current = await runAdd(subject, project, {
+      resourceType: "credential",
+      resourceConfig: {
+        authorizerType: "PaymentCredentialProvider",
+        name: "pay-cred",
+        provider: "CoinbaseCDP",
+      },
+      envEntries: [
+        { key: credentialEnvVarName("pay-cred", "_API_KEY_ID"), value: "id", comment: "c" },
+        { key: credentialEnvVarName("pay-cred", "_API_KEY_SECRET"), value: "s", comment: "c" },
+        { key: credentialEnvVarName("pay-cred", "_WALLET_SECRET"), value: "w", comment: "c" },
+      ],
+    });
+    current = await runAdd(subject, current, {
+      resourceType: "payment-manager",
+      resourceConfig: { name: "payments" },
+    });
+    current = await runAdd(subject, current, {
+      resourceType: "payment-connector",
+      managerName: "payments",
+      resourceConfig: { name: "conn", credentialName: "pay-cred" },
+    });
+    const envPath = join(project.rootPath, ENV_LOCAL_RELATIVE_PATH);
+    const before = await Bun.file(envPath).text();
+    const specBefore = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).text();
+
+    await expect(
+      subject.removeResource(current, { resourceType: "credential", name: "pay-cred" }),
+    ).rejects.toBeInstanceOf(InputValidationError);
+
+    expect(await Bun.file(envPath).text()).toBe(before);
+    expect(await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).text()).toBe(
+      specBefore,
+    );
+  });
+
+  test("removeAllResources empties every collection and cleans .env.local", async () => {
+    const { subject, project } = await createdProject();
+    const envKey = credentialEnvVarName("svc-key");
+    let current = await runAdd(subject, project, {
+      resourceType: "credential",
+      resourceConfig: { authorizerType: "ApiKeyCredentialProvider", name: "svc-key" },
+      envEntries: [{ key: envKey, value: "sekret", comment: "c" }],
+    });
+    current = await runAdd(subject, current, {
+      resourceType: "memory",
+      resourceConfig: { name: "recall", eventExpiryDuration: 30, strategies: [] },
+    });
+    current = await runAdd(subject, current, {
+      resourceType: "payment-manager",
+      resourceConfig: { name: "payments" },
+    });
+    const envPath = join(project.rootPath, ENV_LOCAL_RELATIVE_PATH);
+
+    const result = await subject.removeAllResources(current);
+
+    expect(result.removedEnvKeys).toEqual([envKey]);
+    expect(result.project.spec.runtimes).toEqual([]);
+    expect(result.project.spec.memories).toEqual([]);
+    expect(result.project.spec.credentials).toEqual([]);
+    expect(result.project.spec.payments).toBeUndefined();
+    expect(result.project.spec.name).toBe("example");
+    expect(result.project.spec.managedBy).toBe("CDK");
+    expect(await Bun.file(envPath).text()).not.toContain(envKey);
+
+    // The spec on disk matches what was returned.
+    const onDisk = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).json();
+    expect(onDisk.runtimes).toEqual([]);
+    expect(onDisk.payments).toBeUndefined();
+  });
+
+  test("removeAllResources is idempotent on an already-empty project", async () => {
+    const { subject, project } = await createdProject();
+    const once = await subject.removeAllResources(project);
+    const twice = await subject.removeAllResources(once.project);
+
+    expect(twice.removedEnvKeys).toEqual([]);
+    expect(twice.project.spec.runtimes).toEqual([]);
   });
 });

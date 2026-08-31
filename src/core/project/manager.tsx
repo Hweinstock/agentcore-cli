@@ -12,6 +12,7 @@ import type {
   ProjectEvent,
   ProjectResource,
   RemoveResourceInput,
+  RemoveResourceResult,
 } from "../../handlers/project/types";
 import type { Logger } from "../../logging";
 import {
@@ -28,7 +29,10 @@ import { createProjectTree } from "./templates/project";
 import { getRuntimeTemplateResolver } from "./templates/runtime";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
 import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
-import { CredentialSchema } from "../../projectSchemas/credential";
+import {
+  CredentialSchema,
+  credentialEnvironmentVariableNames,
+} from "../../projectSchemas/credential";
 import { MemorySchema } from "../../projectSchemas/memory";
 import { EvaluatorSchema } from "../../projectSchemas/evaluator";
 import { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
@@ -42,6 +46,7 @@ import {
   MalformedServiceResponseError,
   NotImplementedError,
   ProjectStateError,
+  ResourceNotFoundError,
 } from "../../errors/errors";
 import z from "zod";
 import { CdkBackend } from "./backends/cdk";
@@ -421,7 +426,10 @@ export class FsProjectManager implements ProjectManager {
     return projectSpecPath(project.rootPath);
   }
 
-  public async removeResource(project: Project, input: RemoveResourceInput): Promise<Project> {
+  public async removeResource(
+    project: Project,
+    input: RemoveResourceInput,
+  ): Promise<RemoveResourceResult> {
     const agentCoreSpecPath = this.getProjectSpecPath(project);
     const existingProjectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
 
@@ -462,22 +470,28 @@ export class FsProjectManager implements ProjectManager {
     } else if (input.resourceType === "gateway-target") {
       const gateways = [...existingProjectSpec.agentCoreGateways];
       const gatewayIndex = gateways.findIndex((gateway) => gateway.name === input.gatewayName);
-      if (gatewayIndex >= 0) {
-        const gateway = gateways[gatewayIndex]!;
-        const targets = gateway.targets.filter((target) => target.name !== input.name);
-        removed = targets.length !== gateway.targets.length;
-        gateways[gatewayIndex] = { ...gateway, targets };
+      if (gatewayIndex < 0) {
+        throw new ResourceNotFoundError(
+          `no gateway named '${input.gatewayName}' exists in this project`,
+        );
       }
+      const gateway = gateways[gatewayIndex]!;
+      const targets = gateway.targets.filter((target) => target.name !== input.name);
+      removed = targets.length !== gateway.targets.length;
+      gateways[gatewayIndex] = { ...gateway, targets };
       newSpec = { ...existingProjectSpec, agentCoreGateways: gateways };
     } else if (input.resourceType === "payment-connector") {
       const payments = [...(existingProjectSpec.payments ?? [])];
       const managerIndex = payments.findIndex((manager) => manager.name === input.managerName);
-      if (managerIndex >= 0) {
-        const manager = payments[managerIndex]!;
-        const connectors = manager.connectors.filter((connector) => connector.name !== input.name);
-        removed = connectors.length !== manager.connectors.length;
-        payments[managerIndex] = { ...manager, connectors };
+      if (managerIndex < 0) {
+        throw new ResourceNotFoundError(
+          `no payment-manager named '${input.managerName}' exists in this project`,
+        );
       }
+      const manager = payments[managerIndex]!;
+      const connectors = manager.connectors.filter((connector) => connector.name !== input.name);
+      removed = connectors.length !== manager.connectors.length;
+      payments[managerIndex] = { ...manager, connectors };
       newSpec = { ...existingProjectSpec, payments };
     } else {
       const projectSpecKey = toProjectSpecKey(input.resourceType);
@@ -487,24 +501,105 @@ export class FsProjectManager implements ProjectManager {
       newSpec = { ...existingProjectSpec, [projectSpecKey]: newResources };
     }
 
-    if (!removed)
-      this.logger
-        .child({ input })
-        .warn(`unable to remove resource from project that does not exist.`);
+    if (!removed) {
+      throw new ResourceNotFoundError(
+        `no ${input.resourceType} named '${input.name}' exists in this project`,
+      );
+    }
 
-    const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
+    // A credential's secret material lives in .env.local, so removing the
+    // credential also deletes the keys it reserved (none when an external
+    // secretRef holds the material).
+    let envFile: EnvLocalFile | undefined;
+    let removedEnvKeys: string[] = [];
+    if (input.resourceType === "credential") {
+      const credential = existingProjectSpec.credentials.find(
+        (candidate) => candidate.name === input.name,
+      )!;
+      const envKeys = credentialEnvironmentVariableNames(credential);
+      if (envKeys.length > 0) {
+        envFile = new EnvLocalFile(project.rootPath);
+        removedEnvKeys = (await envFile.removeKeys(envKeys)).removed;
+      }
+    }
 
-    if (!newSpecParseResult.success)
-      throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
-        cause: newSpecParseResult.error,
-      });
-
-    const newProjectSpec = await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
+    const newProjectSpec = await this.commitSpec(agentCoreSpecPath, newSpec, envFile);
 
     return {
-      ...project,
-      spec: newProjectSpec,
+      project: { ...project, spec: newProjectSpec },
+      removedEnvKeys,
     };
+  }
+
+  public async removeAllResources(project: Project): Promise<RemoveResourceResult> {
+    const agentCoreSpecPath = this.getProjectSpecPath(project);
+    const existingProjectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
+
+    let envFile: EnvLocalFile | undefined;
+    let removedEnvKeys: string[] = [];
+    const envKeys = existingProjectSpec.credentials.flatMap((credential) =>
+      credentialEnvironmentVariableNames(credential),
+    );
+    if (envKeys.length > 0) {
+      envFile = new EnvLocalFile(project.rootPath);
+      removedEnvKeys = (await envFile.removeKeys(envKeys)).removed;
+    }
+
+    // A spec-level reset, mirroring the original CLI's `remove all`: every
+    // resource collection is emptied while name, version, managedBy, tags, and
+    // $schema survive. Code under app/ and aws-targets.json are left in place
+    // so a following deploy can tear down the target's stack.
+    const newSpec = {
+      ...existingProjectSpec,
+      runtimes: [],
+      memories: [],
+      knowledgeBases: [],
+      credentials: [],
+      evaluators: [],
+      onlineEvalConfigs: [],
+      agentCoreGateways: [],
+      policyEngines: [],
+      configBundles: [],
+      abTests: [],
+      harnesses: [],
+      mcpRuntimeTools: undefined,
+      unassignedTargets: undefined,
+      datasets: undefined,
+      httpGateways: undefined,
+      payments: undefined,
+    };
+
+    const newProjectSpec = await this.commitSpec(agentCoreSpecPath, newSpec, envFile);
+
+    return {
+      project: { ...project, spec: newProjectSpec },
+      removedEnvKeys,
+    };
+  }
+
+  // Validates and writes an updated spec; a failure rolls back any .env.local
+  // edit staged for the same removal so the two files stay consistent.
+  private async commitSpec(
+    agentCoreSpecPath: string,
+    newSpec: unknown,
+    envFile: EnvLocalFile | undefined,
+  ): Promise<z.infer<typeof ProjectSpecSchema>> {
+    try {
+      const newSpecParseResult = ProjectSpecSchema.safeParse(newSpec);
+      if (!newSpecParseResult.success)
+        throw new InputValidationError(z.prettifyError(newSpecParseResult.error), {
+          cause: newSpecParseResult.error,
+        });
+      return await this.json.write(agentCoreSpecPath, newSpecParseResult.data);
+    } catch (err) {
+      await envFile?.rollback().catch((e) => {
+        const error = AgentCoreCLIError.fromError(e);
+        this.logger
+          .child({ errorName: error.name, errorMessage: error.message })
+          .warn(`failed to roll back ${ENV_LOCAL_RELATIVE_PATH}`);
+      });
+      throw err;
+    }
   }
 
   private async scaffoldRuntimeResources(outputPath: string, input: RuntimeResourceConfig) {
