@@ -32,8 +32,8 @@ type RemovableResource = {
   input: RemoveResourceInput;
 };
 
-/** How one removable resource type is listed and rendered as a table. */
-type RemovableResourceTable = {
+/** Config for listing a resource type's resources and rendering them as a table. */
+type RemovableResourceTableConfig = {
   resourceType: RemovableResourceType;
   /** Column header for the parent, shown for nested resource types only. */
   parentLabel?: string;
@@ -43,14 +43,14 @@ type RemovableResourceTable = {
 function rootLevel(
   resourceType: RootLevelResource,
   read: (spec: ProjectSpec) => { name: string }[],
-): RemovableResourceTable {
+): RemovableResourceTableConfig {
   return {
     resourceType,
     list: (spec) => read(spec).map(({ name }) => ({ name, input: { resourceType, name } })),
   };
 }
 
-const RESOURCE_TABLES: RemovableResourceTable[] = [
+const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   rootLevel("runtime", (s) => s.runtimes),
   rootLevel("harness", (s) => s.harnesses),
   rootLevel("memory", (s) => s.memories),
@@ -148,8 +148,7 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
     return <RemoveAllConfirm project={project} core={core} />;
   }
 
-  // An unrecognized resourceType only reaches here from a hand-edited URL; the
-  // type picker only links known types. Fall back to it.
+  // Fall back to the resource-type selection screen on an unrecognized type.
   const table = RESOURCE_TABLES.find((entry) => entry.resourceType === resourceType);
   if (!table) {
     return <ResourceTypePicker project={project} />;
@@ -207,7 +206,13 @@ function ResourceTypePicker({ project }: { project: Project }) {
 
 type ResourceRow = Record<string, unknown> & { index: string; name: string; parent: string };
 
-function ResourcePicker({ project, table }: { project: Project; table: RemovableResourceTable }) {
+function ResourcePicker({
+  project,
+  table,
+}: {
+  project: Project;
+  table: RemovableResourceTableConfig;
+}) {
   const navigate = useNavigate();
   const rows: ResourceRow[] = table.list(project.spec).map((resource, i) => ({
     index: String(i),
@@ -249,7 +254,7 @@ function RemoveConfirm({
 }: {
   project: Project;
   core: ScreenProps["core"];
-  table: RemovableResourceTable;
+  table: RemovableResourceTableConfig;
   resource: RemovableResource;
 }) {
   const navigate = useNavigate();
