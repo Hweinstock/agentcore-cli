@@ -42,6 +42,7 @@ import {
 } from "./templates/export";
 import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import { FsTreeNode } from "./templates/fsTree";
+import { getEvaluatorTemplateResolver } from "./templates/evaluator";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
 import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import {
@@ -336,7 +337,23 @@ export class FsProjectManager implements ProjectManager {
         break;
       }
       case "evaluator": {
-        projectSpec.evaluators.push(parseResource(EvaluatorSchema, input.resourceConfig));
+        if (input.scaffold) {
+          yield { message: "Scaffolding evaluator in project" };
+          const outputPath = join(project.rootPath, "app", input.scaffold.name);
+          if (existsSync(outputPath))
+            throw new InputValidationError(
+              `cannot scaffold evaluator '${input.scaffold.name}': 'app/${input.scaffold.name}' already exists (another resource may use this name, or a previous scaffold was left behind)`,
+            );
+          scaffoldedPaths.push(outputPath);
+          const result = await getEvaluatorTemplateResolver({
+            assetSource: this.assetSource,
+            templateRenderer: this.templateRenderer,
+          }).resolve(input.scaffold);
+          await result.tree.write(dirname(outputPath));
+          projectSpec.evaluators.push(...(result.spec.evaluators ?? []));
+        } else {
+          projectSpec.evaluators.push(parseResource(EvaluatorSchema, input.resourceConfig));
+        }
         break;
       }
       case "gateway":
