@@ -229,6 +229,35 @@ describe("FsProjectManager.create", () => {
     expect(commands).toEqual([{ command: ["git", "init"], cwd: join(directory, "example") }]);
   });
 
+  test.each([
+    [
+      "Python",
+      resolveRuntimeTemplateShortcut("strands-python", { build: "Container" }),
+      ["uv", "lock"],
+    ],
+    [
+      "TypeScript",
+      resolveRuntimeTemplateShortcut("strands-ts", { build: "Container" }),
+      ["npm", "install", "--package-lock-only"],
+    ],
+  ])(
+    "skipInstall still generates the container lockfile for %s",
+    async (_label, scaffoldRuntimeInput, lockCommand) => {
+      const directory = await inTempDirectory();
+      const { manager: subject, commands } = manager();
+      await runCreate(subject, {
+        name: "example",
+        scaffoldRuntimeInput,
+        skipInstall: true,
+        skipGit: true,
+      });
+
+      expect(commands).toEqual([
+        { command: lockCommand, cwd: join(directory, "example", "app", "strands_agent") },
+      ]);
+    },
+  );
+
   test("skipGit skips git init", async () => {
     await inTempDirectory();
     const { manager: subject, commands } = manager();
