@@ -4,13 +4,12 @@ import { argument, createHandler, flag } from "../../router";
 import { JsonRendererKey } from "../../tui";
 import { JsonKey } from "../keys.tsx";
 import { InputValidationError, UserCancellationError } from "../../errors";
-import { CONSENT_TEXT, FeedbackService } from "./submit";
+import { CONSENT_TEXT, submitFeedback } from "./submit";
 import type { AppIO } from "../../io";
-import type { CoreFetch } from "../../core/types";
+import type { Core } from "../types.tsx";
 
-export const createFeedbackHandler = (io: AppIO, fetch: CoreFetch) => {
-  const feedbackService = new FeedbackService(fetch);
-  return createHandler({
+export const createFeedbackHandler = (core: Core, io: AppIO) =>
+  createHandler({
     name: "feedback",
     description: "Send feedback about the AgentCore CLI to the team.",
     arguments: [argument("message", "the feedback message to send", z.string())],
@@ -34,15 +33,17 @@ export const createFeedbackHandler = (io: AppIO, fetch: CoreFetch) => {
 
       await confirmConsent(io, ctx.require(JsonKey), flags.yes);
 
-      const result = await feedbackService.submitFeedback({
-        message: args["message"],
-        screenshot: screenshotPath ? { path: screenshotPath } : undefined,
-      });
+      const result = await submitFeedback(
+        {
+          message: args["message"],
+          screenshot: screenshotPath ? { path: screenshotPath } : undefined,
+        },
+        core.fetch,
+      );
 
       ctx.require(JsonRendererKey).renderJson({ success: true, ...result });
     },
   });
-};
 
 async function confirmConsent(io: AppIO, jsonOutput: boolean, confirmed: boolean): Promise<void> {
   if (confirmed) return;

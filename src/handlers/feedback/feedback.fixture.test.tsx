@@ -1,11 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { CoreClient } from "../../core";
 import { createRootHandler } from "../index";
 import {
   createSilentLogger,
+  fixtureFactories,
   fixtureFetch,
   matchGolden,
-  TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
   type TestIOOptions,
@@ -27,11 +28,15 @@ async function run(
   opts: { fetch?: CoreFetch; io?: TestIOOptions } = {},
 ): Promise<{ stdout: string; stderr: string }> {
   const io = testIO(opts.io);
-  const root = createRootHandler(new TestCoreClient(), {
+  const core = new CoreClient({
+    ...fixtureFactories(FIXTURES),
+    logger: createSilentLogger(),
+    fetch: opts.fetch ?? neverFetch,
+  });
+  const root = createRootHandler(core, {
     io: io.io,
     logger: createSilentLogger(),
     globalConfigAccessor: new TestGlobalConfigAccessor(),
-    fetch: opts.fetch,
   });
   await root.route(["node", "agentcore", "feedback", ...args, "--region", REGION]);
   return { stdout: io.stdout(), stderr: io.stderr() };

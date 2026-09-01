@@ -64,177 +64,181 @@ type ApertureFormPayload = {
   metadataList: { key: string; value: string }[];
 };
 
-export class FeedbackService {
-  constructor(private readonly fetch: CoreFetch) {}
-
-  async submitFeedback(input: SubmitFeedbackInput): Promise<FeedbackSubmissionResult> {
-    const message = input.message.trim();
-    if (!message) {
-      throw new InputValidationError("Feedback message cannot be empty.");
-    }
-    if (message.length > MESSAGE_MAX_LENGTH) {
-      throw new InputValidationError(
-        `Feedback message must be ${MESSAGE_MAX_LENGTH} characters or fewer.`,
-      );
-    }
-
-    const userAgent = `AgentCoreCLI/${PACKAGE_VERSION} (${process.platform} ${os.release()}; node/${process.version})`;
-
-    let screenshotReference: string | undefined;
-    if (input.screenshot) {
-      const file = await this.loadScreenshot(input.screenshot.path);
-      const presignedUrl = await this.fetchPresignedUrl(
-        {
-          category: FORM_CATEGORY,
-          name: FORM_NAME,
-          version: FORM_VERSION,
-          fileName: file.fileName,
-          fileSize: file.size,
-          uploadFileSHA256: file.sha256Base64,
-        },
-        userAgent,
-      );
-      screenshotReference = objectKeyFromPresignedUrl(presignedUrl);
-      await this.uploadFileToS3(
-        presignedUrl,
-        file.buffer,
-        file.contentType,
-        file.sha256Base64,
-        userAgent,
-      );
-    }
-
-    const payload = buildFeedbackPayload({ message, screenshotReference });
-    return this.submitForm(payload, userAgent);
+export async function submitFeedback(
+  input: SubmitFeedbackInput,
+  fetch: CoreFetch,
+): Promise<FeedbackSubmissionResult> {
+  const message = input.message.trim();
+  if (!message) {
+    throw new InputValidationError("Feedback message cannot be empty.");
+  }
+  if (message.length > MESSAGE_MAX_LENGTH) {
+    throw new InputValidationError(
+      `Feedback message must be ${MESSAGE_MAX_LENGTH} characters or fewer.`,
+    );
   }
 
-  private async fetchPresignedUrl(
-    request: {
-      category: string;
-      name: string;
-      version: string;
-      fileName: string;
-      fileSize: number;
-      uploadFileSHA256: string;
-    },
-    userAgent: string,
-  ): Promise<string> {
-    const response = await this.fetch(PRESIGN_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "user-agent": userAgent },
-      body: JSON.stringify(request),
-    });
-    if (!response.ok) {
-      throw new ApertureError(
-        `Failed to fetch screenshot upload URL (HTTP ${response.status}).`,
-        response.status,
-        await response.text().catch(() => ""),
-      );
-    }
-    return (await response.text()).trim();
-  }
+  const userAgent = `AgentCoreCLI/${PACKAGE_VERSION} (${process.platform} ${os.release()}; node/${process.version})`;
 
-  private async uploadFileToS3(
-    presignedUrl: string,
-    fileBuffer: Uint8Array,
-    contentType: string,
-    base64Sha256: string,
-    userAgent: string,
-  ): Promise<void> {
-    const response = await this.fetch(presignedUrl, {
-      method: "PUT",
-      headers: {
-        "content-type": contentType,
-        "x-amz-checksum-algorithm": "SHA256",
-        "x-amz-checksum-sha256": base64Sha256,
-        "x-amz-tagging": "scanstatus=NOT_SCANNED",
-        "user-agent": userAgent,
+  let screenshotReference: string | undefined;
+  if (input.screenshot) {
+    const file = await loadScreenshot(input.screenshot.path);
+    const presignedUrl = await fetchPresignedUrl(
+      fetch,
+      {
+        category: FORM_CATEGORY,
+        name: FORM_NAME,
+        version: FORM_VERSION,
+        fileName: file.fileName,
+        fileSize: file.size,
+        uploadFileSHA256: file.sha256Base64,
       },
-      body: fileBuffer,
-    });
-    if (!response.ok) {
-      throw new ApertureError(
-        `Failed to upload screenshot (HTTP ${response.status}).`,
-        response.status,
-        await response.text().catch(() => ""),
-      );
-    }
+      userAgent,
+    );
+    screenshotReference = objectKeyFromPresignedUrl(presignedUrl);
+    await uploadFileToS3(
+      fetch,
+      presignedUrl,
+      file.buffer,
+      file.contentType,
+      file.sha256Base64,
+      userAgent,
+    );
   }
 
-  private async submitForm(
-    payload: ApertureFormPayload,
-    userAgent: string,
-  ): Promise<FeedbackSubmissionResult> {
-    const response = await this.fetch(INGESTION_URL, {
-      method: "POST",
-      headers: { "content-type": "application/json", "user-agent": userAgent },
-      body: JSON.stringify(payload),
-    });
-    if (!response.ok) {
-      const body = await response.text().catch(() => "");
-      throw new ApertureError(mapStatusToMessage(response.status, body), response.status, body);
-    }
-    const data = (await response
-      .json()
-      .catch(() => null)) as Partial<FeedbackSubmissionResult> | null;
-    if (
-      !data ||
-      typeof data.id !== "string" ||
-      typeof data.timestamp !== "string" ||
-      typeof data.reference !== "string"
-    ) {
-      throw new ApertureError("Feedback service returned an unexpected response.");
-    }
-    return { id: data.id, timestamp: data.timestamp, reference: data.reference };
+  const payload = buildFeedbackPayload({ message, screenshotReference });
+  return submitForm(fetch, payload, userAgent);
+}
+
+async function fetchPresignedUrl(
+  fetch: CoreFetch,
+  request: {
+    category: string;
+    name: string;
+    version: string;
+    fileName: string;
+    fileSize: number;
+    uploadFileSHA256: string;
+  },
+  userAgent: string,
+): Promise<string> {
+  const response = await fetch(PRESIGN_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", "user-agent": userAgent },
+    body: JSON.stringify(request),
+  });
+  if (!response.ok) {
+    throw new ApertureError(
+      `Failed to fetch screenshot upload URL (HTTP ${response.status}).`,
+      response.status,
+      await response.text().catch(() => ""),
+    );
+  }
+  return (await response.text()).trim();
+}
+
+async function uploadFileToS3(
+  fetch: CoreFetch,
+  presignedUrl: string,
+  fileBuffer: Uint8Array,
+  contentType: string,
+  base64Sha256: string,
+  userAgent: string,
+): Promise<void> {
+  const response = await fetch(presignedUrl, {
+    method: "PUT",
+    headers: {
+      "content-type": contentType,
+      "x-amz-checksum-algorithm": "SHA256",
+      "x-amz-checksum-sha256": base64Sha256,
+      "x-amz-tagging": "scanstatus=NOT_SCANNED",
+      "user-agent": userAgent,
+    },
+    body: fileBuffer,
+  });
+  if (!response.ok) {
+    throw new ApertureError(
+      `Failed to upload screenshot (HTTP ${response.status}).`,
+      response.status,
+      await response.text().catch(() => ""),
+    );
+  }
+}
+
+async function submitForm(
+  fetch: CoreFetch,
+  payload: ApertureFormPayload,
+  userAgent: string,
+): Promise<FeedbackSubmissionResult> {
+  const response = await fetch(INGESTION_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json", "user-agent": userAgent },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => "");
+    throw new ApertureError(mapStatusToMessage(response.status, body), response.status, body);
+  }
+  const data = (await response
+    .json()
+    .catch(() => null)) as Partial<FeedbackSubmissionResult> | null;
+  if (
+    !data ||
+    typeof data.id !== "string" ||
+    typeof data.timestamp !== "string" ||
+    typeof data.reference !== "string"
+  ) {
+    throw new ApertureError("Feedback service returned an unexpected response.");
+  }
+  return { id: data.id, timestamp: data.timestamp, reference: data.reference };
+}
+
+async function loadScreenshot(rawFilePath: string): Promise<LoadedScreenshot> {
+  const filePath = expandTilde(rawFilePath);
+
+  let stats: Awaited<ReturnType<typeof stat>>;
+  try {
+    stats = await stat(filePath);
+  } catch (err) {
+    throw new InputValidationError(
+      `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  if (stats.isDirectory()) {
+    throw new InputValidationError(`Screenshot path is a directory, not a file: ${filePath}`);
+  }
+  if (!stats.isFile()) {
+    throw new InputValidationError(`Screenshot path is not a regular file: ${filePath}`);
+  }
+  if (stats.size > MAX_SCREENSHOT_BYTES) {
+    const sizeMb = (stats.size / (1024 * 1024)).toFixed(1);
+    throw new InputValidationError(`Screenshot is ${sizeMb} MB; maximum allowed size is 100 MB.`);
   }
 
-  private async loadScreenshot(rawFilePath: string): Promise<LoadedScreenshot> {
-    const filePath = expandTilde(rawFilePath);
-
-    let stats: Awaited<ReturnType<typeof stat>>;
-    try {
-      stats = await stat(filePath);
-    } catch (err) {
-      throw new InputValidationError(
-        `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    if (stats.isDirectory()) {
-      throw new InputValidationError(`Screenshot path is a directory, not a file: ${filePath}`);
-    }
-    if (!stats.isFile()) {
-      throw new InputValidationError(`Screenshot path is not a regular file: ${filePath}`);
-    }
-    if (stats.size > MAX_SCREENSHOT_BYTES) {
-      const sizeMb = (stats.size / (1024 * 1024)).toFixed(1);
-      throw new InputValidationError(`Screenshot is ${sizeMb} MB; maximum allowed size is 100 MB.`);
-    }
-
-    const ext = path.extname(filePath).toLowerCase();
-    if (
-      !ALLOWED_SCREENSHOT_EXTENSIONS.includes(ext as (typeof ALLOWED_SCREENSHOT_EXTENSIONS)[number])
-    ) {
-      throw new InputValidationError(
-        `Screenshot must be one of: ${ALLOWED_SCREENSHOT_EXTENSIONS.join(", ")}.`,
-      );
-    }
-
-    let buffer: Buffer;
-    try {
-      buffer = await readFile(filePath);
-    } catch (err) {
-      throw new InputValidationError(
-        `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-    return {
-      buffer: new Uint8Array(buffer),
-      fileName: path.basename(filePath),
-      contentType: ext === ".png" ? "image/png" : "image/jpeg",
-      sha256Base64: createHash("sha256").update(buffer).digest("base64"),
-      size: buffer.byteLength,
-    };
+  const ext = path.extname(filePath).toLowerCase();
+  if (
+    !ALLOWED_SCREENSHOT_EXTENSIONS.includes(ext as (typeof ALLOWED_SCREENSHOT_EXTENSIONS)[number])
+  ) {
+    throw new InputValidationError(
+      `Screenshot must be one of: ${ALLOWED_SCREENSHOT_EXTENSIONS.join(", ")}.`,
+    );
   }
+
+  let buffer: Buffer;
+  try {
+    buffer = await readFile(filePath);
+  } catch (err) {
+    throw new InputValidationError(
+      `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+  return {
+    buffer: new Uint8Array(buffer),
+    fileName: path.basename(filePath),
+    contentType: ext === ".png" ? "image/png" : "image/jpeg",
+    sha256Base64: createHash("sha256").update(buffer).digest("base64"),
+    size: buffer.byteLength,
+  };
 }
 
 function expandTilde(filePath: string): string {
