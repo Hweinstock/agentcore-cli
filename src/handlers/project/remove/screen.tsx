@@ -136,10 +136,6 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   const { resourceType, resourceIndex } = useParams();
   const navigate = useNavigate();
 
-  // Resolve from the working directory so the list reflects removals made this
-  // session; the context value pinned by `withProject` is only a pre-resolve
-  // fallback (its spec goes stale after a removal). Both agree because
-  // withProject also resolves from the working directory.
   const pinned = ctx.value(ProjectKey);
   const cwd = process.cwd();
   const resolved = useQuery({
@@ -148,8 +144,7 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   });
   const project = resolved.data ?? pinned ?? undefined;
 
-  // The spinner/error/no-project states render no table, so handle esc here;
-  // the picker and confirm screens handle their own.
+  // explicitly wire esc for the no project found case
   useInput(
     (_input, key) => {
       if (key.escape) navigate("/agentcore/project");
@@ -175,22 +170,16 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
     );
   }
 
-  if (!resourceType) {
-    return <ResourceTypePicker project={project} />;
-  }
-
   if (resourceType === "all") {
     return <RemoveAllConfirm project={project} core={core} />;
   }
 
-  // Fall back to the resource-type selection screen on an unrecognized type.
+  // No resource type selected, or an unrecognized one: show the type picker.
   const table = RESOURCE_TABLES.find((entry) => entry.resourceType === resourceType);
   if (!table) {
     return <ResourceTypePicker project={project} />;
   }
 
-  // resourceIndex points into the same list() the picker rendered; a specific
-  // resource confirms, otherwise show the list.
   if (resourceIndex !== undefined) {
     const resource = table.list(project.spec)[Number(resourceIndex)];
     if (resource) {
