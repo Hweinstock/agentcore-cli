@@ -465,15 +465,35 @@ describe("project add runtime", () => {
       ],
       [],
     ],
+    [
+      "template overrides to Container",
+      ["--name", "my_agent", "--template", "strands-ts", "--build", "Container"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
   ])("strands-ts %s scaffolds a TypeScript agent", async (_label, flags, expectedStrategies) => {
     const projectRoot = await inProject();
     await run(["add", "runtime", ...flags]);
+
+    const buildFlagIndex = flags.indexOf("--build");
+    const isContainer = buildFlagIndex >= 0 && flags[buildFlagIndex + 1] === "Container";
 
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     const runtime = spec.runtimes.find(
       (candidate: { name: string }) => candidate.name === "my_agent",
     );
-    expect(runtime).toMatchObject({ entrypoint: "main.js", runtimeVersion: "NODE_22" });
+    expect(runtime).toMatchObject({
+      entrypoint: "main.js",
+      ...(isContainer
+        ? { build: "Container", dockerfile: "Dockerfile" }
+        : { build: "CodeZip", runtimeVersion: "NODE_22" }),
+    });
+    expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "NODE_22");
+    expect(await Bun.file(join(projectRoot, "app", "my_agent", "Dockerfile")).exists()).toBe(
+      isContainer,
+    );
+    expect(await Bun.file(join(projectRoot, "app", "my_agent", ".dockerignore")).exists()).toBe(
+      isContainer,
+    );
 
     const memory = (spec.memories ?? []).find(
       (candidate: { name: string }) => candidate.name === "my_agentMemory",

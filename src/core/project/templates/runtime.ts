@@ -190,9 +190,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError("the strands-ts template only supports HTTP");
 
-    if (input.scaffoldRuntimeInput.build !== "CodeZip")
-      throw new InputValidationError("the strands template only supports CodeZip builds");
-
     const memory = input.scaffoldRuntimeInput.memory;
     // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one
     // namespace, so short-term-only memory (no long-term strategies) is unsupported.
@@ -212,13 +209,18 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       hasIdentity: false,
       identityProviders: [],
     };
+    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/strands-http-typescript" },
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
-        filter: (name, isDir) => memory !== undefined || !isDir || name !== "memory",
+        filter: (name, isDir) => {
+          if (isDir && name === "memory") return memory !== undefined;
+          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
+          return true;
+        },
       },
     );
     return {

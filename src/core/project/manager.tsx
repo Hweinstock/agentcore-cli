@@ -196,7 +196,7 @@ export class FsProjectManager implements ProjectManager {
         yield* this.installRuntimeDependencies(appDir);
       }
     } else if (scaffoldRuntimeInput?.build === "Container") {
-      // containers require uv.lock to build, so even with no-install we must generate the lock.
+      // Container builds install from a lockfile, so generate it even with no-install.
       const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
       yield* this.ensureLockFileExists(appDir);
     }
@@ -1044,23 +1044,32 @@ export class FsProjectManager implements ProjectManager {
     }
   }
 
-  /**
-   * Check if the uv.lock file exists within the project, and generate it if missing.
-   */
+  /** Generates the container build's lockfile (uv.lock / package-lock.json) when its manifest exists but the lockfile does not. */
   private async *ensureLockFileExists(appDir: string): AsyncGenerator<ProjectEvent, void> {
-    if (!existsSync(join(appDir, "pyproject.toml")) || existsSync(join(appDir, "uv.lock"))) {
+    const lockfileSpecs = [
+      { manifest: "pyproject.toml", lockfile: "uv.lock", command: ["uv", "lock"] },
+      {
+        manifest: "package.json",
+        lockfile: "package-lock.json",
+        command: ["npm", "install", "--package-lock-only"],
+      },
+    ];
+    for (const { manifest, lockfile, command } of lockfileSpecs) {
+      if (!existsSync(join(appDir, manifest)) || existsSync(join(appDir, lockfile))) {
+        continue;
+      }
+      yield { message: `Generating ${lockfile} for container build` };
+      try {
+        await this.run(command, appDir);
+      } catch {
+        yield {
+          message:
+            `Warning: could not generate ${lockfile} in ${appDir}. ` +
+            `Run \`${command.join(" ")}\` there before \`agentcore project dev\` or \`deploy\` — ` +
+            "container builds install from it.",
+        };
+      }
       return;
-    }
-    yield { message: "Generating uv.lock for container build" };
-    try {
-      await this.run(["uv", "lock"], appDir);
-    } catch {
-      yield {
-        message:
-          `Warning: could not generate uv.lock in ${appDir} (is uv installed?). ` +
-          "Run `uv lock` there before `agentcore project dev` or `deploy` — " +
-          "container builds install from uv.lock.",
-      };
     }
   }
 
