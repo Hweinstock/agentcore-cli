@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { fetchLatestVersion, handleUpdate } from "./action";
+import { fetchLatestVersion, handleUpdate } from "./index";
 import { NetworkingError } from "../../errors";
 import type { ProcessRunner } from "../../io";
 
