@@ -14,10 +14,6 @@ import {
   TestCoreClient,
 } from "../../../testing";
 
-// TestCoreClient carries a real FsProjectManager, so the project is scaffolded
-// with the real create/add flow and removals are verified by reading
-// agentcore.json back — no hand-authored specs, no mocks.
-
 const originalCwd = process.cwd();
 const temporaryDirectories: string[] = [];
 
@@ -34,8 +30,6 @@ async function drain<T>(generator: AsyncGenerator<unknown, T>): Promise<T> {
   }
 }
 
-// createProject scaffolds a real project (one runtime, "hello_world") in a temp
-// directory. Pass resources to add through the real addResource flow.
 async function createProject(
   core: TestCoreClient,
   resources: AddResourceInput[] = [],

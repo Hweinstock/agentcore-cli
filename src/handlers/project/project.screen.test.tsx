@@ -70,9 +70,6 @@ describe("project menu", () => {
 });
 
 describe("project subcommands without a screen", () => {
-  // renderTuiAt (not renderScreen) so the NotImplementedError rejection is
-  // observable via waitUntilExit. Cases come off the router; commands with a
-  // real screen are excluded (they render instead of rejecting).
   const withScreens = ["create", "invoke", "remove"];
   test.each(projectSubcommands().filter((command) => !withScreens.includes(command)))(
     "%s tears down the TUI with NotImplementedError",
