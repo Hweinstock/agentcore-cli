@@ -11,6 +11,7 @@ import { FsReadWriteJson } from "../../io";
 describe("config", () => {
   let tempDir: string;
   let configPath: string;
+  let savedTelemetryDisabled: string | undefined;
 
   const validConfigOverrides = {
     telemetry: { enabled: true, endpoint: "https://example.com" },
@@ -18,12 +19,21 @@ describe("config", () => {
   };
 
   beforeEach(async () => {
+    // Isolate tests from an ambient AGENTCORE_TELEMETRY_DISABLED (set in CI) so
+    // config resolution reflects the config file; individual tests set it as needed.
+    savedTelemetryDisabled = process.env.AGENTCORE_TELEMETRY_DISABLED;
+    delete process.env.AGENTCORE_TELEMETRY_DISABLED;
     tempDir = await mkdtemp(join(tmpdir(), "agentcore-config-test-"));
     configPath = join(tempDir, "config.json");
     await writeFile(configPath, JSON.stringify(validConfigOverrides));
   });
 
   afterEach(async () => {
+    if (savedTelemetryDisabled === undefined) {
+      delete process.env.AGENTCORE_TELEMETRY_DISABLED;
+    } else {
+      process.env.AGENTCORE_TELEMETRY_DISABLED = savedTelemetryDisabled;
+    }
     await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -185,23 +195,20 @@ describe("config", () => {
   });
 
   describe("AGENTCORE_TELEMETRY_DISABLED env var", () => {
-    afterEach(() => {
-      delete process.env.AGENTCORE_TELEMETRY_DISABLED;
-    });
-
-    test.each(["true", "TRUE", "1", " 1 "])(
-      "=%p reports telemetry.enabled as false, overriding the enabled config",
-      async (value) => {
+    test.each([
+      ["true", false],
+      ["TRUE", false],
+      ["1", false],
+      [" 1 ", false],
+      ["false", true],
+      ["0", true],
+      ["", true],
+      ["no", true],
+    ])(
+      "=%p resolves telemetry.enabled to %p, overriding the enabled config",
+      async (value, expected) => {
         process.env.AGENTCORE_TELEMETRY_DISABLED = value;
-        expect(JSON.parse(await run(["telemetry.enabled"]))).toBe(false);
-      },
-    );
-
-    test.each(["false", "0", "", "no"])(
-      "=%p leaves telemetry.enabled as configured",
-      async (value) => {
-        process.env.AGENTCORE_TELEMETRY_DISABLED = value;
-        expect(JSON.parse(await run(["telemetry.enabled"]))).toBe(true);
+        expect(JSON.parse(await run(["telemetry.enabled"]))).toBe(expected);
       },
     );
 
