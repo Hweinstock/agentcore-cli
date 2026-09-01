@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
 import { fetchLatestVersion, handleUpdate } from "./action";
+import { NetworkingError } from "../../errors";
 import type { ProcessRunner } from "../../io";
 
 // No golden/fixture tests here: the repo's *.fixture.test.tsx harness records and
@@ -21,11 +22,16 @@ describe("fetchLatestVersion", () => {
     expect(fetchSpy).toHaveBeenCalledWith("https://registry.npmjs.org/@aws/agentcore/latest");
   });
 
-  test("throws when the registry responds non-OK", async () => {
+  test("throws a NetworkingError when the registry responds non-OK", async () => {
     spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("", { status: 404, statusText: "Not Found" }),
     );
-    await expect(fetchLatestVersion()).rejects.toThrow("Failed to fetch latest version: Not Found");
+    await expect(fetchLatestVersion()).rejects.toBeInstanceOf(NetworkingError);
+  });
+
+  test("wraps a fetch failure (offline) as a NetworkingError", async () => {
+    spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("fetch failed"));
+    await expect(fetchLatestVersion()).rejects.toBeInstanceOf(NetworkingError);
   });
 });
 
@@ -80,8 +86,10 @@ describe("handleUpdate", () => {
     );
   });
 
-  test("update-failed when the install runner throws", async () => {
+  test("update-failed carries the error reason when the install runner throws", async () => {
     mockLatest("2.0.0");
-    expect((await handleUpdate(false, { runner: failRunner })).status).toBe("update-failed");
+    const result = await handleUpdate(false, { runner: failRunner });
+    expect(result.status).toBe("update-failed");
+    expect(result.error).toBe("npm exploded");
   });
 });

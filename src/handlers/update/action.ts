@@ -1,5 +1,6 @@
 import semver from "semver";
 import { runProcess, type ProcessRunner } from "../../io";
+import { NetworkingError } from "../../errors";
 import { PACKAGE_VERSION } from "../../constants";
 
 const PACKAGE_NAME = "@aws/agentcore";
@@ -14,9 +15,17 @@ export function installArgv(): string[] {
 }
 
 export async function fetchLatestVersion(): Promise<string> {
-  const response = await fetch(`${REGISTRY_URL}/${PACKAGE_NAME}/latest`);
+  let response: Response;
+  try {
+    response = await fetch(`${REGISTRY_URL}/${PACKAGE_NAME}/latest`);
+  } catch (cause) {
+    throw new NetworkingError(
+      `Could not reach the npm registry: ${cause instanceof Error ? cause.message : String(cause)}`,
+      { cause },
+    );
+  }
   if (!response.ok) {
-    throw new Error(`Failed to fetch latest version: ${response.statusText}`);
+    throw new NetworkingError(`Failed to fetch latest version: ${response.statusText}`);
   }
   const data = (await response.json()) as { version: string };
   return data.version;
@@ -29,6 +38,7 @@ export interface UpdateResult {
   status: UpdateStatus;
   currentVersion: string;
   latestVersion: string;
+  error?: string;
 }
 
 export interface HandleUpdateOptions {
@@ -56,7 +66,12 @@ export async function handleUpdate(
   try {
     await runner(installArgv(), { cwd: process.cwd(), onOutput });
     return { status: "updated", currentVersion: PACKAGE_VERSION, latestVersion };
-  } catch {
-    return { status: "update-failed", currentVersion: PACKAGE_VERSION, latestVersion };
+  } catch (cause) {
+    return {
+      status: "update-failed",
+      currentVersion: PACKAGE_VERSION,
+      latestVersion,
+      error: cause instanceof Error ? cause.message : String(cause),
+    };
   }
 }
