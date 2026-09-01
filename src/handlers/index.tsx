@@ -13,6 +13,7 @@ import { renderTui } from "../tui";
 import { withRegion, withJsonRenderer, withLogging, withGlobalConfigAccessor } from "../middleware";
 import type { AppIO } from "../io";
 import type { Core } from "./types.tsx";
+import type { CoreFetch } from "../core/types";
 import type { Logger } from "../logging";
 import type { GlobalConfigAccessor } from "../globalConfig";
 import { PACKAGE_VERSION } from "../constants";
@@ -21,10 +22,14 @@ export interface RootHandlerConfig {
   io: AppIO;
   logger: Logger;
   globalConfigAccessor: GlobalConfigAccessor;
+  // Outbound HTTP for handlers that call non-AWS APIs directly (e.g. feedback →
+  // Aperture). Defaults to the global fetch; tests inject a fixture/capturing fetch.
+  fetch?: CoreFetch;
 }
 
 export function createRootHandler(core: Core, config: RootHandlerConfig): Router {
   const { io, logger } = config;
+  const fetch = config.fetch ?? globalThis.fetch;
   const root = new Router("agentcore", "the platform for production AI agents");
 
   // `agentcore --version` prints the build-time package version.
@@ -54,7 +59,7 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
   root.handler(createMemoryHandler(core, io));
   root.handler(createGatewayHandler(core, io));
   root.handler(createEvalHandler(core, io));
-  root.handler(createFeedbackHandler(core, io));
+  root.handler(createFeedbackHandler(io, fetch));
   root.handler(createConfigHandler());
   root.handler(createProjectHandler({ core, io }));
 

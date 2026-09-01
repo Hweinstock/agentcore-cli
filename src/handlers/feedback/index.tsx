@@ -2,18 +2,17 @@ import { createInterface } from "node:readline/promises";
 import z from "zod";
 import { argument, createHandler, flag } from "../../router";
 import { JsonRendererKey } from "../../tui";
-import { InputValidationError, UserCancellationError } from "../../errors";
-import { coreOptsFromCtx } from "../utils.tsx";
 import { JsonKey } from "../keys.tsx";
-import { CONSENT_TEXT } from "../../core/feedback";
-import type { Core } from "../types.tsx";
+import { InputValidationError, UserCancellationError } from "../../errors";
+import { CONSENT_TEXT, submitFeedback } from "./submit";
 import type { AppIO } from "../../io";
+import type { CoreFetch } from "../../core/types";
 
-export const createFeedbackHandler = (core: Core, io: AppIO) =>
+export const createFeedbackHandler = (io: AppIO, fetch: CoreFetch) =>
   createHandler({
     name: "feedback",
     description: "Send feedback about the AgentCore CLI to the team.",
-    // Length/empty validation lives solely in core.submitFeedback so one code path
+    // Length/empty validation lives solely in submitFeedback so one code path
     // guards every caller; the arg is unconstrained here beyond being a string.
     arguments: [argument("message", "the feedback message to send", z.string())],
     flags: [
@@ -38,12 +37,12 @@ export const createFeedbackHandler = (core: Core, io: AppIO) =>
 
       await confirmConsent(io, ctx.require(JsonKey), flags.yes);
 
-      const result = await core.feedback.submitFeedback(
+      const result = await submitFeedback(
         {
           message: args["message"],
           screenshot: screenshotPath ? { path: screenshotPath } : undefined,
         },
-        coreOptsFromCtx(ctx),
+        fetch,
       );
 
       ctx.require(JsonRendererKey).renderJson({ success: true, ...result });

@@ -127,11 +127,6 @@ import type {
 } from "../handlers/identity/types";
 import type { CoreMemoryClient } from "../handlers/memory/types";
 import type {
-  CoreFeedbackClient,
-  FeedbackSubmissionResult,
-  SubmitFeedbackInput,
-} from "../handlers/feedback/types";
-import type {
   CoreObservabilityClient,
   CoreRuntimeClient,
   DeployedRuntime,
@@ -2302,36 +2297,6 @@ export class TestObservabilityClient implements CoreObservabilityClient {
   }
 }
 
-// TestFeedbackClient is the feedback sub-client of TestCoreClient.
-export class TestFeedbackClient implements CoreFeedbackClient {
-  readonly calls: RecordedCall[] = [];
-  private response: FeedbackSubmissionResult = {
-    id: "feedback-test-id",
-    timestamp: "2026-01-01T00:00:00Z",
-    reference: "agentcore-cli",
-  };
-  private error?: Error;
-
-  setSubmitResponse(response: FeedbackSubmissionResult): this {
-    this.response = response;
-    return this;
-  }
-
-  setError(error: Error | undefined): this {
-    this.error = error;
-    return this;
-  }
-
-  async submitFeedback(
-    input: SubmitFeedbackInput,
-    options: CoreOptions,
-  ): Promise<FeedbackSubmissionResult> {
-    this.calls.push({ method: "submitFeedback", args: [input, options] });
-    if (this.error) throw this.error;
-    return this.response;
-  }
-}
-
 // TestCoreClient implements the Core contract with fully controllable sub-clients.
 export class TestCoreClient implements Core {
   readonly harness = new TestHarnessClient();
@@ -2340,7 +2305,6 @@ export class TestCoreClient implements Core {
   readonly runtime = new TestRuntimeClient();
   readonly gateway = new TestGatewayClient();
   readonly eval = new TestEvalClient();
-  readonly feedback = new TestFeedbackClient();
   readonly observability = new TestObservabilityClient();
   readonly projectManager: ProjectManager;
 
