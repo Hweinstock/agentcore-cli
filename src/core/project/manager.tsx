@@ -889,7 +889,7 @@ export class FsProjectManager implements ProjectManager {
     const resource = resolved.resources.find(
       ({ resourceType, name }) => resourceType === input.resourceType && name === input.name,
     );
-    if (resource) return { id: resource.id, target: resolved.target };
+    if (resource) return resource;
 
     const label = input.resourceType === "runtime" ? "Runtime" : "Harness";
     throw new ProjectStateError(

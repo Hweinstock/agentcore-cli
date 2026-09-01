@@ -628,8 +628,18 @@ describe("CdkBackend.resolveDeployedResources", () => {
     const resources = await subject.backend.resolveDeployedResources(input, { target: TARGET });
 
     expect(resources).toEqual([
-      { resourceType: "runtime", name: "checkout_agent", id: "checkout_agent-AbCdEf1234" },
-      { resourceType: "harness", name: "support_agent", id: "support_agent-AbCdEf1234" },
+      {
+        resourceType: "runtime",
+        name: "checkout_agent",
+        id: "checkout_agent-AbCdEf1234",
+        target: TARGET,
+      },
+      {
+        resourceType: "harness",
+        name: "support_agent",
+        id: "support_agent-AbCdEf1234",
+        target: TARGET,
+      },
     ]);
     expect(subject.stackReads).toHaveLength(1);
   });

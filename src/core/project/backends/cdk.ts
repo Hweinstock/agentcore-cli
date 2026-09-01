@@ -3,10 +3,10 @@ import { join } from "node:path";
 import type { Stack } from "@aws-sdk/client-cloudformation";
 import { MalformedServiceResponseError, ProjectStateError } from "../../../errors/errors";
 import type {
-  DeployedProjectResource,
   DeployResult,
   Project,
   ProjectEvent,
+  ResolvedDeployedResource,
 } from "../../../handlers/project/types";
 import {
   FsReadWriteJson,
@@ -53,7 +53,7 @@ type StackDescriber = typeof describeStack;
 
 function findDeployedResourceId(
   stack: Stack,
-  input: Pick<DeployedProjectResource, "resourceType" | "name">,
+  input: Pick<ResolvedDeployedResource, "resourceType" | "name">,
 ): string | undefined {
   if (!stack.StackName) return undefined;
   const exportResourceName = input.name.replaceAll("_", "-");
@@ -265,7 +265,7 @@ export class CdkBackend implements ProjectBackend {
   public async resolveDeployedResources(
     project: Project,
     input: ResolveDeployedResourcesBackendInput,
-  ): Promise<DeployedProjectResource[]> {
+  ): Promise<ResolvedDeployedResource[]> {
     const { target } = input;
     const deployedState = await readDeployedState(this.json, project.rootPath);
     const stackArn = deployedState.targets[target.name]?.stackArn;
@@ -291,7 +291,9 @@ export class CdkBackend implements ProjectBackend {
     ];
     return resources.flatMap((resource) => {
       const id = findDeployedResourceId(stack, resource);
-      return id ? [{ ...resource, id }] : [];
+      // The backend already resolved `target`, so each entry carries it and stays
+      // self-describing once callers pull it out of the list.
+      return id ? [{ ...resource, id, target }] : [];
     });
   }
 

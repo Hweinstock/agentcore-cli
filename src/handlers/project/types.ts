@@ -145,19 +145,26 @@ export type ResolveDeployedResourcesInput = {
   target: string;
 };
 
-export type DeployedProjectResource = {
+/**
+ * A single project resource resolved to its deployed physical ID, self-describing
+ * down to the target it lives in: a caller holding one always knows what it is and
+ * which region to address it in, without carrying a separate envelope alongside.
+ */
+export type ResolvedDeployedResource = {
   resourceType: ProjectInvokableResource;
   name: string;
-  id: string;
-};
-
-export type ResolvedDeployedResource = {
   id: string;
   target: AwsDeploymentTarget;
 };
 
+/**
+ * Every resource discovered in a target's deployed stack. The target is repeated on
+ * the envelope because it is resolved independently of what the stack turns out to
+ * contain: an undeployed target yields zero resources, and callers still need to
+ * report which target and region they read.
+ */
 export type ResolvedDeployedResources = {
-  resources: DeployedProjectResource[];
+  resources: ResolvedDeployedResource[];
   target: AwsDeploymentTarget;
 };
 
