@@ -1,7 +1,7 @@
 import z from "zod";
 import semver from "semver";
 import { createHandler, flag } from "../../router";
-import { NetworkingError, SilentCLIError } from "../../errors";
+import { AgentCoreCLIError, NetworkingError } from "../../errors";
 import { runProcess, type ProcessRunner, type AppIO } from "../../io";
 import { JsonRendererKey } from "../../tui";
 import { PACKAGE_VERSION } from "../../constants";
@@ -92,7 +92,7 @@ export const createUpdateHandler = (io: AppIO) =>
       ctx.require(JsonRendererKey).renderJson(result);
 
       if (result.status === "update-failed") {
-        throw new SilentCLIError("failed to install update", { exitCode: 1 });
+        throw new AgentCoreCLIError(result.error ?? "failed to install update", { exitCode: 1 });
       }
     },
   });
