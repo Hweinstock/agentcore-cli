@@ -5,8 +5,7 @@ import type { CredentialSchema } from "../../projectSchemas/credential";
 import type { PaymentConnectorSchema, PaymentManagerSchema } from "../../projectSchemas/payment";
 import type { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import { MemorySchema } from "../../projectSchemas/memory";
-import type { EvaluatorSchema } from "../../projectSchemas/evaluator";
-import type { ManagedEvaluatorScaffoldInput } from "../../core/project/templates/evaluator";
+import type { EvaluatorSchema, EvaluationLevel } from "../../projectSchemas/evaluator";
 import type { ProjectSpecSchema } from "../../projectSchemas/project";
 import z from "zod";
 import type { ImportBedrockAgentInput, RuntimeResourceConfig } from "./add/runtime/types";
@@ -24,6 +23,21 @@ type CreateProjectInputBase = {
   skipInstall?: boolean;
   /** Skip initializing a git repository. */
   skipGit?: boolean;
+};
+
+export const EVALUATOR_LIBRARIES = ["deepeval", "autoevals"] as const;
+export type EvaluatorLibrary = (typeof EVALUATOR_LIBRARIES)[number];
+
+/** Set of arguments needed to scaffold a managed code-based evaluator. */
+export type ManagedEvaluatorScaffoldInput = {
+  name: string;
+  level: EvaluationLevel;
+  description?: string;
+  kmsKeyArn?: string;
+  tags?: Record<string, string>;
+  metric?: { library: EvaluatorLibrary; metricClass: string };
+  model?: string;
+  timeoutSeconds?: number;
 };
 
 /** Set of arguments needed to scaffold a new Runtime-based agent. */

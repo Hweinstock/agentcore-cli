@@ -1,37 +1,29 @@
 import { FsTreeNode } from "./fsTree";
 import type { AssetSource } from "../source";
-import type { Evaluator, EvaluationLevel } from "../../../projectSchemas/evaluator";
+import type { Evaluator } from "../../../projectSchemas/evaluator";
 import type { TemplateRenderer, TemplateResolver } from "./types";
 import { toPythonPackageName } from "../fsUtils";
+import type {
+  EvaluatorLibrary,
+  ManagedEvaluatorScaffoldInput,
+} from "../../../handlers/project/types";
 
 const DEFAULT_TIMEOUT = 60;
 
-export const EVALUATOR_LIBRARIES = {
+const EVALUATOR_ASSETS: Record<
+  EvaluatorLibrary,
+  { assetDir: string; defaultTimeoutSeconds: number }
+> = {
   deepeval: { assetDir: "evaluators/deepeval-lambda", defaultTimeoutSeconds: 300 },
   autoevals: { assetDir: "evaluators/autoevals-lambda", defaultTimeoutSeconds: DEFAULT_TIMEOUT },
-} as const;
-
-export type EvaluatorLibrary = keyof typeof EVALUATOR_LIBRARIES;
+};
 
 const EMPTY_ASSET_DIR = "evaluators/python-lambda";
-
-export type ManagedEvaluatorScaffoldInput = {
-  name: string;
-  level: EvaluationLevel;
-  description?: string;
-  kmsKeyArn?: string;
-  tags?: Record<string, string>;
-  metric?: { library: EvaluatorLibrary; metricClass: string };
-  model?: string;
-  timeoutSeconds?: number;
-};
 
 function buildManagedEvaluatorSpec(input: ManagedEvaluatorScaffoldInput): Evaluator {
   const timeoutSeconds =
     input.timeoutSeconds ??
-    (input.metric
-      ? EVALUATOR_LIBRARIES[input.metric.library].defaultTimeoutSeconds
-      : DEFAULT_TIMEOUT);
+    (input.metric ? EVALUATOR_ASSETS[input.metric.library].defaultTimeoutSeconds : DEFAULT_TIMEOUT);
   return {
     name: input.name,
     level: input.level,
@@ -73,7 +65,7 @@ export function getEvaluatorTemplateResolver(
   return {
     async resolve(input) {
       const assetDir = input.metric
-        ? EVALUATOR_LIBRARIES[input.metric.library].assetDir
+        ? EVALUATOR_ASSETS[input.metric.library].assetDir
         : EMPTY_ASSET_DIR;
       const tree = await FsTreeNode.fromAssetSource(
         { assetSource: config.assetSource },

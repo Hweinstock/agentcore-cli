@@ -11,7 +11,7 @@ import {
   EVALUATOR_LIBRARIES,
   type EvaluatorLibrary,
   type ManagedEvaluatorScaffoldInput,
-} from "../../../../../core/project/templates/evaluator";
+} from "../../../types";
 import { parseJsonFlagWithSchema } from "../../../../utils";
 import type { AddProjectResourceConfig } from "../../types";
 
@@ -122,9 +122,9 @@ function parseMetric(raw: string): { library: EvaluatorLibrary; metricClass: str
   const dot = raw.indexOf(".");
   const library = dot > 0 ? raw.slice(0, dot) : "";
   const metricClass = dot > 0 ? raw.slice(dot + 1) : "";
-  if (!(library in EVALUATOR_LIBRARIES))
+  if (!(EVALUATOR_LIBRARIES as readonly string[]).includes(library))
     throw new InputValidationError(
-      `invalid --metric "${raw}": expected <library.Metric> where library is one of ${Object.keys(EVALUATOR_LIBRARIES).join(", ")} (e.g. deepeval.FaithfulnessMetric)`,
+      `invalid --metric "${raw}": expected <library.Metric> where library is one of ${EVALUATOR_LIBRARIES.join(", ")} (e.g. deepeval.FaithfulnessMetric)`,
     );
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(metricClass))
     throw new InputValidationError(
