@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Text, useInput } from "ink";
 import { useNavigate, useParams } from "react-router";
 import { Layout } from "../../../components/Layout";
@@ -92,7 +92,7 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   },
   {
     resourceType: "policy",
-    parentLabel: "engine",
+    parentLabel: "policy engine",
     list: (s) =>
       s.policyEngines.flatMap((engine) =>
         engine.policies.map((policy) => ({
@@ -104,7 +104,7 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   },
   {
     resourceType: "payment-connector",
-    parentLabel: "manager",
+    parentLabel: "payment manager",
     list: (s) =>
       (s.payments ?? []).flatMap((manager) =>
         manager.connectors.map((connector) => ({
@@ -122,6 +122,8 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
 
 const REMOVE_ROOT = "/agentcore/project/remove";
 
+const projectQueryKey = (cwd: string) => ["project", "remove", cwd] as const;
+
 const KEY_HINTS = [
   { key: "↑↓/jk", label: "navigate" },
   { key: "/", label: "filter" },
@@ -134,17 +136,17 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   const { resourceType, resourceIndex } = useParams();
   const navigate = useNavigate();
 
-  // The project is pinned on the context when `remove` runs as a command, but
-  // not when this screen is reached by navigating within the root TUI; resolve
-  // from the working directory in that case (mirrors project invoke).
+  // Resolve from the working directory so the list reflects removals made this
+  // session; the context value pinned by `withProject` is only a pre-resolve
+  // fallback (its spec goes stale after a removal). Both agree because
+  // withProject also resolves from the working directory.
   const pinned = ctx.value(ProjectKey);
   const cwd = process.cwd();
   const resolved = useQuery({
-    queryKey: ["project", "remove", cwd],
+    queryKey: projectQueryKey(cwd),
     queryFn: async () => (await core.projectManager.resolve({ filePath: cwd })) ?? null,
-    enabled: !pinned,
   });
-  const project = pinned ?? resolved.data ?? undefined;
+  const project = resolved.data ?? pinned ?? undefined;
 
   // The spinner/error/no-project states render no table, so handle esc here;
   // the picker and confirm screens handle their own.
@@ -156,13 +158,12 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   );
 
   if (!project) {
-    const message =
-      !pinned && resolved.isPending
-        ? undefined
-        : resolved.isError
-          ? (resolved.error as Error).message
-          : `No AgentCore project found at ${cwd} or any parent directory ` +
-            `(looked for agentcore/agentcore.json). Run 'agentcore project create' to scaffold one.`;
+    const message = resolved.isPending
+      ? undefined
+      : resolved.isError
+        ? (resolved.error as Error).message
+        : `No AgentCore project found at ${cwd} or any parent directory ` +
+          `(looked for agentcore/agentcore.json). Run 'agentcore project create' to scaffold one.`;
     return (
       <Layout breadcrumb={["agentcore", "project", "remove"]} keyHints={KEY_HINTS}>
         {message === undefined ? (
@@ -257,8 +258,8 @@ function ResourcePicker({
   }));
   const columns: DataTableColumn<ResourceRow>[] = table.parentLabel
     ? [
-        { key: "parent", header: table.parentLabel, width: 24 },
         { key: "name", header: "name", flex: true },
+        { key: "parent", header: table.parentLabel, width: 30 },
       ]
     : [{ key: "name", header: "name", flex: true }];
 
@@ -294,6 +295,8 @@ function RemoveConfirm({
   resource: RemovableResource;
 }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const cwd = process.cwd();
 
   return (
     <ConfirmAction
@@ -318,13 +321,20 @@ function RemoveConfirm({
       }}
       successTitle="Resource removed"
       runningLabel="Removing resource…"
-      onDone={() => navigate("/agentcore/project")}
+      onDone={() => {
+        // Refresh the list off disk only on the way out, so the success panel
+        // isn't torn down mid-flow when the removed resource disappears.
+        void queryClient.invalidateQueries({ queryKey: projectQueryKey(cwd) });
+        navigate(REMOVE_ROOT);
+      }}
     />
   );
 }
 
 function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenProps["core"] }) {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const cwd = process.cwd();
 
   const populated = RESOURCE_TABLES.flatMap((table) => {
     const count = table.list(project.spec).length;
@@ -363,7 +373,10 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
       }}
       successTitle="All resources removed"
       runningLabel="Removing all resources…"
-      onDone={() => navigate("/agentcore/project")}
+      onDone={() => {
+        void queryClient.invalidateQueries({ queryKey: projectQueryKey(cwd) });
+        navigate(REMOVE_ROOT);
+      }}
     />
   );
 }

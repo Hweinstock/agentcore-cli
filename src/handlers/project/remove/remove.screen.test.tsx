@@ -193,16 +193,27 @@ describe("project remove screen", () => {
     r.unmount();
   });
 
-  test("enter after success returns to the project menu", async () => {
+  test("enter after success returns to the resource-type selector with fresh data", async () => {
     const core = new TestCoreClient();
-    const { project } = await createProject(core);
-    const r = render("/agentcore/project/remove/runtime/0", core, project);
+    const { project } = await createProject(core, POLICY);
+    process.chdir(project.rootPath); // cwd-resolve path, so the selector refreshes from disk
+    const r = renderScreen("/agentcore/project/remove/runtime/0", { core });
 
     await waitForText(r.lastFrame, "Remove runtime 'hello_world' from project orders?");
     await r.write("y");
     await waitForText(r.lastFrame, "Resource removed");
     await r.press("return");
-    await waitForText(r.lastFrame, "agentcore → project");
+
+    // Back on the resource-type selector, refreshed off disk: policy remains,
+    // the just-removed runtime is gone.
+    await waitFor(() => {
+      const frame = r.lastFrame() ?? "";
+      return (
+        frame.includes("choose a resource to remove from project orders") &&
+        frame.includes("policy") &&
+        !frame.includes("runtime")
+      );
+    });
     r.unmount();
   });
 
