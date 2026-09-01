@@ -2,6 +2,9 @@ from strands import Agent, tool
 from strands.multiagent.a2a.executor import StrandsA2AExecutor
 from bedrock_agentcore.runtime import serve_a2a
 from model.load import load_model
+{{#if hasMemory}}
+from memory.session import get_memory_session_manager
+{{/if}}
 {{#if needsOs}}
 import os
 {{/if}}
@@ -81,9 +84,15 @@ You have access to the following mounted filesystems. Use file_read, file_write,
 {{/each}}{{/if}}
 """
 
+# serve_a2a serves one agent instance, so it is bound to a fixed session and
+# actor; get_memory_session_manager returns None (in-process history only) until
+# the deployed MEMORY_ID env var is set by the CDK.
 agent = Agent(
     name="{{ name }}",
     model=load_model(),
+{{#if hasMemory}}
+    session_manager=get_memory_session_manager("default-session", "default-user"),
+{{/if}}
     system_prompt=SYSTEM_PROMPT,
     tools=tools,
 )

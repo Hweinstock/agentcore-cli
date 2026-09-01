@@ -198,11 +198,47 @@ exports[`FsProjectManager.create snapshots the Strands A2A project manifest and 
     "app/a2a_agent/.gitignore",
     "app/a2a_agent/README.md",
     "app/a2a_agent/main.py",
+    "app/a2a_agent/memory/__init__.py",
+    "app/a2a_agent/memory/session.py",
     "app/a2a_agent/model/__init__.py",
     "app/a2a_agent/model/load.py",
     "app/a2a_agent/pyproject.toml",
   ],
-  "memories": undefined,
+  "memories": [
+    {
+      "eventExpiryDuration": 30,
+      "name": "a2a_agentMemory",
+      "strategies": [
+        {
+          "namespaceTemplates": [
+            "/users/{actorId}/facts",
+          ],
+          "type": "SEMANTIC",
+        },
+        {
+          "namespaceTemplates": [
+            "/users/{actorId}/preferences",
+          ],
+          "type": "USER_PREFERENCE",
+        },
+        {
+          "namespaceTemplates": [
+            "/summaries/{actorId}/{sessionId}",
+          ],
+          "type": "SUMMARIZATION",
+        },
+        {
+          "namespaceTemplates": [
+            "/episodes/{actorId}/{sessionId}",
+          ],
+          "reflectionNamespaceTemplates": [
+            "/episodes/{actorId}",
+          ],
+          "type": "EPISODIC",
+        },
+      ],
+    },
+  ],
   "runtimes": [
     {
       "build": "CodeZip",

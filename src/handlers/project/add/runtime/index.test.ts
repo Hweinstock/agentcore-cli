@@ -480,6 +480,37 @@ describe("project add runtime", () => {
 
   test.each<[string, string[], string[]]>([
     [
+      "template preset defaults to long and short-term memory",
+      ["--name", "my_a2a", "--template", "strands-py-a2a"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
+    [
+      "template preset with --memory none",
+      ["--name", "my_a2a", "--template", "strands-py-a2a", "--memory", "none"],
+      [],
+    ],
+  ])("strands-py-a2a %s", async (_label, flags, expectedStrategies) => {
+    const projectRoot = await inProject();
+    await run(["add", "runtime", ...flags]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const memory = (spec.memories ?? []).find(
+      (candidate: { name: string }) => candidate.name === "my_a2aMemory",
+    );
+    const memoryDir = join(projectRoot, "app", "my_a2a", "memory", "session.py");
+
+    if (expectedStrategies.length === 0) {
+      expect(memory).toBeUndefined();
+      expect(await Bun.file(memoryDir).exists()).toBe(false);
+      return;
+    }
+
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+    expect(await Bun.file(memoryDir).exists()).toBe(true);
+  });
+
+  test.each<[string, string[], string[]]>([
+    [
       "template preset",
       ["--name", "my_agent", "--template", "strands-ts"],
       ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
@@ -583,29 +614,6 @@ describe("project add runtime", () => {
     [
       "py-mcp does not support memory",
       ["--name", "my_agent", "--template", "py-mcp", "--memory", "shortTerm"],
-    ],
-    [
-      "strands-py-a2a does not support memory",
-      ["--name", "my_agent", "--template", "strands-py-a2a", "--memory", "shortTerm"],
-    ],
-    [
-      "custom A2A runtime does not support memory",
-      [
-        "--name",
-        "my_agent",
-        "--build",
-        "CodeZip",
-        "--language",
-        "Python",
-        "--framework",
-        "strands",
-        "--protocol",
-        "A2A",
-        "--model-provider",
-        "Bedrock",
-        "--memory",
-        "shortTerm",
-      ],
     ],
     [
       "--protocol alone requires --framework and --language",

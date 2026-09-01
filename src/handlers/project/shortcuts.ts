@@ -102,7 +102,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "strands",
     protocol: "A2A",
     modelProvider: "Bedrock",
-    memory: "none",
+    memory: "longAndShortTerm",
     runtimeVersion: "PYTHON_3_14",
   },
 } as const satisfies Record<string, RuntimeTemplateShortcut>;

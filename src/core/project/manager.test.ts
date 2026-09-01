@@ -165,7 +165,7 @@ describe("FsProjectManager.create", () => {
       protocol: "A2A",
       entrypoint: "main.py",
     });
-    expect(spec.memories).toBeUndefined();
+    expect(spec.memories).toMatchObject([{ name: "a2a_agentMemory" }]);
   });
 
   test("scaffolds the Strands A2A runtime as a container with --build Container", async () => {

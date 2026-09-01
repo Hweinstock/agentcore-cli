@@ -288,8 +288,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     };
   },
   [buildResolverKey("strands", "Python", "A2A")]: async (input: RuntimeResourceConfig) => {
-    if (input.scaffoldRuntimeInput.memory !== undefined)
-      throw new InputValidationError("memory is not supported with an A2A runtime");
     const filesystemConfigurations = input.filesystemConfigurations ?? [];
     const sessionStorageMountPath = filesystemConfigurations.flatMap((configuration) =>
       "sessionStorage" in configuration ? [configuration.sessionStorage.mountPath] : [],
@@ -304,9 +302,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         ? [{ mountPath: configuration.s3FilesAccessPoint.mountPath }]
         : [],
     );
+    const memory = input.scaffoldRuntimeInput.memory;
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      hasMemory: memory !== undefined,
+      // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
+      memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
+      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
       sessionStorageMountPath,
       efsMounts,
       s3Mounts,
@@ -324,7 +327,8 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
-        filter: (name) => {
+        filter: (name, isDir) => {
+          if (isDir && name === "memory") return memory !== undefined;
           if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },
@@ -332,7 +336,10 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }] },
+      spec: {
+        runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
+        ...(memory && { memories: [memory] }),
+      },
     };
   },
 });
