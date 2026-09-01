@@ -287,6 +287,54 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "MCP" as const }] },
     };
   },
+  [buildResolverKey("strands", "Python", "A2A")]: async (input: RuntimeResourceConfig) => {
+    if (input.scaffoldRuntimeInput.memory !== undefined)
+      throw new InputValidationError("memory is not supported with an A2A runtime");
+    const filesystemConfigurations = input.filesystemConfigurations ?? [];
+    const sessionStorageMountPath = filesystemConfigurations.flatMap((configuration) =>
+      "sessionStorage" in configuration ? [configuration.sessionStorage.mountPath] : [],
+    )[0];
+    const efsMounts = filesystemConfigurations.flatMap((configuration) =>
+      "efsAccessPoint" in configuration
+        ? [{ mountPath: configuration.efsAccessPoint.mountPath }]
+        : [],
+    );
+    const s3Mounts = filesystemConfigurations.flatMap((configuration) =>
+      "s3FilesAccessPoint" in configuration
+        ? [{ mountPath: configuration.s3FilesAccessPoint.mountPath }]
+        : [],
+    );
+    const context = {
+      name: toPythonPackageName(input.name),
+      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      sessionStorageMountPath,
+      efsMounts,
+      s3Mounts,
+      needsOs: filesystemConfigurations.length > 0,
+      // The AgentCore Runtime requires OTEL dependencies to be present; the
+      // container launches main.py as the `main` module under
+      // opentelemetry-instrument, and serve_a2a binds the A2A server on port 9000.
+      enableOtel: true,
+      entrypoint: "main",
+    };
+    const isContainer = input.scaffoldRuntimeInput.build === "Container";
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource },
+      { assetDir: "templates/strands-py-a2a" },
+      {
+        rootDirName: input.name,
+        transformContent: (raw) => templateRenderer.render(raw, context),
+        filter: (name) => {
+          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
+          return true;
+        },
+      },
+    );
+    return {
+      tree,
+      spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }] },
+    };
+  },
 });
 
 type GetRuntimeTemplateResolverConfig = {
