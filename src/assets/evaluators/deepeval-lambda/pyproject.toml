@@ -8,10 +8,13 @@ version = "0.1.0"
 description = "AgentCore Code-Based Evaluator (DeepEval)"
 requires-python = ">=3.10"
 dependencies = [
-    "bedrock-agentcore[deepeval]>=1.6.0,<2.0.0",
-    "deepeval>=2.0.0,<3.0.0",
+    # 1.20.0 is the first release shipping third_party.deepeval.DeepEvalAdapter;
+    # the extra owns the deepeval version, so pinning it here only conflicts.
+    "bedrock-agentcore[deepeval]>=1.20.0,<2.0.0",
 {{#if ModelProviderBedrock}}
-    "aiobotocore>=2.13.0,<3.0.0",
+    # deepeval's AmazonBedrockModel imports aiobotocore at runtime; only 3.x
+    # allows the botocore that bedrock-agentcore requires.
+    "aiobotocore>=3.0.0,<4.0.0",
 {{/if}}
 ]
 
