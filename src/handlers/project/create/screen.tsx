@@ -81,6 +81,11 @@ const TEMPLATE_OPTIONS: {
     label: "strands-python (recommended)",
     description: "Strands agent on Bedrock with memory (CodeZip build)",
   },
+  {
+    template: "py-mcp",
+    label: "py-mcp",
+    description: "MCP server exposing tools via FastMCP (CodeZip build)",
+  },
 ];
 
 const MEMORY_OPTIONS: { memory: MemoryShortcutName; label: string; description: string }[] = [

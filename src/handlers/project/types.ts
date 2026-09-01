@@ -11,7 +11,7 @@ import z from "zod";
 import type { ImportBedrockAgentInput, RuntimeResourceConfig } from "./add/runtime/types";
 import type { OnlineEvalConfigSchema } from "../../projectSchemas/online-eval-config";
 import { AgentNameSchema, BuildTypeSchema } from "../../projectSchemas/runtime";
-import { RuntimeVersionSchema } from "../../projectSchemas/constants";
+import { ProtocolModeSchema, RuntimeVersionSchema } from "../../projectSchemas/constants";
 import type { AgentCoreGateway, AgentCoreGatewayTarget } from "../../projectSchemas/gateway";
 import type { PolicyEngineSchema, PolicySchema } from "../../projectSchemas/policy";
 import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
@@ -32,6 +32,7 @@ export const ScaffoldRuntimeInputSchema = z
     build: BuildTypeSchema,
     language: z.enum(["Python", "TypeScript"]),
     framework: z.enum(["strands", "none"]),
+    protocol: ProtocolModeSchema.optional(),
     modelProvider: z.enum(["Bedrock"]),
     apiKey: z.string().min(1).optional(),
     memory: MemorySchema.optional(),

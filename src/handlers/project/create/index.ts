@@ -47,6 +47,7 @@ const RUNTIME_PATH_FLAGS = [
   "build",
   "language",
   "framework",
+  "protocol",
   "api-key",
   "runtime-name",
   "memory",
@@ -112,6 +113,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         "agent framework for the scaffolded runtime code",
         z.enum(["strands", "none"]).optional(),
       ),
+      flag("protocol", "server protocol: HTTP or MCP", z.enum(["HTTP", "MCP"]).optional()),
       flag(
         "model-provider",
         "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; Bedrock for runtime code",
@@ -216,7 +218,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         );
       }
 
-      const lockedFlag = (["language", "framework"] as const).find(
+      const lockedFlag = (["language", "framework", "protocol"] as const).find(
         (flagName) => flags[flagName] !== undefined,
       );
       if (isTemplate && lockedFlag) {
@@ -225,7 +227,15 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
 
       const isImport = flags["type"] === "import";
       const scaffoldingChoiceFlags = (
-        ["build", "language", "framework", "model-provider", "api-key", "memory"] as const
+        [
+          "build",
+          "language",
+          "framework",
+          "protocol",
+          "model-provider",
+          "api-key",
+          "memory",
+        ] as const
       ).filter((f) => flags[f] !== undefined);
       if (isImport && (isTemplate || scaffoldingChoiceFlags.length > 0)) {
         const offending = isTemplate ? "template" : scaffoldingChoiceFlags[0];
@@ -290,6 +300,7 @@ type RuntimePathFlagValues = {
   build?: "CodeZip" | "Container";
   language?: "Python" | "TypeScript";
   framework?: "strands" | "none";
+  protocol?: "HTTP" | "MCP";
   "model-provider"?: ModelProviderFlag;
   "api-key"?: string;
   memory?: (typeof MEMORY_SHORTCUT_NAMES)[number];
@@ -334,6 +345,7 @@ async function resolveScaffoldRuntimeInput(
         build: flags["build"],
         language: flags["language"],
         framework: flags["framework"],
+        protocol: flags["protocol"],
         modelProvider,
         apiKey,
         memory: MEMORY_SHORTCUTS[flags["memory"] ?? defaultMemory](runtimeName),
