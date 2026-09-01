@@ -19,8 +19,6 @@ describe("config", () => {
   };
 
   beforeEach(async () => {
-    // Isolate tests from an ambient AGENTCORE_TELEMETRY_DISABLED (set in CI) so
-    // config resolution reflects the config file; individual tests set it as needed.
     savedTelemetryDisabled = process.env.AGENTCORE_TELEMETRY_DISABLED;
     delete process.env.AGENTCORE_TELEMETRY_DISABLED;
     tempDir = await mkdtemp(join(tmpdir(), "agentcore-config-test-"));
