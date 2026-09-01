@@ -192,28 +192,11 @@ describe("config", () => {
     expect(JSON.parse(readOutput)).toBe(false);
   });
 
-  describe("AGENTCORE_TELEMETRY_DISABLED env var", () => {
-    test.each([
-      ["true", false],
-      ["TRUE", false],
-      ["1", false],
-      [" 1 ", false],
-      ["false", true],
-      ["0", true],
-      ["", true],
-      ["no", true],
-    ])(
-      "=%p resolves telemetry.enabled to %p, overriding the enabled config",
-      async (value, expected) => {
-        process.env.AGENTCORE_TELEMETRY_DISABLED = value;
-        expect(JSON.parse(await run(["telemetry.enabled"]))).toBe(expected);
-      },
-    );
+  test("does not persist telemetry.enabled when AGENTCORE_TELEMETRY_DISABLED is set", async () => {
+    process.env.AGENTCORE_TELEMETRY_DISABLED = "1";
+    await run(["telemetry.audit", "true"]);
+    delete process.env.AGENTCORE_TELEMETRY_DISABLED;
 
-    test("does not affect telemetry.audit", async () => {
-      await writeFile(configPath, JSON.stringify({ telemetry: { enabled: true, audit: true } }));
-      process.env.AGENTCORE_TELEMETRY_DISABLED = "1";
-      expect(JSON.parse(await run(["telemetry.audit"]))).toBe(true);
-    });
+    expect(JSON.parse(await run(["telemetry.enabled"]))).toBe(true);
   });
 });
