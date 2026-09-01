@@ -22,8 +22,6 @@ export interface RootHandlerConfig {
   io: AppIO;
   logger: Logger;
   globalConfigAccessor: GlobalConfigAccessor;
-  // Outbound HTTP for handlers that call non-AWS APIs directly (e.g. feedback →
-  // Aperture). Defaults to the global fetch; tests inject a fixture/capturing fetch.
   fetch?: CoreFetch;
 }
 

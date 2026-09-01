@@ -7,9 +7,6 @@ import { PACKAGE_VERSION } from "../../constants";
 import type { CoreFetch } from "../../core/types";
 import type { FeedbackSubmissionResult, SubmitFeedbackInput } from "./types";
 
-// Aperture public feedback API. These are commercial-partition (.aws.dev) endpoints
-// with no partition variant, so feedback is unavailable in GovCloud/China — carried
-// over from the pre-refactor CLI, flagged here rather than silently.
 const INGESTION_URL = "https://ingestion.aperture-public-api.feedback.console.aws.dev/form";
 const PRESIGN_URL =
   "https://presignedurl.aperture-public-api.feedback.console.aws.dev/presignedurl";
@@ -24,15 +21,12 @@ const MESSAGE_MAX_LENGTH = 1000;
 const MAX_SCREENSHOT_BYTES = 100 * 1024 * 1024;
 const ALLOWED_SCREENSHOT_EXTENSIONS = [".png", ".jpg", ".jpeg"] as const;
 
-// Rendered by the feedback command's consent prompt before every submission.
 export const CONSENT_TEXT =
   "All feedback submissions, including any uploaded text and images, are subject " +
   "to the AWS Customer Agreement (https://aws.amazon.com/agreement/). By submitting " +
   'feedback, you agree that your submissions constitute "Suggestions" as defined ' +
   "in the AWS Customer Agreement.";
 
-// Extends the CLI error hierarchy (the pre-refactor ApertureError extended plain
-// Error, so telemetry classified it as unknown) so failures record error_source=service.
 export class ApertureError extends AgentCoreCLIError {
   constructor(
     message: string,
@@ -70,214 +64,189 @@ type ApertureFormPayload = {
   metadataList: { key: string; value: string }[];
 };
 
-// submitFeedback posts a message (and optional screenshot) to the Aperture public
-// feedback API using the injected fetch. It lives with the handler rather than in
-// Core because feedback is an outbound product-API call, not work in the user's AWS
-// account, and it makes no AWS SDK calls.
-export async function submitFeedback(
-  input: SubmitFeedbackInput,
-  fetch: CoreFetch,
-): Promise<FeedbackSubmissionResult> {
-  const message = input.message.trim();
-  if (!message) {
-    throw new InputValidationError("Feedback message cannot be empty.");
-  }
-  if (message.length > MESSAGE_MAX_LENGTH) {
-    throw new InputValidationError(
-      `Feedback message must be ${MESSAGE_MAX_LENGTH} characters or fewer.`,
-    );
-  }
+export class FeedbackService {
+  constructor(private readonly fetch: CoreFetch) {}
 
-  const userAgent = `AgentCoreCLI/${PACKAGE_VERSION} (${process.platform} ${os.release()}; node/${process.version})`;
+  async submitFeedback(input: SubmitFeedbackInput): Promise<FeedbackSubmissionResult> {
+    const message = input.message.trim();
+    if (!message) {
+      throw new InputValidationError("Feedback message cannot be empty.");
+    }
+    if (message.length > MESSAGE_MAX_LENGTH) {
+      throw new InputValidationError(
+        `Feedback message must be ${MESSAGE_MAX_LENGTH} characters or fewer.`,
+      );
+    }
 
-  let screenshotReference: string | undefined;
-  if (input.screenshot) {
-    const file = await loadScreenshot(input.screenshot.path);
-    const presignedUrl = await fetchPresignedUrl(
-      fetch,
-      {
-        category: FORM_CATEGORY,
-        name: FORM_NAME,
-        version: FORM_VERSION,
-        fileName: file.fileName,
-        fileSize: file.size,
-        uploadFileSHA256: file.sha256Base64,
-      },
-      userAgent,
-    );
-    // Derive (and validate) the object key BEFORE the upload: fetch(badUrl) would
-    // otherwise throw a bare TypeError inside uploadFileToS3, masking the classified
-    // ApertureError and wasting a PUT against an unusable reference.
-    screenshotReference = objectKeyFromPresignedUrl(presignedUrl);
-    await uploadFileToS3(
-      fetch,
-      presignedUrl,
-      file.buffer,
-      file.contentType,
-      file.sha256Base64,
-      userAgent,
-    );
+    const userAgent = `AgentCoreCLI/${PACKAGE_VERSION} (${process.platform} ${os.release()}; node/${process.version})`;
+
+    let screenshotReference: string | undefined;
+    if (input.screenshot) {
+      const file = await this.loadScreenshot(input.screenshot.path);
+      const presignedUrl = await this.fetchPresignedUrl(
+        {
+          category: FORM_CATEGORY,
+          name: FORM_NAME,
+          version: FORM_VERSION,
+          fileName: file.fileName,
+          fileSize: file.size,
+          uploadFileSHA256: file.sha256Base64,
+        },
+        userAgent,
+      );
+      screenshotReference = objectKeyFromPresignedUrl(presignedUrl);
+      await this.uploadFileToS3(
+        presignedUrl,
+        file.buffer,
+        file.contentType,
+        file.sha256Base64,
+        userAgent,
+      );
+    }
+
+    const payload = buildFeedbackPayload({ message, screenshotReference });
+    return this.submitForm(payload, userAgent);
   }
 
-  const payload = buildFeedbackPayload({ message, screenshotReference });
-  return submitForm(fetch, payload, userAgent);
-}
-
-// Aperture returns the presigned URL as a plain-text body (not JSON).
-async function fetchPresignedUrl(
-  fetch: CoreFetch,
-  request: {
-    category: string;
-    name: string;
-    version: string;
-    fileName: string;
-    fileSize: number;
-    uploadFileSHA256: string;
-  },
-  userAgent: string,
-): Promise<string> {
-  const response = await fetch(PRESIGN_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", "user-agent": userAgent },
-    body: JSON.stringify(request),
-  });
-  if (!response.ok) {
-    throw new ApertureError(
-      `Failed to fetch screenshot upload URL (HTTP ${response.status}).`,
-      response.status,
-      await response.text().catch(() => ""),
-    );
-  }
-  return (await response.text()).trim();
-}
-
-// Aperture's bucket policy requires the SHA-256 checksum headers and a tag marking
-// the object as not yet AV-scanned; omitting either is rejected.
-async function uploadFileToS3(
-  fetch: CoreFetch,
-  presignedUrl: string,
-  fileBuffer: Uint8Array,
-  contentType: string,
-  base64Sha256: string,
-  userAgent: string,
-): Promise<void> {
-  const response = await fetch(presignedUrl, {
-    method: "PUT",
-    headers: {
-      "content-type": contentType,
-      "x-amz-checksum-algorithm": "SHA256",
-      "x-amz-checksum-sha256": base64Sha256,
-      "x-amz-tagging": "scanstatus=NOT_SCANNED",
-      "user-agent": userAgent,
+  private async fetchPresignedUrl(
+    request: {
+      category: string;
+      name: string;
+      version: string;
+      fileName: string;
+      fileSize: number;
+      uploadFileSHA256: string;
     },
-    body: fileBuffer,
-  });
-  if (!response.ok) {
-    throw new ApertureError(
-      `Failed to upload screenshot (HTTP ${response.status}).`,
-      response.status,
-      await response.text().catch(() => ""),
-    );
+    userAgent: string,
+  ): Promise<string> {
+    const response = await this.fetch(PRESIGN_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": userAgent },
+      body: JSON.stringify(request),
+    });
+    if (!response.ok) {
+      throw new ApertureError(
+        `Failed to fetch screenshot upload URL (HTTP ${response.status}).`,
+        response.status,
+        await response.text().catch(() => ""),
+      );
+    }
+    return (await response.text()).trim();
+  }
+
+  private async uploadFileToS3(
+    presignedUrl: string,
+    fileBuffer: Uint8Array,
+    contentType: string,
+    base64Sha256: string,
+    userAgent: string,
+  ): Promise<void> {
+    const response = await this.fetch(presignedUrl, {
+      method: "PUT",
+      headers: {
+        "content-type": contentType,
+        "x-amz-checksum-algorithm": "SHA256",
+        "x-amz-checksum-sha256": base64Sha256,
+        "x-amz-tagging": "scanstatus=NOT_SCANNED",
+        "user-agent": userAgent,
+      },
+      body: fileBuffer,
+    });
+    if (!response.ok) {
+      throw new ApertureError(
+        `Failed to upload screenshot (HTTP ${response.status}).`,
+        response.status,
+        await response.text().catch(() => ""),
+      );
+    }
+  }
+
+  private async submitForm(
+    payload: ApertureFormPayload,
+    userAgent: string,
+  ): Promise<FeedbackSubmissionResult> {
+    const response = await this.fetch(INGESTION_URL, {
+      method: "POST",
+      headers: { "content-type": "application/json", "user-agent": userAgent },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      throw new ApertureError(mapStatusToMessage(response.status, body), response.status, body);
+    }
+    const data = (await response
+      .json()
+      .catch(() => null)) as Partial<FeedbackSubmissionResult> | null;
+    if (
+      !data ||
+      typeof data.id !== "string" ||
+      typeof data.timestamp !== "string" ||
+      typeof data.reference !== "string"
+    ) {
+      throw new ApertureError("Feedback service returned an unexpected response.");
+    }
+    return { id: data.id, timestamp: data.timestamp, reference: data.reference };
+  }
+
+  private async loadScreenshot(rawFilePath: string): Promise<LoadedScreenshot> {
+    const filePath = expandTilde(rawFilePath);
+
+    let stats: Awaited<ReturnType<typeof stat>>;
+    try {
+      stats = await stat(filePath);
+    } catch (err) {
+      throw new InputValidationError(
+        `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    if (stats.isDirectory()) {
+      throw new InputValidationError(`Screenshot path is a directory, not a file: ${filePath}`);
+    }
+    if (!stats.isFile()) {
+      throw new InputValidationError(`Screenshot path is not a regular file: ${filePath}`);
+    }
+    if (stats.size > MAX_SCREENSHOT_BYTES) {
+      const sizeMb = (stats.size / (1024 * 1024)).toFixed(1);
+      throw new InputValidationError(`Screenshot is ${sizeMb} MB; maximum allowed size is 100 MB.`);
+    }
+
+    const ext = path.extname(filePath).toLowerCase();
+    if (
+      !ALLOWED_SCREENSHOT_EXTENSIONS.includes(ext as (typeof ALLOWED_SCREENSHOT_EXTENSIONS)[number])
+    ) {
+      throw new InputValidationError(
+        `Screenshot must be one of: ${ALLOWED_SCREENSHOT_EXTENSIONS.join(", ")}.`,
+      );
+    }
+
+    let buffer: Buffer;
+    try {
+      buffer = await readFile(filePath);
+    } catch (err) {
+      throw new InputValidationError(
+        `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+    return {
+      buffer: new Uint8Array(buffer),
+      fileName: path.basename(filePath),
+      contentType: ext === ".png" ? "image/png" : "image/jpeg",
+      sha256Base64: createHash("sha256").update(buffer).digest("base64"),
+      size: buffer.byteLength,
+    };
   }
 }
 
-async function submitForm(
-  fetch: CoreFetch,
-  payload: ApertureFormPayload,
-  userAgent: string,
-): Promise<FeedbackSubmissionResult> {
-  const response = await fetch(INGESTION_URL, {
-    method: "POST",
-    headers: { "content-type": "application/json", "user-agent": userAgent },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new ApertureError(mapStatusToMessage(response.status, body), response.status, body);
-  }
-  // A 2xx with a non-JSON or unexpectedly-shaped body is a service fault; validate
-  // rather than casting so a partial response never surfaces `id: undefined`.
-  const data = (await response
-    .json()
-    .catch(() => null)) as Partial<FeedbackSubmissionResult> | null;
-  if (
-    !data ||
-    typeof data.id !== "string" ||
-    typeof data.timestamp !== "string" ||
-    typeof data.reference !== "string"
-  ) {
-    throw new ApertureError("Feedback service returned an unexpected response.");
-  }
-  return { id: data.id, timestamp: data.timestamp, reference: data.reference };
-}
-
-async function loadScreenshot(rawFilePath: string): Promise<LoadedScreenshot> {
-  const filePath = expandTilde(rawFilePath);
-
-  let stats: Awaited<ReturnType<typeof stat>>;
-  try {
-    stats = await stat(filePath);
-  } catch (err) {
-    throw new InputValidationError(
-      `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-  if (stats.isDirectory()) {
-    throw new InputValidationError(`Screenshot path is a directory, not a file: ${filePath}`);
-  }
-  if (!stats.isFile()) {
-    throw new InputValidationError(`Screenshot path is not a regular file: ${filePath}`);
-  }
-  // Reject oversized files from stat before readFile, so a hostile/huge file is
-  // never loaded into memory just to be rejected.
-  if (stats.size > MAX_SCREENSHOT_BYTES) {
-    const sizeMb = (stats.size / (1024 * 1024)).toFixed(1);
-    throw new InputValidationError(`Screenshot is ${sizeMb} MB; maximum allowed size is 100 MB.`);
-  }
-
-  const ext = path.extname(filePath).toLowerCase();
-  if (
-    !ALLOWED_SCREENSHOT_EXTENSIONS.includes(ext as (typeof ALLOWED_SCREENSHOT_EXTENSIONS)[number])
-  ) {
-    throw new InputValidationError(
-      `Screenshot must be one of: ${ALLOWED_SCREENSHOT_EXTENSIONS.join(", ")}.`,
-    );
-  }
-
-  let buffer: Buffer;
-  try {
-    buffer = await readFile(filePath);
-  } catch (err) {
-    throw new InputValidationError(
-      `Could not read screenshot at ${filePath}: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-  return {
-    buffer: new Uint8Array(buffer),
-    fileName: path.basename(filePath),
-    contentType: ext === ".png" ? "image/png" : "image/jpeg",
-    sha256Base64: createHash("sha256").update(buffer).digest("base64"),
-    size: buffer.byteLength,
-  };
-}
-
-// Expand a leading ~ / ~/... to $HOME. Node's fs APIs don't expand tildes (the
-// shell normally does), so a quoted path like "~/shot.png" would otherwise ENOENT.
 function expandTilde(filePath: string): string {
   if (filePath === "~") return os.homedir();
   if (filePath.startsWith("~/")) return path.join(os.homedir(), filePath.slice(2));
   return filePath;
 }
 
-// The presigned URL's path IS the S3 object key the form must reference; fabricating
-// one client-side risks pointing at a nonexistent object if Aperture's bucket layout
-// or region shifts.
 function objectKeyFromPresignedUrl(presignedUrl: string): string {
   try {
     return decodeURIComponent(new URL(presignedUrl).pathname.replace(/^\/+/, ""));
   } catch {
-    // A 2xx presign body that isn't a URL is a service fault, not a bare TypeError —
-    // classify it so telemetry attributes it to the service, not internal.
     throw new ApertureError("Feedback service returned an invalid screenshot upload URL.");
   }
 }
@@ -301,8 +270,6 @@ function buildFeedbackPayload(input: {
     });
   }
 
-  // Aperture rejects unknown metadata keys with HTTP 400; only cli-version and os
-  // are registered in the form template, so node version + mode ride in `location`.
   return {
     category: FORM_CATEGORY,
     name: FORM_NAME,

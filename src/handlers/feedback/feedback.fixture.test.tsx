@@ -14,24 +14,10 @@ import { UserCancellationError } from "../../errors";
 import { ApertureError } from "./submit";
 import type { CoreFetch } from "../../core/types";
 
-// Record with: RECORD=1 bun test src/handlers/feedback/feedback.fixture.test.tsx
-//
-// The two "submits …" tests are WRITES: a record run posts a REAL feedback
-// submission to the Aperture public API (and, for the screenshot case, uploads
-// shot.png through a real presigned S3 PUT) — there is no undo, same as the
-// batch-evaluation evaluate/simulate fixtures. `fixtureFetch` sanitizes the
-// recorded presign response, so no X-Amz-* signature is committed. Every other run
-// replays the committed fixtures offline.
-//
-// Feedback calls the Aperture API through an injected fetch (fixtureFetch), passed
-// via RootHandlerConfig — the handler owns the HTTP, not Core. Each submit test uses
-// its own fixture subdir because fixtureFetch keys on method+path only, and both
-// submits POST to the same /form path.
 const REGION = "us-east-1";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
 const SHOT = join(FIXTURES, "shot.png");
 
-// A fetch that fails loudly: used for cases that must reject before any network.
 const neverFetch = (async () => {
   throw new Error("network should not be reached");
 }) as unknown as CoreFetch;
@@ -81,8 +67,6 @@ describe("feedback (fixture-backed)", () => {
     expect(JSON.parse(stdout).success).toBe(true);
   }, 120_000);
 
-  // ── validation / consent errors (no network — like batch-evaluation's not-found) ──
-
   test("without --yes and without a TTY it fails rather than submitting", async () => {
     await expect(run(["headless", "--json"], { fetch: neverFetch })).rejects.toThrow(/--yes/);
   });
@@ -110,10 +94,6 @@ describe("feedback (fixture-backed)", () => {
   });
 });
 
-// The golden flow proves the rendered output but not the wire contract — fixtureFetch
-// keys on method+path and ignores headers/body. These capturing-fetch tests assert the
-// request contract (checksum + tagging headers, the object key) and response handling,
-// the same pattern as core/gatewayInvoke.test.ts.
 type Recorded = { url: string; method: string; headers: Headers; body: unknown };
 
 function capturingFetch(canned: { presign?: string; form?: string; formStatus?: number }): {
@@ -138,7 +118,7 @@ function capturingFetch(canned: { presign?: string; form?: string; formStatus?: 
         headers: { "content-type": "application/json" },
       });
     }
-    return new Response(null, { status: 200 }); // the S3 PUT
+    return new Response(null, { status: 200 });
   }) as unknown as CoreFetch;
   return { fetch, calls };
 }
@@ -168,7 +148,6 @@ describe("feedback (request contract)", () => {
     expect(put.headers.get("x-amz-checksum-sha256")).toBeTruthy();
     expect(put.headers.get("x-amz-tagging")).toBe("scanstatus=NOT_SCANNED");
 
-    // The form references the exact object key parsed from the presigned URL path.
     const form = JSON.parse(String(calls[2]!.body));
     const attachment = form.customerResponses.find(
       (r: { response: { responseType: string } }) => r.response.responseType === "fileUpload",
@@ -179,7 +158,7 @@ describe("feedback (request contract)", () => {
   });
 
   test("a malformed form response is rejected as an ApertureError", async () => {
-    const { fetch } = capturingFetch({ form: "{}" }); // missing id/timestamp/reference
+    const { fetch } = capturingFetch({ form: "{}" });
     await expect(run(["hi", "--yes", "--json"], { fetch })).rejects.toBeInstanceOf(ApertureError);
   });
 
@@ -188,7 +167,6 @@ describe("feedback (request contract)", () => {
     await expect(
       run(["with shot", "--screenshot", SHOT, "--yes", "--json"], { fetch }),
     ).rejects.toBeInstanceOf(ApertureError);
-    // Only the presign call happened — the object key is validated before the PUT.
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toContain("/presignedurl");
   });

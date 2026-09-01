@@ -303,10 +303,6 @@ export function fixtureFetch(dir: string): CoreFetch {
       mkdirSync(dir, { recursive: true });
       const response = await globalThis.fetch(input, init);
       const body = await response.text();
-      // Persist a queryless copy so a recorded presign response never commits its
-      // X-Amz-* signature to disk, but return the original body so the live upload
-      // still works during the record run. The fixture key is the object path, which
-      // sanitizing does not change, so replay is unaffected.
       const fixture: FetchFixture = {
         status: response.status,
         statusText: response.statusText,
