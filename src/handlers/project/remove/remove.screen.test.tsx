@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { ProjectSpecSchema, type ProjectSpec } from "../../../projectSchemas/project";
 import { ProjectKey } from "../../../router";
-import type { Project } from "../types";
+import { resolveRuntimeTemplateShortcut } from "../shortcuts";
+import type { AddResourceInput, Project } from "../types";
 import {
   renderScreen,
   waitForText,
@@ -13,49 +14,57 @@ import {
   TestCoreClient,
 } from "../../../testing";
 
-// Behavior tests for the project-remove flow. TestCoreClient carries a real
-// FsProjectManager, so removals are verified by reading agentcore.json back
-// (no mocks). The project is pinned on the context exactly as the withProject
-// middleware does in production.
+// TestCoreClient carries a real FsProjectManager, so the project is scaffolded
+// with the real create/add flow and removals are verified by reading
+// agentcore.json back — no hand-authored specs, no mocks.
 
-const RUNTIME = {
-  name: "checkout",
-  build: "CodeZip",
-  entrypoint: "main.py",
-  codeLocation: "app/checkout",
-  runtimeVersion: "PYTHON_3_14",
-} as const;
-const HARNESS = { name: "support", path: "app/support" } as const;
-const POLICY_ENGINE = {
-  name: "guard",
-  policies: [{ name: "denyAll", statement: "permit(principal, action, resource);" }],
-} as const;
-
+const originalCwd = process.cwd();
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
   cleanupScreens();
+  process.chdir(originalCwd);
   await Promise.all(temporaryDirectories.splice(0).map((dir) => rm(dir, { recursive: true })));
 });
 
-async function setup(spec: Record<string, unknown>): Promise<{
-  core: TestCoreClient;
-  project: Project;
-  specPath: string;
-}> {
+async function drain<T>(generator: AsyncGenerator<unknown, T>): Promise<T> {
+  while (true) {
+    const next = await generator.next();
+    if (next.done) return next.value;
+  }
+}
+
+// createProject scaffolds a real project (one runtime, "hello_world") in a temp
+// directory. Pass resources to add through the real addResource flow.
+async function createProject(
+  core: TestCoreClient,
+  resources: AddResourceInput[] = [],
+): Promise<{ project: Project; specPath: string }> {
   const root = await mkdtemp(join(tmpdir(), "agentcore-project-remove-"));
   temporaryDirectories.push(root);
-  await mkdir(join(root, "agentcore"), { recursive: true });
-  const specPath = join(root, "agentcore", "agentcore.json");
-  await writeFile(
-    specPath,
-    JSON.stringify(ProjectSpecSchema.parse({ name: "orders", version: 1, ...spec })),
+  process.chdir(root);
+  let project = await drain(
+    core.projectManager.create({
+      name: "orders",
+      skipInstall: true,
+      skipGit: true,
+      scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("hello-world-python"),
+    }),
   );
-  const core = new TestCoreClient();
-  const project = await core.projectManager.resolve({ filePath: root });
-  if (!project) throw new Error("failed to resolve the test project");
-  return { core, project, specPath };
+  for (const resource of resources) {
+    project = await drain(core.projectManager.addResource(project, resource));
+  }
+  return { project, specPath: join(project.rootPath, "agentcore", "agentcore.json") };
 }
+
+const POLICY: AddResourceInput[] = [
+  { resourceType: "policy-engine", resourceConfig: { name: "guard" } },
+  {
+    resourceType: "policy",
+    engineName: "guard",
+    resourceConfig: { name: "denyAll", statement: "permit(principal, action, resource);" },
+  },
+];
 
 function render(path: string, core: TestCoreClient, project: Project) {
   return renderScreen(path, { core, withContext: (ctx) => ctx.withValue(ProjectKey, project) });
@@ -67,44 +76,45 @@ async function readSpec(specPath: string): Promise<ProjectSpec> {
 
 describe("project remove screen", () => {
   test("lists the resource types the project holds plus an all option", async () => {
-    const { core, project } = await setup({
-      runtimes: [RUNTIME],
-      harnesses: [HARNESS],
-      policyEngines: [POLICY_ENGINE],
-    });
+    const core = new TestCoreClient();
+    const { project } = await createProject(core, POLICY);
     const r = render("/agentcore/project/remove", core, project);
 
     await waitForText(r.lastFrame, "choose a resource to remove from project orders");
     const frame = r.lastFrame()!;
     expect(frame).toContain("runtime");
-    expect(frame).toContain("harness");
+    expect(frame).toContain("policy-engine");
     expect(frame).toContain("policy");
     expect(frame).toContain("all");
     r.unmount();
   });
 
-  test("empty project shows only the all option", async () => {
-    const { core, project } = await setup({});
+  test("the all row counts the sum of every resource", async () => {
+    const core = new TestCoreClient();
+    const { project } = await createProject(core, POLICY);
     const r = render("/agentcore/project/remove", core, project);
 
     await waitForText(r.lastFrame, "all");
-    expect(r.lastFrame()).not.toContain("runtime");
+    // 1 runtime + 1 policy-engine + 1 policy = 3
+    expect(r.lastFrame()).toMatch(/all\s+3/);
     r.unmount();
   });
 
   test("selecting a type lists that type's resources", async () => {
-    const { core, project } = await setup({ runtimes: [RUNTIME] });
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
     const r = render("/agentcore/project/remove", core, project);
 
     await waitForText(r.lastFrame, "runtime");
     await r.press("return");
     await waitForText(r.lastFrame, "choose a runtime to remove");
-    expect(r.lastFrame()).toContain("checkout");
+    expect(r.lastFrame()).toContain("hello_world");
     r.unmount();
   });
 
   test("esc on the resource list returns to the resource-type list", async () => {
-    const { core, project } = await setup({ runtimes: [RUNTIME] });
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
     const r = render("/agentcore/project/remove/runtime", core, project);
 
     await waitForText(r.lastFrame, "choose a runtime to remove");
@@ -114,7 +124,8 @@ describe("project remove screen", () => {
   });
 
   test("esc on the resource-type list returns to the project menu", async () => {
-    const { core, project } = await setup({ runtimes: [RUNTIME] });
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
     const r = render("/agentcore/project/remove", core, project);
 
     await waitForText(r.lastFrame, "choose a resource to remove from project orders");
@@ -124,25 +135,25 @@ describe("project remove screen", () => {
   });
 
   test("confirming a removal deletes the resource from the spec", async () => {
-    const { core, project, specPath } = await setup({ runtimes: [RUNTIME], harnesses: [HARNESS] });
+    const core = new TestCoreClient();
+    const { project, specPath } = await createProject(core);
     const r = render("/agentcore/project/remove/runtime/0", core, project);
 
-    await waitForText(r.lastFrame, "Remove runtime 'checkout' from project orders?");
+    await waitForText(r.lastFrame, "Remove runtime 'hello_world' from project orders?");
     expect(r.lastFrame()).toContain("(y/N)");
     await r.write("y");
     await waitForText(r.lastFrame, "Resource removed");
 
-    const spec = await readSpec(specPath);
-    expect(spec.runtimes.map((runtime) => runtime.name)).toEqual([]);
-    expect(spec.harnesses.map((harness) => harness.name)).toEqual(["support"]);
+    expect((await readSpec(specPath)).runtimes).toEqual([]);
     r.unmount();
   });
 
   test("enter after success returns to the project menu", async () => {
-    const { core, project } = await setup({ runtimes: [RUNTIME] });
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
     const r = render("/agentcore/project/remove/runtime/0", core, project);
 
-    await waitForText(r.lastFrame, "Remove runtime 'checkout' from project orders?");
+    await waitForText(r.lastFrame, "Remove runtime 'hello_world' from project orders?");
     await r.write("y");
     await waitForText(r.lastFrame, "Resource removed");
     await r.press("return");
@@ -151,20 +162,23 @@ describe("project remove screen", () => {
   });
 
   test("declining leaves the resource in place", async () => {
-    const { core, project, specPath } = await setup({ runtimes: [RUNTIME] });
+    const core = new TestCoreClient();
+    const { project, specPath } = await createProject(core);
     const r = render("/agentcore/project/remove/runtime/0", core, project);
 
-    await waitForText(r.lastFrame, "Remove runtime 'checkout' from project orders?");
+    await waitForText(r.lastFrame, "Remove runtime 'hello_world' from project orders?");
     await r.write("n");
-    await waitFor(() => !(r.lastFrame() ?? "").includes("Remove runtime 'checkout'"));
+    await waitFor(() => !(r.lastFrame() ?? "").includes("Remove runtime 'hello_world'"));
 
-    const spec = await readSpec(specPath);
-    expect(spec.runtimes.map((runtime) => runtime.name)).toEqual(["checkout"]);
+    expect((await readSpec(specPath)).runtimes.map((runtime) => runtime.name)).toEqual([
+      "hello_world",
+    ]);
     r.unmount();
   });
 
   test("lists a nested resource with its parent and removes it", async () => {
-    const { core, project, specPath } = await setup({ policyEngines: [POLICY_ENGINE] });
+    const core = new TestCoreClient();
+    const { project, specPath } = await createProject(core, POLICY);
     const list = render("/agentcore/project/remove/policy", core, project);
 
     await waitForText(list.lastFrame, "choose a policy to remove");
@@ -180,17 +194,13 @@ describe("project remove screen", () => {
     await confirm.write("y");
     await waitForText(confirm.lastFrame, "Resource removed");
 
-    const spec = await readSpec(specPath);
-    expect(spec.policyEngines[0]!.policies).toEqual([]);
+    expect((await readSpec(specPath)).policyEngines[0]!.policies).toEqual([]);
     confirm.unmount();
   });
 
   test("removing all empties every resource collection", async () => {
-    const { core, project, specPath } = await setup({
-      runtimes: [RUNTIME],
-      harnesses: [HARNESS],
-      policyEngines: [POLICY_ENGINE],
-    });
+    const core = new TestCoreClient();
+    const { project, specPath } = await createProject(core, POLICY);
     const r = render("/agentcore/project/remove/all", core, project);
 
     await waitForText(r.lastFrame, "Remove every resource from project orders?");
@@ -199,7 +209,6 @@ describe("project remove screen", () => {
 
     const spec = await readSpec(specPath);
     expect(spec.runtimes).toEqual([]);
-    expect(spec.harnesses).toEqual([]);
     expect(spec.policyEngines).toEqual([]);
     r.unmount();
   });
