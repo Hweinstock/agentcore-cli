@@ -889,7 +889,10 @@ export class FsProjectManager implements ProjectManager {
     const resource = resolved.resources.find(
       ({ resourceType, name }) => resourceType === input.resourceType && name === input.name,
     );
-    if (resource) return { id: resource.id, target: resolved.target };
+    // The declared target wins over the copy on the item: the manager resolved it
+    // from aws-targets.json, and both invoke handlers pin the AWS region off this
+    // value, so trusting a backend's echo would let it redirect the call.
+    if (resource) return { ...resource, target: resolved.target };
 
     const label = input.resourceType === "runtime" ? "Runtime" : "Harness";
     throw new ProjectStateError(

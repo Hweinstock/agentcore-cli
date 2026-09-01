@@ -145,19 +145,15 @@ export type ResolveDeployedResourcesInput = {
   target: string;
 };
 
-export type DeployedProjectResource = {
+export type ResolvedDeployedResource = {
   resourceType: ProjectInvokableResource;
   name: string;
-  id: string;
-};
-
-export type ResolvedDeployedResource = {
   id: string;
   target: AwsDeploymentTarget;
 };
 
 export type ResolvedDeployedResources = {
-  resources: DeployedProjectResource[];
+  resources: ResolvedDeployedResource[];
   target: AwsDeploymentTarget;
 };
 
