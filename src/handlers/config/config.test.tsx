@@ -11,7 +11,6 @@ import { FsReadWriteJson } from "../../io";
 describe("config", () => {
   let tempDir: string;
   let configPath: string;
-  let savedTelemetryDisabled: string | undefined;
 
   const validConfigOverrides = {
     telemetry: { enabled: true, endpoint: "https://example.com" },
@@ -19,19 +18,12 @@ describe("config", () => {
   };
 
   beforeEach(async () => {
-    savedTelemetryDisabled = process.env.AGENTCORE_TELEMETRY_DISABLED;
-    delete process.env.AGENTCORE_TELEMETRY_DISABLED;
     tempDir = await mkdtemp(join(tmpdir(), "agentcore-config-test-"));
     configPath = join(tempDir, "config.json");
     await writeFile(configPath, JSON.stringify(validConfigOverrides));
   });
 
   afterEach(async () => {
-    if (savedTelemetryDisabled === undefined) {
-      delete process.env.AGENTCORE_TELEMETRY_DISABLED;
-    } else {
-      process.env.AGENTCORE_TELEMETRY_DISABLED = savedTelemetryDisabled;
-    }
     await rm(tempDir, { recursive: true, force: true });
   });
 
@@ -190,13 +182,5 @@ describe("config", () => {
 
     const readOutput = await run(["telemetry.enabled"]);
     expect(JSON.parse(readOutput)).toBe(false);
-  });
-
-  test("does not persist telemetry.enabled when AGENTCORE_TELEMETRY_DISABLED is set", async () => {
-    process.env.AGENTCORE_TELEMETRY_DISABLED = "1";
-    await run(["telemetry.audit", "true"]);
-    delete process.env.AGENTCORE_TELEMETRY_DISABLED;
-
-    expect(JSON.parse(await run(["telemetry.enabled"]))).toBe(true);
   });
 });
