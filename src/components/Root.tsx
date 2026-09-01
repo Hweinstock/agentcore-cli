@@ -763,7 +763,7 @@ export function Root({ path, ctx, core, queryClient }: RootProps) {
             element={<ProjectRemoveScreen ctx={ctx} core={core} />}
           />
           <Route
-            path="agentcore/project/remove/:resourceType/:index"
+            path="agentcore/project/remove/:resourceType/:resourceIndex"
             element={<ProjectRemoveScreen ctx={ctx} core={core} />}
           />
           {PROJECT_COMMANDS.map((command) => (

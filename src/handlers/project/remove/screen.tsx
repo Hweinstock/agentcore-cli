@@ -1,5 +1,5 @@
 import { Text } from "ink";
-import { Navigate, useNavigate, useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import { Layout } from "../../../components/Layout";
 import { ConfirmAction } from "../../../components/ConfirmAction";
 import { DataTable, type DataTableColumn } from "../../../components/ui/data-table";
@@ -27,12 +27,13 @@ type RemovableResourceType =
 /** A specific resource in the project, paired with the input that removes it. */
 type RemovableResource = {
   name: string;
-  /** The owning gateway/engine/manager, for nested resources. */
-  parent?: string;
+  /** Name of the owning gateway/engine/manager, for nested resources. */
+  parentName?: string;
   input: RemoveResourceInput;
 };
 
-type RemovableResourceTypeInfo = {
+/** How one removable resource type is listed and rendered as a table. */
+type RemovableResourceTable = {
   resourceType: RemovableResourceType;
   /** Column header for the parent, shown for nested resource types only. */
   parentLabel?: string;
@@ -42,14 +43,14 @@ type RemovableResourceTypeInfo = {
 function rootLevel(
   resourceType: RootLevelResource,
   read: (spec: ProjectSpec) => { name: string }[],
-): RemovableResourceTypeInfo {
+): RemovableResourceTable {
   return {
     resourceType,
     list: (spec) => read(spec).map(({ name }) => ({ name, input: { resourceType, name } })),
   };
 }
 
-const REMOVABLE_RESOURCE_TYPES: RemovableResourceTypeInfo[] = [
+const RESOURCE_TABLES: RemovableResourceTable[] = [
   rootLevel("runtime", (s) => s.runtimes),
   rootLevel("harness", (s) => s.harnesses),
   rootLevel("memory", (s) => s.memories),
@@ -68,7 +69,7 @@ const REMOVABLE_RESOURCE_TYPES: RemovableResourceTypeInfo[] = [
           .filter((target) => target.targetType !== "connector")
           .map((target) => ({
             name: target.name,
-            parent: gateway.name,
+            parentName: gateway.name,
             input: { resourceType: "gateway-target", gatewayName: gateway.name, name: target.name },
           })),
       ),
@@ -82,7 +83,7 @@ const REMOVABLE_RESOURCE_TYPES: RemovableResourceTypeInfo[] = [
           .filter((target) => target.targetType === "connector")
           .map((target) => ({
             name: target.name,
-            parent: gateway.name,
+            parentName: gateway.name,
             input: { resourceType: "gateway-target", gatewayName: gateway.name, name: target.name },
           })),
       ),
@@ -94,7 +95,7 @@ const REMOVABLE_RESOURCE_TYPES: RemovableResourceTypeInfo[] = [
       s.policyEngines.flatMap((engine) =>
         engine.policies.map((policy) => ({
           name: policy.name,
-          parent: engine.name,
+          parentName: engine.name,
           input: { resourceType: "policy", engineName: engine.name, name: policy.name },
         })),
       ),
@@ -106,7 +107,7 @@ const REMOVABLE_RESOURCE_TYPES: RemovableResourceTypeInfo[] = [
       (s.payments ?? []).flatMap((manager) =>
         manager.connectors.map((connector) => ({
           name: connector.name,
-          parent: manager.name,
+          parentName: manager.name,
           input: {
             resourceType: "payment-connector",
             managerName: manager.name,
@@ -128,7 +129,7 @@ const KEY_HINTS = [
 ];
 
 export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
-  const { resourceType, index } = useParams();
+  const { resourceType, resourceIndex } = useParams();
   const project = ctx.value(ProjectKey);
 
   if (!project) {
@@ -147,21 +148,23 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
     return <RemoveAllConfirm project={project} core={core} />;
   }
 
-  const info = REMOVABLE_RESOURCE_TYPES.find((entry) => entry.resourceType === resourceType);
-  if (!info) {
-    return <Navigate to={REMOVE_ROOT} replace />;
+  // An unrecognized resourceType only reaches here from a hand-edited URL; the
+  // type picker only links known types. Fall back to it.
+  const table = RESOURCE_TABLES.find((entry) => entry.resourceType === resourceType);
+  if (!table) {
+    return <ResourceTypePicker project={project} />;
   }
 
-  if (index === undefined) {
-    return <ResourcePicker project={project} info={info} />;
+  // resourceIndex points into the same list() the picker rendered; a specific
+  // resource confirms, otherwise show the list.
+  if (resourceIndex !== undefined) {
+    const resource = table.list(project.spec)[Number(resourceIndex)];
+    if (resource) {
+      return <RemoveConfirm project={project} core={core} table={table} resource={resource} />;
+    }
   }
 
-  const resource = info.list(project.spec)[Number(index)];
-  if (!resource) {
-    return <Navigate to={`${REMOVE_ROOT}/${info.resourceType}`} replace />;
-  }
-
-  return <RemoveConfirm project={project} core={core} info={info} resource={resource} />;
+  return <ResourcePicker project={project} table={table} />;
 }
 
 type ResourceTypeRow = Record<string, unknown> & { resource: string; count: string; value: string };
@@ -174,10 +177,10 @@ const resourceTypeColumns = [
 function ResourceTypePicker({ project }: { project: Project }) {
   const navigate = useNavigate();
 
-  const rows: ResourceTypeRow[] = REMOVABLE_RESOURCE_TYPES.flatMap((info) => {
-    const count = info.list(project.spec).length;
+  const rows: ResourceTypeRow[] = RESOURCE_TABLES.flatMap((table) => {
+    const count = table.list(project.spec).length;
     if (count === 0) return [];
-    return [{ resource: info.resourceType, count: String(count), value: info.resourceType }];
+    return [{ resource: table.resourceType, count: String(count), value: table.resourceType }];
   });
   const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
   rows.push({ resource: "all", count: String(total), value: "all" });
@@ -204,24 +207,24 @@ function ResourceTypePicker({ project }: { project: Project }) {
 
 type ResourceRow = Record<string, unknown> & { index: string; name: string; parent: string };
 
-function ResourcePicker({ project, info }: { project: Project; info: RemovableResourceTypeInfo }) {
+function ResourcePicker({ project, table }: { project: Project; table: RemovableResourceTable }) {
   const navigate = useNavigate();
-  const rows: ResourceRow[] = info.list(project.spec).map((resource, i) => ({
+  const rows: ResourceRow[] = table.list(project.spec).map((resource, i) => ({
     index: String(i),
     name: resource.name,
-    parent: resource.parent ?? "",
+    parent: resource.parentName ?? "",
   }));
-  const columns: DataTableColumn<ResourceRow>[] = info.parentLabel
+  const columns: DataTableColumn<ResourceRow>[] = table.parentLabel
     ? [
-        { key: "parent", header: info.parentLabel, width: 24 },
+        { key: "parent", header: table.parentLabel, width: 24 },
         { key: "name", header: "name", flex: true },
       ]
     : [{ key: "name", header: "name", flex: true }];
 
   return (
     <Layout
-      breadcrumb={["agentcore", "project", "remove", info.resourceType]}
-      description={`choose a ${info.resourceType} to remove`}
+      breadcrumb={["agentcore", "project", "remove", table.resourceType]}
+      description={`choose a ${table.resourceType} to remove`}
       keyHints={KEY_HINTS}
     >
       <DataTable
@@ -230,8 +233,8 @@ function ResourcePicker({ project, info }: { project: Project; info: RemovableRe
         focus
         columns={columns}
         data={rows}
-        emptyMessage={`This project has no ${info.resourceType} resources.`}
-        onSelect={(row) => navigate(`${REMOVE_ROOT}/${info.resourceType}/${row.index}`)}
+        emptyMessage={`This project has no ${table.resourceType} resources.`}
+        onSelect={(row) => navigate(`${REMOVE_ROOT}/${table.resourceType}/${row.index}`)}
         onEscape={() => navigate(REMOVE_ROOT)}
       />
     </Layout>
@@ -241,34 +244,34 @@ function ResourcePicker({ project, info }: { project: Project; info: RemovableRe
 function RemoveConfirm({
   project,
   core,
-  info,
+  table,
   resource,
 }: {
   project: Project;
   core: ScreenProps["core"];
-  info: RemovableResourceTypeInfo;
+  table: RemovableResourceTable;
   resource: RemovableResource;
 }) {
   const navigate = useNavigate();
 
   return (
     <ConfirmAction
-      breadcrumb={["agentcore", "project", "remove", info.resourceType, resource.name]}
+      breadcrumb={["agentcore", "project", "remove", table.resourceType, resource.name]}
       title={resource.name}
       rows={[
-        { label: "type", value: info.resourceType },
-        ...(resource.parent
-          ? [{ label: info.parentLabel ?? "parent", value: resource.parent }]
+        { label: "type", value: table.resourceType },
+        ...(resource.parentName
+          ? [{ label: table.parentLabel ?? "parent", value: resource.parentName }]
           : []),
         { label: "project", value: project.name },
       ]}
-      message={`Remove ${info.resourceType} '${resource.name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`}
+      message={`Remove ${table.resourceType} '${resource.name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`}
       isPending={false}
       error={null}
       action={async () => {
         const result = await core.projectManager.removeResource(project, resource.input);
         return [
-          { label: "removed", value: `${info.resourceType} '${resource.name}'` },
+          { label: "removed", value: `${table.resourceType} '${resource.name}'` },
           ...result.removedEnvKeys.map((key) => ({ label: "env", value: `removed ${key}` })),
         ];
       }}
@@ -282,9 +285,9 @@ function RemoveConfirm({
 function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenProps["core"] }) {
   const navigate = useNavigate();
 
-  const populated = REMOVABLE_RESOURCE_TYPES.flatMap((info) => {
-    const count = info.list(project.spec).length;
-    return count === 0 ? [] : [{ label: info.resourceType, value: String(count) }];
+  const populated = RESOURCE_TABLES.flatMap((table) => {
+    const count = table.list(project.spec).length;
+    return count === 0 ? [] : [{ label: table.resourceType, value: String(count) }];
   });
 
   return (

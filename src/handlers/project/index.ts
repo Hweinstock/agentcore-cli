@@ -62,6 +62,14 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
     withProject({ projectManager: config.projectManager })(
+      withTuiOnEmptyFlagsAndArgs(
+        core,
+        io,
+      )(createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io })),
+    ),
+  );
+  project.handler(
+    withProject({ projectManager: config.projectManager })(
       createDevProjectHandler({
         io: config.io,
         runners: {
@@ -85,15 +93,6 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
       createDeployProjectHandler({ projectManager: config.projectManager, io: config.io }),
     ),
   );
-  project.handler(
-    withProject({ projectManager: config.projectManager })(
-      withTuiOnEmptyFlagsAndArgs(
-        core,
-        io,
-      )(createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io })),
-    ),
-  );
-
   project.handler(createProjectInvokeHandler(core, io));
   project.handler(createStatusProjectHandler());
   // withProject wraps only the commands that require an existing project, so
