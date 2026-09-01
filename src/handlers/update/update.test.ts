@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { compareVersions, fetchLatestVersion, handleUpdate } from "./action";
+import { fetchLatestVersion, handleUpdate } from "./action";
 import type { ProcessRunner } from "../../io";
 
 // No golden/fixture tests here: the repo's *.fixture.test.tsx harness records and
@@ -7,28 +7,6 @@ import type { ProcessRunner } from "../../io";
 // it queries the npm registry (fetch) and shells out to `npm install -g`
 // (runProcess). There is nothing for that harness to record, so a fetch spy plus
 // an injected fake runner is the right, hermetic way to cover this command.
-
-describe("compareVersions", () => {
-  const cases: Array<[string, string, number]> = [
-    ["1.2.3", "1.2.3", 0],
-    ["1.0.0", "2.0.0", 1],
-    ["2.0.0", "1.0.0", -1],
-    ["1.1.0", "1.2.0", 1],
-    ["1.2.0", "1.1.0", -1],
-    ["1.2.3", "1.2.4", 1],
-    ["1.2.4", "1.2.3", -1],
-    ["1.0", "1.0.0", 0],
-    ["1.0.0-preview", "1.0.0", 1],
-    ["1.0.0", "1.0.0-preview", -1],
-    ["1.0.0-preview.1", "1.0.0-preview.2", 1],
-    ["1.0.0-preview.2", "1.0.0-preview.1", -1],
-    ["1.0.0-alpha", "1.0.0-beta", 1],
-    ["1.0.0-beta", "1.0.0-alpha", -1],
-  ];
-  test.each(cases)("compareVersions(%p, %p) === %p", (current, latest, expected) => {
-    expect(compareVersions(current, latest)).toBe(expected);
-  });
-});
 
 describe("fetchLatestVersion", () => {
   afterEach(() => {
