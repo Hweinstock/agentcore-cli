@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { Text } from "ink";
+import { Text, useInput } from "ink";
 import { useNavigate, useParams } from "react-router";
 import { Layout } from "../../../components/Layout";
 import { ConfirmAction } from "../../../components/ConfirmAction";
@@ -132,6 +132,7 @@ const KEY_HINTS = [
 
 export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   const { resourceType, resourceIndex } = useParams();
+  const navigate = useNavigate();
 
   // The project is pinned on the context when `remove` runs as a command, but
   // not when this screen is reached by navigating within the root TUI; resolve
@@ -144,6 +145,15 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
     enabled: !pinned,
   });
   const project = pinned ?? resolved.data ?? undefined;
+
+  // The spinner/error/no-project states render no table, so handle esc here;
+  // the picker and confirm screens handle their own.
+  useInput(
+    (_input, key) => {
+      if (key.escape) navigate("/agentcore/project");
+    },
+    { isActive: !project },
+  );
 
   if (!project) {
     const message =
@@ -206,7 +216,9 @@ function ResourceTypePicker({ project }: { project: Project }) {
     return [{ resource: table.resourceType, count: String(count), value: table.resourceType }];
   });
   const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
-  rows.push({ resource: "all", count: String(total), value: "all" });
+  if (total > 0) {
+    rows.push({ resource: "all", count: String(total), value: "all" });
+  }
 
   return (
     <Layout
@@ -318,6 +330,21 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
     const count = table.list(project.spec).length;
     return count === 0 ? [] : [{ label: table.resourceType, value: String(count) }];
   });
+
+  const empty = populated.length === 0;
+  useInput(
+    (_input, key) => {
+      if (key.escape) navigate(REMOVE_ROOT);
+    },
+    { isActive: empty },
+  );
+  if (empty) {
+    return (
+      <Layout breadcrumb={["agentcore", "project", "remove", "all"]} keyHints={KEY_HINTS}>
+        <Text dimColor>This project has no resources to remove.</Text>
+      </Layout>
+    );
+  }
 
   return (
     <ConfirmAction

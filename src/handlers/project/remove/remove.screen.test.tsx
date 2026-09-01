@@ -94,6 +94,46 @@ describe("project remove screen", () => {
     r.unmount();
   });
 
+  test("esc from the no-project screen returns to the project menu", async () => {
+    const core = new TestCoreClient();
+    const root = await mkdtemp(join(tmpdir(), "agentcore-no-project-"));
+    temporaryDirectories.push(root);
+    process.chdir(root);
+    const r = renderScreen("/agentcore/project/remove", { core });
+
+    await waitForText(r.lastFrame, "No AgentCore project found");
+    await r.press("escape");
+    await waitForText(r.lastFrame, "agentcore → project");
+    r.unmount();
+  });
+
+  test("an empty project offers no resources to remove and no all option", async () => {
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
+    const { project: empty } = await core.projectManager.removeResource(project, {
+      resourceType: "runtime",
+      name: project.spec.runtimes[0]!.name,
+    });
+    const r = render("/agentcore/project/remove", core, empty);
+
+    await waitForText(r.lastFrame, "This project has no resources to remove.");
+    expect(r.lastFrame()).not.toContain("all");
+    r.unmount();
+  });
+
+  test("remove all on an empty project shows nothing to remove", async () => {
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
+    const { project: empty } = await core.projectManager.removeResource(project, {
+      resourceType: "runtime",
+      name: project.spec.runtimes[0]!.name,
+    });
+    const r = render("/agentcore/project/remove/all", core, empty);
+
+    await waitForText(r.lastFrame, "This project has no resources to remove.");
+    r.unmount();
+  });
+
   test("the all row counts the sum of every resource", async () => {
     const core = new TestCoreClient();
     const { project } = await createProject(core, POLICY);
