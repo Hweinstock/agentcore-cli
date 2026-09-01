@@ -83,6 +83,17 @@ describe("project remove screen", () => {
     r.unmount();
   });
 
+  test("resolves the project from the working directory when not pinned in context", async () => {
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
+    process.chdir(project.rootPath); // cd into the project, as a user would; no ProjectKey injected
+    const r = renderScreen("/agentcore/project/remove", { core });
+
+    await waitForText(r.lastFrame, "choose a resource to remove from project orders");
+    expect(r.lastFrame()).not.toContain("No AgentCore project");
+    r.unmount();
+  });
+
   test("the all row counts the sum of every resource", async () => {
     const core = new TestCoreClient();
     const { project } = await createProject(core, POLICY);

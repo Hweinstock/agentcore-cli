@@ -1,8 +1,10 @@
+import { useQuery } from "@tanstack/react-query";
 import { Text } from "ink";
 import { useNavigate, useParams } from "react-router";
 import { Layout } from "../../../components/Layout";
 import { ConfirmAction } from "../../../components/ConfirmAction";
 import { DataTable, type DataTableColumn } from "../../../components/ui/data-table";
+import { Spinner } from "../../../components/ui/spinner";
 import { ProjectKey } from "../../../router";
 import type { ProjectSpec } from "../../../projectSchemas/project";
 import type { ScreenProps } from "../../types";
@@ -130,12 +132,34 @@ const KEY_HINTS = [
 
 export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   const { resourceType, resourceIndex } = useParams();
-  const project = ctx.value(ProjectKey);
+
+  // The project is pinned on the context when `remove` runs as a command, but
+  // not when this screen is reached by navigating within the root TUI; resolve
+  // from the working directory in that case (mirrors project invoke).
+  const pinned = ctx.value(ProjectKey);
+  const cwd = process.cwd();
+  const resolved = useQuery({
+    queryKey: ["project", "remove", cwd],
+    queryFn: async () => (await core.projectManager.resolve({ filePath: cwd })) ?? null,
+    enabled: !pinned,
+  });
+  const project = pinned ?? resolved.data ?? undefined;
 
   if (!project) {
+    const message =
+      !pinned && resolved.isPending
+        ? undefined
+        : resolved.isError
+          ? (resolved.error as Error).message
+          : `No AgentCore project found at ${cwd} or any parent directory ` +
+            `(looked for agentcore/agentcore.json). Run 'agentcore project create' to scaffold one.`;
     return (
       <Layout breadcrumb={["agentcore", "project", "remove"]} keyHints={KEY_HINTS}>
-        <Text color="red">No AgentCore project is loaded.</Text>
+        {message === undefined ? (
+          <Spinner label="Resolving project…" />
+        ) : (
+          <Text color="red">{message}</Text>
+        )}
       </Layout>
     );
   }
