@@ -291,8 +291,6 @@ export class CdkBackend implements ProjectBackend {
     ];
     return resources.flatMap((resource) => {
       const id = findDeployedResourceId(stack, resource);
-      // The backend already resolved `target`, so each entry carries it and stays
-      // self-describing once callers pull it out of the list.
       return id ? [{ ...resource, id, target }] : [];
     });
   }

@@ -21,6 +21,7 @@ import {
   type DeployResult,
   type Project,
   type ProjectEvent,
+  type ResolvedDeployedResource,
 } from "../../handlers/project/types";
 import { createSilentLogger } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
@@ -674,6 +675,133 @@ describe("FsProjectManager.deploy", () => {
     expect(subject.calls[0]?.input.target).toEqual(configured[0]!);
     expect(deployed.events).toEqual([{ message: "Backend deployment started" }]);
     expect(await Bun.file(targetsFile(root)).text()).toBe(contents);
+  });
+});
+
+describe("FsProjectManager.resolveDeployedResource(s)", () => {
+  const DECLARED: AwsDeploymentTarget = {
+    name: "default",
+    account: "111122223333",
+    region: "eu-west-1",
+  };
+
+  // A backend whose resolved resources are built from the target it was handed, so a
+  // test can either echo that target the way CdkBackend does or deliberately defy it.
+  function resolveManager(build: (target: AwsDeploymentTarget) => ResolvedDeployedResource[]) {
+    return new FsProjectManager({
+      logger: createSilentLogger(),
+      backends: {
+        CDK: {
+          async *build() {},
+          async *deploy() {
+            yield { message: "unused by these tests" };
+            return { outputs: {} };
+          },
+          async resolveDeployedResources(_project, input) {
+            return build(input.target);
+          },
+        },
+      },
+    });
+  }
+
+  async function projectAt(rootPath: string): Promise<Project> {
+    await mkdir(join(rootPath, "agentcore"), { recursive: true });
+    await writeFile(join(rootPath, "agentcore", "aws-targets.json"), JSON.stringify([DECLARED]));
+    return {
+      name: "example",
+      rootPath,
+      spec: ProjectSpecSchema.parse({ name: "example", version: 1 }),
+    };
+  }
+
+  const item = (overrides: Partial<ResolvedDeployedResource> = {}): ResolvedDeployedResource => ({
+    resourceType: "runtime",
+    name: "checkout",
+    id: "checkout-abc123",
+    target: DECLARED,
+    ...overrides,
+  });
+
+  test("prefers the declared target over one an item claims", async () => {
+    const root = await inTempDirectory();
+    const rogue: AwsDeploymentTarget = {
+      name: "default",
+      account: "111122223333",
+      region: "us-east-1",
+    };
+    const subject = resolveManager(() => [item({ target: rogue })]);
+
+    const resolved = await subject.resolveDeployedResource(await projectAt(root), {
+      target: "default",
+      resourceType: "runtime",
+      name: "checkout",
+    });
+
+    // Both invoke handlers pin RegionKey off this value, so trusting an item's copy
+    // would route a customer's invoke at whatever region the backend stamped.
+    expect(resolved.target.region).toBe("eu-west-1");
+  });
+
+  test("distinguishes a runtime and a harness sharing one name", async () => {
+    const root = await inTempDirectory();
+    const project = await projectAt(root);
+    const subject = resolveManager((target) => [
+      item({ resourceType: "runtime", name: "support", id: "runtime-1", target }),
+      item({ resourceType: "harness", name: "support", id: "harness-2", target }),
+    ]);
+
+    const runtime = await subject.resolveDeployedResource(project, {
+      target: "default",
+      resourceType: "runtime",
+      name: "support",
+    });
+    const harness = await subject.resolveDeployedResource(project, {
+      target: "default",
+      resourceType: "harness",
+      name: "support",
+    });
+
+    expect(runtime).toMatchObject({ resourceType: "runtime", name: "support", id: "runtime-1" });
+    expect(harness).toMatchObject({ resourceType: "harness", name: "support", id: "harness-2" });
+  });
+
+  test("keeps the target when the stack holds no resources", async () => {
+    const root = await inTempDirectory();
+    const subject = resolveManager(() => []);
+
+    expect(
+      await subject.resolveDeployedResources(await projectAt(root), { target: "default" }),
+    ).toEqual({ resources: [], target: DECLARED });
+  });
+
+  test("reports an undeployed resource with the remediation command", async () => {
+    const root = await inTempDirectory();
+    const subject = resolveManager(() => []);
+
+    await expect(
+      subject.resolveDeployedResource(await projectAt(root), {
+        target: "default",
+        resourceType: "runtime",
+        name: "checkout",
+      }),
+    ).rejects.toThrow(/is not deployed to target 'default'.*project deploy --target default/s);
+  });
+
+  test("hands every resource the same target the envelope reports", async () => {
+    const root = await inTempDirectory();
+    // Echoes the handed target, mirroring CdkBackend at cdk.ts:294.
+    const subject = resolveManager((target) => [
+      item({ target }),
+      item({ name: "other", id: "other-2", target }),
+    ]);
+
+    const resolved = await subject.resolveDeployedResources(await projectAt(root), {
+      target: "default",
+    });
+
+    expect(resolved.resources).toHaveLength(2);
+    expect(resolved.resources.every((r) => r.target === resolved.target)).toBe(true);
   });
 });
 
