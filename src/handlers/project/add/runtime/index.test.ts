@@ -116,6 +116,19 @@ describe("project add runtime", () => {
       build: "CodeZip",
       protocol: "MCP",
     },
+    "strands-py-a2a template preset": {
+      build: "CodeZip",
+      protocol: "A2A",
+    },
+    "strands-py-a2a overrides to Container": {
+      build: "Container",
+      dockerfile: "Dockerfile",
+      protocol: "A2A",
+    },
+    "custom A2A runtime": {
+      build: "CodeZip",
+      protocol: "A2A",
+    },
     "all infrastructure flags": {
       description: "Configured runtime",
       executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
@@ -177,6 +190,30 @@ describe("project add runtime", () => {
     [
       "py-mcp overrides to Container",
       ["--name", "my_mcp", "--template", "py-mcp", "--build", "Container"],
+    ],
+    ["strands-py-a2a template preset", ["--name", "my_a2a", "--template", "strands-py-a2a"]],
+    [
+      "strands-py-a2a overrides to Container",
+      ["--name", "my_a2a", "--template", "strands-py-a2a", "--build", "Container"],
+    ],
+    [
+      "custom A2A runtime",
+      [
+        "--name",
+        "a2a_custom",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--protocol",
+        "A2A",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "none",
+      ],
     ],
     [
       "strands-python with session, EFS, and S3 mounts",
@@ -546,6 +583,29 @@ describe("project add runtime", () => {
     [
       "py-mcp does not support memory",
       ["--name", "my_agent", "--template", "py-mcp", "--memory", "shortTerm"],
+    ],
+    [
+      "strands-py-a2a does not support memory",
+      ["--name", "my_agent", "--template", "strands-py-a2a", "--memory", "shortTerm"],
+    ],
+    [
+      "custom A2A runtime does not support memory",
+      [
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--protocol",
+        "A2A",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "shortTerm",
+      ],
     ],
     [
       "--protocol alone requires --framework and --language",
