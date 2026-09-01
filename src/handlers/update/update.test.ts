@@ -86,10 +86,8 @@ describe("handleUpdate", () => {
     );
   });
 
-  test("update-failed carries the error reason when the install runner throws", async () => {
+  test("propagates the install failure instead of swallowing it", async () => {
     mockLatest("2.0.0");
-    const result = await handleUpdate(false, { runner: failRunner });
-    expect(result.status).toBe("update-failed");
-    expect(result.error).toBe("npm exploded");
+    await expect(handleUpdate(false, { runner: failRunner })).rejects.toThrow("npm exploded");
   });
 });

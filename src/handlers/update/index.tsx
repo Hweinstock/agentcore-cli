@@ -1,7 +1,7 @@
 import z from "zod";
 import semver from "semver";
 import { createHandler, flag } from "../../router";
-import { AgentCoreCLIError, NetworkingError } from "../../errors";
+import { NetworkingError } from "../../errors";
 import { runProcess, type ProcessRunner, type AppIO } from "../../io";
 import { JsonRendererKey } from "../../tui";
 import { PACKAGE_VERSION } from "../../constants";
@@ -34,14 +34,12 @@ export async function fetchLatestVersion(): Promise<string> {
   return data.version;
 }
 
-export type UpdateStatus =
-  "up-to-date" | "newer-local" | "update-available" | "updated" | "update-failed";
+export type UpdateStatus = "up-to-date" | "newer-local" | "update-available" | "updated";
 
 export interface UpdateResult {
   status: UpdateStatus;
   currentVersion: string;
   latestVersion: string;
-  error?: string;
 }
 
 export interface HandleUpdateOptions {
@@ -66,17 +64,8 @@ export async function handleUpdate(
     return { status: "update-available", currentVersion: PACKAGE_VERSION, latestVersion };
   }
 
-  try {
-    await runner(installArgv(), { cwd: process.cwd(), onOutput });
-    return { status: "updated", currentVersion: PACKAGE_VERSION, latestVersion };
-  } catch (cause) {
-    return {
-      status: "update-failed",
-      currentVersion: PACKAGE_VERSION,
-      latestVersion,
-      error: cause instanceof Error ? cause.message : String(cause),
-    };
-  }
+  await runner(installArgv(), { cwd: process.cwd(), onOutput });
+  return { status: "updated", currentVersion: PACKAGE_VERSION, latestVersion };
 }
 
 export const createUpdateHandler = (io: AppIO) =>
@@ -90,9 +79,5 @@ export const createUpdateHandler = (io: AppIO) =>
       });
 
       ctx.require(JsonRendererKey).renderJson(result);
-
-      if (result.status === "update-failed") {
-        throw new AgentCoreCLIError(result.error ?? "failed to install update", { exitCode: 1 });
-      }
     },
   });
