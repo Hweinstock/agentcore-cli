@@ -35,6 +35,10 @@ const A2A_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("a2a-python-strands");
 const A2A_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut("a2a-python-strands", {
   build: "Container",
 });
+const AGUI_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("agui-python-strands");
+const AGUI_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut("agui-python-strands", {
+  build: "Container",
+});
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -187,6 +191,58 @@ describe("FsProjectManager.create", () => {
       build: "Container",
       dockerfile: "Dockerfile",
       protocol: "A2A",
+    });
+  });
+
+  test("snapshots the Strands AG-UI project manifest and runtime spec", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS,
+    });
+
+    const projectRoot = join(directory, "example");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect({
+      manifest: await projectManifest(projectRoot),
+      runtimes: spec.runtimes,
+      memories: spec.memories,
+    }).toMatchSnapshot();
+  });
+
+  test("scaffolds the Strands AG-UI runtime with the AGUI protocol", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS,
+    });
+
+    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes[0]).toMatchObject({
+      name: "agui_python_strands",
+      build: "CodeZip",
+      protocol: "AGUI",
+      entrypoint: "main.py",
+    });
+    expect(spec.memories).toMatchObject([{ name: "agui_python_strandsMemory" }]);
+  });
+
+  test("scaffolds the Strands AG-UI runtime as a container with --build Container", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS_CONTAINER,
+    });
+
+    const appDir = join(directory, "example", "app", "agui_python_strands");
+    expect(await Bun.file(join(appDir, "Dockerfile")).exists()).toBe(true);
+    expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
+
+    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes[0]).toMatchObject({
+      build: "Container",
+      dockerfile: "Dockerfile",
+      protocol: "AGUI",
     });
   });
 
