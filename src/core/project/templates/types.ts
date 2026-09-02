@@ -4,6 +4,7 @@ import type { MemorySchema } from "../../../projectSchemas/memory";
 import type { CredentialSchema } from "../../../projectSchemas/credential";
 import type { HarnessRegistryEntry } from "../../../projectSchemas/harness";
 import type { Evaluator } from "../../../projectSchemas/evaluator";
+import type { EnvLocalEntry } from "../../../handlers/project/types";
 import type z from "zod";
 
 /** AgentCore Project Spec Entries that rendered as part of a {@link Template} **/
@@ -19,6 +20,8 @@ export type SpecEntries = {
 export type Template = {
   tree: FsTreeNode;
   spec: SpecEntries;
+  /** Secret material for agentcore/.env.local (e.g. a model provider API key). */
+  envEntries?: EnvLocalEntry[];
 };
 
 /** A standard interface for resolving templates from a given input of paramters **/

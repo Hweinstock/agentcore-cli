@@ -8,6 +8,7 @@ import type {
 import { InputValidationError } from "../../../errors/errors";
 import { getRuntimeTemplateResolver } from "./runtime";
 import type { SpecEntries, Template, TemplateRenderer } from "./types";
+import type { EnvLocalEntry } from "../../../handlers/project/types";
 
 type CreateProjectConfig = {
   assetSource: AssetSource;
@@ -18,7 +19,7 @@ export async function createProjectTree(
   config: CreateProjectConfig,
   input: { projectName: string },
   options?: { runtime?: ScaffoldRuntimeInput; importBedrockAgent?: ImportBedrockAgentInput },
-): Promise<FsTreeNode> {
+): Promise<{ tree: FsTreeNode; envEntries: EnvLocalEntry[] }> {
   const templates: Template[] = [];
   if (options?.runtime) {
     const runtimeConfig: RuntimeResourceConfig = {
@@ -34,7 +35,9 @@ export async function createProjectTree(
     templates.push(await resolver.resolve(runtimeConfig));
   }
 
-  return FsTreeNode.createDirectory(".", [
+  const envEntries = templates.flatMap((template) => template.envEntries ?? []);
+
+  const tree = FsTreeNode.createDirectory(".", [
     FsTreeNode.createFile(".gitignore", () =>
       config.assetSource.read("templates/shared/gitignore.template"),
     ),
@@ -58,6 +61,8 @@ export async function createProjectTree(
       templates.map((t) => t.tree),
     ),
   ]);
+
+  return { tree, envEntries };
 }
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;

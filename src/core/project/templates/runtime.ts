@@ -2,10 +2,50 @@ import { FsTreeNode } from "./fsTree";
 import type { AssetSource } from "../source";
 import type { RuntimeResourceConfig } from "../../../handlers/project/add/runtime/types";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
-import type { TemplateRenderer, TemplateResolver } from "./types";
-import type { ScaffoldRuntimeInput } from "../../../handlers/project/types";
+import type { SpecEntries, TemplateRenderer, TemplateResolver } from "./types";
+import type { EnvLocalEntry, ScaffoldRuntimeInput } from "../../../handlers/project/types";
+import { credentialEnvVarName } from "../../../projectSchemas/credential";
 import { InputValidationError } from "../../../errors";
 import { toPythonPackageName } from "../fsUtils";
+
+/**
+ * The AgentCore Identity wiring a non-Bedrock model provider needs: a Handlebars
+ * context fragment naming the credential the generated `model/load` reads, the
+ * `ApiKeyCredentialProvider` credential to register in agentcore.json, and the
+ * API-key value to write to agentcore/.env.local. Bedrock uses the runtime's IAM
+ * credentials, so it contributes none of these.
+ */
+type ModelProviderIdentity = {
+  context: { hasIdentity: boolean; identityProviders: { name: string; envVarName: string }[] };
+  credentials: NonNullable<SpecEntries["credentials"]>;
+  envEntries: EnvLocalEntry[];
+};
+
+function resolveModelProviderIdentity(input: RuntimeResourceConfig): ModelProviderIdentity {
+  const { modelProvider, apiKey } = input.scaffoldRuntimeInput;
+  if (modelProvider === "Bedrock") {
+    return {
+      context: { hasIdentity: false, identityProviders: [] },
+      credentials: [],
+      envEntries: [],
+    };
+  }
+  const credentialName = `${input.name}${modelProvider}ApiKey`;
+  const envVarName = credentialEnvVarName(credentialName);
+  return {
+    context: { hasIdentity: true, identityProviders: [{ name: credentialName, envVarName }] },
+    credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: credentialName }],
+    envEntries: apiKey
+      ? [
+          {
+            key: envVarName,
+            value: apiKey,
+            comment: `API key for the ${modelProvider} model provider (runtime ${input.name})`,
+          },
+        ]
+      : [],
+  };
+}
 
 function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   const { scaffoldRuntimeInput, name, ...infra } = input;
@@ -121,6 +161,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const memory = input.scaffoldRuntimeInput.memory;
+    const identity = resolveModelProviderIdentity(input);
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
@@ -128,11 +169,10 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      hasIdentity: false,
+      ...identity.context,
       hasGateway: false,
       hasPayment: false,
       isVpc: input.networkMode === "VPC",
-      identityProviders: [],
       gatewayProviders: [],
       gatewayAuthTypes: [],
       sessionStorageMountPath,
@@ -163,7 +203,9 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: {
         runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
         ...(memory && { memories: [memory] }),
+        ...(identity.credentials.length > 0 && { credentials: identity.credentials }),
       },
+      ...(identity.envEntries.length > 0 && { envEntries: identity.envEntries }),
     };
   },
   [buildResolverKey("strands", "TypeScript", "HTTP")]: async (input: RuntimeResourceConfig) => {
@@ -179,6 +221,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         "the agent-typescript-strands template does not support short-term-only memory; add long-term strategies or use --memory none",
       );
 
+    const identity = resolveModelProviderIdentity(input);
     const context = {
       name: toNpmPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
@@ -186,8 +229,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      hasIdentity: false,
-      identityProviders: [],
+      ...identity.context,
     };
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
@@ -208,7 +250,9 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: {
         runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
         ...(memory && { memories: [memory] }),
+        ...(identity.credentials.length > 0 && { credentials: identity.credentials }),
       },
+      ...(identity.envEntries.length > 0 && { envEntries: identity.envEntries }),
     };
   },
   [buildResolverKey("none", "Python", "MCP")]: async (input: RuntimeResourceConfig) => {
@@ -274,6 +318,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const memory = input.scaffoldRuntimeInput.memory;
+    const identity = resolveModelProviderIdentity(input);
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
@@ -281,6 +326,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
+      ...identity.context,
       sessionStorageMountPath,
       efsMounts,
       s3Mounts,
@@ -310,7 +356,9 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: {
         runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
         ...(memory && { memories: [memory] }),
+        ...(identity.credentials.length > 0 && { credentials: identity.credentials }),
       },
+      ...(identity.envEntries.length > 0 && { envEntries: identity.envEntries }),
     };
   },
 });
