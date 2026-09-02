@@ -474,7 +474,7 @@ describe("project create wizard", () => {
     });
     core.projectManager.create = () => {
       return (async function* () {
-        yield { message: "syncing dependencies" };
+        yield { type: "step", message: "syncing dependencies" };
         await held;
         throw new Error("stopped");
       })();

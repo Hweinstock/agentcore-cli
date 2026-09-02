@@ -27,6 +27,14 @@ import type {
 import { createCloudFormationClient } from "../../factories";
 import type { CreateCloudFormationClient } from "../../types";
 import {
+  createCredentialProvisioner,
+  createPaymentCredentialRemover,
+  type CredentialProviderCalls,
+  type CredentialProvisioner,
+  type DeployedCredentials,
+  type PaymentCredentialRemover,
+} from "./cdk/credentials";
+import {
   countDeployableResources,
   stackArtifactForTarget,
   type StackArtifact,
@@ -80,11 +88,15 @@ export type CdkBackendConfig = {
   checkTool?: typeof requireTool;
   json?: ReadWriteJson;
   createCloudFormationClient?: CreateCloudFormationClient;
+  /** Identity client used to provision the project's credential providers. */
+  identity: CredentialProviderCalls;
   cdk?: CdkRunner;
   resolveCredentials?: CdkCredentialResolver;
   bootstrap?: BootstrapProbe;
   resolveAccount?: AccountResolver;
   loadBootstrapTemplate?: BootstrapTemplateLoader;
+  provisionCredentials?: CredentialProvisioner;
+  removePaymentCredentials?: PaymentCredentialRemover;
   describeStack?: StackDescriber;
 };
 
@@ -99,6 +111,8 @@ export class CdkBackend implements ProjectBackend {
   private readonly bootstrap: BootstrapProbe;
   private readonly resolveAccount: AccountResolver;
   private readonly loadBootstrapTemplate: BootstrapTemplateLoader;
+  private readonly provisionCredentials: CredentialProvisioner;
+  private readonly removePaymentCredentials: PaymentCredentialRemover;
   private readonly describeStack: StackDescriber;
 
   constructor(config: CdkBackendConfig) {
@@ -118,6 +132,10 @@ export class CdkBackend implements ProjectBackend {
       ((region, credentials) => probeBootstrap(region, credentials, readBootstrapStack));
     this.resolveAccount = config.resolveAccount ?? resolveAwsAccount;
     this.loadBootstrapTemplate = config.loadBootstrapTemplate ?? loadBootstrapTemplate;
+    this.provisionCredentials =
+      config.provisionCredentials ?? createCredentialProvisioner(config.identity);
+    this.removePaymentCredentials =
+      config.removePaymentCredentials ?? createPaymentCredentialRemover(config.identity);
     this.describeStack =
       config.describeStack ??
       ((region, credentials, stackName) =>
@@ -126,9 +144,10 @@ export class CdkBackend implements ProjectBackend {
         ));
   }
 
-  public async *build(project: Project): AsyncGenerator<ProjectEvent, void> {
+  // Local prerequisites for synth. Checked before any AWS mutation so a missing
+  // toolchain or dependencies fails without having provisioned credentials.
+  private async ensureCdkDependencies(project: Project): Promise<void> {
     const cdkDir = this.cdkDirectory(project);
-
     if (!existsSync(join(cdkDir, "node_modules"))) {
       throw new ProjectStateError(
         `CDK dependencies are missing for project '${project.name}'. ` +
@@ -136,6 +155,10 @@ export class CdkBackend implements ProjectBackend {
       );
     }
     await this.checkTool("npm", "Install Node.js: https://nodejs.org/");
+  }
+
+  public async *build(project: Project): AsyncGenerator<ProjectEvent, void> {
+    await this.ensureCdkDependencies(project);
 
     yield { type: "step", message: "Synthesizing CloudFormation templates" };
     yield* withOutputEvents((emit) => {
@@ -154,7 +177,7 @@ export class CdkBackend implements ProjectBackend {
           this.assemblyDirectory(project),
         ],
         {
-          cwd: cdkDir,
+          cwd: this.cdkDirectory(project),
           onOutput: (chunk) => {
             this.logger.debug(chunk);
             lines.push(chunk);
@@ -172,10 +195,28 @@ export class CdkBackend implements ProjectBackend {
     yield { type: "step", message: `Verifying AWS account ${target.account}` };
     const credentials = await this.credentialsForTarget(target);
 
-    // Validate any existing deployed state before mutating AWS. A malformed file
-    // must fail here — not after bootstrap/deploy — so we never leave AWS changed
-    // with the new stack ARN unrecorded because the post-deploy write can't parse it.
-    await readDeployedState(this.json, project.rootPath);
+    // Fail on local setup errors (missing toolchain/deps) and malformed state
+    // before any AWS mutation, so a local problem never leaves credentials
+    // provisioned or the stack ARN unrecorded.
+    await this.ensureCdkDependencies(project);
+    // Kept from before provisioning rewrites the credentials map: it is the only
+    // record of what this target provisioned, and a teardown reached by emptying the
+    // spec has no other way to know which providers it owns.
+    const recorded =
+      (await readDeployedState(this.json, project.rootPath)).targets[target.name]?.resources
+        ?.credentials ?? {};
+
+    // Credential providers aren't stack resources; the synthesized app reads their
+    // ARNs from deployed-state.json, so they must exist and be recorded before synth.
+    const provisioned = yield* this.provisionCredentials(project, {
+      credentials,
+      region: target.region,
+    });
+    // Recorded every deploy (even when empty) so dropping the last credential
+    // from the spec clears the stale entry instead of leaving it advertised.
+    await updateTargetState(this.json, project.rootPath, target.name, {
+      resources: { credentials: provisioned },
+    });
 
     yield* this.build(project);
     const assemblyDirectory = this.assemblyDirectory(project);
@@ -186,7 +227,7 @@ export class CdkBackend implements ProjectBackend {
     // with nothing in it as an instruction to delete the stack, and reports that
     // as an ordinary successful deploy.
     if ((await countDeployableResources(this.json, assemblyDirectory, artifact)) === 0) {
-      return yield* this.teardown({ project, artifact, input, options });
+      return yield* this.teardown({ project, artifact, input, options, recorded });
     }
 
     const bootstrap = await this.bootstrap(target.region, credentials);
@@ -253,11 +294,14 @@ export class CdkBackend implements ProjectBackend {
     artifact,
     input,
     options,
+    recorded,
   }: {
     project: Project;
     artifact: StackArtifact;
     input: DeployBackendInput;
     options: CdkRunOptions;
+    /** The credentials deployed-state.json held for this target before the deploy. */
+    recorded: DeployedCredentials;
   }): AsyncGenerator<ProjectEvent, DeployResult> {
     const { target } = input;
     if (!(await this.describeStack(target.region, options.credentials, artifact.stackName))) {
@@ -285,6 +329,12 @@ export class CdkBackend implements ProjectBackend {
 
     yield { type: "step", message: `Removing stack ${artifact.stackName}` };
     yield* this.runCdk({ kind: "destroy", stackArtifactId: artifact.id }, options);
+    // After the stack, since a resource in it may still be using the provider.
+    yield* this.removePaymentCredentials(project, {
+      credentials: options.credentials,
+      region: target.region,
+      recorded,
+    });
     await removeTargetState(this.json, project.rootPath, target.name);
     return { outputs: {}, tornDown: true };
   }

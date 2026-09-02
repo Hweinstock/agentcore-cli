@@ -6,6 +6,7 @@ import type { AddResourceInput } from "../../types";
 import {
   credentialEnvironmentVariableNames,
   credentialEnvVarName,
+  credentialNameFieldSuffix,
 } from "../../../../projectSchemas/credential";
 
 export { credentialEnvVarName };
@@ -47,6 +48,23 @@ export async function addCredentialToProject(
     throw new InputValidationError(
       `credential '${newName}' and '${conflictingName}' derive the same environment variable ` +
         `'${conflictingEnvironmentName}'; choose credential names that produce distinct environment variables`,
+    );
+  }
+
+  // The collision check above only compares the fields credentials write today. A name
+  // ending in a field suffix would also shadow a field the CLI no longer writes but
+  // still reads — an OAuth client id, which now lives in agentcore.json but is still
+  // read from .env.local for projects created before it moved — or one a later
+  // credential adds. Such a name is refused outright rather than when something
+  // clashes; see CREDENTIAL_FIELD_SUFFIXES for the full list and why each is there.
+  const fieldSuffix = credentialNameFieldSuffix(newName);
+  if (fieldSuffix) {
+    throw new InputValidationError(
+      `credential '${newName}' derives the environment variable ` +
+        `${credentialEnvVarName(newName)}, which ends in '${fieldSuffix}' — the suffix the CLI ` +
+        `appends to name one of a credential's own fields, so the variable would be ` +
+        `indistinguishable from that field of another credential. Choose a name that does not ` +
+        `end in '${fieldSuffix}' (hyphens count as underscores).`,
     );
   }
 

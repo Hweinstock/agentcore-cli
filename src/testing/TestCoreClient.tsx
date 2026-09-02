@@ -63,6 +63,10 @@ import type {
   UpdateEvaluatorResponse,
   UpdateOnlineEvaluationConfigResponse,
   UpdateApiKeyCredentialProviderResponse,
+  CreatePaymentCredentialProviderResponse,
+  DeletePaymentCredentialProviderResponse,
+  GetPaymentCredentialProviderResponse,
+  UpdatePaymentCredentialProviderResponse,
   UpdateOauth2CredentialProviderResponse,
   UpdateGatewayResponse,
   UpdateGatewayRuleResponse,
@@ -122,6 +126,8 @@ import type {
 import type {
   CoreIdentityClient,
   CreateApiKeyCredentialProviderInput,
+  CreatePaymentCredentialProviderInput,
+  UpdatePaymentCredentialProviderInput,
   CreateOauth2CredentialProviderInput,
   UpdateApiKeyCredentialProviderInput,
   UpdateOauth2CredentialProviderInput,
@@ -228,6 +234,10 @@ const DEFAULT_LIST_API_KEYS_RESPONSE: ListApiKeyCredentialProvidersResponse = {
 };
 const DEFAULT_UPDATE_API_KEY_RESPONSE = {} as UpdateApiKeyCredentialProviderResponse;
 const DEFAULT_DELETE_API_KEY_RESPONSE = {} as DeleteApiKeyCredentialProviderResponse;
+const DEFAULT_CREATE_PAYMENT_RESPONSE = {} as CreatePaymentCredentialProviderResponse;
+const DEFAULT_GET_PAYMENT_RESPONSE = {} as GetPaymentCredentialProviderResponse;
+const DEFAULT_UPDATE_PAYMENT_RESPONSE = {} as UpdatePaymentCredentialProviderResponse;
+const DEFAULT_DELETE_PAYMENT_RESPONSE = {} as DeletePaymentCredentialProviderResponse;
 const DEFAULT_GET_MEMORY_RESPONSE = {} as GetMemoryOutput;
 const DEFAULT_LIST_MEMORIES_RESPONSE: ListMemoriesOutput = { memories: [] };
 const DEFAULT_GET_EVENT_RESPONSE: GetEventOutput = { event: undefined };
@@ -1245,7 +1255,13 @@ export class TestIdentityClient implements CoreIdentityClient {
   >();
   private updateOauth2Response: UpdateOauth2CredentialProviderResponse =
     DEFAULT_UPDATE_OAUTH2_RESPONSE;
+  private getPaymentResponse: GetPaymentCredentialProviderResponse = DEFAULT_GET_PAYMENT_RESPONSE;
   private error?: Error;
+
+  setGetPaymentResponse(response: GetPaymentCredentialProviderResponse): this {
+    this.getPaymentResponse = response;
+    return this;
+  }
 
   setGetApiKeyResponse(response: GetApiKeyCredentialProviderResponse): this {
     this.getApiKeyResponse = response;
@@ -1387,6 +1403,42 @@ export class TestIdentityClient implements CoreIdentityClient {
     this.calls.push({ method: "deleteOauth2CredentialProvider", args: [name, options] });
     if (this.error) throw this.error;
     return DEFAULT_DELETE_OAUTH2_RESPONSE;
+  }
+
+  async createPaymentCredentialProvider(
+    input: CreatePaymentCredentialProviderInput,
+    options: CoreOptions,
+  ): Promise<CreatePaymentCredentialProviderResponse> {
+    this.calls.push({ method: "createPaymentCredentialProvider", args: [input, options] });
+    if (this.error) throw this.error;
+    return DEFAULT_CREATE_PAYMENT_RESPONSE;
+  }
+
+  async getPaymentCredentialProvider(
+    name: string,
+    options: CoreOptions,
+  ): Promise<GetPaymentCredentialProviderResponse> {
+    this.calls.push({ method: "getPaymentCredentialProvider", args: [name, options] });
+    if (this.error) throw this.error;
+    return this.getPaymentResponse;
+  }
+
+  async updatePaymentCredentialProvider(
+    input: UpdatePaymentCredentialProviderInput,
+    options: CoreOptions,
+  ): Promise<UpdatePaymentCredentialProviderResponse> {
+    this.calls.push({ method: "updatePaymentCredentialProvider", args: [input, options] });
+    if (this.error) throw this.error;
+    return DEFAULT_UPDATE_PAYMENT_RESPONSE;
+  }
+
+  async deletePaymentCredentialProvider(
+    name: string,
+    options: CoreOptions,
+  ): Promise<DeletePaymentCredentialProviderResponse> {
+    this.calls.push({ method: "deletePaymentCredentialProvider", args: [name, options] });
+    if (this.error) throw this.error;
+    return DEFAULT_DELETE_PAYMENT_RESPONSE;
   }
 }
 
@@ -2363,6 +2415,7 @@ export class TestCoreClient implements Core {
     this.projectManager = new FsProjectManager({
       logger: options?.logger ?? createSilentLogger(),
       createCloudFormationClient: options?.createCloudFormationClient,
+      identity: this.identity,
       json: options?.json,
       backends: options?.backends,
       runner: async (command, { cwd }) => {
