@@ -502,6 +502,9 @@ describe("FsProjectManager.deploy", () => {
       async resolveDeployedResources() {
         return [];
       },
+      async resolveProjectResources() {
+        return [];
+      },
     };
     return {
       calls,
