@@ -47,6 +47,19 @@ function resolveModelProviderIdentity(input: RuntimeResourceConfig): ModelProvid
   };
 }
 
+/**
+ * The plain (non-strands) templates ship no model abstraction, so they only run
+ * on Bedrock. A non-Bedrock provider is rejected here, when the template is
+ * resolved, rather than by the scaffold schema — the schema cannot know which
+ * template a given framework/language/protocol maps to.
+ */
+function assertBedrockOnly(input: RuntimeResourceConfig, template: string): void {
+  if (input.scaffoldRuntimeInput.modelProvider !== "Bedrock")
+    throw new InputValidationError(
+      `the ${template} template only supports the Bedrock model provider`,
+    );
+}
+
 function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   const { scaffoldRuntimeInput, name, ...infra } = input;
   return {
@@ -129,6 +142,7 @@ const importBedrockAgentResolver = () => async (input: RuntimeResourceConfig) =>
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
+    assertBedrockOnly(input, "agent-python");
     if (input.scaffoldRuntimeInput.memory !== undefined)
       throw new InputValidationError(`memory is not supported with the agent-python template`);
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
@@ -256,6 +270,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     };
   },
   [buildResolverKey("none", "Python", "MCP")]: async (input: RuntimeResourceConfig) => {
+    assertBedrockOnly(input, "mcp-python-fastmcp");
     if (input.scaffoldRuntimeInput.memory !== undefined)
       throw new InputValidationError("memory is not supported with an MCP runtime");
     const filesystemConfigurations = input.filesystemConfigurations ?? [];

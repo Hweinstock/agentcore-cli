@@ -52,6 +52,7 @@ const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
   bedrock: "Bedrock",
   anthropic: "Anthropic",
   openai: "OpenAI",
+  open_ai: "OpenAI",
   gemini: "Gemini",
 };
 
@@ -75,7 +76,7 @@ export const ScaffoldRuntimeInputSchema = z
     memory: MemorySchema.optional(),
     runtimeVersion: RuntimeVersionSchema.optional(),
   })
-  .superRefine(({ modelProvider, apiKey, framework }, ctx) => {
+  .superRefine(({ modelProvider, apiKey }, ctx) => {
     if (modelProvider === "Bedrock" && apiKey !== undefined) {
       ctx.addIssue({
         code: "custom",
@@ -88,13 +89,6 @@ export const ScaffoldRuntimeInputSchema = z
         code: "custom",
         message: `an API key is required for the ${modelProvider} model provider`,
         path: ["apiKey"],
-      });
-    }
-    if (modelProvider !== "Bedrock" && framework !== "strands") {
-      ctx.addIssue({
-        code: "custom",
-        message: `the ${modelProvider} model provider requires the strands framework`,
-        path: ["modelProvider"],
       });
     }
   })
