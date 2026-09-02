@@ -142,6 +142,11 @@ const TEMPLATE_OPTIONS: {
     label: "py-mcp",
     description: "MCP server exposing tools via FastMCP (CodeZip build)",
   },
+  {
+    template: "strands-py-a2a",
+    label: "strands-py-a2a",
+    description: "Strands agent speaking the A2A protocol on Bedrock (CodeZip build)",
+  },
 ];
 
 const MEMORY_OPTIONS: { memory: MemoryShortcutName; label: string; description: string }[] = [

@@ -87,7 +87,11 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         "additional IAM policy ARNs or policy document paths for the execution role",
         z.array(z.string()).optional(),
       ),
-      flag("protocol", "server protocol: HTTP or MCP", z.enum(["HTTP", "MCP"]).optional()),
+      flag(
+        "protocol",
+        "server protocol: HTTP, MCP, or A2A",
+        z.enum(["HTTP", "MCP", "A2A"]).optional(),
+      ),
       flag(
         "network-mode",
         "network mode for the runtime environment (PUBLIC or VPC)",

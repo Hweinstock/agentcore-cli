@@ -113,7 +113,11 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         "agent framework for the scaffolded runtime code",
         z.enum(["strands", "none"]).optional(),
       ),
-      flag("protocol", "server protocol: HTTP or MCP", z.enum(["HTTP", "MCP"]).optional()),
+      flag(
+        "protocol",
+        "server protocol: HTTP, MCP, or A2A",
+        z.enum(["HTTP", "MCP", "A2A"]).optional(),
+      ),
       flag(
         "model-provider",
         "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; Bedrock for runtime code",
@@ -300,7 +304,7 @@ type RuntimePathFlagValues = {
   build?: "CodeZip" | "Container";
   language?: "Python" | "TypeScript";
   framework?: "strands" | "none";
-  protocol?: "HTTP" | "MCP";
+  protocol?: "HTTP" | "MCP" | "A2A";
   "model-provider"?: ModelProviderFlag;
   "api-key"?: string;
   memory?: (typeof MEMORY_SHORTCUT_NAMES)[number];

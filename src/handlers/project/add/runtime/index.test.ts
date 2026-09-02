@@ -116,6 +116,19 @@ describe("project add runtime", () => {
       build: "CodeZip",
       protocol: "MCP",
     },
+    "strands-py-a2a template preset": {
+      build: "CodeZip",
+      protocol: "A2A",
+    },
+    "strands-py-a2a overrides to Container": {
+      build: "Container",
+      dockerfile: "Dockerfile",
+      protocol: "A2A",
+    },
+    "custom A2A runtime": {
+      build: "CodeZip",
+      protocol: "A2A",
+    },
     "all infrastructure flags": {
       description: "Configured runtime",
       executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
@@ -178,6 +191,30 @@ describe("project add runtime", () => {
       "py-mcp overrides to Container",
       ["--name", "my_mcp", "--template", "py-mcp", "--build", "Container"],
     ],
+    ["strands-py-a2a template preset", ["--name", "my_a2a", "--template", "strands-py-a2a"]],
+    [
+      "strands-py-a2a overrides to Container",
+      ["--name", "my_a2a", "--template", "strands-py-a2a", "--build", "Container"],
+    ],
+    [
+      "custom A2A runtime",
+      [
+        "--name",
+        "a2a_custom",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--protocol",
+        "A2A",
+        "--model-provider",
+        "Bedrock",
+        "--memory",
+        "none",
+      ],
+    ],
     [
       "strands-python with session, EFS, and S3 mounts",
       [
@@ -200,6 +237,21 @@ describe("project add runtime", () => {
         "fs_mcp",
         "--template",
         "py-mcp",
+        "--network-mode",
+        "VPC",
+        "--network-config",
+        '{"subnets":["subnet-0123456789abcdef0"],"securityGroups":["sg-0123456789abcdef0"]}',
+        "--filesystem-configurations",
+        '[{"sessionStorage":{"mountPath":"/mnt/session"}},{"efsAccessPoint":{"accessPointArn":"arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-0123456789abcdef0","mountPath":"/mnt/efs"}},{"s3FilesAccessPoint":{"accessPointArn":"arn:aws:s3files:us-east-1:123456789012:file-system/fs-0123456789abcdef01/access-point/fsap-0123456789abcdef1","mountPath":"/mnt/s3"}}]',
+      ],
+    ],
+    [
+      "strands-py-a2a with session, EFS, and S3 mounts",
+      [
+        "--name",
+        "fs_a2a",
+        "--template",
+        "strands-py-a2a",
         "--network-mode",
         "VPC",
         "--network-config",
@@ -439,6 +491,37 @@ describe("project add runtime", () => {
       eventExpiryDuration: 30,
     });
     expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+  });
+
+  test.each<[string, string[], string[]]>([
+    [
+      "template preset defaults to long and short-term memory",
+      ["--name", "my_a2a", "--template", "strands-py-a2a"],
+      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
+    ],
+    [
+      "template preset with --memory none",
+      ["--name", "my_a2a", "--template", "strands-py-a2a", "--memory", "none"],
+      [],
+    ],
+  ])("strands-py-a2a %s", async (_label, flags, expectedStrategies) => {
+    const projectRoot = await inProject();
+    await run(["add", "runtime", ...flags]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const memory = (spec.memories ?? []).find(
+      (candidate: { name: string }) => candidate.name === "my_a2aMemory",
+    );
+    const memoryDir = join(projectRoot, "app", "my_a2a", "memory", "session.py");
+
+    if (expectedStrategies.length === 0) {
+      expect(memory).toBeUndefined();
+      expect(await Bun.file(memoryDir).exists()).toBe(false);
+      return;
+    }
+
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
+    expect(await Bun.file(memoryDir).exists()).toBe(true);
   });
 
   test.each<[string, string[], string[]]>([

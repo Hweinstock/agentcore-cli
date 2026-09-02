@@ -278,6 +278,61 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "MCP" as const }] },
     };
   },
+  [buildResolverKey("strands", "Python", "A2A")]: async (input: RuntimeResourceConfig) => {
+    const filesystemConfigurations = input.filesystemConfigurations ?? [];
+    const sessionStorageMountPath = filesystemConfigurations.flatMap((configuration) =>
+      "sessionStorage" in configuration ? [configuration.sessionStorage.mountPath] : [],
+    )[0];
+    const efsMounts = filesystemConfigurations.flatMap((configuration) =>
+      "efsAccessPoint" in configuration
+        ? [{ mountPath: configuration.efsAccessPoint.mountPath }]
+        : [],
+    );
+    const s3Mounts = filesystemConfigurations.flatMap((configuration) =>
+      "s3FilesAccessPoint" in configuration
+        ? [{ mountPath: configuration.s3FilesAccessPoint.mountPath }]
+        : [],
+    );
+    const memory = input.scaffoldRuntimeInput.memory;
+    const context = {
+      name: toPythonPackageName(input.name),
+      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      hasMemory: memory !== undefined,
+      // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
+      memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
+      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
+      sessionStorageMountPath,
+      efsMounts,
+      s3Mounts,
+      needsOs: filesystemConfigurations.length > 0,
+      // The AgentCore Runtime requires OTEL dependencies to be present; the
+      // container launches main.py as the `main` module under
+      // opentelemetry-instrument, and serve_a2a binds the A2A server on port 9000.
+      enableOtel: true,
+      entrypoint: "main",
+    };
+    const isContainer = input.scaffoldRuntimeInput.build === "Container";
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource },
+      { assetDir: "templates/strands-py-a2a" },
+      {
+        rootDirName: input.name,
+        transformContent: (raw) => templateRenderer.render(raw, context),
+        filter: (name, isDir) => {
+          if (isDir && name === "memory") return memory !== undefined;
+          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
+          return true;
+        },
+      },
+    );
+    return {
+      tree,
+      spec: {
+        runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
+        ...(memory && { memories: [memory] }),
+      },
+    };
+  },
 });
 
 type GetRuntimeTemplateResolverConfig = {

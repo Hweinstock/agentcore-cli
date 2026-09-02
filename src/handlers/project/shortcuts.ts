@@ -95,6 +95,16 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "none",
     runtimeVersion: "PYTHON_3_14",
   },
+  "strands-py-a2a": {
+    runtimeName: "a2a_agent",
+    build: "CodeZip",
+    language: "Python",
+    framework: "strands",
+    protocol: "A2A",
+    modelProvider: "Bedrock",
+    memory: "longAndShortTerm",
+    runtimeVersion: "PYTHON_3_14",
+  },
 } as const satisfies Record<string, RuntimeTemplateShortcut>;
 
 export type RuntimeTemplateShortcutName = keyof typeof RUNTIME_TEMPLATE_SHORTCUTS;

@@ -29,6 +29,10 @@ const HELLO_WORLD_PYTHON = resolveRuntimeTemplateShortcut("hello-world-python");
 const HELLO_WORLD_PYTHON_CONTAINER = resolveRuntimeTemplateShortcut("hello-world-python-container");
 const STRANDS_PYTHON = resolveRuntimeTemplateShortcut("strands-python");
 const STRANDS_TS = resolveRuntimeTemplateShortcut("strands-ts");
+const STRANDS_PY_A2A = resolveRuntimeTemplateShortcut("strands-py-a2a");
+const STRANDS_PY_A2A_CONTAINER = resolveRuntimeTemplateShortcut("strands-py-a2a", {
+  build: "Container",
+});
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -129,6 +133,58 @@ describe("FsProjectManager.create", () => {
       runtimes: spec.runtimes,
       memories: spec.memories,
     }).toMatchSnapshot();
+  });
+
+  test("snapshots the Strands A2A project manifest and runtime spec", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: STRANDS_PY_A2A,
+    });
+
+    const projectRoot = join(directory, "example");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect({
+      manifest: await projectManifest(projectRoot),
+      runtimes: spec.runtimes,
+      memories: spec.memories,
+    }).toMatchSnapshot();
+  });
+
+  test("scaffolds the Strands A2A runtime with the A2A protocol", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: STRANDS_PY_A2A,
+    });
+
+    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes[0]).toMatchObject({
+      name: "a2a_agent",
+      build: "CodeZip",
+      protocol: "A2A",
+      entrypoint: "main.py",
+    });
+    expect(spec.memories).toMatchObject([{ name: "a2a_agentMemory" }]);
+  });
+
+  test("scaffolds the Strands A2A runtime as a container with --build Container", async () => {
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: STRANDS_PY_A2A_CONTAINER,
+    });
+
+    const appDir = join(directory, "example", "app", "a2a_agent");
+    expect(await Bun.file(join(appDir, "Dockerfile")).exists()).toBe(true);
+    expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
+
+    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes[0]).toMatchObject({
+      build: "Container",
+      dockerfile: "Dockerfile",
+      protocol: "A2A",
+    });
   });
 
   test("writes a deploy-ready agentcore.json registering the template agent", async () => {
