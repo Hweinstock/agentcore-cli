@@ -517,7 +517,7 @@ describe("project create wizard", () => {
     const core = new TestCoreClient();
     core.projectManager.create = () => {
       return (async function* () {
-        yield { message: "creating project directory" };
+        yield { type: "step" as const, message: "creating project directory" };
         throw new Error("disk full");
       })();
     };
@@ -550,7 +550,7 @@ describe("project create wizard", () => {
     core.projectManager.create = (input) => {
       created.push(input);
       return (async function* () {
-        yield { message: "creating project directory" };
+        yield { type: "step" as const, message: "creating project directory" };
         throw new Error("disk full");
       })();
     };
