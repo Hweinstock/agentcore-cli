@@ -190,7 +190,7 @@ cd MyAssistant && agentcore project deploy
 agentcore harness invoke --id <id from the deploy outputs> --prompt "hello"
 
 # Scaffold runtime code instead (pass a template or framework flags).
-agentcore project create --name MyAgent --template strands-python
+agentcore project create --name MyAgent --template agent-python-strands
 
 # Wrap an existing Amazon Bedrock Agent as a runtime: a generated proxy
 # forwards prompts to the agent, so it deploys and invokes like any other

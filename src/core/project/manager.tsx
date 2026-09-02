@@ -737,7 +737,7 @@ export class FsProjectManager implements ProjectManager {
     yield { type: "step", message: `Rendering agent code at 'app/${targetAgentName}'` };
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource: this.assetSource },
-      { assetDir: "templates/strands-http-python" },
+      { assetDir: "templates/agent-python-strands" },
       {
         rootDirName: targetAgentName,
         transformContent: (raw) => this.templateRenderer.render(raw, plan.context),

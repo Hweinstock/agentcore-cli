@@ -108,16 +108,18 @@ const importBedrockAgentResolver =
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
     if (input.scaffoldRuntimeInput.memory !== undefined)
-      throw new InputValidationError(`memory is not supported with the hello-world template`);
+      throw new InputValidationError(`memory is not supported with the agent-python template`);
+    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
+      { assetDir: "templates/agent-python" },
       {
-        assetDir:
-          input.scaffoldRuntimeInput.build === "Container"
-            ? "templates/hello-world-python-container"
-            : "templates/hello-world-python",
+        rootDirName: input.name,
+        filter: (name) => {
+          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
+          return true;
+        },
       },
-      { rootDirName: input.name },
     );
     return { tree, spec: { runtimes: [buildRuntimeSpec(input)] } };
   },
@@ -163,7 +165,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
-      { assetDir: "templates/strands-http-python" },
+      { assetDir: "templates/agent-python-strands" },
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
@@ -188,7 +190,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
   },
   [buildResolverKey("strands", "TypeScript", "HTTP")]: async (input: RuntimeResourceConfig) => {
     if (input.protocol !== undefined && input.protocol !== "HTTP")
-      throw new InputValidationError("the strands-ts template only supports HTTP");
+      throw new InputValidationError("the agent-typescript-strands template only supports HTTP");
 
     const memory = input.scaffoldRuntimeInput.memory;
     // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one
@@ -212,7 +214,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
-      { assetDir: "templates/strands-http-typescript" },
+      { assetDir: "templates/agent-typescript-strands" },
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
@@ -263,7 +265,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
-      { assetDir: "templates/python-mcp" },
+      { assetDir: "templates/mcp-python-fastmcp" },
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
@@ -314,7 +316,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
-      { assetDir: "templates/strands-py-a2a" },
+      { assetDir: "templates/a2a-python-strands" },
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
