@@ -70,15 +70,8 @@ describe("project menu", () => {
 });
 
 describe("project subcommands without a screen", () => {
-  // renderTuiAt rather than renderScreen: ink-testing-library exposes no
-  // waitUntilExit, so it cannot observe the rejection under test.
-  //
-  // Reading the cases off the router also guards Root's hand-written
-  // PROJECT_COMMANDS: an unrouted subcommand hits the catch-all, which resolves
-  // instead of rejecting. Frames can't detect that — the catch-all exits before
-  // painting, so it and this screen both render empty. `create` and `invoke`
-  // are excluded because both have real screens.
-  test.each(projectSubcommands().filter((command) => command !== "create" && command !== "invoke"))(
+  const withScreens = ["create", "invoke", "remove"];
+  test.each(projectSubcommands().filter((command) => !withScreens.includes(command)))(
     "%s tears down the TUI with NotImplementedError",
     async (command) => {
       const { streams } = ttyTestIO();

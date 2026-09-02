@@ -62,7 +62,10 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
     withProject({ projectManager: config.projectManager })(
-      createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io }),
+      withTuiOnEmptyFlagsAndArgs(
+        core,
+        io,
+      )(createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io })),
     ),
   );
   project.handler(
