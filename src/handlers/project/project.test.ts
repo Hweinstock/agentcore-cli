@@ -406,7 +406,7 @@ describe("project create", () => {
       "--build",
       "CodeZip",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       "--memory",
       "none",
       "--skip-install",
@@ -424,7 +424,7 @@ describe("project create", () => {
     expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
   });
 
-  test("rejects lite_llm on the runtime path", async () => {
+  test.each([["lite_llm"]])("rejects the %s provider on the runtime path", async (provider) => {
     const directory = await inTempDirectory();
     await expect(
       run([
@@ -434,15 +434,21 @@ describe("project create", () => {
         "--template",
         "agent-python-strands",
         "--model-provider",
-        "lite_llm",
+        provider,
         "--api-key",
         "-",
       ]),
-    ).rejects.toThrow(/runtime scaffolding does not support the 'lite_llm' model provider/);
+    ).rejects.toThrow(
+      new RegExp(`runtime scaffolding does not support the '${provider}' model provider`),
+    );
     expect(existsSync(join(directory, "MyProject"))).toBe(false);
   });
 
-  test("scaffolds a runtime with an OpenAI API-key credential", async () => {
+  test.each<[string, string]>([
+    ["anthropic", "agent_python_strandsAnthropicApiKey"],
+    ["open_ai", "agent_python_strandsOpenAIApiKey"],
+    ["gemini", "agent_python_strandsGeminiApiKey"],
+  ])("scaffolds a runtime with a %s API-key credential", async (provider, credentialName) => {
     const directory = await inTempDirectory();
     const apiKeyPath = join(directory, "api-key.txt");
     await Bun.write(apiKeyPath, "test-api-key");
@@ -454,7 +460,7 @@ describe("project create", () => {
       "--template",
       "agent-python-strands",
       "--model-provider",
-      "openai",
+      provider,
       "--api-key",
       `file://${apiKeyPath}`,
       "--skip-install",
@@ -465,7 +471,7 @@ describe("project create", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.credentials).toContainEqual({
       authorizerType: "ApiKeyCredentialProvider",
-      name: "agent_python_strandsOpenAIApiKey",
+      name: credentialName,
     });
     const envLocal = await Bun.file(join(projectRoot, "agentcore", ".env.local")).text();
     expect(envLocal).toContain("test-api-key");
@@ -614,7 +620,7 @@ describe("project create", () => {
       "--framework",
       "strands",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       ...memoryFlags,
       "--skip-install",
       "--skip-git",
@@ -650,7 +656,7 @@ describe("project create", () => {
       "--framework",
       "none",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       "--memory",
       "none",
       "--skip-install",
@@ -683,7 +689,7 @@ describe("project create", () => {
       "--framework",
       "strands",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       "--memory",
       "none",
       "--skip-install",
@@ -723,7 +729,7 @@ describe("project create", () => {
           "--framework",
           "none",
           "--model-provider",
-          "Bedrock",
+          "bedrock",
           "--memory",
           memoryShortcut,
           "--skip-install",
@@ -757,7 +763,7 @@ describe("project create", () => {
           "--framework",
           "none",
           "--model-provider",
-          "Bedrock",
+          "bedrock",
           "--memory",
           "none",
           "--skip-install",

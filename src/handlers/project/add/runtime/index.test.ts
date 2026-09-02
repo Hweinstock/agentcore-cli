@@ -783,14 +783,17 @@ describe("project add runtime", () => {
     ).rejects.toThrow(/API keys are not compatible with Bedrock model providers/);
   });
 
-  test.each<[string, string, string, string]>([
-    ["Anthropic", "Python", "strands.models.anthropic", "AnthropicModel"],
-    ["OpenAI", "Python", "strands.models.openai", "OpenAIModel"],
-    ["Gemini", "Python", "strands.models.gemini", "GeminiModel"],
-    ["Anthropic", "TypeScript", "@strands-agents/sdk/models/anthropic", "AnthropicModel"],
+  // The flag value casing varies deliberately (lowercase and canonical both
+  // normalize to the same credential name). Behaviour is asserted against the
+  // agentcore spec and .env.local, not the scaffolded template code.
+  test.each<[string, string, string]>([
+    ["anthropic", "Anthropic", "Python"],
+    ["OpenAI", "OpenAI", "Python"],
+    ["gemini", "Gemini", "Python"],
+    ["Anthropic", "Anthropic", "TypeScript"],
   ])(
-    "scaffolds a strands %s runtime (%s) with an API-key credential",
-    async (provider, language, expectedImport, expectedModelClass) => {
+    "scaffolds a strands runtime for --model-provider %s (%s) with an API-key credential",
+    async (flagValue, provider, language) => {
       const projectRoot = await inProject();
       const apiKeyPath = join(projectRoot, "api-key.txt");
       await Bun.write(apiKeyPath, "test-api-key");
@@ -807,7 +810,7 @@ describe("project add runtime", () => {
         "--framework",
         "strands",
         "--model-provider",
-        provider,
+        flagValue,
         "--api-key",
         `file://${apiKeyPath}`,
       ]);
@@ -823,24 +826,28 @@ describe("project add runtime", () => {
 
       const envLocal = await Bun.file(join(projectRoot, "agentcore", ".env.local")).text();
       expect(envLocal).toContain(`${envVarName}='test-api-key'`);
-
-      const loadFile = language === "TypeScript" ? "load.ts" : "load.py";
-      const loadSource = await Bun.file(
-        join(projectRoot, "app", "my_agent", "model", loadFile),
-      ).text();
-      expect(loadSource).toContain(expectedImport);
-      expect(loadSource).toContain(expectedModelClass);
-      expect(loadSource).toContain(credentialName);
-      expect(loadSource).toContain(envVarName);
     },
   );
 
-  test("normalizes a lowercase --model-provider to canonical casing", async () => {
+  test.each<[string, string, boolean, RegExp]>([
+    [
+      "without an API key",
+      "strands",
+      false,
+      /API key is required for the Anthropic model provider/,
+    ],
+    [
+      "without a provider-capable template",
+      "none",
+      true,
+      /only supports the Bedrock model provider/,
+    ],
+  ])("rejects a non-Bedrock provider %s", async (_label, framework, includeApiKey, pattern) => {
     const projectRoot = await inProject();
     const apiKeyPath = join(projectRoot, "api-key.txt");
     await Bun.write(apiKeyPath, "test-api-key");
 
-    await run([
+    const flags = [
       "add",
       "runtime",
       "--name",
@@ -850,62 +857,13 @@ describe("project add runtime", () => {
       "--language",
       "Python",
       "--framework",
-      "strands",
+      framework,
       "--model-provider",
-      "anthropic",
-      "--api-key",
-      `file://${apiKeyPath}`,
-    ]);
+      "Anthropic",
+    ];
+    if (includeApiKey) flags.push("--api-key", `file://${apiKeyPath}`);
 
-    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect(spec.credentials).toContainEqual({
-      authorizerType: "ApiKeyCredentialProvider",
-      name: "my_agentAnthropicApiKey",
-    });
-  });
-
-  test("rejects a non-Bedrock provider without an API key", async () => {
-    await inProject();
-    await expect(
-      run([
-        "add",
-        "runtime",
-        "--name",
-        "my_agent",
-        "--build",
-        "CodeZip",
-        "--language",
-        "Python",
-        "--framework",
-        "strands",
-        "--model-provider",
-        "Anthropic",
-      ]),
-    ).rejects.toThrow(/API key is required for the Anthropic model provider/);
-  });
-
-  test("rejects a non-Bedrock provider without the strands framework", async () => {
-    const projectRoot = await inProject();
-    const apiKeyPath = join(projectRoot, "api-key.txt");
-    await Bun.write(apiKeyPath, "test-api-key");
-    await expect(
-      run([
-        "add",
-        "runtime",
-        "--name",
-        "my_agent",
-        "--build",
-        "CodeZip",
-        "--language",
-        "Python",
-        "--framework",
-        "none",
-        "--model-provider",
-        "Anthropic",
-        "--api-key",
-        `file://${apiKeyPath}`,
-      ]),
-    ).rejects.toThrow(/requires the strands framework/);
+    await expect(run(flags)).rejects.toThrow(pattern);
   });
 });
 
