@@ -136,13 +136,14 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   const { resourceType, resourceIndex } = useParams();
   const navigate = useNavigate();
 
-  const pinned = ctx.value(ProjectKey);
-  const cwd = process.cwd();
-  const resolved = useQuery({
-    queryKey: projectQueryKey(cwd),
-    queryFn: async () => (await core.projectManager.resolve({ filePath: cwd })) ?? null,
+  const contextProject = ctx.value(ProjectKey);
+  const workingDirectory = process.cwd();
+  const projectQuery = useQuery({
+    queryKey: projectQueryKey(workingDirectory),
+    queryFn: async () =>
+      (await core.projectManager.resolve({ filePath: workingDirectory })) ?? null,
   });
-  const project = resolved.data ?? pinned ?? undefined;
+  const project = projectQuery.data ?? contextProject ?? undefined;
 
   // explicitly wire esc for the no project found case
   useInput(
@@ -153,19 +154,13 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   );
 
   if (!project) {
-    const message = resolved.isPending
-      ? undefined
-      : resolved.isError
-        ? (resolved.error as Error).message
-        : `No AgentCore project found at ${cwd} or any parent directory ` +
-          `(looked for agentcore/agentcore.json). Run 'agentcore project create' to scaffold one.`;
     return (
       <Layout breadcrumb={["agentcore", "project", "remove"]} keyHints={KEY_HINTS}>
-        {message === undefined ? (
-          <Spinner label="Resolving project…" />
-        ) : (
-          <Text color="red">{message}</Text>
-        )}
+        <NoProjectBody
+          isPending={projectQuery.isPending}
+          error={projectQuery.error}
+          workingDirectory={workingDirectory}
+        />
       </Layout>
     );
   }
@@ -188,6 +183,29 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   }
 
   return <ResourcePicker project={project} table={table} />;
+}
+
+function NoProjectBody({
+  isPending,
+  error,
+  workingDirectory,
+}: {
+  isPending: boolean;
+  error: unknown;
+  workingDirectory: string;
+}) {
+  if (isPending) {
+    return <Spinner label="Resolving project…" />;
+  }
+  if (error) {
+    return <Text color="red">{(error as Error).message}</Text>;
+  }
+  return (
+    <Text color="red">
+      {`No AgentCore project found at ${workingDirectory} or any parent directory ` +
+        `(looked for agentcore/agentcore.json). Run 'agentcore project create' to scaffold one.`}
+    </Text>
+  );
 }
 
 type ResourceTypeRow = Record<string, unknown> & { resource: string; count: string; value: string };
@@ -285,7 +303,7 @@ function RemoveConfirm({
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const cwd = process.cwd();
+  const workingDirectory = process.cwd();
 
   return (
     <ConfirmAction
@@ -313,7 +331,7 @@ function RemoveConfirm({
       onDone={() => {
         // Refresh the list off disk only on the way out, so the success panel
         // isn't torn down mid-flow when the removed resource disappears.
-        void queryClient.invalidateQueries({ queryKey: projectQueryKey(cwd) });
+        void queryClient.invalidateQueries({ queryKey: projectQueryKey(workingDirectory) });
         navigate(REMOVE_ROOT);
       }}
     />
@@ -323,7 +341,7 @@ function RemoveConfirm({
 function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenProps["core"] }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const cwd = process.cwd();
+  const workingDirectory = process.cwd();
 
   const populated = RESOURCE_TABLES.flatMap((table) => {
     const count = table.list(project.spec).length;
@@ -363,7 +381,7 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
       successTitle="All resources removed"
       runningLabel="Removing all resources…"
       onDone={() => {
-        void queryClient.invalidateQueries({ queryKey: projectQueryKey(cwd) });
+        void queryClient.invalidateQueries({ queryKey: projectQueryKey(workingDirectory) });
         navigate(REMOVE_ROOT);
       }}
     />
