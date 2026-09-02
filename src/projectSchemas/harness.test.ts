@@ -41,6 +41,30 @@ describe("harness custom validation", () => {
       }).success,
     ).toBe(false);
   });
+  // The pinned @aws/agentcore-cdk rejects additionalParams on every provider but lite_llm, and
+  // re-parses harness.json at synth — so accepting it here would defer the failure to
+  // `project build` instead of surfacing it at authoring time.
+  it("accepts additional parameters only for the lite_llm provider", () => {
+    expect(
+      HarnessModelSchema.safeParse({
+        provider: "lite_llm",
+        modelId: "bedrock/model",
+        additionalParams: { custom_parameter: true },
+      }).success,
+    ).toBe(true);
+    for (const model of [
+      { provider: "bedrock", modelId: "model" },
+      { provider: "open_ai", modelId: "gpt", apiKeyArn: "arn:key" },
+      { provider: "gemini", modelId: "gemini", apiKeyArn: "arn:key" },
+    ]) {
+      expect(
+        HarnessModelSchema.safeParse({
+          ...model,
+          additionalParams: { custom_parameter: true },
+        }).success,
+      ).toBe(false);
+    }
+  });
   it("validates provider-specific API formats through the shared helper", () => {
     expect(validateApiFormat("responses", "open_ai")).toEqual({ valid: true });
     expect(validateApiFormat("converse_stream", "open_ai").valid).toBe(false);

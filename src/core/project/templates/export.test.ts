@@ -3,13 +3,13 @@ import z from "zod";
 import { InputValidationError } from "../../../errors/errors";
 import { HarnessSpecSchema, type HarnessSpec } from "../../../projectSchemas/harness";
 import { ProjectSpecSchema } from "../../../projectSchemas/project";
+import { credentialEnvVarName } from "../../../projectSchemas/credential";
 import {
   ALLOWED_TOOLS_NOTE_CATEGORY,
   AWS_SKILLS_NOTE_CATEGORY,
   BROWSER_TOOL_NOTE_CATEGORY,
   CODE_INTERPRETER_TOOL_NOTE_CATEGORY,
-  CONTAINER_URI_NOTE_CATEGORY,
-  CUSTOM_DOCKERFILE_NOTE_CATEGORY,
+  CONTAINER_IMAGE_NOTE_CATEGORY,
   GATEWAY_TOOL_NOTE_CATEGORY,
   GIT_SKILLS_AUTH_NOTE_CATEGORY,
   LITELLM_NO_API_KEY_NOTE_CATEGORY,
@@ -17,10 +17,9 @@ import {
   MCP_HEADER_CREDS_NOTE_CATEGORY,
   MEMORY_ARN_NOTE_CATEGORY,
   MEMORY_MANAGED_NOTE_CATEGORY,
+  MEMORY_MESSAGES_COUNT_NOTE_CATEGORY,
   MEMORY_NAME_NOT_FOUND_NOTE_CATEGORY,
-  MISSING_DOCKERFILE_NOTE_CATEGORY,
   MODEL_API_KEY_NOTE_CATEGORY,
-  PATH_SKILLS_NOTE_CATEGORY,
   buildExportNotesMarkdown,
   formatExportNotes,
   mapHarnessToExportPlan,
@@ -83,7 +82,7 @@ describe("mapHarnessToExportPlan model mapping", () => {
     expect(result.context.modelTopP).toBe("0.9");
     expect(result.context.modelMaxTokens).toBe("512");
     expect(result.context.bedrockMantle).toBeUndefined();
-    expect(result.hasExecutionLimits).toBe(true);
+    expect(result.context.hasExecutionLimits).toBe(true);
     expect(result.context.maxIterations).toBe(5);
     expect(result.context.maxTokens).toBe(2048);
     expect(result.context.timeoutSeconds).toBe(60);
@@ -120,6 +119,10 @@ describe("mapHarnessToExportPlan model mapping", () => {
         model: {
           provider: "open_ai",
           modelId: "gpt-4.1",
+          apiFormat: "responses",
+          maxTokens: 768,
+          temperature: 0.2,
+          topP: 0.8,
           apiKeyArn:
             "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/MyOpenAiKey",
         },
@@ -127,6 +130,11 @@ describe("mapHarnessToExportPlan model mapping", () => {
     });
 
     expect(result.context.modelProvider).toBe("OpenAI");
+    expect(result.context.strandsExtras).toBe("openai");
+    expect(result.context.modelApiFormat).toBe("responses");
+    expect(result.context.modelMaxTokens).toBe("768");
+    expect(result.context.modelTemperature).toBe("0.2");
+    expect(result.context.modelTopP).toBe("0.8");
     expect(result.context.hasIdentity).toBe(true);
     expect(result.context.identityProviders).toEqual([
       { name: "MyOpenAiKey", envVarName: "AGENTCORE_CREDENTIAL_MYOPENAIKEY" },
@@ -153,6 +161,7 @@ describe("mapHarnessToExportPlan model mapping", () => {
     });
 
     expect(result.context.modelProvider).toBe("Gemini");
+    expect(result.context.strandsExtras).toBe("gemini");
     expect(result.credentials).toEqual([]);
   });
 
@@ -163,14 +172,21 @@ describe("mapHarnessToExportPlan model mapping", () => {
           provider: "lite_llm",
           modelId: "bedrock/us.amazon.nova-lite-v1:0",
           apiBase: "https://litellm.example",
+          maxTokens: 300,
+          temperature: 0.1,
+          topP: 0.7,
           additionalParams: { max_retries: 2 },
         },
       }),
     });
 
     expect(result.context.modelProvider).toBe("LiteLLM");
+    expect(result.context.strandsExtras).toBe("litellm");
     expect(result.context.litellmApiBase).toBe("https://litellm.example");
     expect(result.context.litellmAdditionalParams).toEqual({ max_retries: 2 });
+    expect(result.context.modelMaxTokens).toBe("300");
+    expect(result.context.modelTemperature).toBe("0.1");
+    expect(result.context.modelTopP).toBe("0.7");
     expect(result.notes).toEqual([]);
   });
 
@@ -207,7 +223,12 @@ describe("mapHarnessToExportPlan tools", () => {
     });
 
     expect(result.context.remoteMcpTools).toEqual([
-      { name: "exa", url: "https://mcp.exa.ai/mcp", headerCredentials: undefined },
+      {
+        name: "exa",
+        pythonName: expect.stringMatching(/^exa_[a-f0-9]{10}$/),
+        url: "https://mcp.exa.ai/mcp",
+        headerCredentials: undefined,
+      },
     ]);
     expect(result.context.inlineFunctionTools).toEqual([
       {
@@ -238,26 +259,58 @@ describe("mapHarnessToExportPlan tools", () => {
     });
 
     const tools = result.context.remoteMcpTools as {
-      headerCredentials?: { headerKey: string; credentialName: string; envVarName: string }[];
+      headerCredentials?: {
+        headerKey: string;
+        credentialName: string;
+        envVarName: string;
+        pythonName: string;
+      }[];
     }[];
-    expect(tools[0]!.headerCredentials).toEqual([
-      {
-        headerKey: "X-Api-Key",
-        credentialName: "ordersMcpinternalXApiKey",
-        envVarName: "AGENTCORE_CREDENTIAL_ORDERSMCPINTERNALXAPIKEY",
-      },
-    ]);
+    const header = tools[0]!.headerCredentials![0]!;
+    expect(header.headerKey).toBe("X-Api-Key");
+    expect(header.credentialName).toMatch(/^ordersMcpinternalX-Api-Key-[a-f0-9]{10}$/);
+    expect(header.envVarName).toBe(credentialEnvVarName(header.credentialName));
+    expect(header.pythonName).toMatch(/^internal_x_api_key_[a-f0-9]{10}$/);
     expect(result.credentials).toEqual([
-      { authorizerType: "ApiKeyCredentialProvider", name: "ordersMcpinternalXApiKey" },
+      { authorizerType: "ApiKeyCredentialProvider", name: header.credentialName },
     ]);
     expect(result.envEntries).toEqual([
       {
-        key: "AGENTCORE_CREDENTIAL_ORDERSMCPINTERNALXAPIKEY",
+        key: header.envVarName,
         value: "s3cret",
         comment: '"X-Api-Key" header for MCP tool "internal" (exported from harness "assistant")',
       },
     ]);
     expect(categories(result)).toEqual([MCP_HEADER_CREDS_NOTE_CATEGORY]);
+    expect(result.notes[0]!.message).toContain("exists in AgentCore Identity");
+  });
+
+  test("keeps normalized header names distinct", () => {
+    const result = plan({
+      spec: harness({
+        tools: [
+          {
+            type: "remote_mcp",
+            name: "internal",
+            config: {
+              remoteMcp: {
+                url: "https://mcp.internal.example",
+                headers: { "X-Api-Key": "first", X_Api_Key: "second" },
+              },
+            },
+          },
+        ],
+      }),
+    });
+
+    const names = result.credentials.map((credential) => credential.name);
+    expect(names).toHaveLength(2);
+    expect(new Set(names).size).toBe(2);
+    expect(new Set(result.envEntries.map((entry) => entry.key)).size).toBe(2);
+    const tools = result.context.remoteMcpTools as {
+      headerCredentials: { pythonName: string }[];
+    }[];
+    expect(new Set(tools[0]!.headerCredentials.map(({ pythonName }) => pythonName)).size).toBe(2);
   });
 
   test("emits a follow-up note for each unmappable tool type instead of code", () => {
@@ -279,9 +332,11 @@ describe("mapHarnessToExportPlan tools", () => {
       }),
     });
 
-    expect(result.context.hasBrowser).toBe(false);
-    expect(result.context.hasCodeInterpreter).toBe(false);
-    expect(result.context.hasGateway).toBe(false);
+    // The render context carries nothing for these tools at all, so the template has no
+    // branch to render them from — the notes below are the whole output.
+    expect(result.context.hasBrowser).toBeUndefined();
+    expect(result.context.hasCodeInterpreter).toBeUndefined();
+    expect(result.context.hasGateway).toBeUndefined();
     expect(result.context.remoteMcpTools).toBeUndefined();
     expect(categories(result)).toEqual([
       GATEWAY_TOOL_NOTE_CATEGORY,
@@ -316,7 +371,12 @@ describe("mapHarnessToExportPlan tools", () => {
     expect(restricted.context.hasShell).toBe(true);
     expect(restricted.context.hasFileOperations).toBe(false);
     expect(restricted.context.remoteMcpTools).toEqual([
-      { name: "exa", url: "https://mcp.exa.ai/mcp", headerCredentials: undefined },
+      {
+        name: "exa",
+        pythonName: expect.stringMatching(/^exa_[a-f0-9]{10}$/),
+        url: "https://mcp.exa.ai/mcp",
+        headerCredentials: undefined,
+      },
     ]);
     expect(categories(restricted)).toEqual([ALLOWED_TOOLS_NOTE_CATEGORY]);
   });
@@ -355,6 +415,28 @@ describe("mapHarnessToExportPlan memory", () => {
     expect(result.notes).toEqual([]);
   });
 
+  test("preserves retrieval tuning and notes an unmappable messagesCount", () => {
+    const result = plan({
+      spec: harness({
+        memory: {
+          mode: "existing",
+          name: "chat_history",
+          messagesCount: 12,
+          retrievalConfig: { topK: 7, relevanceScore: 0 },
+        },
+      }),
+      projectSpec: projectSpec({
+        memories: [
+          { name: "chat_history", eventExpiryDuration: 30, strategies: [{ type: "SEMANTIC" }] },
+        ],
+      }),
+    });
+
+    expect(result.context.memoryRetrievalTopK).toBe("7");
+    expect(result.context.memoryRetrievalRelevanceScore).toBe("0");
+    expect(categories(result)).toEqual([MEMORY_MESSAGES_COUNT_NOTE_CATEGORY]);
+  });
+
   test("notes a by-name memory that is not in the project", () => {
     const result = plan({
       spec: harness({ memory: { mode: "existing", name: "missing" } }),
@@ -388,12 +470,11 @@ describe("mapHarnessToExportPlan memory", () => {
 });
 
 describe("mapHarnessToExportPlan skills", () => {
-  test("maps path, s3, and git skills and generates the S3 read policy", () => {
+  test("maps s3 and git skills and generates the S3 read policy", () => {
     const result = plan({
       spec: harness({
         build: undefined,
         skills: [
-          { path: "local_skill" },
           { s3Uri: "s3://skills-bucket/team/" },
           { gitUrl: "https://github.com/example/skills.git", path: "subdir" },
         ],
@@ -402,7 +483,6 @@ describe("mapHarnessToExportPlan skills", () => {
 
     expect(result.context.hasSkillsFetcher).toBe(true);
     expect(result.context.hasFetchedSkills).toBe(true);
-    expect(result.context.pathSkills).toEqual(["local_skill"]);
     expect(result.context.s3Skills).toEqual(["s3://skills-bucket/team/"]);
     expect(result.context.gitSkills).toEqual([
       { url: "https://github.com/example/skills.git", path: "subdir" },
@@ -419,8 +499,7 @@ describe("mapHarnessToExportPlan skills", () => {
       ],
     });
     expect(result.runtime.additionalPolicies).toEqual(["s3-skills-policy.json"]);
-    // CodeZip path skills need the container filesystem — flagged for follow-up.
-    expect(categories(result)).toEqual([PATH_SKILLS_NOTE_CATEGORY]);
+    expect(result.notes).toEqual([]);
   });
 
   test("notes a malformed s3 URI instead of generating IAM for it", () => {
@@ -492,66 +571,50 @@ describe("mapHarnessToExportPlan truncation", () => {
   });
 });
 
-describe("mapHarnessToExportPlan build types and Dockerfiles", () => {
-  test("defaults to CodeZip with the PYTHON_3_14 runtime", () => {
+describe("mapHarnessToExportPlan always exports a CodeZip runtime", () => {
+  const CONTAINER_URI = "111122223333.dkr.ecr.us-east-1.amazonaws.com/base-image:latest";
+
+  test("emits CodeZip with the PYTHON_3_14 runtime and no Dockerfile", () => {
     const result = plan({});
-    expect(result.buildType).toBe("CodeZip");
-    expect(result.dockerfilePlan).toEqual({ source: "none" });
+    expect(result.runtime.build).toBe("CodeZip");
     expect(result.runtime.runtimeVersion).toBe("PYTHON_3_14");
     expect(result.runtime.dockerfile).toBeUndefined();
   });
 
-  test("a plain --build Container uses the template Dockerfile", () => {
-    const result = plan({ build: "Container" });
-    expect(result.buildType).toBe("Container");
-    expect(result.dockerfilePlan).toEqual({ source: "template" });
-    expect(result.runtime.dockerfile).toBe("Dockerfile");
-    expect(result.runtime.runtimeVersion).toBeUndefined();
+  test("a containerUri harness still exports as CodeZip, with a note that the image was dropped", () => {
+    const result = plan({ spec: harness({ containerUri: CONTAINER_URI }) });
+    expect(result.runtime.build).toBe("CodeZip");
+    expect(result.runtime.dockerfile).toBeUndefined();
+    expect(categories(result)).toEqual([CONTAINER_IMAGE_NOTE_CATEGORY]);
+    expect(result.notes[0]?.message).toContain(CONTAINER_URI);
   });
 
-  test("a containerUri harness gets a FROM-stub Dockerfile and a verify note", () => {
+  test("a custom-Dockerfile harness also exports as CodeZip with the same note", () => {
+    const result = plan({ spec: harness({ dockerfile: "Dockerfile" }) });
+    expect(result.runtime.build).toBe("CodeZip");
+    expect(result.runtime.dockerfile).toBeUndefined();
+    expect(categories(result)).toEqual([CONTAINER_IMAGE_NOTE_CATEGORY]);
+  });
+
+  test("a VPC harness keeps its subnets and security groups and needs no vpcId", () => {
     const result = plan({
       spec: harness({
-        containerUri: "111122223333.dkr.ecr.us-east-1.amazonaws.com/base-image:latest",
+        containerUri: CONTAINER_URI,
+        networkMode: "VPC",
+        networkConfig: { subnets: ["subnet-12345678"], securityGroups: ["sg-12345678"] },
       }),
     });
-    expect(result.buildType).toBe("Container");
-    expect(result.dockerfilePlan).toEqual({
-      source: "stub",
-      containerUri: "111122223333.dkr.ecr.us-east-1.amazonaws.com/base-image:latest",
+    expect(result.runtime.build).toBe("CodeZip");
+    expect(result.runtime.networkConfig).toEqual({
+      subnets: ["subnet-12345678"],
+      securityGroups: ["sg-12345678"],
     });
-    expect(categories(result)).toEqual([CONTAINER_URI_NOTE_CATEGORY]);
   });
 
-  test("rejects forcing CodeZip onto a containerUri harness", () => {
-    expect(() =>
-      plan({
-        build: "CodeZip",
-        spec: harness({
-          containerUri: "111122223333.dkr.ecr.us-east-1.amazonaws.com/base-image:latest",
-        }),
-      }),
-    ).toThrow(InputValidationError);
-  });
-
-  test("copies a custom harness Dockerfile with a build-layer note when it exists", () => {
-    const result = plan({
-      spec: harness({ dockerfile: "Dockerfile" }),
-      harnessDockerfileExists: true,
-    });
-    expect(result.dockerfilePlan).toEqual({ source: "harnessCopy" });
-    expect(categories(result)).toEqual([CUSTOM_DOCKERFILE_NOTE_CATEGORY]);
-  });
-
-  test("notes a declared-but-missing harness Dockerfile", () => {
-    const result = plan({
-      spec: harness({ dockerfile: "Dockerfile" }),
-      harnessDockerfileExists: false,
-    });
-    expect(result.dockerfilePlan).toEqual({ source: "none" });
-    expect(categories(result)).toEqual([MISSING_DOCKERFILE_NOTE_CATEGORY]);
-    // The runtime entry still expects the Dockerfile the user will create.
-    expect(result.runtime.dockerfile).toBe("Dockerfile");
+  test("rejects path-based skills, which have no container filesystem to read from", () => {
+    expect(() => plan({ spec: harness({ skills: [{ path: "/opt/skills/research" }] }) })).toThrow(
+      InputValidationError,
+    );
   });
 });
 
@@ -612,15 +675,21 @@ describe("mapHarnessToExportPlan runtime spec entry", () => {
 });
 
 describe("export notes rendering", () => {
+  test("keeps notes collected while mapping a service harness", () => {
+    const sourceNote = { category: "Service field", message: "Review it." };
+    const result = plan({ sourceNotes: [sourceNote] });
+    expect(result.notes).toContainEqual(sourceNote);
+  });
+
   test("buildExportNotesMarkdown lists each note under its category", () => {
     const markdown = buildExportNotesMarkdown(
       [{ category: "A category", message: "Do the thing." }],
       "assistant",
       "assistantAgent",
-      "strands-agents ~= 1.15.0",
+      "strands-agents ~= 1.54.0",
     );
     expect(markdown).toContain("# Export Notes — assistant → assistantAgent");
-    expect(markdown).toContain("Strands version: strands-agents ~= 1.15.0");
+    expect(markdown).toContain("Strands version: strands-agents ~= 1.54.0");
     expect(markdown).toContain("## Items requiring manual follow-up");
     expect(markdown).toContain("### A category");
     expect(markdown).toContain("Do the thing.");

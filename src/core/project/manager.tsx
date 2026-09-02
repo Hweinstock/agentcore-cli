@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { copyFile, readFile, rm, writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type {
   AddResourceInput,
@@ -37,7 +37,6 @@ import { getRuntimeTemplateResolver } from "./templates/runtime";
 import {
   DEFAULT_EXPORT_SYSTEM_PROMPT,
   EXPORT_NOTES_FILENAME,
-  buildDockerfileStub,
   buildExportNotesMarkdown,
   mapHarnessToExportPlan,
 } from "./templates/export";
@@ -726,31 +725,17 @@ export class FsProjectManager implements ProjectManager {
       spec,
       systemPrompt,
       projectSpec,
-      build: input.build,
-      harnessDockerfileExists:
-        spec.dockerfile !== undefined &&
-        harnessDir !== undefined &&
-        existsSync(join(harnessDir, spec.dockerfile)),
+      sourceNotes: input.prefetched?.notes,
     });
 
-    const isContainer = plan.buildType === "Container";
     yield { type: "step", message: `Rendering agent code at 'app/${targetAgentName}'` };
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource: this.assetSource },
-      { assetDir: "templates/strands-http-python" },
+      { assetDir: "templates/export-harness-python" },
       {
         rootDirName: targetAgentName,
         transformContent: (raw) => this.templateRenderer.render(raw, plan.context),
-        filter: (name, isDir) => {
-          if (isDir && name === "memory") return plan.hasMemory;
-          if (isDir && name === "hooks") return plan.hasExecutionLimits;
-          // The template's own Dockerfile is used only for a plain Container
-          // export; containerUri/custom-Dockerfile harnesses replace it below.
-          if (name === "Dockerfile")
-            return isContainer && plan.dockerfilePlan.source === "template";
-          if (name === ".dockerignore") return isContainer;
-          return true;
-        },
+        filter: (name, isDir) => (isDir && name === "memory" ? plan.hasMemory : true),
       },
     );
 
@@ -769,14 +754,6 @@ export class FsProjectManager implements ProjectManager {
       await tree.write(join(project.rootPath, "app"));
 
       // Post-render files the template cannot express.
-      if (plan.dockerfilePlan.source === "stub") {
-        await writeFile(
-          join(agentDir, "Dockerfile"),
-          buildDockerfileStub(plan.dockerfilePlan.containerUri),
-        );
-      } else if (plan.dockerfilePlan.source === "harnessCopy") {
-        await copyFile(join(harnessDir!, spec.dockerfile!), join(agentDir, "Dockerfile"));
-      }
       for (const [fileName, policyDoc] of Object.entries(plan.policyFiles)) {
         await writeFile(join(agentDir, fileName), `${JSON.stringify(policyDoc, null, 2)}\n`);
       }
@@ -1147,7 +1124,7 @@ function toProjectSpecKey(resourceType: ProjectResource) {
 async function readStrandsVersion(agentDir: string): Promise<string> {
   try {
     const pyproject = await readFile(join(agentDir, "pyproject.toml"), "utf-8");
-    const match = /strands-agents\s*([~><=]+\s*[\d.]+)/.exec(pyproject);
+    const match = /strands-agents(?:\[[^\]]+\])?\s*([~><=]+\s*[\d.]+)/.exec(pyproject);
     return match ? `strands-agents ${match[1]}` : "strands-agents (version unknown)";
   } catch {
     return "strands-agents (version unknown)";
