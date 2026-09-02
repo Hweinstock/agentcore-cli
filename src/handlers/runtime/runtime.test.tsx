@@ -19,7 +19,29 @@ const FIXTURES = join(import.meta.dir, "__fixtures__");
 // Runtime pagination. Page-two requests use the token returned by page one.
 // Record with AWS_PROFILE=e2e-test RECORD=1 bun test src/handlers/runtime/runtime.test.tsx.
 const FIXTURE_RUNTIME_ID = "agentcore_cli_runtime_read_only_fixture-wZ7V4Q6vhx";
+
+// Log search pins a separate Runtime invocation and fixed window. Re-recording
+// requires these events to remain within that log group's retention period.
+const FIXTURE_LOG_RUNTIME_ID = "asdf_MyAgent-3s5axvBC6Q";
+const FIXTURE_LOG_SESSION_ID = "67ebf93b-65e3-4127-9e13-483b239f256a";
+const LOG_WINDOW_START = "2026-08-12T00:00:00Z";
+const LOG_WINDOW_END = "2026-08-13T00:00:00Z";
 const MISSING_RUNTIME_ID = "missing_runtime-0000000000";
+
+const LOG_SEARCH_ARGS = [
+  "runtime",
+  "logs",
+  "--id",
+  FIXTURE_LOG_RUNTIME_ID,
+  "--since",
+  LOG_WINDOW_START,
+  "--until",
+  LOG_WINDOW_END,
+  "--query",
+  `"${FIXTURE_LOG_SESSION_ID}"`,
+  "--limit",
+  "1",
+];
 
 function createFixtureCore(): CoreClient {
   const { createControlClient, createDataClient, createIamClient, createLogsClient } =
@@ -129,6 +151,23 @@ describe("runtime TUI dispatch", () => {
 });
 
 describe("runtime read-only commands", () => {
+  test("searches recorded Runtime logs through the real CLI path", async () => {
+    const stdout = await run(LOG_SEARCH_ARGS);
+
+    matchGolden(FIXTURES, "logs-search.golden.txt", stdout);
+    expect(stdout).toContain(FIXTURE_LOG_SESSION_ID);
+  });
+
+  test("renders recorded Runtime logs as JSON Lines", async () => {
+    const stdout = await run([...LOG_SEARCH_ARGS, "--json"]);
+
+    matchGolden(FIXTURES, "logs-search-json.golden.json", stdout);
+    expect(JSON.parse(stdout)).toMatchObject({
+      timestamp: "2026-08-12T17:23:12.053Z",
+      message: expect.any(String),
+    });
+  });
+
   test("gets a Runtime whose ID exceeds the 48-character Runtime name limit", async () => {
     expect(FIXTURE_RUNTIME_ID.length).toBeGreaterThan(48);
 

@@ -1,0 +1,6 @@
+{
+  "timestamp": "2026-08-12T17:23:12.053Z",
+  "message": "{\"timestamp\": \"2026-08-12T17:23:12.053Z\", \"level\": \"INFO\", \"message\": \"Returning streaming response (generator) (0.000s)\", \"logger\": \"bedrock_agentcore.app\", \"requestId\": \"37dcffe9-22bd-4a40-a18d-6cfbcc14a6d1\", \"sessionId\": \"67ebf93b-65e3-4127-9e13-483b239f256a\"}",
+  "ingestionTime": "2026-08-12T17:23:12.873Z",
+  "logStreamName": "2026/08/12/[runtime-logs-67ebf93b-65e3-4127-9e13-483b239f256a]c7aba76f-c59f-4c8f-9e59-2872aea6dc45"
+}

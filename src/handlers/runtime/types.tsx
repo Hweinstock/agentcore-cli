@@ -5,6 +5,14 @@ import type {
   ListAgentRuntimesResponse,
   ListAgentRuntimeVersionsResponse,
 } from "@aws-sdk/client-bedrock-agentcore-control";
+import type {
+  CloudWatchLogEvent,
+  InsightsQuery,
+  InsightsQueryRow,
+  LogSearchQuery,
+  LogSource,
+  LogTailQuery,
+} from "../../core/observability/types";
 import type { CoreOptions } from "../../core/types";
 import type { Project } from "../project/types";
 
@@ -82,13 +90,6 @@ export interface CoreRuntimeClient {
   ): Promise<ListAgentRuntimeEndpointsResponse>;
 }
 
-/** One CloudWatch log event from a runtime's log group. */
-export type RuntimeLogEvent = {
-  /** Epoch milliseconds. */
-  timestamp: number;
-  message: string;
-};
-
 /** A project runtime resolved live from its CloudFormation stack outputs. */
 export type DeployedRuntime = {
   runtimeId: string;
@@ -96,24 +97,6 @@ export type DeployedRuntime = {
   region: string;
   stackName: string;
   targetName: string;
-};
-
-export type StreamRuntimeLogsInput = {
-  runtimeId: string;
-  /** CloudWatch Logs filter pattern applied server-side. */
-  filterPattern?: string;
-};
-
-export type SearchRuntimeLogsInput = {
-  runtimeId: string;
-  /** Window start, epoch milliseconds (inclusive). */
-  startTimeMs: number;
-  /** Window end, epoch milliseconds (inclusive). */
-  endTimeMs: number;
-  /** CloudWatch Logs filter pattern applied server-side. */
-  filterPattern?: string;
-  /** Maximum number of events to yield. */
-  limit?: number;
 };
 
 /** One trace aggregated from a runtime's telemetry, newest first. */
@@ -153,18 +136,24 @@ export type GetRuntimeTraceInput = {
 
 export interface CoreObservabilityClient {
   resolveDeployedRuntime(project: Project, targetName: string): Promise<DeployedRuntime>;
-  /** Live-tails the runtime's log group until `signal` aborts. */
-  streamRuntimeLogs(
-    input: StreamRuntimeLogsInput,
-    options: CoreOptions,
-    signal: AbortSignal,
-  ): AsyncGenerator<RuntimeLogEvent, void>;
-  /** Searches the runtime's log group over a time window, oldest to newest. */
-  searchRuntimeLogs(
-    input: SearchRuntimeLogsInput,
+  searchLogs(
+    source: LogSource,
+    query: LogSearchQuery,
     options: CoreOptions,
     signal?: AbortSignal,
-  ): AsyncGenerator<RuntimeLogEvent, void>;
+  ): AsyncIterable<CloudWatchLogEvent>;
+  tailLogs(
+    source: LogSource,
+    query: LogTailQuery,
+    options: CoreOptions,
+    signal: AbortSignal,
+  ): AsyncIterable<CloudWatchLogEvent>;
+  queryLogs(
+    source: LogSource,
+    query: InsightsQuery,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<InsightsQueryRow[]>;
   /** Lists recent traces in the runtime's log group, newest first. */
   listRuntimeTraces(input: ListRuntimeTracesInput, options: CoreOptions): Promise<TraceSummary[]>;
   /** Downloads every log record of one trace, oldest first. */

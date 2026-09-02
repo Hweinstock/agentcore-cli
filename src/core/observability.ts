@@ -1,9 +1,6 @@
 import {
-  DescribeLogGroupsCommand,
-  FilterLogEventsCommand,
   GetQueryResultsCommand,
   ResourceNotFoundException,
-  StartLiveTailCommand,
   StartQueryCommand,
   type CloudWatchLogsClient,
   type ResultField,
@@ -25,13 +22,14 @@ import type {
   DeployedRuntime,
   GetRuntimeTraceInput,
   ListRuntimeTracesInput,
-  RuntimeLogEvent,
-  SearchRuntimeLogsInput,
-  StreamRuntimeLogsInput,
   TraceRecord,
   TraceSummary,
 } from "../handlers/runtime/types";
 import { AwsDeploymentTargetsSchema } from "../projectSchemas/aws-targets";
+import {
+  CloudWatchClient,
+  ObservabilityClient as GenericObservabilityClient,
+} from "./observability/index";
 import { isStackNotFound } from "./project/backends/cdk/environment";
 import type { AwsClients, CoreOptions } from "./types";
 import { toClientConfig } from "./utils";
@@ -245,18 +243,20 @@ export interface ObservabilityClientDeps {
 }
 
 /**
- * ObservabilityClient reads the CloudWatch-backed telemetry of deployed
- * AgentCore Runtimes: live-tail and search over the per-runtime log group, and
- * resolution of a project's deployed runtime id from its CloudFormation stack
- * outputs (runtime ids are not persisted locally, so the stack is the source
- * of truth).
+ * Runtime-specific observability APIs retained for the existing trace and
+ * project-resolution commands. Generic log reads are inherited from the new
+ * shared observability client.
  */
-export class ObservabilityClient implements CoreObservabilityClient {
+export class ObservabilityClient
+  extends GenericObservabilityClient
+  implements CoreObservabilityClient
+{
   private readonly clients: AwsClients;
   private readonly readJson: ReadWriteJson;
   private readonly describeStackOutputs: DescribeStackOutputs;
 
   constructor(clients: AwsClients, deps: ObservabilityClientDeps) {
+    super(new CloudWatchClient(clients));
     this.clients = clients;
     this.readJson = deps.readJson;
     this.describeStackOutputs = deps.describeStackOutputs ?? describeStackOutputsWithSdk;
@@ -319,131 +319,6 @@ export class ObservabilityClient implements CoreObservabilityClient {
       stackName,
       targetName: target.name,
     };
-  }
-
-  /**
-   * Live-tails a runtime's log group via StartLiveTail, yielding events as they
-   * arrive. A live-tail session is server-capped (~3h); when it times out a new
-   * session is started transparently, so the stream runs until `signal` aborts
-   * (in which case the generator simply returns).
-   */
-  async *streamRuntimeLogs(
-    input: StreamRuntimeLogsInput,
-    options: CoreOptions,
-    signal: AbortSignal,
-  ): AsyncGenerator<RuntimeLogEvent, void> {
-    const logGroupName = runtimeLogGroup(input.runtimeId, DEFAULT_ENDPOINT_QUALIFIER);
-    const logs = this.clients.logs(toClientConfig(options));
-
-    // StartLiveTail addresses log groups by ARN. DescribeLogGroups resolves it
-    // without hand-assembling one (partition/account), and doubles as the
-    // existence check so a never-invoked runtime fails with guidance instead of
-    // an opaque service error.
-    const described = await logs.send(
-      new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName }),
-      { abortSignal: signal },
-    );
-    const group = (described.logGroups ?? []).find(
-      (candidate) => candidate.logGroupName === logGroupName,
-    );
-    // The legacy `arn` field carries a trailing `:*` that StartLiveTail rejects.
-    const logGroupArn = group?.logGroupArn ?? group?.arn?.replace(/:\*$/, "");
-    if (!logGroupArn) {
-      throw missingLogGroupError(input.runtimeId, logGroupName);
-    }
-
-    while (!signal.aborted) {
-      let response;
-      try {
-        response = await logs.send(
-          new StartLiveTailCommand({
-            logGroupIdentifiers: [logGroupArn],
-            ...(input.filterPattern ? { logEventFilterPattern: input.filterPattern } : {}),
-          }),
-          { abortSignal: signal },
-        );
-      } catch (error) {
-        if (signal.aborted) return;
-        throw error;
-      }
-      if (!response.responseStream) return;
-
-      let sessionTimedOut = false;
-      try {
-        for await (const event of response.responseStream) {
-          if (signal.aborted) return;
-          if (event.sessionUpdate) {
-            for (const logEvent of event.sessionUpdate.sessionResults ?? []) {
-              yield {
-                timestamp: logEvent.timestamp ?? Date.now(),
-                message: logEvent.message ?? "",
-              };
-            }
-          }
-          if (event.SessionTimeoutException) {
-            sessionTimedOut = true;
-            break;
-          }
-        }
-      } catch (error) {
-        if (signal.aborted) return;
-        if ((error as { name?: string }).name === "SessionTimeoutException") {
-          sessionTimedOut = true;
-        } else {
-          throw error;
-        }
-      }
-
-      // A stream that ended without timing out was closed deliberately
-      // (server-side or by the caller); only a timeout warrants a reconnect.
-      if (!sessionTimedOut) return;
-    }
-  }
-
-  /**
-   * Searches a runtime's log group over a closed time window via
-   * FilterLogEvents, paginating to completion and yielding events oldest to
-   * newest. `limit` caps the total number of events yielded.
-   */
-  async *searchRuntimeLogs(
-    input: SearchRuntimeLogsInput,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): AsyncGenerator<RuntimeLogEvent, void> {
-    const logGroupName = runtimeLogGroup(input.runtimeId, DEFAULT_ENDPOINT_QUALIFIER);
-    const logs = this.clients.logs(toClientConfig(options));
-
-    let nextToken: string | undefined;
-    let yielded = 0;
-    do {
-      let response;
-      try {
-        response = await logs.send(
-          new FilterLogEventsCommand({
-            logGroupName,
-            startTime: input.startTimeMs,
-            endTime: input.endTimeMs,
-            ...(input.filterPattern ? { filterPattern: input.filterPattern } : {}),
-            ...(nextToken ? { nextToken } : {}),
-            // FilterLogEvents accepts at most 10k events per page.
-            ...(input.limit ? { limit: Math.min(input.limit - yielded, 10_000) } : {}),
-          }),
-          { abortSignal: signal },
-        );
-      } catch (error) {
-        if (error instanceof ResourceNotFoundException) {
-          throw missingLogGroupError(input.runtimeId, logGroupName, error);
-        }
-        throw error;
-      }
-
-      for (const event of response.events ?? []) {
-        if (input.limit !== undefined && yielded >= input.limit) return;
-        yield { timestamp: event.timestamp ?? Date.now(), message: event.message ?? "" };
-        yielded++;
-      }
-      nextToken = response.nextToken;
-    } while (nextToken && (input.limit === undefined || yielded < input.limit));
   }
 
   /**
