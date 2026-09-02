@@ -50,8 +50,8 @@ type RuntimeTemplateShortcut = Omit<ScaffoldRuntimeInput, "memory"> & {
 };
 
 export const RUNTIME_TEMPLATE_SHORTCUTS = {
-  "hello-world-python": {
-    runtimeName: "hello_world",
+  "agent-python": {
+    runtimeName: "agent_python",
     build: "CodeZip",
     language: "Python",
     framework: "none",
@@ -59,16 +59,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "none",
     runtimeVersion: "PYTHON_3_14",
   },
-  "hello-world-python-container": {
-    runtimeName: "hello_world",
-    build: "Container",
-    language: "Python",
-    framework: "none",
-    modelProvider: "Bedrock",
-    memory: "none",
-  },
-  "strands-python": {
-    runtimeName: "strands_agent",
+  "agent-python-strands": {
+    runtimeName: "agent_python_strands",
     build: "CodeZip",
     language: "Python",
     framework: "strands",
@@ -76,8 +68,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "longAndShortTerm",
     runtimeVersion: "PYTHON_3_14",
   },
-  "strands-ts": {
-    runtimeName: "strands_agent",
+  "agent-typescript-strands": {
+    runtimeName: "agent_typescript_strands",
     build: "CodeZip",
     language: "TypeScript",
     framework: "strands",
@@ -85,8 +77,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "longAndShortTerm",
     runtimeVersion: "NODE_22",
   },
-  "py-mcp": {
-    runtimeName: "mcp_server",
+  "mcp-python-fastmcp": {
+    runtimeName: "mcp_python_fastmcp",
     build: "CodeZip",
     language: "Python",
     framework: "none",
@@ -95,8 +87,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "none",
     runtimeVersion: "PYTHON_3_14",
   },
-  "strands-py-a2a": {
-    runtimeName: "a2a_agent",
+  "a2a-python-strands": {
+    runtimeName: "a2a_python_strands",
     build: "CodeZip",
     language: "Python",
     framework: "strands",

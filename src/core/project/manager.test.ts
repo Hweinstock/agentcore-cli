@@ -25,12 +25,14 @@ import {
 import { createSilentLogger, TestIdentityClient } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
 
-const HELLO_WORLD_PYTHON = resolveRuntimeTemplateShortcut("hello-world-python");
-const HELLO_WORLD_PYTHON_CONTAINER = resolveRuntimeTemplateShortcut("hello-world-python-container");
-const STRANDS_PYTHON = resolveRuntimeTemplateShortcut("strands-python");
-const STRANDS_TS = resolveRuntimeTemplateShortcut("strands-ts");
-const STRANDS_PY_A2A = resolveRuntimeTemplateShortcut("strands-py-a2a");
-const STRANDS_PY_A2A_CONTAINER = resolveRuntimeTemplateShortcut("strands-py-a2a", {
+const AGENT_PYTHON = resolveRuntimeTemplateShortcut("agent-python");
+const AGENT_PYTHON_CONTAINER = resolveRuntimeTemplateShortcut("agent-python", {
+  build: "Container",
+});
+const AGENT_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("agent-python-strands");
+const AGENT_TYPESCRIPT_STRANDS = resolveRuntimeTemplateShortcut("agent-typescript-strands");
+const A2A_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("a2a-python-strands");
+const A2A_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut("a2a-python-strands", {
   build: "Container",
 });
 
@@ -97,7 +99,7 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
 
     const projectRoot = join(directory, "example");
@@ -108,7 +110,7 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: STRANDS_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON_STRANDS,
     });
 
     const projectRoot = join(directory, "example");
@@ -124,7 +126,7 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: STRANDS_TS,
+      scaffoldRuntimeInput: AGENT_TYPESCRIPT_STRANDS,
     });
 
     const projectRoot = join(directory, "example");
@@ -140,7 +142,7 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: STRANDS_PY_A2A,
+      scaffoldRuntimeInput: A2A_PYTHON_STRANDS,
     });
 
     const projectRoot = join(directory, "example");
@@ -156,27 +158,27 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: STRANDS_PY_A2A,
+      scaffoldRuntimeInput: A2A_PYTHON_STRANDS,
     });
 
     const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "a2a_agent",
+      name: "a2a_python_strands",
       build: "CodeZip",
       protocol: "A2A",
       entrypoint: "main.py",
     });
-    expect(spec.memories).toMatchObject([{ name: "a2a_agentMemory" }]);
+    expect(spec.memories).toMatchObject([{ name: "a2a_python_strandsMemory" }]);
   });
 
   test("scaffolds the Strands A2A runtime as a container with --build Container", async () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: STRANDS_PY_A2A_CONTAINER,
+      scaffoldRuntimeInput: A2A_PYTHON_STRANDS_CONTAINER,
     });
 
-    const appDir = join(directory, "example", "app", "a2a_agent");
+    const appDir = join(directory, "example", "app", "a2a_python_strands");
     expect(await Bun.file(join(appDir, "Dockerfile")).exists()).toBe(true);
     expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
 
@@ -192,7 +194,7 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
 
     const configDir = join(directory, "example", "agentcore");
@@ -200,10 +202,10 @@ describe("FsProjectManager.create", () => {
     expect(spec.name).toBe("example");
     expect(spec.runtimes).toEqual([
       {
-        name: "hello_world",
+        name: "agent_python",
         build: "CodeZip",
         entrypoint: "main.py",
-        codeLocation: "app/hello_world",
+        codeLocation: "app/agent_python",
         runtimeVersion: "PYTHON_3_14",
       },
     ]);
@@ -214,10 +216,10 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON_CONTAINER,
+      scaffoldRuntimeInput: AGENT_PYTHON_CONTAINER,
     });
 
-    const appDir = join(directory, "example", "app", "hello_world");
+    const appDir = join(directory, "example", "app", "agent_python");
     // dockerignore.template must render to .dockerignore (the fsTree regex fix).
     expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
     expect(await Bun.file(join(appDir, "dockerignore.template")).exists()).toBe(false);
@@ -231,7 +233,7 @@ describe("FsProjectManager.create", () => {
     await inTempDirectory();
     const input: CreateProjectInput = {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     };
 
     await runCreate(manager().manager, input);
@@ -263,13 +265,13 @@ describe("FsProjectManager.create", () => {
     const { manager: subject, commands } = manager();
     await runCreate(subject, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
 
     const projectRoot = join(directory, "example");
     expect(commands).toEqual([
       { command: ["npm", "install"], cwd: join(projectRoot, "agentcore", "cdk") },
-      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "hello_world") },
+      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent_python") },
       { command: ["git", "init"], cwd: projectRoot },
     ]);
   });
@@ -279,7 +281,7 @@ describe("FsProjectManager.create", () => {
     const { manager: subject, commands } = manager();
     await runCreate(subject, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
       skipInstall: true,
     });
 
@@ -289,17 +291,19 @@ describe("FsProjectManager.create", () => {
   test.each([
     [
       "Python",
-      resolveRuntimeTemplateShortcut("strands-python", { build: "Container" }),
+      resolveRuntimeTemplateShortcut("agent-python-strands", { build: "Container" }),
       ["uv", "lock"],
+      "agent_python_strands",
     ],
     [
       "TypeScript",
-      resolveRuntimeTemplateShortcut("strands-ts", { build: "Container" }),
+      resolveRuntimeTemplateShortcut("agent-typescript-strands", { build: "Container" }),
       ["npm", "install", "--package-lock-only"],
+      "agent_typescript_strands",
     ],
   ])(
     "skipInstall still generates the container lockfile for %s",
-    async (_label, scaffoldRuntimeInput, lockCommand) => {
+    async (_label, scaffoldRuntimeInput, lockCommand, runtimeName) => {
       const directory = await inTempDirectory();
       const { manager: subject, commands } = manager();
       await runCreate(subject, {
@@ -310,7 +314,7 @@ describe("FsProjectManager.create", () => {
       });
 
       expect(commands).toEqual([
-        { command: lockCommand, cwd: join(directory, "example", "app", "strands_agent") },
+        { command: lockCommand, cwd: join(directory, "example", "app", runtimeName) },
       ]);
     },
   );
@@ -320,7 +324,7 @@ describe("FsProjectManager.create", () => {
     const { manager: subject, commands } = manager();
     await runCreate(subject, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
       skipGit: true,
     });
 
@@ -331,7 +335,7 @@ describe("FsProjectManager.create", () => {
     await inTempDirectory();
     const { events, project } = await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
 
     expect(events.flatMap((event) => (event.type === "step" ? [event.message] : []))).toEqual([
@@ -357,7 +361,7 @@ describe("FsProjectManager.create", () => {
     });
 
     await expect(
-      runCreate(failing, { name: "example", scaffoldRuntimeInput: HELLO_WORLD_PYTHON }),
+      runCreate(failing, { name: "example", scaffoldRuntimeInput: AGENT_PYTHON }),
     ).rejects.toThrow("npm exploded");
     expect(await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).exists()).toBe(
       true,
@@ -368,14 +372,14 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "root",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
 
     process.chdir(join(directory, "root"));
     await expect(
       runCreate(manager().manager, {
         name: "child",
-        scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+        scaffoldRuntimeInput: AGENT_PYTHON,
       }),
     ).rejects.toBeInstanceOf(ProjectStateError);
   });
@@ -391,7 +395,7 @@ describe("FsProjectManager.build", () => {
   ): Promise<Project> {
     const { project } = await runCreate(subject, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
       skipInstall: true,
       skipGit: true,
     });
@@ -772,7 +776,7 @@ describe("FsProjectManager.resolve", () => {
     const subject = manager().manager;
     await runCreate(subject, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
 
     // Resolve from a nested path to prove the walk-up to the project root.
@@ -810,10 +814,10 @@ describe("FsProjectManager.resolve", () => {
         version: 1,
         runtimes: [
           {
-            name: "hello_world",
+            name: "agent_python",
             build: "CodeZip",
             entrypoint: "main.py",
-            codeLocation: "app/hello_world",
+            codeLocation: "app/agent_python",
           },
         ],
       }),
@@ -843,7 +847,7 @@ describe("FsProjectManager removal", () => {
     const subject = manager().manager;
     const { project } = await runCreate(subject, {
       name: "example",
-      scaffoldRuntimeInput: HELLO_WORLD_PYTHON,
+      scaffoldRuntimeInput: AGENT_PYTHON,
     });
     return { subject, project };
   }
