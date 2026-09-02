@@ -208,10 +208,12 @@ function NoProjectBody({
   );
 }
 
-type ResourceTypeRow = Record<string, unknown> & { resource: string; count: string; value: string };
+// resourceType is "runtime"/"policy"/… or "all"; count is how many resources of
+// that type exist (the total across all types for the "all" row).
+type ResourceTypeRow = Record<string, unknown> & { resourceType: string; count: string };
 
 const resourceTypeColumns = [
-  { key: "resource", header: "resource", flex: true },
+  { key: "resourceType", header: "resource", flex: true },
   { key: "count", header: "count", width: 8, align: "right" },
 ] satisfies DataTableColumn<ResourceTypeRow>[];
 
@@ -221,11 +223,11 @@ function ResourceTypePicker({ project }: { project: Project }) {
   const rows: ResourceTypeRow[] = RESOURCE_TABLES.flatMap((table) => {
     const count = table.list(project.spec).length;
     if (count === 0) return [];
-    return [{ resource: table.resourceType, count: String(count), value: table.resourceType }];
+    return [{ resourceType: table.resourceType, count: String(count) }];
   });
   const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
   if (total > 0) {
-    rows.push({ resource: "all", count: String(total), value: "all" });
+    rows.push({ resourceType: "all", count: String(total) });
   }
 
   return (
@@ -241,7 +243,7 @@ function ResourceTypePicker({ project }: { project: Project }) {
         columns={resourceTypeColumns}
         data={rows}
         emptyMessage="This project has no resources to remove."
-        onSelect={(row) => navigate(`${REMOVE_ROOT}/${row.value}`)}
+        onSelect={(row) => navigate(`${REMOVE_ROOT}/${row.resourceType}`)}
         onEscape={() => navigate("/agentcore/project")}
       />
     </Layout>
