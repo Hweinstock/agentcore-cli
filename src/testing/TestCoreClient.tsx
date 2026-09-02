@@ -134,6 +134,14 @@ import type {
 } from "../handlers/identity/types";
 import type { CoreMemoryClient } from "../handlers/memory/types";
 import type {
+  CloudWatchLogEvent,
+  InsightsQuery,
+  InsightsQueryRow,
+  LogSearchQuery,
+  LogSource,
+  LogTailQuery,
+} from "../core/observability/types";
+import type {
   CoreObservabilityClient,
   CoreRuntimeClient,
   DeployedRuntime,
@@ -141,9 +149,6 @@ import type {
   ListRuntimeTracesInput,
   RuntimeInvokeRequest,
   RuntimeInvokeResponse,
-  RuntimeLogEvent,
-  SearchRuntimeLogsInput,
-  StreamRuntimeLogsInput,
   TraceRecord,
   TraceSummary,
 } from "../handlers/runtime/types";
@@ -2336,7 +2341,8 @@ export class TestObservabilityClient implements CoreObservabilityClient {
     stackName: "AgentCore-project-default",
     targetName: "default",
   };
-  logEvents: RuntimeLogEvent[] = [];
+  logEvents: CloudWatchLogEvent[] = [];
+  queryRows: InsightsQueryRow[] = [];
 
   async resolveDeployedRuntime(project: Project, targetName: string): Promise<DeployedRuntime> {
     this.calls.push({ method: "resolveDeployedRuntime", args: [project, targetName] });
@@ -2344,24 +2350,37 @@ export class TestObservabilityClient implements CoreObservabilityClient {
     return this.resolveDeployedRuntimeResponse;
   }
 
-  async *streamRuntimeLogs(
-    input: StreamRuntimeLogsInput,
+  async *searchLogs(
+    source: LogSource,
+    query: LogSearchQuery,
     options: CoreOptions,
-    signal: AbortSignal,
-  ): AsyncGenerator<RuntimeLogEvent, void> {
-    this.calls.push({ method: "streamRuntimeLogs", args: [input, options, signal] });
+    signal?: AbortSignal,
+  ): AsyncGenerator<CloudWatchLogEvent, void> {
+    this.calls.push({ method: "searchLogs", args: [source, query, options, signal] });
     if (this.error) throw this.error;
     yield* this.logEvents;
   }
 
-  async *searchRuntimeLogs(
-    input: SearchRuntimeLogsInput,
+  async *tailLogs(
+    source: LogSource,
+    query: LogTailQuery,
     options: CoreOptions,
-    signal?: AbortSignal,
-  ): AsyncGenerator<RuntimeLogEvent, void> {
-    this.calls.push({ method: "searchRuntimeLogs", args: [input, options, signal] });
+    signal: AbortSignal,
+  ): AsyncGenerator<CloudWatchLogEvent, void> {
+    this.calls.push({ method: "tailLogs", args: [source, query, options, signal] });
     if (this.error) throw this.error;
     yield* this.logEvents;
+  }
+
+  async queryLogs(
+    source: LogSource,
+    query: InsightsQuery,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<InsightsQueryRow[]> {
+    this.calls.push({ method: "queryLogs", args: [source, query, options, signal] });
+    if (this.error) throw this.error;
+    return this.queryRows;
   }
 
   traceSummaries: TraceSummary[] = [];
