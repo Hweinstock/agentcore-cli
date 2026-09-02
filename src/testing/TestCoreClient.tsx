@@ -171,7 +171,7 @@ import type {
 } from "../handlers/eval/types";
 import { isTerminalStatus } from "../core/batchEvaluationResults";
 import { abortable } from "../core/abortable";
-import type { CoreOptions, CreateCloudFormationClient } from "../core/types";
+import type { CoreFetch, CoreOptions, CreateCloudFormationClient } from "../core/types";
 import type { Project, ProjectManager } from "../handlers/project/types";
 import type { Logger } from "../logging";
 import type { ReadWriteJson } from "../io";
@@ -2334,6 +2334,9 @@ export class TestCoreClient implements Core {
   readonly gateway = new TestGatewayClient();
   readonly eval = new TestEvalClient();
   readonly observability = new TestObservabilityClient();
+  fetch: CoreFetch = (async () => {
+    throw new Error("TestCoreClient.fetch is not configured; set it in the test that needs it");
+  }) as unknown as CoreFetch;
   readonly projectManager: ProjectManager;
 
   // Commands the project manager would have run (npm install, git init, ...),
