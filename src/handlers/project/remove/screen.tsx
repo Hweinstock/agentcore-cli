@@ -39,7 +39,7 @@ type RemovableResourceTableConfig = {
   resourceType: RemovableResourceType;
   /** Column header for the parent, shown for nested resource types only. */
   parentLabel?: string;
-  list: (spec: ProjectSpec) => RemovableResource[];
+  listResources: (spec: ProjectSpec) => RemovableResource[];
 };
 
 function rootLevel(
@@ -48,7 +48,8 @@ function rootLevel(
 ): RemovableResourceTableConfig {
   return {
     resourceType,
-    list: (spec) => read(spec).map(({ name }) => ({ name, input: { resourceType, name } })),
+    listResources: (spec) =>
+      read(spec).map(({ name }) => ({ name, input: { resourceType, name } })),
   };
 }
 
@@ -65,7 +66,7 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   {
     resourceType: "gateway-target",
     parentLabel: "gateway",
-    list: (s) =>
+    listResources: (s) =>
       s.agentCoreGateways.flatMap((gateway) =>
         gateway.targets
           .filter((target) => target.targetType !== "connector")
@@ -79,7 +80,7 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   {
     resourceType: "gateway-connector",
     parentLabel: "gateway",
-    list: (s) =>
+    listResources: (s) =>
       s.agentCoreGateways.flatMap((gateway) =>
         gateway.targets
           .filter((target) => target.targetType === "connector")
@@ -93,7 +94,7 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   {
     resourceType: "policy",
     parentLabel: "policy engine",
-    list: (s) =>
+    listResources: (s) =>
       s.policyEngines.flatMap((engine) =>
         engine.policies.map((policy) => ({
           name: policy.name,
@@ -105,7 +106,7 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
   {
     resourceType: "payment-connector",
     parentLabel: "payment manager",
-    list: (s) =>
+    listResources: (s) =>
       (s.payments ?? []).flatMap((manager) =>
         manager.connectors.map((connector) => ({
           name: connector.name,
@@ -176,7 +177,7 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   }
 
   if (resourceIndex !== undefined) {
-    const resource = table.list(project.spec)[Number(resourceIndex)];
+    const resource = table.listResources(project.spec)[Number(resourceIndex)];
     if (resource) {
       return <RemoveConfirm project={project} core={core} table={table} resource={resource} />;
     }
@@ -221,7 +222,7 @@ function ResourceTypePicker({ project }: { project: Project }) {
   const navigate = useNavigate();
 
   const rows: ResourceTypeRow[] = RESOURCE_TABLES.flatMap((table) => {
-    const count = table.list(project.spec).length;
+    const count = table.listResources(project.spec).length;
     if (count === 0) return [];
     return [{ resourceType: table.resourceType, count: String(count) }];
   });
@@ -260,7 +261,7 @@ function ResourcePicker({
   table: RemovableResourceTableConfig;
 }) {
   const navigate = useNavigate();
-  const rows: ResourceRow[] = table.list(project.spec).map((resource, i) => ({
+  const rows: ResourceRow[] = table.listResources(project.spec).map((resource, i) => ({
     index: String(i),
     name: resource.name,
     parent: resource.parentName ?? "",
@@ -346,7 +347,7 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
   const workingDirectory = process.cwd();
 
   const populated = RESOURCE_TABLES.flatMap((table) => {
-    const count = table.list(project.spec).length;
+    const count = table.listResources(project.spec).length;
     return count === 0 ? [] : [{ label: table.resourceType, value: String(count) }];
   });
 
