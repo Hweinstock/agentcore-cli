@@ -142,6 +142,11 @@ const TEMPLATE_OPTIONS: {
     label: "a2a-python-strands",
     description: "Strands agent speaking the A2A protocol on Bedrock (CodeZip build)",
   },
+  {
+    template: "agui-python-strands",
+    label: "agui-python-strands",
+    description: "Strands agent speaking the AG-UI protocol on Bedrock (CodeZip build)",
+  },
 ];
 
 const MEMORY_OPTIONS: { memory: MemoryShortcutName; label: string; description: string }[] = [

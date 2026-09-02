@@ -313,6 +313,42 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       },
     };
   },
+  [buildResolverKey("strands", "Python", "AGUI")]: async (input: RuntimeResourceConfig) => {
+    const memory = input.scaffoldRuntimeInput.memory;
+    const context = {
+      name: toPythonPackageName(input.name),
+      hasMemory: memory !== undefined,
+      // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
+      memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
+      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
+      // The AgentCore Runtime requires OTEL dependencies to be present; the
+      // container launches main.py as the `main` module under
+      // opentelemetry-instrument, and the AG-UI app binds uvicorn on port 8080.
+      enableOtel: true,
+      entrypoint: "main",
+    };
+    const isContainer = input.scaffoldRuntimeInput.build === "Container";
+    const tree = await FsTreeNode.fromAssetSource(
+      { assetSource },
+      { assetDir: "templates/agui-python-strands" },
+      {
+        rootDirName: input.name,
+        transformContent: (raw) => templateRenderer.render(raw, context),
+        filter: (name, isDir) => {
+          if (isDir && name === "memory") return memory !== undefined;
+          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
+          return true;
+        },
+      },
+    );
+    return {
+      tree,
+      spec: {
+        runtimes: [{ ...buildRuntimeSpec(input), protocol: "AGUI" as const }],
+        ...(memory && { memories: [memory] }),
+      },
+    };
+  },
 });
 
 type GetRuntimeTemplateResolverConfig = {

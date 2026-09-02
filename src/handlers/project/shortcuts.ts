@@ -97,6 +97,16 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "longAndShortTerm",
     runtimeVersion: "PYTHON_3_14",
   },
+  "agui-python-strands": {
+    runtimeName: "agui_python_strands",
+    build: "CodeZip",
+    language: "Python",
+    framework: "strands",
+    protocol: "AGUI",
+    modelProvider: "Bedrock",
+    memory: "longAndShortTerm",
+    runtimeVersion: "PYTHON_3_14",
+  },
 } as const satisfies Record<string, RuntimeTemplateShortcut>;
 
 export type RuntimeTemplateShortcutName = keyof typeof RUNTIME_TEMPLATE_SHORTCUTS;
