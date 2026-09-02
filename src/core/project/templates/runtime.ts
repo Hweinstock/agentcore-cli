@@ -2,33 +2,39 @@ import { FsTreeNode } from "./fsTree";
 import type { AssetSource } from "../source";
 import type { RuntimeResourceConfig } from "../../../handlers/project/add/runtime/types";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
-import type { SpecEntries, TemplateRenderer, TemplateResolver } from "./types";
+import {
+  mergeSpecEntries,
+  type SpecEntries,
+  type TemplateRenderer,
+  type TemplateResolver,
+} from "./types";
 import type { EnvLocalEntry, ScaffoldRuntimeInput } from "../../../handlers/project/types";
 import { credentialEnvVarName } from "../../../projectSchemas/credential";
 import { InputValidationError } from "../../../errors";
 import { toPythonPackageName } from "../fsUtils";
 
-/** AgentCore Identity wiring for a non-Bedrock provider; empty for Bedrock. */
-type ModelProviderIdentity = {
-  context: { hasIdentity: boolean; identityProviders: { name: string; envVarName: string }[] };
-  credentials: NonNullable<SpecEntries["credentials"]>;
+/**
+ * A non-Bedrock provider's contributions to a scaffolded runtime: the template
+ * render context (the identity provider the generated model/load reads), the
+ * spec entry (its ApiKeyCredentialProvider credential), and the .env.local
+ * secret. Empty for Bedrock, which uses the runtime's IAM credentials.
+ */
+type ModelProviderScaffold = {
+  templateRenderContext: { identityProviders: { name: string; envVarName: string }[] };
+  spec: SpecEntries;
   envEntries: EnvLocalEntry[];
 };
 
-function resolveModelProviderIdentity(input: RuntimeResourceConfig): ModelProviderIdentity {
+function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProviderScaffold {
   const { modelProvider, apiKey } = input.scaffoldRuntimeInput;
-  if (modelProvider === "Bedrock") {
-    return {
-      context: { hasIdentity: false, identityProviders: [] },
-      credentials: [],
-      envEntries: [],
-    };
+  if (modelProvider === undefined || modelProvider === "Bedrock") {
+    return { templateRenderContext: { identityProviders: [] }, spec: {}, envEntries: [] };
   }
   const credentialName = `${input.name}${modelProvider}ApiKey`;
   const envVarName = credentialEnvVarName(credentialName);
   return {
-    context: { hasIdentity: true, identityProviders: [{ name: credentialName, envVarName }] },
-    credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: credentialName }],
+    templateRenderContext: { identityProviders: [{ name: credentialName, envVarName }] },
+    spec: { credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: credentialName }] },
     envEntries: apiKey
       ? [
           {
@@ -159,7 +165,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const memory = input.scaffoldRuntimeInput.memory;
-    const identity = resolveModelProviderIdentity(input);
+    const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
@@ -167,7 +173,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      ...identity.context,
+      ...modelScaffold.templateRenderContext,
       hasGateway: false,
       hasPayment: false,
       isVpc: input.networkMode === "VPC",
@@ -198,12 +204,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: {
-        runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
-        ...(memory && { memories: [memory] }),
-        ...(identity.credentials.length > 0 && { credentials: identity.credentials }),
-      },
-      ...(identity.envEntries.length > 0 && { envEntries: identity.envEntries }),
+      spec: mergeSpecEntries([
+        {
+          runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
+          ...(memory && { memories: [memory] }),
+        },
+        modelScaffold.spec,
+      ]),
+      ...(modelScaffold.envEntries.length > 0 && { envEntries: modelScaffold.envEntries }),
     };
   },
   [buildResolverKey("strands", "TypeScript", "HTTP")]: async (input: RuntimeResourceConfig) => {
@@ -219,7 +227,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         "the agent-typescript-strands template does not support short-term-only memory; add long-term strategies or use --memory none",
       );
 
-    const identity = resolveModelProviderIdentity(input);
+    const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toNpmPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
@@ -227,7 +235,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      ...identity.context,
+      ...modelScaffold.templateRenderContext,
     };
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
@@ -245,12 +253,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: {
-        runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
-        ...(memory && { memories: [memory] }),
-        ...(identity.credentials.length > 0 && { credentials: identity.credentials }),
-      },
-      ...(identity.envEntries.length > 0 && { envEntries: identity.envEntries }),
+      spec: mergeSpecEntries([
+        {
+          runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
+          ...(memory && { memories: [memory] }),
+        },
+        modelScaffold.spec,
+      ]),
+      ...(modelScaffold.envEntries.length > 0 && { envEntries: modelScaffold.envEntries }),
     };
   },
   [buildResolverKey("none", "Python", "MCP")]: async (input: RuntimeResourceConfig) => {
@@ -320,7 +330,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const memory = input.scaffoldRuntimeInput.memory;
-    const identity = resolveModelProviderIdentity(input);
+    const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider,
@@ -328,7 +338,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      ...identity.context,
+      ...modelScaffold.templateRenderContext,
       sessionStorageMountPath,
       efsMounts,
       s3Mounts,
@@ -355,12 +365,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: {
-        runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
-        ...(memory && { memories: [memory] }),
-        ...(identity.credentials.length > 0 && { credentials: identity.credentials }),
-      },
-      ...(identity.envEntries.length > 0 && { envEntries: identity.envEntries }),
+      spec: mergeSpecEntries([
+        {
+          runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
+          ...(memory && { memories: [memory] }),
+        },
+        modelScaffold.spec,
+      ]),
+      ...(modelScaffold.envEntries.length > 0 && { envEntries: modelScaffold.envEntries }),
     };
   },
 });

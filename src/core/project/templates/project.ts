@@ -7,7 +7,7 @@ import type {
 } from "../../../handlers/project/add/runtime/types";
 import { InputValidationError } from "../../../errors/errors";
 import { getRuntimeTemplateResolver } from "./runtime";
-import type { SpecEntries, Template, TemplateRenderer } from "./types";
+import { mergeSpecEntries, type Template, type TemplateRenderer } from "./types";
 import type { EnvLocalEntry } from "../../../handlers/project/types";
 
 type CreateProjectConfig = {
@@ -66,17 +66,3 @@ export async function createProjectTree(
 }
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
-
-function mergeSpecEntries(entries: SpecEntries[]): SpecEntries {
-  const runtimes = entries.flatMap(({ runtimes }) => runtimes ?? []);
-  const credentials = entries.flatMap(({ credentials }) => credentials ?? []);
-  const memories = entries.flatMap(({ memories }) => memories ?? []);
-  const harnesses = entries.flatMap(({ harnesses }) => harnesses ?? []);
-
-  return {
-    ...(runtimes.length > 0 && { runtimes }),
-    ...(credentials.length > 0 && { credentials }),
-    ...(memories.length > 0 && { memories }),
-    ...(harnesses.length > 0 && { harnesses }),
-  };
-}
