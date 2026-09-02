@@ -71,20 +71,23 @@ export const ScaffoldRuntimeInputSchema = z
     language: z.enum(["Python", "TypeScript"]),
     framework: z.enum(["strands", "none"]),
     protocol: ProtocolModeSchema.optional(),
-    modelProvider: ModelProviderSchema,
+    // Optional: an MCP runtime has no model provider at all, and other runtimes
+    // default to Bedrock. A resolver rejects a provider its template cannot use.
+    modelProvider: ModelProviderSchema.optional(),
     apiKey: z.string().min(1).optional(),
     memory: MemorySchema.optional(),
     runtimeVersion: RuntimeVersionSchema.optional(),
   })
   .superRefine(({ modelProvider, apiKey }, ctx) => {
-    if (modelProvider === "Bedrock" && apiKey !== undefined) {
+    const usesApiKey = modelProvider !== undefined && modelProvider !== "Bedrock";
+    if (apiKey !== undefined && !usesApiKey) {
       ctx.addIssue({
         code: "custom",
         message: "API keys are not compatible with Bedrock model providers",
         path: ["apiKey"],
       });
     }
-    if (modelProvider !== "Bedrock" && apiKey === undefined) {
+    if (apiKey === undefined && usesApiKey) {
       ctx.addIssue({
         code: "custom",
         message: `an API key is required for the ${modelProvider} model provider`,

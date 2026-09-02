@@ -83,7 +83,6 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "none",
     protocol: "MCP",
-    modelProvider: "Bedrock",
     memory: "none",
     runtimeVersion: "PYTHON_3_14",
   },

@@ -129,7 +129,8 @@ const importBedrockAgentResolver = () => async (input: RuntimeResourceConfig) =>
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
-    if (input.scaffoldRuntimeInput.modelProvider !== "Bedrock")
+    const { modelProvider } = input.scaffoldRuntimeInput;
+    if (modelProvider !== undefined && modelProvider !== "Bedrock")
       throw new InputValidationError(
         "the agent-python template only supports the Bedrock model provider",
       );
@@ -168,7 +169,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
       hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
@@ -230,7 +231,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toNpmPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
       hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
@@ -264,10 +265,8 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     };
   },
   [buildResolverKey("none", "Python", "MCP")]: async (input: RuntimeResourceConfig) => {
-    if (input.scaffoldRuntimeInput.modelProvider !== "Bedrock")
-      throw new InputValidationError(
-        "the mcp-python-fastmcp template only supports the Bedrock model provider",
-      );
+    if (input.scaffoldRuntimeInput.modelProvider !== undefined)
+      throw new InputValidationError("an MCP runtime does not use a model provider");
     if (input.scaffoldRuntimeInput.memory !== undefined)
       throw new InputValidationError("memory is not supported with an MCP runtime");
     const filesystemConfigurations = input.filesystemConfigurations ?? [];
@@ -333,7 +332,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
       hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
