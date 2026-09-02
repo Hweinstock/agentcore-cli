@@ -783,9 +783,6 @@ describe("project add runtime", () => {
     ).rejects.toThrow(/API keys are not compatible with Bedrock model providers/);
   });
 
-  // The flag value casing varies deliberately (lowercase and canonical both
-  // normalize to the same credential name). Behaviour is asserted against the
-  // agentcore spec and .env.local, not the scaffolded template code.
   test.each<[string, string, string]>([
     ["anthropic", "Anthropic", "Python"],
     ["OpenAI", "OpenAI", "Python"],
