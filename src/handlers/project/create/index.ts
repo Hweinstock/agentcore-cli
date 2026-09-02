@@ -342,7 +342,7 @@ async function resolveScaffoldRuntimeInput(
   config: CreateProjectHandlerConfig,
   flags: RuntimePathFlagValues,
 ): Promise<ScaffoldRuntimeInput> {
-  const modelProvider = resolveModelProvider(flags["model-provider"], "runtime");
+  const modelProvider = resolveRuntimeModelProvider(flags["model-provider"]);
   const source = new SourceResolver({ stdin: config.io.stdin });
   const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
@@ -378,7 +378,7 @@ async function resolveScaffoldRuntimeInput(
 // same addResource path. Exported so the TUI create wizard builds its harness
 // input through the exact same translation as the flag-driven path.
 export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): ScaffoldHarnessInput {
-  const provider = resolveModelProvider(flags["model-provider"], "harness");
+  const provider = resolveHarnessModelProvider(flags["model-provider"]);
   const additionalParams = parseJsonFlag<Record<string, unknown>>(
     "additional-params",
     flags["additional-params"],
@@ -413,10 +413,9 @@ export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): Scaff
   return input;
 }
 
-// Each accepted flag value maps into whichever domains support it: the harness
-// path keeps the lowercase names its spec uses, the runtime path takes the
-// title-cased names the templates render against. A value absent from a domain
-// (lite_llm on runtime, anthropic on harness) is unsupported there.
+// Runtimes and harnesses support different model sets and record them under
+// different names in their spec configs, so the shared --model-provider flag is
+// mapped to each domain here behind a consistent interface.
 const MODEL_PROVIDERS: Record<
   ModelProviderFlag,
   { harness?: HarnessModelProvider; runtime?: ModelProvider }
@@ -428,26 +427,27 @@ const MODEL_PROVIDERS: Record<
   anthropic: { runtime: "Anthropic" },
 };
 
-function resolveModelProvider(
-  value: ModelProviderFlag | undefined,
-  domain: "harness",
-): HarnessModelProvider;
-function resolveModelProvider(
-  value: ModelProviderFlag | undefined,
-  domain: "runtime",
-): ModelProvider | undefined;
-function resolveModelProvider(
-  value: ModelProviderFlag | undefined,
-  domain: "harness" | "runtime",
-): HarnessModelProvider | ModelProvider | undefined {
-  if (value === undefined) return domain === "harness" ? "bedrock" : undefined;
-  const provider = MODEL_PROVIDERS[value][domain];
+function resolveHarnessModelProvider(
+  providerFlag: ModelProviderFlag | undefined,
+): HarnessModelProvider {
+  if (providerFlag === undefined) return "bedrock";
+  const provider = MODEL_PROVIDERS[providerFlag].harness;
   if (provider === undefined)
     throw new InputValidationError(
-      domain === "harness"
-        ? `the '${value}' model provider is not supported for harness projects`
-        : `runtime scaffolding does not support the '${value}' model provider ` +
-            `(expected bedrock, anthropic, open_ai, or gemini)`,
+      `the '${providerFlag}' model provider is not supported for harness projects`,
+    );
+  return provider;
+}
+
+function resolveRuntimeModelProvider(
+  providerFlag: ModelProviderFlag | undefined,
+): ModelProvider | undefined {
+  if (providerFlag === undefined) return undefined;
+  const provider = MODEL_PROVIDERS[providerFlag].runtime;
+  if (provider === undefined)
+    throw new InputValidationError(
+      `runtime scaffolding does not support the '${providerFlag}' model provider ` +
+        `(expected bedrock, anthropic, open_ai, or gemini)`,
     );
   return provider;
 }
