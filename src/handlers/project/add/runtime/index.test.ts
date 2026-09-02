@@ -11,6 +11,7 @@ import {
 } from "../../../../testing";
 import { InputValidationError } from "../../../../errors";
 import type { BedrockAgentImportPlan } from "../../../../core/project/bedrockAgentImport";
+import { credentialEnvVarName } from "../../../../projectSchemas/credential";
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -780,6 +781,131 @@ describe("project add runtime", () => {
         `file://${apiKeyPath}`,
       ]),
     ).rejects.toThrow(/API keys are not compatible with Bedrock model providers/);
+  });
+
+  test.each<[string, string, string, string]>([
+    ["Anthropic", "Python", "strands.models.anthropic", "AnthropicModel"],
+    ["OpenAI", "Python", "strands.models.openai", "OpenAIModel"],
+    ["Gemini", "Python", "strands.models.gemini", "GeminiModel"],
+    ["Anthropic", "TypeScript", "@strands-agents/sdk/models/anthropic", "AnthropicModel"],
+  ])(
+    "scaffolds a strands %s runtime (%s) with an API-key credential",
+    async (provider, language, expectedImport, expectedModelClass) => {
+      const projectRoot = await inProject();
+      const apiKeyPath = join(projectRoot, "api-key.txt");
+      await Bun.write(apiKeyPath, "test-api-key");
+
+      await run([
+        "add",
+        "runtime",
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        language,
+        "--framework",
+        "strands",
+        "--model-provider",
+        provider,
+        "--api-key",
+        `file://${apiKeyPath}`,
+      ]);
+
+      const credentialName = `my_agent${provider}ApiKey`;
+      const envVarName = credentialEnvVarName(credentialName);
+
+      const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+      expect(spec.credentials).toContainEqual({
+        authorizerType: "ApiKeyCredentialProvider",
+        name: credentialName,
+      });
+
+      const envLocal = await Bun.file(join(projectRoot, "agentcore", ".env.local")).text();
+      expect(envLocal).toContain(`${envVarName}='test-api-key'`);
+
+      const loadFile = language === "TypeScript" ? "load.ts" : "load.py";
+      const loadSource = await Bun.file(
+        join(projectRoot, "app", "my_agent", "model", loadFile),
+      ).text();
+      expect(loadSource).toContain(expectedImport);
+      expect(loadSource).toContain(expectedModelClass);
+      expect(loadSource).toContain(credentialName);
+      expect(loadSource).toContain(envVarName);
+    },
+  );
+
+  test("normalizes a lowercase --model-provider to canonical casing", async () => {
+    const projectRoot = await inProject();
+    const apiKeyPath = join(projectRoot, "api-key.txt");
+    await Bun.write(apiKeyPath, "test-api-key");
+
+    await run([
+      "add",
+      "runtime",
+      "--name",
+      "my_agent",
+      "--build",
+      "CodeZip",
+      "--language",
+      "Python",
+      "--framework",
+      "strands",
+      "--model-provider",
+      "anthropic",
+      "--api-key",
+      `file://${apiKeyPath}`,
+    ]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.credentials).toContainEqual({
+      authorizerType: "ApiKeyCredentialProvider",
+      name: "my_agentAnthropicApiKey",
+    });
+  });
+
+  test("rejects a non-Bedrock provider without an API key", async () => {
+    await inProject();
+    await expect(
+      run([
+        "add",
+        "runtime",
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "strands",
+        "--model-provider",
+        "Anthropic",
+      ]),
+    ).rejects.toThrow(/API key is required for the Anthropic model provider/);
+  });
+
+  test("rejects a non-Bedrock provider without the strands framework", async () => {
+    const projectRoot = await inProject();
+    const apiKeyPath = join(projectRoot, "api-key.txt");
+    await Bun.write(apiKeyPath, "test-api-key");
+    await expect(
+      run([
+        "add",
+        "runtime",
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "none",
+        "--model-provider",
+        "Anthropic",
+        "--api-key",
+        `file://${apiKeyPath}`,
+      ]),
+    ).rejects.toThrow(/requires the strands framework/);
   });
 });
 
