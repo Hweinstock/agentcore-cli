@@ -179,6 +179,12 @@ import { isTerminalStatus } from "../core/batchEvaluationResults";
 import { abortable } from "../core/abortable";
 import type { CoreFetch, CoreOptions, CreateCloudFormationClient } from "../core/types";
 import type { Project, ProjectManager } from "../handlers/project/types";
+import type {
+  CorePolicyClient,
+  GeneratePolicyInput,
+  PolicyGenerationResult,
+} from "../handlers/gateway/policy/types";
+import type { ProgressEvent } from "../tui/progress";
 import type { Logger } from "../logging";
 import type { ReadWriteJson } from "../io";
 import { createSilentLogger } from "./logging";
@@ -2377,6 +2383,25 @@ export class TestObservabilityClient implements CoreObservabilityClient {
   }
 }
 
+export class TestPolicyClient implements CorePolicyClient {
+  readonly calls: GeneratePolicyInput[] = [];
+
+  async *generatePolicy(
+    input: GeneratePolicyInput,
+  ): AsyncGenerator<ProgressEvent, PolicyGenerationResult> {
+    this.calls.push(input);
+    yield { type: "step", message: "Generating policy" };
+    return {
+      policyGenerationId: "gen-1",
+      policyEngineId: "pe-1",
+      gatewayArn: "arn:aws:bedrock-agentcore:us-west-2:111122223333:gateway/gw-1",
+      policies: [
+        { statement: "forbid (principal, action, resource is AgentCore::Gateway);", findings: [] },
+      ],
+    };
+  }
+}
+
 // TestCoreClient implements the Core contract with fully controllable sub-clients.
 export class TestCoreClient implements Core {
   readonly harness = new TestHarnessClient();
@@ -2386,6 +2411,7 @@ export class TestCoreClient implements Core {
   readonly gateway = new TestGatewayClient();
   readonly eval = new TestEvalClient();
   readonly observability = new TestObservabilityClient();
+  readonly policy = new TestPolicyClient();
   fetch: CoreFetch = (async () => {
     throw new Error("TestCoreClient.fetch is not configured; set it in the test that needs it");
   }) as unknown as CoreFetch;
