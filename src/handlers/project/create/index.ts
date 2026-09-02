@@ -9,8 +9,10 @@ import {
   resolveRuntimeTemplateShortcut,
 } from "../shortcuts";
 import {
+  ModelProviderSchema,
   ScaffoldRuntimeInputSchema,
   type CreateProjectInput,
+  type ModelProvider,
   type ProjectManager,
   type ScaffoldHarnessInput,
   type ScaffoldRuntimeInput,
@@ -65,7 +67,11 @@ const HARNESS_ONLY_FLAGS = [
   "container",
 ] as const;
 
-const ModelProviderFlagSchema = z.union([z.literal("Bedrock"), HarnessModelProviderSchema]);
+// Accepts both the harness provider names (bedrock, open_ai, gemini, lite_llm)
+// and the runtime-code provider names (Bedrock, Anthropic, OpenAI, Gemini,
+// case-insensitive). The runtime and harness paths each map an accepted value
+// into their own domain, rejecting the ones they do not support.
+const ModelProviderFlagSchema = z.union([HarnessModelProviderSchema, ModelProviderSchema]);
 type ModelProviderFlag = z.infer<typeof ModelProviderFlagSchema>;
 
 const HARNESS_DEFAULT_MODEL_IDS: Record<HarnessModelProvider, string> = {
@@ -116,7 +122,8 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       ),
       flag(
         "model-provider",
-        "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; Bedrock for runtime code",
+        "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; " +
+          "Bedrock, Anthropic, OpenAI, or Gemini for runtime code",
         ModelProviderFlagSchema.optional(),
       ),
       flag(
@@ -411,18 +418,47 @@ export function resolveScaffoldHarnessInput(flags: HarnessPathFlagValues): Scaff
   return input;
 }
 
+const HARNESS_MODEL_PROVIDERS: Record<string, HarnessModelProvider> = {
+  Bedrock: "bedrock",
+  bedrock: "bedrock",
+  OpenAI: "open_ai",
+  open_ai: "open_ai",
+  Gemini: "gemini",
+  gemini: "gemini",
+  lite_llm: "lite_llm",
+};
+
 function resolveHarnessModelProvider(value: ModelProviderFlag | undefined): HarnessModelProvider {
-  return value === undefined || value === "Bedrock" ? "bedrock" : value;
+  if (value === undefined) return "bedrock";
+  const provider = HARNESS_MODEL_PROVIDERS[value];
+  if (!provider)
+    throw new InputValidationError(
+      `the '${value}' model provider is not supported for harness projects`,
+    );
+  return provider;
 }
+
+const RUNTIME_MODEL_PROVIDERS: Record<string, ModelProvider> = {
+  Bedrock: "Bedrock",
+  bedrock: "Bedrock",
+  Anthropic: "Anthropic",
+  OpenAI: "OpenAI",
+  open_ai: "OpenAI",
+  Gemini: "Gemini",
+  gemini: "Gemini",
+};
 
 function resolveRuntimeModelProvider(
   value: ModelProviderFlag | undefined,
-): ScaffoldRuntimeInput["modelProvider"] | undefined {
+): ModelProvider | undefined {
   if (value === undefined) return undefined;
-  if (value === "Bedrock" || value === "bedrock") return "Bedrock";
-  throw new InputValidationError(
-    `runtime scaffolding only supports the Bedrock model provider; received '${value}'`,
-  );
+  const provider = RUNTIME_MODEL_PROVIDERS[value];
+  if (!provider)
+    throw new InputValidationError(
+      `runtime scaffolding does not support the '${value}' model provider ` +
+        `(expected Bedrock, Anthropic, OpenAI, or Gemini)`,
+    );
+  return provider;
 }
 
 /** A --container value is either an ECR image URI or a local Dockerfile path. */
