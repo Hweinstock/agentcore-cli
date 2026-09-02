@@ -7,11 +7,11 @@ import { DataTable, type DataTableColumn } from "../../../components/ui/data-tab
 import { Spinner } from "../../../components/ui/spinner";
 import { ProjectKey } from "../../../router";
 import type { ProjectSpec } from "../../../projectSchemas/project";
-import type { ScreenProps } from "../../types";
 import type { Project, RemoveResourceInput } from "../types";
+import type { ScreenProps } from "../../types";
 
-/** Resources removed by name alone — the project's root-level collections. */
-type RootLevelResource =
+/** Resource categories removed by name alone — the project's root-level collections. */
+type RootResourceCategory =
   | "runtime"
   | "harness"
   | "memory"
@@ -22,98 +22,109 @@ type RootLevelResource =
   | "policy-engine"
   | "payment-manager";
 
-/** Every resource that can be removed, including the nested ones. */
-type RemovableResourceType =
-  RootLevelResource | "gateway-target" | "gateway-connector" | "policy" | "payment-connector";
+/** Every resource category the picker offers, including the nested ones. */
+type RemovableResourceCategory =
+  RootResourceCategory | "gateway-target" | "gateway-connector" | "policy" | "payment-connector";
 
 /** A specific resource in the project, paired with the input that removes it. */
 type RemovableResource = {
   name: string;
   /** Name of the owning gateway/engine/manager, for nested resources. */
   parentName?: string;
-  input: RemoveResourceInput;
+  removeInput: RemoveResourceInput;
 };
 
-/** Config for listing a resource type's resources and rendering them as a table. */
-type RemovableResourceTableConfig = {
-  resourceType: RemovableResourceType;
-  /** Column header for the parent, shown for nested resource types only. */
-  parentLabel?: string;
+/** How one resource category is identified, listed, and labeled in the picker. */
+type RemovableResourceCategoryConfig = {
+  category: RemovableResourceCategory;
+  /** Column header for the parent, shown for nested categories only. */
+  parentColumnLabel?: string;
   listResources: (spec: ProjectSpec) => RemovableResource[];
 };
 
-function rootLevel(
-  resourceType: RootLevelResource,
-  read: (spec: ProjectSpec) => { name: string }[],
-): RemovableResourceTableConfig {
+function rootCategory(
+  category: RootResourceCategory,
+  readCollection: (spec: ProjectSpec) => { name: string }[],
+): RemovableResourceCategoryConfig {
   return {
-    resourceType,
+    category,
     listResources: (spec) =>
-      read(spec).map(({ name }) => ({ name, input: { resourceType, name } })),
+      readCollection(spec).map(({ name }) => ({
+        name,
+        removeInput: { resourceType: category, name },
+      })),
   };
 }
 
-const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
-  rootLevel("runtime", (s) => s.runtimes),
-  rootLevel("harness", (s) => s.harnesses),
-  rootLevel("memory", (s) => s.memories),
-  rootLevel("credential", (s) => s.credentials),
-  rootLevel("config-bundle", (s) => s.configBundles),
-  rootLevel("online-eval", (s) => s.onlineEvalConfigs),
-  rootLevel("gateway", (s) => s.agentCoreGateways),
-  rootLevel("policy-engine", (s) => s.policyEngines),
-  rootLevel("payment-manager", (s) => s.payments ?? []),
+const RESOURCE_CATEGORY_CONFIGS: RemovableResourceCategoryConfig[] = [
+  rootCategory("runtime", (spec) => spec.runtimes),
+  rootCategory("harness", (spec) => spec.harnesses),
+  rootCategory("memory", (spec) => spec.memories),
+  rootCategory("credential", (spec) => spec.credentials),
+  rootCategory("config-bundle", (spec) => spec.configBundles),
+  rootCategory("online-eval", (spec) => spec.onlineEvalConfigs),
+  rootCategory("gateway", (spec) => spec.agentCoreGateways),
+  rootCategory("policy-engine", (spec) => spec.policyEngines),
+  rootCategory("payment-manager", (spec) => spec.payments ?? []),
   {
-    resourceType: "gateway-target",
-    parentLabel: "gateway",
-    listResources: (s) =>
-      s.agentCoreGateways.flatMap((gateway) =>
+    category: "gateway-target",
+    parentColumnLabel: "gateway",
+    listResources: (spec) =>
+      spec.agentCoreGateways.flatMap((gateway) =>
         gateway.targets
           .filter((target) => target.targetType !== "connector")
           .map((target) => ({
             name: target.name,
             parentName: gateway.name,
-            input: { resourceType: "gateway-target", gatewayName: gateway.name, name: target.name },
+            removeInput: {
+              resourceType: "gateway-target",
+              gatewayName: gateway.name,
+              name: target.name,
+            },
           })),
       ),
   },
   {
-    resourceType: "gateway-connector",
-    parentLabel: "gateway",
-    listResources: (s) =>
-      s.agentCoreGateways.flatMap((gateway) =>
+    category: "gateway-connector",
+    parentColumnLabel: "gateway",
+    listResources: (spec) =>
+      spec.agentCoreGateways.flatMap((gateway) =>
         gateway.targets
           .filter((target) => target.targetType === "connector")
           .map((target) => ({
             name: target.name,
             parentName: gateway.name,
-            input: { resourceType: "gateway-target", gatewayName: gateway.name, name: target.name },
+            removeInput: {
+              resourceType: "gateway-target",
+              gatewayName: gateway.name,
+              name: target.name,
+            },
           })),
       ),
   },
   {
-    resourceType: "policy",
-    parentLabel: "policy engine",
-    listResources: (s) =>
-      s.policyEngines.flatMap((engine) =>
-        engine.policies.map((policy) => ({
+    category: "policy",
+    parentColumnLabel: "policy engine",
+    listResources: (spec) =>
+      spec.policyEngines.flatMap((policyEngine) =>
+        policyEngine.policies.map((policy) => ({
           name: policy.name,
-          parentName: engine.name,
-          input: { resourceType: "policy", engineName: engine.name, name: policy.name },
+          parentName: policyEngine.name,
+          removeInput: { resourceType: "policy", engineName: policyEngine.name, name: policy.name },
         })),
       ),
   },
   {
-    resourceType: "payment-connector",
-    parentLabel: "payment manager",
-    listResources: (s) =>
-      (s.payments ?? []).flatMap((manager) =>
-        manager.connectors.map((connector) => ({
+    category: "payment-connector",
+    parentColumnLabel: "payment manager",
+    listResources: (spec) =>
+      (spec.payments ?? []).flatMap((paymentManager) =>
+        paymentManager.connectors.map((connector) => ({
           name: connector.name,
-          parentName: manager.name,
-          input: {
+          parentName: paymentManager.name,
+          removeInput: {
             resourceType: "payment-connector",
-            managerName: manager.name,
+            managerName: paymentManager.name,
             name: connector.name,
           },
         })),
@@ -123,7 +134,8 @@ const RESOURCE_TABLES: RemovableResourceTableConfig[] = [
 
 const REMOVE_ROOT = "/agentcore/project/remove";
 
-const projectQueryKey = (cwd: string) => ["project", "remove", cwd] as const;
+const makeProjectQueryKey = (workingDirectory: string) =>
+  ["project", "remove", workingDirectory] as const;
 
 const KEY_HINTS = [
   { key: "↑↓/jk", label: "navigate" },
@@ -134,17 +146,17 @@ const KEY_HINTS = [
 ];
 
 export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
-  const { resourceType, resourceIndex } = useParams();
+  const { category, resourceIndex } = useParams();
   const navigate = useNavigate();
 
-  const contextProject = ctx.value(ProjectKey);
+  const projectFromContext = ctx.value(ProjectKey);
   const workingDirectory = process.cwd();
   const projectQuery = useQuery({
-    queryKey: projectQueryKey(workingDirectory),
+    queryKey: makeProjectQueryKey(workingDirectory),
     queryFn: async () =>
       (await core.projectManager.resolve({ filePath: workingDirectory })) ?? null,
   });
-  const project = projectQuery.data ?? contextProject ?? undefined;
+  const project = projectQuery.data ?? projectFromContext ?? undefined;
 
   // explicitly wire esc for the no project found case
   useInput(
@@ -166,24 +178,33 @@ export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
     );
   }
 
-  if (resourceType === "all") {
+  if (category === "all") {
     return <RemoveAllConfirm project={project} core={core} />;
   }
 
-  // No resource type selected, or an unrecognized one: show the type picker.
-  const table = RESOURCE_TABLES.find((entry) => entry.resourceType === resourceType);
-  if (!table) {
-    return <ResourceTypePicker project={project} />;
+  // No category selected, or an unrecognized one: show the category picker.
+  const categoryConfig = RESOURCE_CATEGORY_CONFIGS.find(
+    (candidate) => candidate.category === category,
+  );
+  if (!categoryConfig) {
+    return <ResourceCategoryPicker project={project} />;
   }
 
   if (resourceIndex !== undefined) {
-    const resource = table.listResources(project.spec)[Number(resourceIndex)];
+    const resource = categoryConfig.listResources(project.spec)[Number(resourceIndex)];
     if (resource) {
-      return <RemoveConfirm project={project} core={core} table={table} resource={resource} />;
+      return (
+        <RemoveConfirm
+          project={project}
+          core={core}
+          categoryConfig={categoryConfig}
+          resource={resource}
+        />
+      );
     }
   }
 
-  return <ResourcePicker project={project} table={table} />;
+  return <ResourcePicker project={project} categoryConfig={categoryConfig} />;
 }
 
 function NoProjectBody({
@@ -209,26 +230,26 @@ function NoProjectBody({
   );
 }
 
-// resourceType is "runtime"/"policy"/… or "all"; count is how many resources of
-// that type exist (the total across all types for the "all" row).
-type ResourceTypeRow = Record<string, unknown> & { resourceType: string; count: string };
+// `category` is "runtime"/"policy"/… or "all"; `count` is how many resources the
+// category holds (the total across all categories for the "all" row).
+type ResourceCategoryRow = Record<string, unknown> & { category: string; count: string };
 
-const resourceTypeColumns = [
-  { key: "resourceType", header: "resource", flex: true },
+const resourceCategoryColumns = [
+  { key: "category", header: "resource", flex: true },
   { key: "count", header: "count", width: 8, align: "right" },
-] satisfies DataTableColumn<ResourceTypeRow>[];
+] satisfies DataTableColumn<ResourceCategoryRow>[];
 
-function ResourceTypePicker({ project }: { project: Project }) {
+function ResourceCategoryPicker({ project }: { project: Project }) {
   const navigate = useNavigate();
 
-  const rows: ResourceTypeRow[] = RESOURCE_TABLES.flatMap((table) => {
-    const count = table.listResources(project.spec).length;
+  const rows: ResourceCategoryRow[] = RESOURCE_CATEGORY_CONFIGS.flatMap((categoryConfig) => {
+    const count = categoryConfig.listResources(project.spec).length;
     if (count === 0) return [];
-    return [{ resourceType: table.resourceType, count: String(count) }];
+    return [{ category: categoryConfig.category, count: String(count) }];
   });
-  const total = rows.reduce((sum, row) => sum + Number(row.count), 0);
-  if (total > 0) {
-    rows.push({ resourceType: "all", count: String(total) });
+  const totalResourceCount = rows.reduce((sum, row) => sum + Number(row.count), 0);
+  if (totalResourceCount > 0) {
+    rows.push({ category: "all", count: String(totalResourceCount) });
   }
 
   return (
@@ -241,42 +262,42 @@ function ResourceTypePicker({ project }: { project: Project }) {
         borderStyle="none"
         showFooter={false}
         focus
-        columns={resourceTypeColumns}
+        columns={resourceCategoryColumns}
         data={rows}
         emptyMessage="This project has no resources to remove."
-        onSelect={(row) => navigate(`${REMOVE_ROOT}/${row.resourceType}`)}
+        onSelect={(row) => navigate(`${REMOVE_ROOT}/${row.category}`)}
         onEscape={() => navigate("/agentcore/project")}
       />
     </Layout>
   );
 }
 
-type ResourceRow = Record<string, unknown> & { index: string; name: string; parent: string };
+type ResourceRow = Record<string, unknown> & { index: string; name: string; parentName: string };
 
 function ResourcePicker({
   project,
-  table,
+  categoryConfig,
 }: {
   project: Project;
-  table: RemovableResourceTableConfig;
+  categoryConfig: RemovableResourceCategoryConfig;
 }) {
   const navigate = useNavigate();
-  const rows: ResourceRow[] = table.listResources(project.spec).map((resource, i) => ({
-    index: String(i),
+  const rows: ResourceRow[] = categoryConfig.listResources(project.spec).map((resource, index) => ({
+    index: String(index),
     name: resource.name,
-    parent: resource.parentName ?? "",
+    parentName: resource.parentName ?? "",
   }));
-  const columns: DataTableColumn<ResourceRow>[] = table.parentLabel
+  const columns: DataTableColumn<ResourceRow>[] = categoryConfig.parentColumnLabel
     ? [
         { key: "name", header: "name", flex: true },
-        { key: "parent", header: table.parentLabel, width: 30 },
+        { key: "parentName", header: categoryConfig.parentColumnLabel, width: 30 },
       ]
     : [{ key: "name", header: "name", flex: true }];
 
   return (
     <Layout
-      breadcrumb={["agentcore", "project", "remove", table.resourceType]}
-      description={`choose a ${table.resourceType} to remove`}
+      breadcrumb={["agentcore", "project", "remove", categoryConfig.category]}
+      description={`choose a ${categoryConfig.category} to remove`}
       keyHints={KEY_HINTS}
     >
       <DataTable
@@ -285,8 +306,8 @@ function ResourcePicker({
         focus
         columns={columns}
         data={rows}
-        emptyMessage={`This project has no ${table.resourceType} resources.`}
-        onSelect={(row) => navigate(`${REMOVE_ROOT}/${table.resourceType}/${row.index}`)}
+        emptyMessage={`This project has no ${categoryConfig.category} resources.`}
+        onSelect={(row) => navigate(`${REMOVE_ROOT}/${categoryConfig.category}/${row.index}`)}
         onEscape={() => navigate(REMOVE_ROOT)}
       />
     </Layout>
@@ -296,12 +317,12 @@ function ResourcePicker({
 function RemoveConfirm({
   project,
   core,
-  table,
+  categoryConfig,
   resource,
 }: {
   project: Project;
   core: ScreenProps["core"];
-  table: RemovableResourceTableConfig;
+  categoryConfig: RemovableResourceCategoryConfig;
   resource: RemovableResource;
 }) {
   const navigate = useNavigate();
@@ -310,23 +331,23 @@ function RemoveConfirm({
 
   return (
     <ConfirmAction
-      breadcrumb={["agentcore", "project", "remove", table.resourceType, resource.name]}
+      breadcrumb={["agentcore", "project", "remove", categoryConfig.category, resource.name]}
       title={resource.name}
       rows={[
-        { label: "type", value: table.resourceType },
+        { label: "type", value: categoryConfig.category },
         ...(resource.parentName
-          ? [{ label: table.parentLabel ?? "parent", value: resource.parentName }]
+          ? [{ label: categoryConfig.parentColumnLabel ?? "parent", value: resource.parentName }]
           : []),
         { label: "project", value: project.name },
       ]}
-      message={`Remove ${table.resourceType} '${resource.name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`}
+      message={`Remove ${categoryConfig.category} '${resource.name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`}
       isPending={false}
       error={null}
       action={async () => {
-        const result = await core.projectManager.removeResource(project, resource.input);
+        const result = await core.projectManager.removeResource(project, resource.removeInput);
         return [
-          { label: "removed", value: `${table.resourceType} '${resource.name}'` },
-          ...result.removedEnvKeys.map((key) => ({ label: "env", value: `removed ${key}` })),
+          { label: "removed", value: `${categoryConfig.category} '${resource.name}'` },
+          ...result.removedEnvKeys.map((envKey) => ({ label: "env", value: `removed ${envKey}` })),
         ];
       }}
       successTitle="Resource removed"
@@ -334,7 +355,7 @@ function RemoveConfirm({
       onDone={() => {
         // Refresh the list off disk only on the way out, so the success panel
         // isn't torn down mid-flow when the removed resource disappears.
-        void queryClient.invalidateQueries({ queryKey: projectQueryKey(workingDirectory) });
+        void queryClient.invalidateQueries({ queryKey: makeProjectQueryKey(workingDirectory) });
         navigate(REMOVE_ROOT);
       }}
     />
@@ -346,19 +367,19 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
   const queryClient = useQueryClient();
   const workingDirectory = process.cwd();
 
-  const populated = RESOURCE_TABLES.flatMap((table) => {
-    const count = table.listResources(project.spec).length;
-    return count === 0 ? [] : [{ label: table.resourceType, value: String(count) }];
+  const categoryCounts = RESOURCE_CATEGORY_CONFIGS.flatMap((categoryConfig) => {
+    const count = categoryConfig.listResources(project.spec).length;
+    return count === 0 ? [] : [{ label: categoryConfig.category, value: String(count) }];
   });
 
-  const empty = populated.length === 0;
+  const nothingToRemove = categoryCounts.length === 0;
   useInput(
     (_input, key) => {
       if (key.escape) navigate(REMOVE_ROOT);
     },
-    { isActive: empty },
+    { isActive: nothingToRemove },
   );
-  if (empty) {
+  if (nothingToRemove) {
     return (
       <Layout breadcrumb={["agentcore", "project", "remove", "all"]} keyHints={KEY_HINTS}>
         <Text dimColor>This project has no resources to remove.</Text>
@@ -370,7 +391,7 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
     <ConfirmAction
       breadcrumb={["agentcore", "project", "remove", "all"]}
       title={project.name}
-      rows={populated.length > 0 ? populated : [{ label: "resources", value: "none" }]}
+      rows={categoryCounts}
       message={`Remove every resource from project ${project.name}? This empties each resource collection in agentcore.json; code under app/ is kept.`}
       isPending={false}
       error={null}
@@ -378,13 +399,13 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
         const result = await core.projectManager.removeAllResources(project);
         return [
           { label: "removed", value: "all resources" },
-          ...result.removedEnvKeys.map((key) => ({ label: "env", value: `removed ${key}` })),
+          ...result.removedEnvKeys.map((envKey) => ({ label: "env", value: `removed ${envKey}` })),
         ];
       }}
       successTitle="All resources removed"
       runningLabel="Removing all resources…"
       onDone={() => {
-        void queryClient.invalidateQueries({ queryKey: projectQueryKey(workingDirectory) });
+        void queryClient.invalidateQueries({ queryKey: makeProjectQueryKey(workingDirectory) });
         navigate(REMOVE_ROOT);
       }}
     />
