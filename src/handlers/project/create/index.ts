@@ -427,10 +427,6 @@ const MODEL_PROVIDERS: Record<
   anthropic: { runtime: "Anthropic" },
 };
 
-const RUNTIME_PROVIDER_FLAGS = (Object.keys(MODEL_PROVIDERS) as ModelProviderFlag[]).filter(
-  (flag) => MODEL_PROVIDERS[flag].runtime !== undefined,
-);
-
 function resolveHarnessModelProvider(
   providerFlag: ModelProviderFlag | undefined,
 ): HarnessModelProvider {
@@ -446,14 +442,7 @@ function resolveHarnessModelProvider(
 function resolveRuntimeModelProvider(
   providerFlag: ModelProviderFlag | undefined,
 ): ModelProvider | undefined {
-  if (providerFlag === undefined) return undefined;
-  const provider = MODEL_PROVIDERS[providerFlag].runtime;
-  if (provider === undefined)
-    throw new InputValidationError(
-      `runtime scaffolding does not support the '${providerFlag}' model provider ` +
-        `(expected ${RUNTIME_PROVIDER_FLAGS.join(", ")})`,
-    );
-  return provider;
+  return providerFlag === undefined ? undefined : MODEL_PROVIDERS[providerFlag].runtime;
 }
 
 /** A --container value is either an ECR image URI or a local Dockerfile path. */
