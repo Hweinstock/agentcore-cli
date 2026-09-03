@@ -6,7 +6,7 @@ import {
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import { PolicyClient } from "../../core/policy";
 import type { AwsClients } from "../../core/types";
-import { NetworkingError } from "../../errors";
+import { NetworkingError, UserCancellationError } from "../../errors";
 import {
   createSilentLogger,
   TestCoreClient,
@@ -15,6 +15,9 @@ import {
 } from "../../testing";
 import { compile, isTuiCommandSupported, ValueContext } from "../../router";
 import { createRootHandler } from "../index";
+import { PathKey } from "../../router";
+import { JsonKey } from "../keys";
+import { createGeneratePolicyHandler } from "./policy/generate";
 import type { Core } from "../types";
 
 const REGION = "us-west-2";
@@ -148,7 +151,7 @@ describe("gateway validation", () => {
     ["Policy generate gateway", ["gateway", "policy", "generate", "--prompt", "x"], /--gateway-id/],
     [
       "Policy generate prompt",
-      ["gateway", "policy", "generate", "--gateway-id", GATEWAY_ID],
+      ["gateway", "policy", "generate", "--gateway-id", GATEWAY_ID, "--json"],
       /--prompt/,
     ],
   ] as const)(
@@ -212,9 +215,53 @@ describe("gateway policy generate against a faked control plane", () => {
     ).rejects.toThrow("policy generation 'gen-1' failed: bad prompt; try again");
   });
 
+  test("stops waiting when the signal aborts", async () => {
+    const generation = coreWith("GENERATING").policy.generatePolicy(
+      { gatewayId: GATEWAY_ID, prompt: "x", name: "n" },
+      { region: REGION },
+      AbortSignal.abort(new UserCancellationError()),
+    );
+    await expect(
+      (async () => {
+        for await (const _event of generation) {
+          // drain
+        }
+      })(),
+    ).rejects.toBeInstanceOf(UserCancellationError);
+  });
+
   test("times out when the generation keeps running", async () => {
     const attempt = run(args, coreWith("GENERATING"));
     await expect(attempt).rejects.toBeInstanceOf(NetworkingError);
     await expect(attempt).rejects.toThrow("did not finish within 2s");
   }, 10_000);
+});
+
+describe("gateway policy generate deep link", () => {
+  test.each([
+    ["opens the form when only --gateway-id is given", { "gateway-id": "gw-1" }, 1],
+    ["stays headless when --name is also given", { "gateway-id": "gw-1", name: "n" }, 0],
+  ])("%s", async (_label, flags, expectedRenders) => {
+    const core = new TestCoreClient();
+    let renders = 0;
+    const handler = createGeneratePolicyHandler(
+      core,
+      testIO().io,
+      async (path, _ctx, renderedCore) => {
+        renders++;
+        expect(path).toBe("/agentcore/gateway/policy/generate/gw-1");
+        expect(renderedCore).toBe(core);
+      },
+    );
+    const ctx = ValueContext.EmptyContext()
+      .withValue(PathKey, "/agentcore/gateway/policy/generate")
+      .withValue(JsonKey, false);
+
+    const attempt = handler.handle(ctx, { prompt: undefined, ...flags }, {});
+    if (expectedRenders === 0) await expect(attempt).rejects.toThrow(/--prompt/);
+    else await attempt;
+
+    expect(renders).toBe(expectedRenders);
+    expect(core.policy.calls).toEqual([]);
+  });
 });

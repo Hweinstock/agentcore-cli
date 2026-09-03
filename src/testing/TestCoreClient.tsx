@@ -2404,21 +2404,35 @@ export class TestObservabilityClient implements CoreObservabilityClient {
 }
 
 export class TestPolicyClient implements CorePolicyClient {
+  result: PolicyGenerationResult = {
+    policyGenerationId: "gen-1",
+    policyEngineId: "pe-1",
+    gatewayArn: "arn:aws:bedrock-agentcore:us-west-2:111122223333:gateway/gw-1",
+    policies: [
+      { statement: "forbid (principal, action, resource is AgentCore::Gateway);", findings: [] },
+    ],
+  };
+  error: Error | undefined;
+  // hang keeps the generator waiting after its first step until the signal aborts.
+  hang = false;
   readonly calls: GeneratePolicyInput[] = [];
+  readonly signals: (AbortSignal | undefined)[] = [];
 
   async *generatePolicy(
     input: GeneratePolicyInput,
+    _options: CoreOptions,
+    signal?: AbortSignal,
   ): AsyncGenerator<ProgressEvent, PolicyGenerationResult> {
     this.calls.push(input);
-    yield { type: "step", message: "Generating policy" };
-    return {
-      policyGenerationId: "gen-1",
-      policyEngineId: "pe-1",
-      gatewayArn: "arn:aws:bedrock-agentcore:us-west-2:111122223333:gateway/gw-1",
-      policies: [
-        { statement: "forbid (principal, action, resource is AgentCore::Gateway);", findings: [] },
-      ],
-    };
+    this.signals.push(signal);
+    yield { type: "step", message: "Resolving gateway" };
+    if (this.hang) {
+      await new Promise((_, reject) =>
+        signal?.addEventListener("abort", () => reject(signal.reason), { once: true }),
+      );
+    }
+    if (this.error) throw this.error;
+    return this.result;
   }
 }
 
