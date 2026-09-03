@@ -7,6 +7,7 @@ import type { HarnessModelProvider } from "../../../projectSchemas/harness";
 import type { ScreenProps } from "../../types";
 import type { CreateProjectInput } from "../types";
 import {
+  RUNTIME_TEMPLATE_SHORTCUTS,
   resolveRuntimeTemplateShortcut,
   type MemoryShortcutName,
   type RuntimeTemplateShortcutName,
@@ -126,6 +127,11 @@ const TEMPLATE_OPTIONS: {
     description: "Strands agent on Bedrock with memory (CodeZip build)",
   },
   {
+    template: "agent-python-strands-container",
+    label: "agent-python-strands-container",
+    description: "Strands agent on Bedrock with memory (Container build)",
+  },
+  {
     template: "agent-python",
     label: "agent-python",
     description: "minimal Python agent on Bedrock, no framework (CodeZip build)",
@@ -146,6 +152,9 @@ const TEMPLATE_OPTIONS: {
     description: "Strands agent speaking the AG-UI protocol on Bedrock (CodeZip build)",
   },
 ];
+
+const asksMemory = (template: RuntimeTemplateShortcutName) =>
+  RUNTIME_TEMPLATE_SHORTCUTS[template].framework === "strands";
 
 const MEMORY_OPTIONS: { memory: MemoryShortcutName; label: string; description: string }[] = [
   {
@@ -193,9 +202,7 @@ export function buildCreateInput(values: CreateProjectFormValues): CreateProject
     skipGit: false,
     scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(
       values.template,
-      // Memory is a strands question; the non-strands templates keep their own
-      // (memory-less) defaults, exactly like `--template` without `--memory`.
-      values.template === "agent-python-strands" ? { memory: values.memory } : undefined,
+      asksMemory(values.template) ? { memory: values.memory } : undefined,
     ),
   };
 }
@@ -217,7 +224,7 @@ function summaryOf(values: CreateProjectFormValues): Record<string, string> {
     };
   }
   const withTemplate = { ...base, type: "agent code", template: values.template };
-  return values.template === "agent-python-strands"
+  return asksMemory(values.template)
     ? {
         ...withTemplate,
         memory: MEMORY_OPTIONS.find((option) => option.memory === values.memory)!.label,
@@ -261,9 +268,7 @@ export function ProjectCreateScreen({ core }: ScreenProps) {
         ? [{ key: "model", title: "model" }]
         : [
             { key: "template", title: "template" },
-            ...(values.template === "agent-python-strands"
-              ? [{ key: "memory", title: "memory" }]
-              : []),
+            ...(asksMemory(values.template) ? [{ key: "memory", title: "memory" }] : []),
           ];
     return [
       { key: "name", title: "name" },

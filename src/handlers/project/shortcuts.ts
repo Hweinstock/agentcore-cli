@@ -68,6 +68,14 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     memory: "longAndShortTerm",
     runtimeVersion: "PYTHON_3_14",
   },
+  "agent-python-strands-container": {
+    runtimeName: "agent_python_strands",
+    build: "Container",
+    language: "Python",
+    framework: "strands",
+    modelProvider: "Bedrock",
+    memory: "longAndShortTerm",
+  },
   "agent-typescript-strands": {
     runtimeName: "agent_typescript_strands",
     build: "CodeZip",
@@ -141,7 +149,10 @@ export function resolveRuntimeTemplateShortcut(
     modelProvider: overrides?.modelProvider ?? template.modelProvider,
     ...(overrides?.apiKey !== undefined && { apiKey: overrides.apiKey }),
     ...(memory && { memory }),
-    runtimeVersion: build === "CodeZip" ? (template.runtimeVersion ?? "PYTHON_3_14") : undefined,
+    runtimeVersion:
+      build === "CodeZip"
+        ? (template.runtimeVersion ?? LANGUAGE_VERSION_DEFAULTS[template.language])
+        : undefined,
   };
 
   const result = ScaffoldRuntimeInputSchema.safeParse(input);
