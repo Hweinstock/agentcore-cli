@@ -28,5 +28,12 @@ health at `http://127.0.0.1:8080/ping`.
 
 ## Deployment
 
-`agentcore project deploy` deploys the agent into Amazon Bedrock AgentCore. Invoke it with
-the AWS CLI (`bedrock-agentcore invoke-agent-runtime`) using an AG-UI `RunAgentInput` payload.
+`agentcore project deploy` deploys the agent into Amazon Bedrock AgentCore. Invoke the deployed
+runtime with an AG-UI `RunAgentInput` payload:
+
+```bash
+agentcore project invoke runtime --name agui_python_strands \
+  --payload '{"threadId":"t1","runId":"r1","state":{},"messages":[{"id":"m1","role":"user","content":"Hello!"}],"tools":[],"context":[],"forwardedProps":{}}'
+```
+
+The response streams back as AG-UI server-sent events.
