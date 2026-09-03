@@ -5,16 +5,11 @@ import {
   type Memory,
 } from "../../projectSchemas/memory";
 import { InputValidationError } from "../../errors";
-import { ScaffoldRuntimeInputSchema, type ScaffoldRuntimeInput } from "./types";
+import { ScaffoldRuntimeInputSchema, type ModelProvider, type ScaffoldRuntimeInput } from "./types";
 
-export const MEMORY_SHORTCUTS = {
-  none: (_runtimeName: string) => undefined,
-  shortTerm: (runtimeName: string): Memory => ({
-    name: `${runtimeName}Memory`,
-    eventExpiryDuration: 30,
-    strategies: [],
-  }),
-  longAndShortTerm: (runtimeName: string): Memory => ({
+/** The memory spec templates ship with, pre-configured and non-overridable. */
+function getDefaultMemorySpec(runtimeName: string): Memory {
+  return {
     name: `${runtimeName}Memory`,
     eventExpiryDuration: 30,
     strategies: (["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"] as const).map(
@@ -26,37 +21,37 @@ export const MEMORY_SHORTCUTS = {
         }),
       }),
     ),
-  }),
-} satisfies Record<string, (runtimeName: string) => Memory | undefined>;
+  };
+}
 
-export type MemoryShortcutName = keyof typeof MEMORY_SHORTCUTS;
-
-export const MEMORY_SHORTCUT_NAMES = Object.keys(MEMORY_SHORTCUTS) as unknown as readonly [
-  MemoryShortcutName,
-  ...MemoryShortcutName[],
-];
-
-/** The default CodeZip runtime version for each language. */
-export const LANGUAGE_VERSION_DEFAULTS = {
-  Python: "PYTHON_3_14",
-  TypeScript: "NODE_22",
-} as const satisfies Record<
-  ScaffoldRuntimeInput["language"],
-  NonNullable<ScaffoldRuntimeInput["runtimeVersion"]>
->;
-
-type RuntimeTemplateShortcut = Omit<ScaffoldRuntimeInput, "memory"> & {
-  memory: MemoryShortcutName;
+type RuntimeTemplateShortcut = {
+  runtimeName: string;
+  build: ScaffoldRuntimeInput["build"];
+  language: ScaffoldRuntimeInput["language"];
+  framework: ScaffoldRuntimeInput["framework"];
+  protocol?: ScaffoldRuntimeInput["protocol"];
+  modelProvider?: ModelProvider;
+  /** Ships with memory. */
+  includesMemory: boolean;
+  /** Accepts --model-provider / --api-key overrides; Bedrock-only otherwise. */
+  supportsModelProviderOverride: boolean;
+  runtimeVersion?: NonNullable<ScaffoldRuntimeInput["runtimeVersion"]>;
 };
 
+/**
+ * The runtime templates. Only agent-python-strands offers a container build (its
+ * `-container` shortcut renders the same source with a Dockerfile); every other
+ * template is CodeZip-only.
+ */
 export const RUNTIME_TEMPLATE_SHORTCUTS = {
-  "agent-python": {
-    runtimeName: "agent_python",
+  "agent-python-minimal": {
+    runtimeName: "agent_python_minimal",
     build: "CodeZip",
     language: "Python",
     framework: "none",
     modelProvider: "Bedrock",
-    memory: "none",
+    includesMemory: false,
+    supportsModelProviderOverride: false,
     runtimeVersion: "PYTHON_3_14",
   },
   "agent-python-strands": {
@@ -65,7 +60,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "strands",
     modelProvider: "Bedrock",
-    memory: "longAndShortTerm",
+    includesMemory: true,
+    supportsModelProviderOverride: true,
     runtimeVersion: "PYTHON_3_14",
   },
   "agent-python-strands-container": {
@@ -74,7 +70,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "strands",
     modelProvider: "Bedrock",
-    memory: "longAndShortTerm",
+    includesMemory: true,
+    supportsModelProviderOverride: true,
   },
   "agent-typescript-strands": {
     runtimeName: "agent_typescript_strands",
@@ -82,7 +79,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "TypeScript",
     framework: "strands",
     modelProvider: "Bedrock",
-    memory: "longAndShortTerm",
+    includesMemory: true,
+    supportsModelProviderOverride: false,
     runtimeVersion: "NODE_22",
   },
   "mcp-python-fastmcp": {
@@ -91,7 +89,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     language: "Python",
     framework: "none",
     protocol: "MCP",
-    memory: "none",
+    includesMemory: false,
+    supportsModelProviderOverride: false,
     runtimeVersion: "PYTHON_3_14",
   },
   "a2a-python-strands": {
@@ -101,7 +100,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "strands",
     protocol: "A2A",
     modelProvider: "Bedrock",
-    memory: "longAndShortTerm",
+    includesMemory: true,
+    supportsModelProviderOverride: false,
     runtimeVersion: "PYTHON_3_14",
   },
   "agui-python-strands": {
@@ -111,7 +111,8 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "strands",
     protocol: "AGUI",
     modelProvider: "Bedrock",
-    memory: "longAndShortTerm",
+    includesMemory: false,
+    supportsModelProviderOverride: false,
     runtimeVersion: "PYTHON_3_14",
   },
 } as const satisfies Record<string, RuntimeTemplateShortcut>;
@@ -122,12 +123,21 @@ export const RUNTIME_TEMPLATE_SHORTCUT_NAMES = Object.keys(
   RUNTIME_TEMPLATE_SHORTCUTS,
 ) as unknown as readonly [RuntimeTemplateShortcutName, ...RuntimeTemplateShortcutName[]];
 
+/** The empty template scaffolds a project with no runtime and no harness. */
+export const EMPTY_TEMPLATE_NAME = "empty";
+
+export type TemplateName = RuntimeTemplateShortcutName | typeof EMPTY_TEMPLATE_NAME;
+
+/** Every `--template` value: the runtime shortcuts plus the empty project template. */
+export const PROJECT_TEMPLATE_NAMES = [
+  ...RUNTIME_TEMPLATE_SHORTCUT_NAMES,
+  EMPTY_TEMPLATE_NAME,
+] as unknown as readonly [TemplateName, ...TemplateName[]];
+
 type RuntimeTemplateOverrides = {
   runtimeName?: string;
-  build?: ScaffoldRuntimeInput["build"];
-  modelProvider?: ScaffoldRuntimeInput["modelProvider"];
+  modelProvider?: ModelProvider;
   apiKey?: string;
-  memory?: MemoryShortcutName;
 };
 
 export function resolveRuntimeTemplateShortcut(
@@ -136,23 +146,26 @@ export function resolveRuntimeTemplateShortcut(
 ): ScaffoldRuntimeInput {
   const template: RuntimeTemplateShortcut = RUNTIME_TEMPLATE_SHORTCUTS[name];
   const runtimeName = overrides?.runtimeName ?? template.runtimeName;
-  const build = overrides?.build ?? template.build;
-  const memoryShortcutName = overrides?.memory ?? template.memory;
-  const memory = MEMORY_SHORTCUTS[memoryShortcutName](runtimeName);
+
+  if (!template.supportsModelProviderOverride) {
+    if (overrides?.modelProvider !== undefined)
+      throw new InputValidationError(`--model-provider is not valid with the ${name} template`);
+    if (overrides?.apiKey !== undefined)
+      throw new InputValidationError(`--api-key is not valid with the ${name} template`);
+  }
 
   const input = {
     runtimeName,
-    build,
+    build: template.build,
     language: template.language,
     framework: template.framework,
     protocol: template.protocol,
-    modelProvider: overrides?.modelProvider ?? template.modelProvider,
+    modelProvider: template.supportsModelProviderOverride
+      ? (overrides?.modelProvider ?? template.modelProvider)
+      : template.modelProvider,
     ...(overrides?.apiKey !== undefined && { apiKey: overrides.apiKey }),
-    ...(memory && { memory }),
-    runtimeVersion:
-      build === "CodeZip"
-        ? (template.runtimeVersion ?? LANGUAGE_VERSION_DEFAULTS[template.language])
-        : undefined,
+    ...(template.includesMemory && { memory: getDefaultMemorySpec(runtimeName) }),
+    runtimeVersion: template.runtimeVersion,
   };
 
   const result = ScaffoldRuntimeInputSchema.safeParse(input);
