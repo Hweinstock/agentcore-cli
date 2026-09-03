@@ -1,16 +1,10 @@
 import { BedrockAgentCoreApp } from 'bedrock-agentcore/runtime';
-import { Agent, McpClient, tool, type ToolList } from '@strands-agents/sdk';
+import { Agent, tool, type ToolList } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { loadModel } from './model/load.js';
-import { getStreamableHttpMcpClient } from './mcp_client/client.js';
 {{#if hasMemory}}
 import { getActorId, getOrCreateMemoryManager } from './memory/memory.js';
 {{/if}}
-
-// Define a collection of MCP clients (filter out anything that failed to initialize)
-const mcpClients: McpClient[] = [getStreamableHttpMcpClient()].filter(
-  (client): client is McpClient => Boolean(client)
-);
 
 // Define a collection of tools used by the model
 const tools: ToolList = [];
@@ -26,9 +20,6 @@ const addNumbers = tool({
   callback: async ({ a, b }) => a + b,
 });
 tools.push(addNumbers);
-
-// Add MCP clients to tools
-tools.push(...mcpClients);
 
 const SYSTEM_PROMPT = `
 You are a helpful assistant. Use tools when appropriate.
