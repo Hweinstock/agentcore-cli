@@ -24,11 +24,13 @@ import type {
 import type { Logger } from "../../logging";
 import {
   FsReadWriteJson,
+  createLineSplitter,
   requireTool,
   runProcess,
   type ProcessRunner,
   type ReadWriteJson,
 } from "../../io";
+import { withOutputEvents } from "./events";
 import { defaultSource, type AssetSource } from "./source";
 import { ENV_LOCAL_RELATIVE_PATH, EnvLocalFile } from "./envLocal";
 import { getHarnessTemplateResolver, validateHarnessTemplateSource } from "./templates/harness";
@@ -82,6 +84,27 @@ import type { CreateCloudFormationClient } from "../types";
 import type { CoreIdentityClient } from "../../handlers/identity/types";
 
 const TARGETS_EXAMPLE = '[{ "name": "default", "account": "111122223333", "region": "us-east-1" }]';
+
+// npm prints nothing until it exits when stderr is piped, and its HTTP log is the only per-package
+// progress it will emit, so the log is asked for and then rewritten into package names.
+const NPM_INSTALL = ["npm", "install", "--loglevel=http"];
+const NPM_FETCH = /^npm http fetch [A-Z]+ \d{3} https?:\/\/[^/]+(\S*)/;
+
+function npmProgressLine(line: string): string | undefined {
+  const path = NPM_FETCH.exec(line)?.[1];
+  // Deprecation warnings and the closing summary are already written for people.
+  if (path === undefined) return line;
+  // `/-/npm/v1/...` names no package; the only one an install makes is the audit request.
+  if (path.startsWith("/-/")) return "auditing dependencies";
+  // A private registry may serve manifests under a prefix, so the name is the path's tail. A scope
+  // reaches us either as its own segment or encoded into one as %2f.
+  const [manifest = "", tarball] = path.split("/-/");
+  const segments = manifest.replace(/%2f/gi, "/").split("/").filter(Boolean);
+  const scope = segments.at(-2);
+  const name = scope?.startsWith("@") ? `${scope}/${segments.at(-1)}` : segments.at(-1);
+  if (name === undefined) return undefined;
+  return `${tarball === undefined ? "resolving" : "downloading"} ${name}`;
+}
 
 type ProjectManagerConfig = {
   logger: Logger;
@@ -197,7 +220,7 @@ export class FsProjectManager implements ProjectManager {
     if (!input.skipInstall) {
       await this.checkTool("npm", "Install Node.js: https://nodejs.org/");
       yield { type: "step", message: "Installing CDK dependencies with npm" };
-      await this.run(["npm", "install"], join(destination, "agentcore", "cdk"));
+      yield* this.run(NPM_INSTALL, join(destination, "agentcore", "cdk"), npmProgressLine);
 
       if (scaffoldRuntimeInput) {
         const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
@@ -212,7 +235,7 @@ export class FsProjectManager implements ProjectManager {
     if (!input.skipGit) {
       await this.checkTool("git", "Install git: https://git-scm.com/downloads");
       yield { type: "step", message: "Initializing git repository" };
-      await this.run(["git", "init"], destination);
+      yield* this.run(["git", "init"], destination);
     }
 
     // A created project is a resolvable one, so read it back rather than
@@ -1044,11 +1067,11 @@ export class FsProjectManager implements ProjectManager {
         "Install uv: https://docs.astral.sh/uv/getting-started/installation/",
       );
       yield { type: "step", message: "Syncing Python dependencies with uv" };
-      await this.run(["uv", "sync"], appDir);
+      yield* this.run(["uv", "sync"], appDir);
     } else if (existsSync(join(appDir, "package.json"))) {
       await this.checkTool("npm", "Install Node.js: https://nodejs.org/");
       yield { type: "step", message: "Installing Node dependencies with npm" };
-      await this.run(["npm", "install"], appDir);
+      yield* this.run(NPM_INSTALL, appDir, npmProgressLine);
     }
   }
 
@@ -1068,7 +1091,7 @@ export class FsProjectManager implements ProjectManager {
       }
       yield { type: "step", message: `Generating ${lockfile} for container build` };
       try {
-        await this.run(command, appDir);
+        yield* this.run(command, appDir);
       } catch {
         yield {
           type: "step",
@@ -1082,9 +1105,29 @@ export class FsProjectManager implements ProjectManager {
     }
   }
 
-  // Runs a command with its output streamed to the file logger.
-  private run(command: string[], cwd: string): Promise<void> {
-    return this.runner(command, { cwd, onOutput: (chunk) => this.logger.debug(chunk) });
+  /**
+   * Runs a command, yielding its output as `output` events so a progress driver can show a live tail
+   * under the running step. The debug log gets each chunk whole; the splitter reassembles them into
+   * lines for display, and `formatLine` may rewrite or drop a line before it is shown.
+   */
+  private async *run(
+    command: string[],
+    cwd: string,
+    formatLine: (line: string) => string | undefined = (line) => line,
+  ): AsyncGenerator<ProjectEvent, void, unknown> {
+    yield* withOutputEvents((emit) => {
+      const lines = createLineSplitter((line) => {
+        const formatted = formatLine(line);
+        if (formatted !== undefined) emit(formatted);
+      });
+      return this.runner(command, {
+        cwd,
+        onOutput: (chunk) => {
+          this.logger.debug(chunk);
+          lines.push(chunk);
+        },
+      }).finally(() => lines.flush());
+    });
   }
 }
 
