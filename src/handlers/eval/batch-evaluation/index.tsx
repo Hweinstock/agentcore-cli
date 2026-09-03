@@ -10,7 +10,7 @@ import { createSimulateBatchEvaluationHandler } from "./simulate";
 
 // batch-evaluation supports evaluate + simulate (start jobs) plus get + list. A
 // bare invocation opens the interactive TUI (list → get), matching evaluator and
-// online-eval; evaluate/simulate are CLI-only and stay out of the TUI menu.
+// online-eval; evaluate/simulate appear below the command-line-only divider.
 export function createBatchEvaluationHandler(core: Core, io: AppIO): Router {
   return new Router("batch-evaluation", "run and inspect AgentCore batch evaluations")
     .use(withTuiOnEmptyFlagsAndArgs(core, io))

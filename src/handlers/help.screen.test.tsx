@@ -8,11 +8,9 @@ import { createSilentLogger, TestCoreClient, TestGlobalConfigAccessor, testIO } 
 
 afterEach(cleanup);
 
-// HelpScreen is the `*` fallback route: it prints the current command's help and
-// exits. Because it unmounts itself on mount (useEffect(exit)), it is tested in
-// isolation here rather than through the mounted app, reading the first frame it
-// renders before the exit effect runs.
-
+// HelpScreen is the final `*` fallback for paths that are not exact commands:
+// it prints the launching command's help and exits. Because it unmounts itself
+// on mount, test its synchronous first frame in isolation.
 describe("HelpScreen", () => {
   test("renders the command's help text", () => {
     const command = compile(
@@ -27,7 +25,6 @@ describe("HelpScreen", () => {
 
     const { frames } = render(<HelpScreen ctx={ctx} core={new TestCoreClient()} />);
 
-    // The help text is produced synchronously on the first render.
     const output = frames.join("\n");
     expect(output).toContain("Usage:");
     expect(output).toContain("harness");

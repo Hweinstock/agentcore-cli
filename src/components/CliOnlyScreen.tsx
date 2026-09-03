@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, type ReactNode } from "react";
 import { Box, Text, useInput, useWindowSize } from "ink";
 import { ScrollView, type ScrollViewRef } from "ink-scroll-view";
 import type { Command } from "commander";
@@ -115,28 +115,35 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   return (
     <Box flexDirection="column" marginTop={1}>
       <Text color={theme.colors.text}>{title}</Text>
-      <Box paddingLeft={2}>{children}</Box>
+      {/* A column, so the table stretches to the full width and its key
+          column's share is a share of the screen, not of the table's own
+          content. */}
+      <Box paddingLeft={2} flexDirection="column">
+        {children}
+      </Box>
     </Box>
   );
 }
 
 // CommandFallbackScreen is the route for any command path Root does not map to
 // a screen of its own: a command group renders its menu, a leaf renders its
-// help. `basePath` is the route prefix the wildcard matched under.
+// interactive help. A path that is not an exact command keeps the original
+// HelpScreen fallback.
 export function CommandFallbackScreen({
-  basePath,
+  unknownFallback,
   ...props
-}: ScreenProps & { basePath: string[] }) {
+}: ScreenProps & { unknownFallback: ReactNode }) {
   const { pathname } = useLocation();
   const path = pathname.split("/").filter((segment) => segment !== "");
   const command = resolveCommand(props.ctx.require(CommandKey), path);
-  // An unknown trailing segment resolves to the nearest ancestor; show that.
   const resolved = commandPath(command);
-  if (resolved.length < basePath.length) {
-    return <RouterScreen {...props} path={basePath} showCliOnly />;
-  }
+  const isExactCommand =
+    resolved.length === path.length && resolved.every((segment, index) => segment === path[index]);
+
+  if (!isExactCommand) return unknownFallback;
+
   return command.commands.length > 0 ? (
-    <RouterScreen {...props} path={resolved} showCliOnly />
+    <RouterScreen {...props} path={resolved} />
   ) : (
     <CliOnlyScreen {...props} path={resolved} />
   );

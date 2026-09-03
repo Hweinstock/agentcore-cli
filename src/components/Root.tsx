@@ -114,7 +114,7 @@ import { BuildProjectScreen } from "../handlers/project/build/screen.tsx";
 import { DeployProjectScreen } from "../handlers/project/deploy/screen.tsx";
 import { ProjectCreateScreen } from "../handlers/project/create/screen.tsx";
 import { ProjectInvokePickerScreen } from "../handlers/project/invoke/screen.tsx";
-import { RootScreen, HelpScreen } from "../handlers/screen.tsx";
+import { HelpScreen, RootScreen } from "../handlers/screen.tsx";
 import type { Context } from "../router";
 
 export interface RootProps {
@@ -772,15 +772,19 @@ export function Root({ path, ctx, core, queryClient }: RootProps) {
             path="agentcore/project/create"
             element={<ProjectCreateScreen ctx={ctx} core={core} />}
           />
-          {/* Every other project command: a group opens its menu, a leaf its
-              help, so a command added later needs no route here. */}
+          {/* Every known command without a screen of its own: a group opens its
+              menu and a leaf its interactive help. Unknown routes retain the
+              help-and-exit fallback. */}
           <Route
-            path="agentcore/project/*"
+            path="*"
             element={
-              <CommandFallbackScreen ctx={ctx} core={core} basePath={["agentcore", "project"]} />
+              <CommandFallbackScreen
+                ctx={ctx}
+                core={core}
+                unknownFallback={<HelpScreen ctx={ctx} core={core} />}
+              />
             }
           />
-          <Route path="*" element={<HelpScreen ctx={ctx} core={core} />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>
