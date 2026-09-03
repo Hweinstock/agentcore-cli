@@ -2,9 +2,7 @@ from strands import Agent, tool
 from strands.multiagent.a2a.executor import StrandsA2AExecutor
 from bedrock_agentcore.runtime import serve_a2a
 from model.load import load_model
-{{#if hasMemory}}
 from memory.session import get_memory_session_manager
-{{/if}}
 {{#if needsOs}}
 import os
 {{/if}}
@@ -90,9 +88,7 @@ You have access to the following mounted filesystems. Use file_read, file_write,
 agent = Agent(
     name="{{ name }}",
     model=load_model(),
-{{#if hasMemory}}
     session_manager=get_memory_session_manager("default-session", "default-user"),
-{{/if}}
     system_prompt=SYSTEM_PROMPT,
     tools=tools,
 )
