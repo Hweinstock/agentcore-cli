@@ -140,20 +140,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     return { tree, spec: { runtimes: [buildRuntimeSpec(input)] } };
   },
   [buildResolverKey("strands", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
-    const filesystemConfigurations = input.filesystemConfigurations ?? [];
-    const sessionStorageMountPath = filesystemConfigurations.flatMap((configuration) =>
-      "sessionStorage" in configuration ? [configuration.sessionStorage.mountPath] : [],
-    )[0];
-    const efsMounts = filesystemConfigurations.flatMap((configuration) =>
-      "efsAccessPoint" in configuration
-        ? [{ mountPath: configuration.efsAccessPoint.mountPath }]
-        : [],
-    );
-    const s3Mounts = filesystemConfigurations.flatMap((configuration) =>
-      "s3FilesAccessPoint" in configuration
-        ? [{ mountPath: configuration.s3FilesAccessPoint.mountPath }]
-        : [],
-    );
     const memory = input.scaffoldRuntimeInput.memory;
     const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
@@ -164,16 +150,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
       ...modelScaffold.templateRenderContext,
-      hasGateway: false,
-      hasPayment: false,
-      isVpc: input.networkMode === "VPC",
-      gatewayProviders: [],
-      gatewayAuthTypes: [],
-      sessionStorageMountPath,
-      efsMounts,
-      s3Mounts,
-      needsOs: filesystemConfigurations.length > 0,
-      hasConfigBundle: false,
       enableOtel: true,
       // The strands template's entrypoint is fixed to main.py; the container Dockerfile launches it as the `main` module.
       entrypoint: "main",

@@ -9,9 +9,9 @@ commands like `deploy`, `dev`, and `invoke` rely on the configuration stored her
 ## Agent Root
 
 The main entrypoint to your app is defined in `main.py`. Using the AgentCore SDK `@app.entrypoint` decorator, this
-file defines a Starlette ASGI app with the chosen Agent framework SDK running within.
+file defines a Starlette ASGI app with the Strands Agent SDK running within.
 
-`model/load.py` instantiates your chosen model provider.
+`model/load.py` instantiates the chosen model provider.
 
 ## Input Validation
 
