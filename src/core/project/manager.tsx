@@ -901,7 +901,7 @@ export class FsProjectManager implements ProjectManager {
   ): AsyncGenerator<ProjectEvent, DeployResult> {
     const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
     const fileExists = existsSync(targetsPath);
-    const targets = fileExists ? await this.json.read(targetsPath, AwsDeploymentTargetsSchema) : [];
+    const targets = await this.listTargets(project);
 
     let target = targets.find((candidate) => candidate.name === input.target);
 
@@ -947,13 +947,17 @@ export class FsProjectManager implements ProjectManager {
   // A read-only lookup, so callers (e.g. the deploy handler's up-front teardown
   // confirmation) can name the target's account and region without triggering
   // the default-target provisioning deploy performs.
+  public async listTargets(project: Project): Promise<AwsDeploymentTarget[]> {
+    const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
+    if (!existsSync(targetsPath)) return [];
+    return this.json.read(targetsPath, AwsDeploymentTargetsSchema);
+  }
+
   public async resolveTarget(
     project: Project,
     input: ResolveTargetInput,
   ): Promise<AwsDeploymentTarget | undefined> {
-    const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
-    if (!existsSync(targetsPath)) return undefined;
-    const targets = await this.json.read(targetsPath, AwsDeploymentTargetsSchema);
+    const targets = await this.listTargets(project);
     return targets.find((candidate) => candidate.name === input.target);
   }
 

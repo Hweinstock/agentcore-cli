@@ -39,20 +39,25 @@ function DeleteConfirm({ ctx, core, harnessId }: ScreenProps & { harnessId: stri
     <ConfirmAction
       breadcrumb={["agentcore", "harness", "delete", harnessId]}
       title={harness?.harnessName ?? harnessId}
-      rows={[
-        { label: "arn", value: harness?.arn ?? "-" },
-        { label: "status", value: harness?.status ?? "-" },
-        { label: "version", value: harness?.harnessVersion ?? "-" },
-      ]}
-      message={`Delete harness ${harness?.harnessName ?? harnessId}? This permanently removes the harness, its versions, and its endpoints.`}
+      rows={{
+        arn: harness?.arn ?? "-",
+        status: harness?.status ?? "-",
+        version: harness?.harnessVersion ?? "-",
+      }}
+      trigger={{
+        kind: "confirm",
+        message: `Delete harness ${harness?.harnessName ?? harnessId}? This permanently removes the harness, its versions, and its endpoints.`,
+      }}
       isPending={detail.isPending}
       error={detail.isError ? (detail.error as Error) : null}
       action={async () => {
         const response = await core.harness.deleteHarness({ harnessId }, opts);
-        return [
-          { label: "id", value: response.harness?.harnessId ?? harnessId },
-          { label: "status", value: response.harness?.status ?? "DELETING" },
-        ];
+        return {
+          rows: {
+            id: response.harness?.harnessId ?? harnessId,
+            status: response.harness?.status ?? "DELETING",
+          },
+        };
       }}
       successTitle="Harness deletion started"
       runningLabel="Deleting harness…"

@@ -57,12 +57,15 @@ function DeleteConfirm({
     <ConfirmAction
       breadcrumb={["agentcore", "harness", "endpoint", "delete", harnessId, endpointName]}
       title={endpoint?.endpointName ?? endpointName}
-      rows={[
-        { label: "arn", value: endpoint?.arn ?? "-" },
-        { label: "status", value: endpoint?.status ?? "-" },
-        { label: "target", value: endpoint?.targetVersion ?? "-" },
-      ]}
-      message={`Delete endpoint ${endpointName}? Callers using it will lose access.`}
+      rows={{
+        arn: endpoint?.arn ?? "-",
+        status: endpoint?.status ?? "-",
+        target: endpoint?.targetVersion ?? "-",
+      }}
+      trigger={{
+        kind: "confirm",
+        message: `Delete endpoint ${endpointName}? Callers using it will lose access.`,
+      }}
       isPending={detail.isPending}
       error={detail.isError ? (detail.error as Error) : null}
       action={async () => {
@@ -70,10 +73,12 @@ function DeleteConfirm({
           { harnessId, endpointName },
           opts,
         );
-        return [
-          { label: "name", value: response.endpoint?.endpointName ?? endpointName },
-          { label: "status", value: response.endpoint?.status ?? "DELETING" },
-        ];
+        return {
+          rows: {
+            name: response.endpoint?.endpointName ?? endpointName,
+            status: response.endpoint?.status ?? "DELETING",
+          },
+        };
       }}
       successTitle="Endpoint deletion started"
       runningLabel="Deleting endpoint…"

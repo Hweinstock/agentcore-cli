@@ -1,73 +1,126 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Box, Text, useInput } from "ink";
 import { useNavigate } from "react-router";
 import { Layout } from "./Layout";
 import { Spinner } from "./ui/spinner";
 import { Confirm } from "./ui/confirm";
+import { TaskList, type Task } from "./ui/task-list";
+import { KeyValueTable } from "./KeyValueTable";
 import { darkTheme } from "./ui/_core.js";
+import { driveProgress, type ProgressEvent } from "../tui/progress";
 
 const theme = darkTheme;
 
-export interface SummaryRow {
-  label: string;
-  value: string;
+export type SummaryRows = Record<string, string>;
+
+export interface ActionResult {
+  title?: string;
+  rows: SummaryRows;
 }
+
+// ActionTrigger says what starts the action: a y/N question the user answers
+// (destructive actions default to No), or nothing — it runs as soon as the
+// summary has loaded, for an operation that is safe to start unasked.
+export type ActionTrigger = { kind: "confirm"; message: string } | { kind: "immediate" };
 
 export interface ConfirmActionProps {
   // breadcrumb labels the screen.
   breadcrumb: string[];
+  // description is shown dimmed after the breadcrumb.
+  description?: string;
   // title heads the summary overlay (usually the resource name).
-  title: string;
-  // rows describe the resource the action applies to.
-  rows: SummaryRow[];
-  // message is the yes/no question (destructive actions default to No).
-  message: string;
+  title?: string;
+  // rows describe the resource the action applies to. With neither title nor
+  // rows the overlay is omitted.
+  rows?: SummaryRows;
+  trigger: ActionTrigger;
   // isPending / error reflect the summary fetch backing the overlay.
   isPending: boolean;
   error: Error | null;
-  // action performs the confirmed operation and resolves to result rows shown
-  // on the success panel.
-  action: () => Promise<SummaryRow[]>;
-  // successTitle heads the success panel (e.g. "Harness deleted").
+  // action performs the confirmed operation and resolves to the result rows,
+  // optionally with a title overriding successTitle for an outcome only known
+  // afterwards. A progress generator (what runWithProgress drives) may be
+  // returned instead; its steps render as a live TaskList while it runs.
+  action: () => Promise<ActionResult> | AsyncGenerator<ProgressEvent, ActionResult>;
+  // successTitle heads the success panel (e.g. "Harness deleted") unless the
+  // action's result carries its own.
   successTitle: string;
-  // runningLabel is the spinner label while the action runs.
+  // runningLabel is the spinner label while the action runs, until its first
+  // progress step arrives.
   runningLabel: string;
-  // onDone is called when the user acknowledges the success panel.
+  // nextSteps are commands suggested under the success panel.
+  nextSteps?: string[];
+  // onDone is called when the user acknowledges the success panel; doneLabel
+  // is the footer's word for it ("continue" by default).
   onDone: () => void;
+  doneLabel?: string;
+  // onCancel runs when the confirmation is declined or esc is pressed; defaults
+  // to popping the router history.
+  onCancel?: () => void;
 }
 
+// "waiting" snapshots the trigger once the summary is ready. A confirmation's
+// message then stays fixed through retries, even if a caller's props change.
 type Phase =
-  | { kind: "confirm" }
+  | { kind: "waiting" }
+  | { kind: "confirm"; message: string }
   | { kind: "running" }
-  | { kind: "success"; rows: SummaryRow[] }
-  | { kind: "error"; message: string };
+  | { kind: "success"; title: string; rows: SummaryRows }
+  | { kind: "error"; message: string; retryMessage?: string };
 
 // ConfirmAction is the shared destructive-action screen body: a summary overlay
 // of the target resource, a y/N confirmation (defaulting to No), a spinner
 // while the action runs, and a success/error panel. Cancel and esc pop back.
 export function ConfirmAction({
   breadcrumb,
+  description,
   title,
-  rows,
-  message,
+  rows = {},
+  trigger,
   isPending,
   error,
   action,
   successTitle,
   runningLabel,
+  nextSteps,
   onDone,
+  doneLabel = "continue",
+  onCancel,
 }: ConfirmActionProps) {
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<Phase>({ kind: "confirm" });
+  const cancel = onCancel ?? (() => navigate(-1));
+  const [phase, setPhase] = useState<Phase>({ kind: "waiting" });
+  // tasks is the step list a progress-reporting action builds up; it stays on
+  // screen through success and error.
+  const [tasks, setTasks] = useState<Task[]>([]);
 
-  const run = async () => {
+  const run = async (retryMessage?: string) => {
     setPhase({ kind: "running" });
+    setTasks([]);
     try {
-      setPhase({ kind: "success", rows: await action() });
+      const result = action();
+      const outcome = isProgressGenerator(result)
+        ? await driveProgress(result, setTasks)
+        : await result;
+      setPhase({ kind: "success", title: outcome.title ?? successTitle, rows: outcome.rows });
     } catch (err) {
-      setPhase({ kind: "error", message: err instanceof Error ? err.message : String(err) });
+      setPhase({
+        kind: "error",
+        message: err instanceof Error ? err.message : String(err),
+        retryMessage,
+      });
     }
   };
+
+  // Resolve the latest trigger only after the summary is ready. This prevents a
+  // destructive action from inheriting an earlier immediate trigger while its
+  // data was still loading.
+  useEffect(() => {
+    if (phase.kind !== "waiting" || isPending || error) return;
+    if (trigger.kind === "confirm") setPhase({ kind: "confirm", message: trigger.message });
+    else void run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the phase guard makes this run once
+  }, [phase.kind, isPending, error, trigger.kind]);
 
   const hints =
     phase.kind === "confirm"
@@ -77,50 +130,70 @@ export function ConfirmAction({
           { key: "ctl+c", label: "quit" },
         ]
       : phase.kind === "success"
-        ? [{ key: "enter", label: "continue" }]
-        : [
-            { key: "esc", label: "back" },
-            { key: "ctl+c", label: "quit" },
-          ];
+        ? [{ key: "enter", label: doneLabel }]
+        : phase.kind === "error"
+          ? [
+              { key: "esc", label: "back" },
+              { key: "ctl+c", label: "quit" },
+            ]
+          : // Nothing listens for esc while the action runs (or is about to):
+            // an operation in flight is not abandoned by leaving the screen.
+            [{ key: "ctl+c", label: "quit" }];
 
   return (
-    <Layout breadcrumb={breadcrumb} keyHints={hints}>
+    <Layout breadcrumb={breadcrumb} description={description} keyHints={hints}>
       {isPending ? (
         <Spinner label="Loading…" />
       ) : error ? (
-        <ErrorBody message={error.message} onBack={() => navigate(-1)} />
+        <ErrorBody message={error.message} onBack={cancel} />
       ) : (
         <Box flexDirection="column" paddingX={1}>
-          <Box
-            flexDirection="column"
-            borderStyle="round"
-            borderColor={theme.colors.border}
-            paddingX={1}
-            marginBottom={1}
-          >
-            <Text bold>{title}</Text>
-            {rows.map((row) => (
-              <Text key={row.label}>
-                <Text color={theme.colors.muted}>{row.label.padEnd(8)}</Text>
-                {row.value}
-              </Text>
-            ))}
-          </Box>
+          {(title !== undefined || Object.keys(rows).length > 0) && (
+            <Box
+              flexDirection="column"
+              borderStyle="round"
+              borderColor={theme.colors.border}
+              paddingX={1}
+              marginBottom={1}
+            >
+              {title !== undefined && <Text bold>{title}</Text>}
+              {Object.keys(rows).length > 0 && <KeyValueTable items={rows} />}
+            </Box>
+          )}
 
           {phase.kind === "confirm" && (
             <Confirm
-              message={message}
+              message={phase.message}
               defaultValue={false}
-              onConfirm={run}
-              onCancel={() => navigate(-1)}
+              onConfirm={() => run(phase.message)}
+              onCancel={cancel}
             />
           )}
-          {phase.kind === "running" && <Spinner label={runningLabel} />}
+          {phase.kind !== "confirm" && tasks.length > 0 && (
+            <Box marginBottom={phase.kind === "running" ? 0 : 1}>
+              <TaskList tasks={tasks} />
+            </Box>
+          )}
+          {phase.kind === "running" && tasks.length === 0 && <Spinner label={runningLabel} />}
           {phase.kind === "success" && (
-            <SuccessBody title={successTitle} rows={phase.rows} onDone={onDone} />
+            <SuccessBody
+              title={phase.title}
+              rows={phase.rows}
+              nextSteps={nextSteps}
+              onDone={onDone}
+              doneLabel={doneLabel}
+            />
           )}
           {phase.kind === "error" && (
-            <ErrorBody message={phase.message} onBack={() => setPhase({ kind: "confirm" })} />
+            // Without a question to return to, returning would run again.
+            <ErrorBody
+              message={phase.message}
+              onBack={
+                phase.retryMessage !== undefined
+                  ? () => setPhase({ kind: "confirm", message: phase.retryMessage! })
+                  : cancel
+              }
+            />
           )}
         </Box>
       )}
@@ -128,14 +201,28 @@ export function ConfirmAction({
   );
 }
 
+// A promise has no Symbol.asyncIterator, so this is a safe discriminator.
+function isProgressGenerator(
+  result: Promise<ActionResult> | AsyncGenerator<ProgressEvent, ActionResult>,
+): result is AsyncGenerator<ProgressEvent, ActionResult> {
+  return (
+    typeof (result as AsyncGenerator<ProgressEvent, ActionResult>)[Symbol.asyncIterator] ===
+    "function"
+  );
+}
+
 function SuccessBody({
   title,
   rows,
+  nextSteps,
   onDone,
+  doneLabel,
 }: {
   title: string;
-  rows: SummaryRow[];
+  rows: SummaryRows;
+  nextSteps?: string[];
   onDone: () => void;
+  doneLabel: string;
 }) {
   useInput((_input, key) => {
     if (key.return || key.escape) onDone();
@@ -146,17 +233,22 @@ function SuccessBody({
       <Text color={theme.colors.success} bold>
         ✔ {title}
       </Text>
-      <Box flexDirection="column" marginTop={1} marginLeft={2}>
-        {rows.map((row) => (
-          <Text key={row.label}>
-            <Text color={theme.colors.muted}>{row.label.padEnd(8)}</Text>
-            {row.value}
-          </Text>
-        ))}
-      </Box>
+      {Object.keys(rows).length > 0 && (
+        <Box flexDirection="column" marginTop={1} marginLeft={2}>
+          <KeyValueTable items={rows} />
+        </Box>
+      )}
+      {nextSteps !== undefined && nextSteps.length > 0 && (
+        <Box flexDirection="column" marginTop={1}>
+          <Text color={theme.colors.text}>next steps</Text>
+          {nextSteps.map((step) => (
+            <Text key={step} color={theme.colors.primary}>{`  ${step}`}</Text>
+          ))}
+        </Box>
+      )}
       <Box marginTop={1}>
         <Text color={theme.colors.muted}>
-          press <Text color={theme.colors.focus}>enter</Text> to continue
+          press <Text color={theme.colors.focus}>enter</Text> to {doneLabel}
         </Text>
       </Box>
     </Box>

@@ -1,6 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { testIO } from "../testing";
-import { runWithProgress, type ProgressEvent } from "./progress";
+import {
+  applyProgressEvent,
+  driveProgress,
+  runWithProgress,
+  settleProgress,
+  type ProgressEvent,
+} from "./progress";
 
 // Ink writes cursor/erase sequences around each frame; the assertions here
 // care about frame text, not terminal control. Built without a control-char
@@ -133,5 +139,75 @@ describe("runWithProgress interactive path", () => {
 
     expect(result).toBe(1);
     expect(stripAnsi(io.stderr())).toContain("✓ Only step");
+  });
+});
+
+describe("applyProgressEvent / settleProgress", () => {
+  test("a step completes the running task and starts the next", () => {
+    let tasks = applyProgressEvent([], { type: "step", message: "synth" });
+    expect(tasks).toEqual([{ title: "synth", state: "running", tail: [] }]);
+
+    tasks = applyProgressEvent(tasks, { type: "output", line: "one" });
+    tasks = applyProgressEvent(tasks, { type: "step", message: "deploy" });
+    expect(tasks).toEqual([
+      { title: "synth", state: "done", tail: [] },
+      { title: "deploy", state: "running", tail: [] },
+    ]);
+  });
+
+  test("output joins the running task's tail, bounded by tailLines", () => {
+    let tasks = applyProgressEvent([], { type: "step", message: "deploy" });
+    for (const line of ["a", "b", "c"]) {
+      tasks = applyProgressEvent(tasks, { type: "output", line }, 2);
+    }
+    expect(tasks[0]!.tail).toEqual(["b", "c"]);
+  });
+
+  test("output before any step is dropped", () => {
+    expect(applyProgressEvent([], { type: "output", line: "stray" })).toEqual([]);
+  });
+
+  test("settling keeps the tail on failure and clears it on success", () => {
+    let tasks = applyProgressEvent([], { type: "step", message: "deploy" });
+    tasks = applyProgressEvent(tasks, { type: "output", line: "boom" });
+
+    expect(settleProgress(tasks, "failed")).toEqual([
+      { title: "deploy", state: "failed", tail: ["boom"] },
+    ]);
+    expect(settleProgress(tasks, "done")).toEqual([{ title: "deploy", state: "done", tail: [] }]);
+    expect(settleProgress([], "done")).toEqual([]);
+  });
+});
+
+describe("driveProgress", () => {
+  test("reports the task list after each event, settles done, and resolves the return value", async () => {
+    async function* work() {
+      yield { type: "step", message: "one" } as ProgressEvent;
+      yield { type: "output", line: "detail" } as ProgressEvent;
+      return 42;
+    }
+    const frames: string[] = [];
+    const result = await driveProgress(work(), (tasks) =>
+      frames.push(
+        tasks.map((task) => `${task.state}:${task.title}:${task.tail.join(",")}`).join("|"),
+      ),
+    );
+    expect(result).toBe(42);
+    expect(frames).toEqual(["running:one:", "running:one:detail", "done:one:"]);
+  });
+
+  test("settles the running task failed and rethrows unchanged", async () => {
+    const failure = new Error("boom");
+    async function* work() {
+      yield { type: "step", message: "one" } as ProgressEvent;
+      throw failure;
+    }
+    let last: string | undefined;
+    await expect(
+      driveProgress(work(), (tasks) => {
+        last = tasks.map((task) => `${task.state}:${task.title}`).join("|");
+      }),
+    ).rejects.toBe(failure);
+    expect(last).toBe("failed:one");
   });
 });
