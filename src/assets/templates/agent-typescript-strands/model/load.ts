@@ -1,7 +1,7 @@
 {{#if (eq modelProvider "Bedrock")}}
 import { BedrockModel } from '@strands-agents/sdk/models/bedrock';
 
-export function loadModel(): BedrockModel {
+export function loadModel(_workloadIdentityToken?: string): BedrockModel {
   return new BedrockModel({ modelId: 'global.anthropic.claude-sonnet-4-5-20250929-v1:0' });
 }
 {{/if}}
@@ -12,7 +12,7 @@ import { withApiKey } from 'bedrock-agentcore/identity';
 const IDENTITY_PROVIDER_NAME = '{{identityProviders.[0].name}}';
 const IDENTITY_ENV_VAR = '{{identityProviders.[0].envVarName}}';
 
-async function getApiKey(): Promise<string> {
+async function getApiKey(workloadIdentityToken?: string): Promise<string> {
   if (process.env.LOCAL_DEV === '1') {
     const apiKey = process.env[IDENTITY_ENV_VAR] ?? process.env.ANTHROPIC_API_KEY;
     if (!apiKey) {
@@ -20,14 +20,16 @@ async function getApiKey(): Promise<string> {
     }
     return apiKey;
   }
-  return withApiKey({ providerName: IDENTITY_PROVIDER_NAME })(async (apiKey: string) => apiKey)();
+  return withApiKey({ providerName: IDENTITY_PROVIDER_NAME, workloadIdentityToken })(
+    async (apiKey: string) => apiKey,
+  )();
 }
 
 let _model: AnthropicModel | undefined;
 
-export async function loadModel(): Promise<AnthropicModel> {
+export async function loadModel(workloadIdentityToken?: string): Promise<AnthropicModel> {
   if (!_model) {
-    const apiKey = await getApiKey();
+    const apiKey = await getApiKey(workloadIdentityToken);
     _model = new AnthropicModel({
       apiKey,
       modelId: 'claude-sonnet-4-5-20250929',
@@ -44,7 +46,7 @@ import { withApiKey } from 'bedrock-agentcore/identity';
 const IDENTITY_PROVIDER_NAME = '{{identityProviders.[0].name}}';
 const IDENTITY_ENV_VAR = '{{identityProviders.[0].envVarName}}';
 
-async function getApiKey(): Promise<string> {
+async function getApiKey(workloadIdentityToken?: string): Promise<string> {
   if (process.env.LOCAL_DEV === '1') {
     const apiKey = process.env[IDENTITY_ENV_VAR] ?? process.env.OPENAI_API_KEY;
     if (!apiKey) {
@@ -52,14 +54,16 @@ async function getApiKey(): Promise<string> {
     }
     return apiKey;
   }
-  return withApiKey({ providerName: IDENTITY_PROVIDER_NAME })(async (apiKey: string) => apiKey)();
+  return withApiKey({ providerName: IDENTITY_PROVIDER_NAME, workloadIdentityToken })(
+    async (apiKey: string) => apiKey,
+  )();
 }
 
 let _model: OpenAIModel | undefined;
 
-export async function loadModel(): Promise<OpenAIModel> {
+export async function loadModel(workloadIdentityToken?: string): Promise<OpenAIModel> {
   if (!_model) {
-    const apiKey = await getApiKey();
+    const apiKey = await getApiKey(workloadIdentityToken);
     _model = new OpenAIModel({
       api: 'chat',
       apiKey,
@@ -76,7 +80,7 @@ import { withApiKey } from 'bedrock-agentcore/identity';
 const IDENTITY_PROVIDER_NAME = '{{identityProviders.[0].name}}';
 const IDENTITY_ENV_VAR = '{{identityProviders.[0].envVarName}}';
 
-async function getApiKey(): Promise<string> {
+async function getApiKey(workloadIdentityToken?: string): Promise<string> {
   if (process.env.LOCAL_DEV === '1') {
     const apiKey = process.env[IDENTITY_ENV_VAR] ?? process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -84,14 +88,16 @@ async function getApiKey(): Promise<string> {
     }
     return apiKey;
   }
-  return withApiKey({ providerName: IDENTITY_PROVIDER_NAME })(async (apiKey: string) => apiKey)();
+  return withApiKey({ providerName: IDENTITY_PROVIDER_NAME, workloadIdentityToken })(
+    async (apiKey: string) => apiKey,
+  )();
 }
 
 let _model: GoogleModel | undefined;
 
-export async function loadModel(): Promise<GoogleModel> {
+export async function loadModel(workloadIdentityToken?: string): Promise<GoogleModel> {
   if (!_model) {
-    const apiKey = await getApiKey();
+    const apiKey = await getApiKey(workloadIdentityToken);
     _model = new GoogleModel({
       apiKey,
       modelId: 'gemini-2.5-flash',

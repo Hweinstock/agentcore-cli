@@ -33,12 +33,16 @@ const requestSchema = z.object({
 {{#if hasMemory}}
 const agentCache = new Map<string, Agent>();
 
-async function getOrCreateAgent(sessionId: string, actorId: string): Promise<Agent> {
+async function getOrCreateAgent(
+  sessionId: string,
+  actorId: string,
+  workloadIdentityToken?: string,
+): Promise<Agent> {
   const key = `${actorId}:${sessionId}`;
   let agent = agentCache.get(key);
   if (agent) return agent;
 
-  const model = await loadModel();
+  const model = await loadModel(workloadIdentityToken);
   agent = new Agent({
     model,
     systemPrompt: SYSTEM_PROMPT,
@@ -59,7 +63,7 @@ const AGENT_CACHE_LIMIT = 128;
 // this holds one entry. For durable history, attach memory.
 const agentCache = new Map<string, Agent>();
 
-async function getOrCreateAgent(sessionId: string): Promise<Agent> {
+async function getOrCreateAgent(sessionId: string, workloadIdentityToken?: string): Promise<Agent> {
   const existing = agentCache.get(sessionId);
   if (existing) {
     agentCache.delete(sessionId);
@@ -70,7 +74,7 @@ async function getOrCreateAgent(sessionId: string): Promise<Agent> {
     const oldest = agentCache.keys().next().value;
     if (oldest !== undefined) agentCache.delete(oldest);
   }
-  const model = await loadModel();
+  const model = await loadModel(workloadIdentityToken);
   const agent = new Agent({
     model,
     systemPrompt: SYSTEM_PROMPT,
@@ -88,10 +92,10 @@ const app = new BedrockAgentCoreApp({
       {{#if hasMemory}}
       const sessionId = context?.sessionId ?? 'default-session';
       const actorId = getActorId(payload, context);
-      const agent = await getOrCreateAgent(sessionId, actorId);
+      const agent = await getOrCreateAgent(sessionId, actorId, context?.workloadAccessToken);
       {{else}}
       const sessionId = context?.sessionId ?? 'default-session';
-      const agent = await getOrCreateAgent(sessionId);
+      const agent = await getOrCreateAgent(sessionId, context?.workloadAccessToken);
       {{/if}}
 
       {{#if hasMemory}}
