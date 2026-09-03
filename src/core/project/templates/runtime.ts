@@ -9,22 +9,15 @@ import { credentialEnvVarName } from "../../../projectSchemas/credential";
 import { InputValidationError } from "../../../errors";
 import { toPythonPackageName } from "../fsUtils";
 
-/**
- * A non-Bedrock provider's contributions to a scaffolded runtime: the template
- * render context (the identity provider the generated model/load reads), the
- * spec entry (its ApiKeyCredentialProvider credential), and the .env.local
- * secret. Empty for Bedrock, which uses the runtime's IAM credentials.
- */
-type ModelProviderScaffold = {
+/** A model provider's render context, spec entries, and .env.local secrets for a scaffolded runtime. */
+type ModelProviderTemplateConfig = {
   templateRenderContext: { identityProviders: { name: string; envVarName: string }[] };
   spec: SpecEntries;
   envEntries: EnvLocalEntry[];
 };
 
-function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProviderScaffold {
+function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProviderTemplateConfig {
   const { modelProvider, apiKey } = input.scaffoldRuntimeInput;
-  // Only a keyed provider needs identity wiring; Bedrock — and a keyless LiteLLM,
-  // which routes through Bedrock by default — uses the runtime's IAM role.
   if (apiKey === undefined) {
     return { templateRenderContext: { identityProviders: [] }, spec: {}, envEntries: [] };
   }
