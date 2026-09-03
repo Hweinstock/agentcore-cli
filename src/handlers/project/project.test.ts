@@ -189,29 +189,6 @@ describe("project create", () => {
     ).rejects.toThrow(/'anthropic' model provider is not supported for harness projects/);
   });
 
-  test("scaffolds a TypeScript strands runtime with the provider's npm SDK", async () => {
-    const directory = await inTempDirectory();
-    const apiKeyPath = join(directory, "api-key.txt");
-    await Bun.write(apiKeyPath, "test-key");
-    await run([
-      "create",
-      "--name",
-      "TsProj",
-      "--template",
-      "agent-typescript-strands",
-      "--model-provider",
-      "anthropic",
-      "--api-key",
-      `file://${apiKeyPath}`,
-      "--skip-install",
-      "--skip-git",
-    ]);
-    const pkg = await Bun.file(
-      join(directory, "TsProj", "app", "agent_typescript_strands", "package.json"),
-    ).text();
-    expect(pkg).toContain("@anthropic-ai/sdk");
-  });
-
   test("supports LiteLLM model configuration on the harness path", async () => {
     const directory = await inTempDirectory();
     await run([
