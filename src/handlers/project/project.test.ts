@@ -182,6 +182,13 @@ describe("project create", () => {
     },
   );
 
+  test("rejects a runtime-only provider on the harness path", async () => {
+    await inTempDirectory();
+    await expect(
+      run(["create", "--name", "MyAgent", "--model-provider", "anthropic"]),
+    ).rejects.toThrow(/'anthropic' model provider is not supported for harness projects/);
+  });
+
   test("supports LiteLLM model configuration on the harness path", async () => {
     const directory = await inTempDirectory();
     await run([
@@ -412,7 +419,7 @@ describe("project create", () => {
       "--build",
       "CodeZip",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       "--memory",
       "none",
       "--skip-install",
@@ -430,20 +437,58 @@ describe("project create", () => {
     expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
   });
 
-  test("rejects non-Bedrock model providers on the runtime path", async () => {
+  test("scaffolds a keyless LiteLLM runtime with no credential", async () => {
     const directory = await inTempDirectory();
-    await expect(
-      run([
-        "create",
-        "--name",
-        "MyProject",
-        "--template",
-        "agent-python-strands",
-        "--model-provider",
-        "open_ai",
-      ]),
-    ).rejects.toThrow(/runtime scaffolding only supports the Bedrock model provider/);
-    expect(existsSync(join(directory, "MyProject"))).toBe(false);
+    await run([
+      "create",
+      "--name",
+      "MyProject",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "lite_llm",
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyProject");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes).toHaveLength(1);
+    expect(spec.credentials ?? []).toEqual([]);
+  });
+
+  test.each<[string, string]>([
+    ["anthropic", "agent_python_strandsAnthropicApiKey"],
+    ["open_ai", "agent_python_strandsOpenAIApiKey"],
+    ["gemini", "agent_python_strandsGeminiApiKey"],
+    ["lite_llm", "agent_python_strandsLiteLLMApiKey"],
+  ])("scaffolds a runtime with a %s API-key credential", async (provider, credentialName) => {
+    const directory = await inTempDirectory();
+    const apiKeyPath = join(directory, "api-key.txt");
+    await Bun.write(apiKeyPath, "test-api-key");
+
+    await run([
+      "create",
+      "--name",
+      "MyProject",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      provider,
+      "--api-key",
+      `file://${apiKeyPath}`,
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyProject");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.credentials).toContainEqual({
+      authorizerType: "ApiKeyCredentialProvider",
+      name: credentialName,
+    });
+    const envLocal = await Bun.file(join(projectRoot, "agentcore", ".env.local")).text();
+    expect(envLocal).toContain("test-api-key");
   });
 
   test("scaffolds a Container agent from the strands template", async () => {
@@ -589,7 +634,7 @@ describe("project create", () => {
       "--framework",
       "strands",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       ...memoryFlags,
       "--skip-install",
       "--skip-git",
@@ -625,7 +670,7 @@ describe("project create", () => {
       "--framework",
       "none",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       "--memory",
       "none",
       "--skip-install",
@@ -658,7 +703,7 @@ describe("project create", () => {
       "--framework",
       "strands",
       "--model-provider",
-      "Bedrock",
+      "bedrock",
       "--memory",
       "none",
       "--skip-install",
@@ -698,7 +743,7 @@ describe("project create", () => {
           "--framework",
           "none",
           "--model-provider",
-          "Bedrock",
+          "bedrock",
           "--memory",
           memoryShortcut,
           "--skip-install",
@@ -732,7 +777,7 @@ describe("project create", () => {
           "--framework",
           "none",
           "--model-provider",
-          "Bedrock",
+          "bedrock",
           "--memory",
           "none",
           "--skip-install",

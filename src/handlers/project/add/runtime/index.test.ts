@@ -11,6 +11,7 @@ import {
 } from "../../../../testing";
 import { InputValidationError } from "../../../../errors";
 import type { BedrockAgentImportPlan } from "../../../../core/project/bedrockAgentImport";
+import { credentialEnvVarName } from "../../../../projectSchemas/credential";
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -300,8 +301,6 @@ describe("project add runtime", () => {
         "none",
         "--protocol",
         "MCP",
-        "--model-provider",
-        "Bedrock",
         "--memory",
         "none",
       ],
@@ -698,10 +697,25 @@ describe("project add runtime", () => {
         "none",
         "--protocol",
         "MCP",
-        "--model-provider",
-        "Bedrock",
         "--memory",
         "shortTerm",
+      ],
+    ],
+    [
+      "MCP runtime rejects a model provider",
+      [
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        "Python",
+        "--framework",
+        "none",
+        "--protocol",
+        "MCP",
+        "--model-provider",
+        "Bedrock",
       ],
     ],
     [
@@ -780,6 +794,80 @@ describe("project add runtime", () => {
         `file://${apiKeyPath}`,
       ]),
     ).rejects.toThrow(/API keys are not compatible with Bedrock model providers/);
+  });
+
+  test.each<[string, string, string]>([
+    ["anthropic", "Anthropic", "Python"],
+    ["OpenAI", "OpenAI", "Python"],
+    ["gemini", "Gemini", "Python"],
+    ["Anthropic", "Anthropic", "TypeScript"],
+  ])(
+    "scaffolds a strands runtime for --model-provider %s (%s) with an API-key credential",
+    async (flagValue, provider, language) => {
+      const projectRoot = await inProject();
+      const apiKeyPath = join(projectRoot, "api-key.txt");
+      await Bun.write(apiKeyPath, "test-api-key");
+
+      await run([
+        "add",
+        "runtime",
+        "--name",
+        "my_agent",
+        "--build",
+        "CodeZip",
+        "--language",
+        language,
+        "--framework",
+        "strands",
+        "--model-provider",
+        flagValue,
+        "--api-key",
+        `file://${apiKeyPath}`,
+      ]);
+
+      const credentialName = `my_agent${provider}ApiKey`;
+      const envVarName = credentialEnvVarName(credentialName);
+
+      const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+      expect(spec.credentials).toContainEqual({
+        authorizerType: "ApiKeyCredentialProvider",
+        name: credentialName,
+      });
+
+      const envLocal = await Bun.file(join(projectRoot, "agentcore", ".env.local")).text();
+      expect(envLocal).toContain(`${envVarName}='test-api-key'`);
+    },
+  );
+
+  test.each<[string, string, string, boolean]>([
+    ["Anthropic without an API key", "Anthropic", "strands", false],
+    ["OpenAI without an API key", "OpenAI", "strands", false],
+    ["Gemini without an API key", "Gemini", "strands", false],
+    ["a non-Bedrock provider on a provider-less template", "Anthropic", "none", true],
+    ["LiteLLM on the TypeScript template", "LiteLLM", "strands", false],
+  ])("rejects %s", async (_label, provider, framework, includeApiKey) => {
+    const projectRoot = await inProject();
+    const apiKeyPath = join(projectRoot, "api-key.txt");
+    await Bun.write(apiKeyPath, "test-api-key");
+
+    const language = provider === "LiteLLM" ? "TypeScript" : "Python";
+    const flags = [
+      "add",
+      "runtime",
+      "--name",
+      "my_agent",
+      "--build",
+      "CodeZip",
+      "--language",
+      language,
+      "--framework",
+      framework,
+      "--model-provider",
+      provider,
+    ];
+    if (includeApiKey) flags.push("--api-key", `file://${apiKeyPath}`);
+
+    await expect(run(flags)).rejects.toBeInstanceOf(InputValidationError);
   });
 });
 

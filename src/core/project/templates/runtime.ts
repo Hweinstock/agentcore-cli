@@ -2,10 +2,39 @@ import { FsTreeNode } from "./fsTree";
 import type { AssetSource } from "../source";
 import type { RuntimeResourceConfig } from "../../../handlers/project/add/runtime/types";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
-import type { TemplateRenderer, TemplateResolver } from "./types";
-import type { ScaffoldRuntimeInput } from "../../../handlers/project/types";
+import { mergeSpecEntries } from "./spec";
+import type { SpecEntries, TemplateRenderer, TemplateResolver } from "./types";
+import type { EnvLocalEntry, ScaffoldRuntimeInput } from "../../../handlers/project/types";
+import { credentialEnvVarName } from "../../../projectSchemas/credential";
 import { InputValidationError } from "../../../errors";
 import { toPythonPackageName } from "../fsUtils";
+
+/** A model provider's render context, spec entries, and .env.local secrets for a scaffolded runtime. */
+type ModelProviderTemplateConfig = {
+  templateRenderContext: { identityProviders: { name: string; envVarName: string }[] };
+  spec: SpecEntries;
+  envEntries: EnvLocalEntry[];
+};
+
+function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProviderTemplateConfig {
+  const { modelProvider, apiKey } = input.scaffoldRuntimeInput;
+  if (apiKey === undefined) {
+    return { templateRenderContext: { identityProviders: [] }, spec: {}, envEntries: [] };
+  }
+  const credentialName = `${input.name}${modelProvider}ApiKey`;
+  const envVarName = credentialEnvVarName(credentialName);
+  return {
+    templateRenderContext: { identityProviders: [{ name: credentialName, envVarName }] },
+    spec: { credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: credentialName }] },
+    envEntries: [
+      {
+        key: envVarName,
+        value: apiKey,
+        comment: `API key for the ${modelProvider} model provider (runtime ${input.name})`,
+      },
+    ],
+  };
+}
 
 function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   const { scaffoldRuntimeInput, name, ...infra } = input;
@@ -89,6 +118,11 @@ const importBedrockAgentResolver = () => async (input: RuntimeResourceConfig) =>
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
+    const { modelProvider } = input.scaffoldRuntimeInput;
+    if (modelProvider !== undefined && modelProvider !== "Bedrock")
+      throw new InputValidationError(
+        "the agent-python template only supports the Bedrock model provider",
+      );
     if (input.scaffoldRuntimeInput.memory !== undefined)
       throw new InputValidationError(`memory is not supported with the agent-python template`);
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
@@ -121,18 +155,18 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const memory = input.scaffoldRuntimeInput.memory;
+    const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
       hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      hasIdentity: false,
+      ...modelScaffold.templateRenderContext,
       hasGateway: false,
       hasPayment: false,
       isVpc: input.networkMode === "VPC",
-      identityProviders: [],
       gatewayProviders: [],
       gatewayAuthTypes: [],
       sessionStorageMountPath,
@@ -160,15 +194,23 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: {
-        runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
-        ...(memory && { memories: [memory] }),
-      },
+      spec: mergeSpecEntries([
+        {
+          runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
+          ...(memory && { memories: [memory] }),
+        },
+        modelScaffold.spec,
+      ]),
+      ...(modelScaffold.envEntries.length > 0 && { envEntries: modelScaffold.envEntries }),
     };
   },
   [buildResolverKey("strands", "TypeScript", "HTTP")]: async (input: RuntimeResourceConfig) => {
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError("the agent-typescript-strands template only supports HTTP");
+    if (input.scaffoldRuntimeInput.modelProvider === "LiteLLM")
+      throw new InputValidationError(
+        "the agent-typescript-strands template does not support the LiteLLM model provider",
+      );
 
     const memory = input.scaffoldRuntimeInput.memory;
     // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one
@@ -179,15 +221,15 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         "the agent-typescript-strands template does not support short-term-only memory; add long-term strategies or use --memory none",
       );
 
+    const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toNpmPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
       hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      hasIdentity: false,
-      identityProviders: [],
+      ...modelScaffold.templateRenderContext,
     };
     const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
@@ -205,13 +247,19 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: {
-        runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
-        ...(memory && { memories: [memory] }),
-      },
+      spec: mergeSpecEntries([
+        {
+          runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }],
+          ...(memory && { memories: [memory] }),
+        },
+        modelScaffold.spec,
+      ]),
+      ...(modelScaffold.envEntries.length > 0 && { envEntries: modelScaffold.envEntries }),
     };
   },
   [buildResolverKey("none", "Python", "MCP")]: async (input: RuntimeResourceConfig) => {
+    if (input.scaffoldRuntimeInput.modelProvider !== undefined)
+      throw new InputValidationError("an MCP runtime does not use a model provider");
     if (input.scaffoldRuntimeInput.memory !== undefined)
       throw new InputValidationError("memory is not supported with an MCP runtime");
     const filesystemConfigurations = input.filesystemConfigurations ?? [];
@@ -274,13 +322,15 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         : [],
     );
     const memory = input.scaffoldRuntimeInput.memory;
+    const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider,
+      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
       hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
+      ...modelScaffold.templateRenderContext,
       sessionStorageMountPath,
       efsMounts,
       s3Mounts,
@@ -307,10 +357,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     );
     return {
       tree,
-      spec: {
-        runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
-        ...(memory && { memories: [memory] }),
-      },
+      spec: mergeSpecEntries([
+        {
+          runtimes: [{ ...buildRuntimeSpec(input), protocol: "A2A" as const }],
+          ...(memory && { memories: [memory] }),
+        },
+        modelScaffold.spec,
+      ]),
+      ...(modelScaffold.envEntries.length > 0 && { envEntries: modelScaffold.envEntries }),
     };
   },
 });

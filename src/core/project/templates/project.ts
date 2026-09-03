@@ -7,7 +7,9 @@ import type {
 } from "../../../handlers/project/add/runtime/types";
 import { InputValidationError } from "../../../errors/errors";
 import { getRuntimeTemplateResolver } from "./runtime";
-import type { SpecEntries, Template, TemplateRenderer } from "./types";
+import { mergeSpecEntries } from "./spec";
+import type { Template, TemplateRenderer } from "./types";
+import type { EnvLocalEntry } from "../../../handlers/project/types";
 
 type CreateProjectConfig = {
   assetSource: AssetSource;
@@ -18,7 +20,7 @@ export async function createProjectTree(
   config: CreateProjectConfig,
   input: { projectName: string },
   options?: { runtime?: ScaffoldRuntimeInput; importBedrockAgent?: ImportBedrockAgentInput },
-): Promise<FsTreeNode> {
+): Promise<{ tree: FsTreeNode; envEntries: EnvLocalEntry[] }> {
   const templates: Template[] = [];
   if (options?.runtime) {
     const runtimeConfig: RuntimeResourceConfig = {
@@ -34,7 +36,9 @@ export async function createProjectTree(
     templates.push(await resolver.resolve(runtimeConfig));
   }
 
-  return FsTreeNode.createDirectory(".", [
+  const envEntries = templates.flatMap((template) => template.envEntries ?? []);
+
+  const tree = FsTreeNode.createDirectory(".", [
     FsTreeNode.createFile(".gitignore", () =>
       config.assetSource.read("templates/shared/gitignore.template"),
     ),
@@ -58,20 +62,8 @@ export async function createProjectTree(
       templates.map((t) => t.tree),
     ),
   ]);
+
+  return { tree, envEntries };
 }
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
-
-function mergeSpecEntries(entries: SpecEntries[]): SpecEntries {
-  const runtimes = entries.flatMap(({ runtimes }) => runtimes ?? []);
-  const credentials = entries.flatMap(({ credentials }) => credentials ?? []);
-  const memories = entries.flatMap(({ memories }) => memories ?? []);
-  const harnesses = entries.flatMap(({ harnesses }) => harnesses ?? []);
-
-  return {
-    ...(runtimes.length > 0 && { runtimes }),
-    ...(credentials.length > 0 && { credentials }),
-    ...(memories.length > 0 && { memories }),
-    ...(harnesses.length > 0 && { harnesses }),
-  };
-}

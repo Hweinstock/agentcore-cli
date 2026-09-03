@@ -40,6 +40,27 @@ export type ManagedEvaluatorScaffoldInput = {
   timeoutSeconds?: number;
 };
 
+/** Model providers the scaffolded runtime code can target. */
+export const MODEL_PROVIDERS = ["Bedrock", "Anthropic", "OpenAI", "Gemini", "LiteLLM"] as const;
+export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
+
+const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
+  bedrock: "Bedrock",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  open_ai: "OpenAI",
+  gemini: "Gemini",
+  litellm: "LiteLLM",
+  lite_llm: "LiteLLM",
+};
+
+/** Parses a provider name case-insensitively (e.g. `anthropic`), normalizing to canonical casing. */
+export const ModelProviderSchema = z.preprocess(
+  (value) =>
+    typeof value === "string" ? (MODEL_PROVIDER_ALIASES[value.toLowerCase()] ?? value) : value,
+  z.enum(MODEL_PROVIDERS),
+);
+
 /** Set of arguments needed to scaffold a new Runtime-based agent. */
 export const ScaffoldRuntimeInputSchema = z
   .object({
@@ -48,14 +69,31 @@ export const ScaffoldRuntimeInputSchema = z
     language: z.enum(["Python", "TypeScript"]),
     framework: z.enum(["strands", "none"]),
     protocol: ProtocolModeSchema.optional(),
-    modelProvider: z.enum(["Bedrock"]),
+    modelProvider: ModelProviderSchema.optional(),
     apiKey: z.string().min(1).optional(),
     memory: MemorySchema.optional(),
     runtimeVersion: RuntimeVersionSchema.optional(),
   })
-  .refine(({ modelProvider, apiKey }) => !(modelProvider === "Bedrock" && apiKey !== undefined), {
-    message: "API keys are not compatible with Bedrock model providers",
-    path: ["apiKey"],
+  .superRefine(({ modelProvider, apiKey }, ctx) => {
+    // LiteLLM routes to any provider (Bedrock by default), so its key is optional;
+    // the other non-Bedrock providers always call their own API and require one.
+    const requiresApiKey =
+      modelProvider !== undefined && modelProvider !== "Bedrock" && modelProvider !== "LiteLLM";
+    const allowsApiKey = requiresApiKey || modelProvider === "LiteLLM";
+    if (apiKey !== undefined && !allowsApiKey) {
+      ctx.addIssue({
+        code: "custom",
+        message: "API keys are not compatible with Bedrock model providers",
+        path: ["apiKey"],
+      });
+    }
+    if (apiKey === undefined && requiresApiKey) {
+      ctx.addIssue({
+        code: "custom",
+        message: `an API key is required for the ${modelProvider} model provider`,
+        path: ["apiKey"],
+      });
+    }
   })
   .superRefine(({ build, runtimeVersion }, ctx) => {
     if (build === "CodeZip" && runtimeVersion === undefined) {

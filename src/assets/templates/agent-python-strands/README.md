@@ -23,7 +23,7 @@ invoking the agent.
 
 | Variable | Required | Description |
 | --- | --- | --- |
-{{#if hasIdentity}}| `{{identityProviders.[0].envVarName}}` | Yes | {{modelProvider}} API key (local) or Identity provider name (deployed) |
+{{#if identityProviders.[0]}}| `{{identityProviders.[0].envVarName}}` | Yes | {{modelProvider}} API key (local) or Identity provider name (deployed) |
 {{/if}}| `LOCAL_DEV` | No | Set to `1` to use `.env.local` instead of AgentCore Identity |
 
 # Developing locally

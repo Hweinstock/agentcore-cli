@@ -192,12 +192,17 @@ export class FsProjectManager implements ProjectManager {
     const destination = join(process.cwd(), input.name);
 
     yield { type: "step", message: "Creating project tree" };
-    const projectTree = await createProjectTree(
+    const { tree: projectTree, envEntries } = await createProjectTree(
       { templateRenderer: this.templateRenderer, assetSource: this.assetSource },
       { projectName: input.name },
       { runtime: scaffoldRuntimeInput, importBedrockAgent: input.importBedrockAgent },
     );
     await projectTree.write(destination);
+
+    if (envEntries.length > 0) {
+      yield { type: "step", message: "Writing model provider API key to agentcore/.env.local" };
+      await new EnvLocalFile(destination).insertIfNew(envEntries);
+    }
 
     // A harness project scaffolds through the same addResource flow that
     // `project add harness` uses, so a create-time harness and an added one can
@@ -329,10 +334,24 @@ export class FsProjectManager implements ProjectManager {
         const outputPath = join(project.rootPath, "app", input.resourceConfig.name);
         scaffoldedPaths.push(outputPath);
 
-        const spec = await this.scaffoldRuntimeResources(outputPath, input.resourceConfig);
+        const { spec, envEntries } = await this.scaffoldRuntimeResources(
+          outputPath,
+          input.resourceConfig,
+        );
         if (spec.runtimes) projectSpec.runtimes.push(...spec.runtimes);
         if (spec.memories) projectSpec.memories.push(...spec.memories);
         if (spec.credentials) projectSpec.credentials.push(...spec.credentials);
+        if (envEntries.length > 0) {
+          envFile = new EnvLocalFile(project.rootPath);
+          yield { type: "step", message: `Updating secrets file at '${envFile.path}'` };
+          const { skipped } = await envFile.insertIfNew(envEntries);
+          for (const key of skipped) {
+            yield {
+              type: "step",
+              message: `'${key}' already exists in ${ENV_LOCAL_RELATIVE_PATH}; left unchanged`,
+            };
+          }
+        }
 
         yield* this.installRuntimeDependencies(outputPath);
         break;
@@ -857,7 +876,7 @@ export class FsProjectManager implements ProjectManager {
 
     const result = await resolver.resolve(input);
     await result.tree.write(dirname(outputPath));
-    return result.spec;
+    return { spec: result.spec, envEntries: result.envEntries ?? [] };
   }
 
   public async *build(project: Project): AsyncGenerator<ProjectEvent, void> {

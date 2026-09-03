@@ -14,7 +14,11 @@ import {
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
   resolveRuntimeTemplateShortcut,
 } from "../../shortcuts";
-import { ScaffoldRuntimeInputSchema, type ScaffoldRuntimeInput } from "../../types";
+import {
+  ModelProviderSchema,
+  ScaffoldRuntimeInputSchema,
+  type ScaffoldRuntimeInput,
+} from "../../types";
 import { RuntimeResourceConfigSchema, type ImportBedrockAgentInput } from "./types";
 import {
   importScaffoldRuntimeInput,
@@ -63,8 +67,8 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       ),
       flag(
         "model-provider",
-        "model provider for the scaffolded runtime code",
-        z.enum(["Bedrock"]).optional(),
+        "model provider for the scaffolded runtime code (Bedrock, Anthropic, OpenAI, or Gemini)",
+        ModelProviderSchema.optional(),
       ),
       flag(
         "api-key",
