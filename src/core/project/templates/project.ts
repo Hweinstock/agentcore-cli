@@ -7,7 +7,8 @@ import type {
 } from "../../../handlers/project/add/runtime/types";
 import { InputValidationError } from "../../../errors/errors";
 import { getRuntimeTemplateResolver } from "./runtime";
-import { mergeSpecEntries, type Template, type TemplateRenderer } from "./types";
+import { mergeSpecEntries } from "./spec";
+import type { Template, TemplateRenderer } from "./types";
 import type { EnvLocalEntry } from "../../../handlers/project/types";
 
 type CreateProjectConfig = {

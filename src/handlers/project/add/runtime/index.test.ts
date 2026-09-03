@@ -839,24 +839,18 @@ describe("project add runtime", () => {
     },
   );
 
-  test.each<[string, string, boolean, RegExp]>([
-    [
-      "without an API key",
-      "strands",
-      false,
-      /API key is required for the Anthropic model provider/,
-    ],
-    [
-      "without a provider-capable template",
-      "none",
-      true,
-      /only supports the Bedrock model provider/,
-    ],
-  ])("rejects a non-Bedrock provider %s", async (_label, framework, includeApiKey, pattern) => {
+  test.each<[string, string, string, boolean]>([
+    ["Anthropic without an API key", "Anthropic", "strands", false],
+    ["OpenAI without an API key", "OpenAI", "strands", false],
+    ["Gemini without an API key", "Gemini", "strands", false],
+    ["a non-Bedrock provider on a provider-less template", "Anthropic", "none", true],
+    ["LiteLLM on the TypeScript template", "LiteLLM", "strands", false],
+  ])("rejects %s", async (_label, provider, framework, includeApiKey) => {
     const projectRoot = await inProject();
     const apiKeyPath = join(projectRoot, "api-key.txt");
     await Bun.write(apiKeyPath, "test-api-key");
 
+    const language = provider === "LiteLLM" ? "TypeScript" : "Python";
     const flags = [
       "add",
       "runtime",
@@ -865,15 +859,15 @@ describe("project add runtime", () => {
       "--build",
       "CodeZip",
       "--language",
-      "Python",
+      language,
       "--framework",
       framework,
       "--model-provider",
-      "Anthropic",
+      provider,
     ];
     if (includeApiKey) flags.push("--api-key", `file://${apiKeyPath}`);
 
-    await expect(run(flags)).rejects.toThrow(pattern);
+    await expect(run(flags)).rejects.toBeInstanceOf(InputValidationError);
   });
 });
 

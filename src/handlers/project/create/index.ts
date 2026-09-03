@@ -423,9 +423,13 @@ const MODEL_PROVIDERS: Record<
   bedrock: { harness: "bedrock", runtime: "Bedrock" },
   open_ai: { harness: "open_ai", runtime: "OpenAI" },
   gemini: { harness: "gemini", runtime: "Gemini" },
-  lite_llm: { harness: "lite_llm" },
+  lite_llm: { harness: "lite_llm", runtime: "LiteLLM" },
   anthropic: { runtime: "Anthropic" },
 };
+
+const RUNTIME_PROVIDER_FLAGS = (Object.keys(MODEL_PROVIDERS) as ModelProviderFlag[]).filter(
+  (flag) => MODEL_PROVIDERS[flag].runtime !== undefined,
+);
 
 function resolveHarnessModelProvider(
   providerFlag: ModelProviderFlag | undefined,
@@ -447,7 +451,7 @@ function resolveRuntimeModelProvider(
   if (provider === undefined)
     throw new InputValidationError(
       `runtime scaffolding does not support the '${providerFlag}' model provider ` +
-        `(expected bedrock, anthropic, open_ai, or gemini)`,
+        `(expected ${RUNTIME_PROVIDER_FLAGS.join(", ")})`,
     );
   return provider;
 }

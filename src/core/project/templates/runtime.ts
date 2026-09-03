@@ -2,12 +2,8 @@ import { FsTreeNode } from "./fsTree";
 import type { AssetSource } from "../source";
 import type { RuntimeResourceConfig } from "../../../handlers/project/add/runtime/types";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
-import {
-  mergeSpecEntries,
-  type SpecEntries,
-  type TemplateRenderer,
-  type TemplateResolver,
-} from "./types";
+import { mergeSpecEntries } from "./spec";
+import type { SpecEntries, TemplateRenderer, TemplateResolver } from "./types";
 import type { EnvLocalEntry, ScaffoldRuntimeInput } from "../../../handlers/project/types";
 import { credentialEnvVarName } from "../../../projectSchemas/credential";
 import { InputValidationError } from "../../../errors";
@@ -27,7 +23,9 @@ type ModelProviderScaffold = {
 
 function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProviderScaffold {
   const { modelProvider, apiKey } = input.scaffoldRuntimeInput;
-  if (modelProvider === undefined || modelProvider === "Bedrock") {
+  // Only a keyed provider needs identity wiring; Bedrock — and a keyless LiteLLM,
+  // which routes through Bedrock by default — uses the runtime's IAM role.
+  if (apiKey === undefined) {
     return { templateRenderContext: { identityProviders: [] }, spec: {}, envEntries: [] };
   }
   const credentialName = `${input.name}${modelProvider}ApiKey`;
@@ -35,15 +33,13 @@ function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProvid
   return {
     templateRenderContext: { identityProviders: [{ name: credentialName, envVarName }] },
     spec: { credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: credentialName }] },
-    envEntries: apiKey
-      ? [
-          {
-            key: envVarName,
-            value: apiKey,
-            comment: `API key for the ${modelProvider} model provider (runtime ${input.name})`,
-          },
-        ]
-      : [],
+    envEntries: [
+      {
+        key: envVarName,
+        value: apiKey,
+        comment: `API key for the ${modelProvider} model provider (runtime ${input.name})`,
+      },
+    ],
   };
 }
 
@@ -218,6 +214,10 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
   [buildResolverKey("strands", "TypeScript", "HTTP")]: async (input: RuntimeResourceConfig) => {
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError("the agent-typescript-strands template only supports HTTP");
+    if (input.scaffoldRuntimeInput.modelProvider === "LiteLLM")
+      throw new InputValidationError(
+        "the agent-typescript-strands template does not support the LiteLLM model provider",
+      );
 
     const memory = input.scaffoldRuntimeInput.memory;
     // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one

@@ -40,12 +40,8 @@ export type ManagedEvaluatorScaffoldInput = {
   timeoutSeconds?: number;
 };
 
-/**
- * Model providers the scaffolded runtime code supports. `Bedrock` uses the
- * runtime's IAM credentials; the others authenticate with an API key managed
- * through AgentCore Identity.
- */
-export const MODEL_PROVIDERS = ["Bedrock", "Anthropic", "OpenAI", "Gemini"] as const;
+/** Model providers the scaffolded runtime code can target. */
+export const MODEL_PROVIDERS = ["Bedrock", "Anthropic", "OpenAI", "Gemini", "LiteLLM"] as const;
 export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
 
 const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
@@ -54,6 +50,8 @@ const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
   openai: "OpenAI",
   open_ai: "OpenAI",
   gemini: "Gemini",
+  litellm: "LiteLLM",
+  lite_llm: "LiteLLM",
 };
 
 /** Parses a provider name case-insensitively (e.g. `anthropic`), normalizing to canonical casing. */
@@ -71,23 +69,25 @@ export const ScaffoldRuntimeInputSchema = z
     language: z.enum(["Python", "TypeScript"]),
     framework: z.enum(["strands", "none"]),
     protocol: ProtocolModeSchema.optional(),
-    // Optional: an MCP runtime has no model provider at all, and other runtimes
-    // default to Bedrock. A resolver rejects a provider its template cannot use.
     modelProvider: ModelProviderSchema.optional(),
     apiKey: z.string().min(1).optional(),
     memory: MemorySchema.optional(),
     runtimeVersion: RuntimeVersionSchema.optional(),
   })
   .superRefine(({ modelProvider, apiKey }, ctx) => {
-    const usesApiKey = modelProvider !== undefined && modelProvider !== "Bedrock";
-    if (apiKey !== undefined && !usesApiKey) {
+    // LiteLLM routes to any provider (Bedrock by default), so its key is optional;
+    // the other non-Bedrock providers always call their own API and require one.
+    const requiresApiKey =
+      modelProvider !== undefined && modelProvider !== "Bedrock" && modelProvider !== "LiteLLM";
+    const allowsApiKey = requiresApiKey || modelProvider === "LiteLLM";
+    if (apiKey !== undefined && !allowsApiKey) {
       ctx.addIssue({
         code: "custom",
         message: "API keys are not compatible with Bedrock model providers",
         path: ["apiKey"],
       });
     }
-    if (apiKey === undefined && usesApiKey) {
+    if (apiKey === undefined && requiresApiKey) {
       ctx.addIssue({
         code: "custom",
         message: `an API key is required for the ${modelProvider} model provider`,

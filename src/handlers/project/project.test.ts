@@ -424,30 +424,31 @@ describe("project create", () => {
     expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
   });
 
-  test.each([["lite_llm"]])("rejects the %s provider on the runtime path", async (provider) => {
+  test("scaffolds a keyless LiteLLM runtime with no credential", async () => {
     const directory = await inTempDirectory();
-    await expect(
-      run([
-        "create",
-        "--name",
-        "MyProject",
-        "--template",
-        "agent-python-strands",
-        "--model-provider",
-        provider,
-        "--api-key",
-        "-",
-      ]),
-    ).rejects.toThrow(
-      new RegExp(`runtime scaffolding does not support the '${provider}' model provider`),
-    );
-    expect(existsSync(join(directory, "MyProject"))).toBe(false);
+    await run([
+      "create",
+      "--name",
+      "MyProject",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "lite_llm",
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyProject");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes).toHaveLength(1);
+    expect(spec.credentials ?? []).toEqual([]);
   });
 
   test.each<[string, string]>([
     ["anthropic", "agent_python_strandsAnthropicApiKey"],
     ["open_ai", "agent_python_strandsOpenAIApiKey"],
     ["gemini", "agent_python_strandsGeminiApiKey"],
+    ["lite_llm", "agent_python_strandsLiteLLMApiKey"],
   ])("scaffolds a runtime with a %s API-key credential", async (provider, credentialName) => {
     const directory = await inTempDirectory();
     const apiKeyPath = join(directory, "api-key.txt");
