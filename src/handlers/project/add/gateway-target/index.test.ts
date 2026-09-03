@@ -58,7 +58,7 @@ describe("project add gateway-target", () => {
       "--name",
       "runtime",
       "--runtime",
-      "agent_python",
+      "agent_python_minimal",
       "--runtime-endpoint",
       "DEFAULT",
     ]);
@@ -73,7 +73,7 @@ describe("project add gateway-target", () => {
       {
         name: "runtime",
         targetType: "httpRuntime",
-        httpRuntime: { runtime: "agent_python", runtimeEndpoint: "DEFAULT" },
+        httpRuntime: { runtime: "agent_python_minimal", runtimeEndpoint: "DEFAULT" },
       },
     ]);
   });
@@ -253,7 +253,7 @@ describe("project add gateway-target", () => {
     ["no Target mode", ["--gateway", "tools", "--name", "target"], "specify exactly one"],
     [
       "multiple Target modes",
-      [...endpointFlags(), "--runtime", "agent_python"],
+      [...endpointFlags(), "--runtime", "agent_python_minimal"],
       "specify exactly one",
     ],
     [

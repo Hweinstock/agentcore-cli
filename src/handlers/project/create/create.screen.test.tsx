@@ -267,7 +267,7 @@ describe("project create wizard", () => {
     r.unmount();
   });
 
-  test("template flow: strands with the default memory choice", async () => {
+  test("template flow: strands goes straight to review (no memory question)", async () => {
     const directory = await inTempDirectory();
     const core = new TestCoreClient();
     const inputs = spyOnCreate(core);
@@ -282,32 +282,17 @@ describe("project create wizard", () => {
     await waitForText(r.lastFrame, "● scaffolded agent code");
     await r.press("return");
 
-    // Template step: the supported templates are offered.
+    // Template step: the supported templates are offered, including the
+    // -container variants and the empty project.
     await waitForText(r.lastFrame, "choose a template");
-    expect(r.lastFrame()).toContain("mcp-python-fastmcp");
-    expect(r.lastFrame()).toContain("a2a-python-strands");
     expect(r.lastFrame()).toContain("● agent-python-strands (recommended)");
-    const templateFrame = r.lastFrame() ?? "";
-    expect(templateFrame.indexOf("agent-python-strands")).toBeLessThan(
-      templateFrame.indexOf("mcp-python-fastmcp"),
-    );
+    expect(r.lastFrame()).toContain("agent-python-strands-container");
     await r.press("return");
 
-    // Memory step: asked only for strands; long and short-term preselected.
-    await waitForText(r.lastFrame, "choose a memory configuration");
-    expect(r.lastFrame()).toContain("● long and short-term");
-    const memoryFrame = r.lastFrame() ?? "";
-    expect(memoryFrame.indexOf("long and short-term")).toBeLessThan(memoryFrame.indexOf("none"));
-    await r.press("return");
-
+    // No memory step: memory is no longer a choice, so review follows directly.
     await waitForText(r.lastFrame, "this project will be created");
-    const reviewLines = (r.lastFrame() ?? "").split("\n");
-    const reviewHeading = reviewLines.findIndex((line) =>
-      line.includes("this project will be created"),
-    );
-    expect(reviewLines[reviewHeading + 1] ?? "").toContain("─");
+    expect(r.lastFrame()).not.toContain("choose a memory configuration");
     expect(r.lastFrame()).toContain("agent-python-strands");
-    expect(r.lastFrame()).toContain("long and short-term");
     await r.press("return");
     await waitForText(r.lastFrame, "✔ project created in ./StrandsApp", 5000);
 
@@ -327,85 +312,13 @@ describe("project create wizard", () => {
     expect(spec.runtimes.map((runtime: { name: string }) => runtime.name)).toEqual([
       "agent_python_strands",
     ]);
+    // The strands template ships with longAndShortTerm memory pre-configured.
     expect(spec.memories).toHaveLength(1);
     r.unmount();
   }, 10000);
 
-  test("template flow: choosing no memory overrides the strands default", async () => {
-    await inTempDirectory();
-    const core = new TestCoreClient();
-    const inputs = spyOnCreate(core);
-    const r = renderScreen("/agentcore/project/create", { core });
-
-    await waitForText(r.lastFrame, "name your project");
-    await r.write("BareStrands");
-    await r.press("return");
-    await waitForText(r.lastFrame, "what should the project be built around?");
-    await r.press("down");
-    await r.press("return");
-    await waitForText(r.lastFrame, "choose a template");
-    await r.press("return"); // agent-python-strands is preselected
-    await waitForText(r.lastFrame, "choose a memory configuration");
-    await r.press("down"); // none
-    await waitForText(r.lastFrame, "● none");
-    await r.press("return");
-    await waitForText(r.lastFrame, "this project will be created");
-    await r.press("return");
-    await waitForText(r.lastFrame, "✔ project created in ./BareStrands", 5000);
-
-    expect(inputs[0]).toEqual({
-      name: "BareStrands",
-      skipInstall: false,
-      skipGit: false,
-      scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-strands", {
-        memory: "none",
-      }),
-    });
-    r.unmount();
-  }, 10000);
-
-  test.each([
-    ["agent-python-strands-container", 1],
-    ["a2a-python-strands", 4],
-  ] as const)(
-    "template flow: %s asks about memory",
-    async (template, downPresses) => {
-      await inTempDirectory();
-      const core = new TestCoreClient();
-      const inputs = spyOnCreate(core);
-      const r = renderScreen("/agentcore/project/create", { core });
-
-      await waitForText(r.lastFrame, "name your project");
-      await r.write("StrandsVariant");
-      await r.press("return");
-      await waitForText(r.lastFrame, "what should the project be built around?");
-      await r.press("down");
-      await r.press("return");
-      await waitForText(r.lastFrame, "choose a template");
-      for (let i = 0; i < downPresses; i++) await r.press("down");
-      await waitForText(r.lastFrame, `● ${template}`);
-      await r.press("return");
-      await waitForText(r.lastFrame, "choose a memory configuration");
-      await r.press("return");
-      await waitForText(r.lastFrame, "this project will be created");
-      await r.press("return");
-      await waitForText(r.lastFrame, "project created in ./StrandsVariant", 5000);
-
-      expect(inputs).toEqual([
-        {
-          name: "StrandsVariant",
-          skipInstall: false,
-          skipGit: false,
-          scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(template),
-        },
-      ]);
-      r.unmount();
-    },
-    10000,
-  );
-
-  test("template flow: hello-world skips the memory question", async () => {
-    await inTempDirectory();
+  test("template flow: the minimal template scaffolds without memory", async () => {
+    const directory = await inTempDirectory();
     const core = new TestCoreClient();
     const inputs = spyOnCreate(core);
     const r = renderScreen("/agentcore/project/create", { core });
@@ -417,14 +330,13 @@ describe("project create wizard", () => {
     await r.press("down");
     await r.press("return");
     await waitForText(r.lastFrame, "choose a template");
-    await r.press("down");
-    await r.press("down"); // agent-python
-    await waitForText(r.lastFrame, "● agent-python ");
+    await r.press("down"); // agent-python-strands-container
+    await r.press("down"); // agent-python-minimal
+    await waitForText(r.lastFrame, "● agent-python-minimal ");
     await r.press("return");
 
-    // Straight to review: hello-world does not support memory.
+    // Straight to review: memory is not a question for any template.
     await waitForText(r.lastFrame, "this project will be created");
-    expect(r.lastFrame()).not.toContain("memory");
     await r.press("return");
     await waitForText(r.lastFrame, "✔ project created in ./HelloApp", 5000);
 
@@ -432,8 +344,41 @@ describe("project create wizard", () => {
       name: "HelloApp",
       skipInstall: false,
       skipGit: false,
-      scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python"),
+      scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-minimal"),
     });
+
+    const spec = await Bun.file(join(directory, "HelloApp", "agentcore", "agentcore.json")).json();
+    expect(spec.memories ?? []).toHaveLength(0);
+    r.unmount();
+  }, 10000);
+
+  test("template flow: the empty template creates a project with no runtime", async () => {
+    const directory = await inTempDirectory();
+    const core = new TestCoreClient();
+    const inputs = spyOnCreate(core);
+    const r = renderScreen("/agentcore/project/create", { core });
+
+    await waitForText(r.lastFrame, "name your project");
+    await r.write("EmptyApp");
+    await r.press("return");
+    await waitForText(r.lastFrame, "what should the project be built around?");
+    await r.press("down");
+    await r.press("return");
+    await waitForText(r.lastFrame, "choose a template");
+    // empty is the last option in the list.
+    for (let i = 0; i < 10; i++) await r.press("down");
+    await waitForText(r.lastFrame, "● empty");
+    await r.press("return");
+
+    await waitForText(r.lastFrame, "this project will be created");
+    await r.press("return");
+    await waitForText(r.lastFrame, "project created in ./EmptyApp", 5000);
+
+    expect(inputs[0]).toEqual({ name: "EmptyApp", skipInstall: false, skipGit: false });
+
+    const spec = await Bun.file(join(directory, "EmptyApp", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes ?? []).toHaveLength(0);
+    expect(spec.harnesses ?? []).toHaveLength(0);
     r.unmount();
   }, 10000);
 
