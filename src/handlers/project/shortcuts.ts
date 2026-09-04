@@ -111,7 +111,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     framework: "strands",
     protocol: "AGUI",
     modelProvider: "Bedrock",
-    includesMemory: false,
+    includesMemory: true,
     supportsModelProviderOverride: false,
     runtimeVersion: "PYTHON_3_14",
   },

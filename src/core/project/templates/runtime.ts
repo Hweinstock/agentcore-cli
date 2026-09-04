@@ -300,8 +300,11 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     };
   },
   [buildResolverKey("strands", "Python", "AGUI")]: async (input: RuntimeResourceConfig) => {
+    const memory = input.scaffoldRuntimeInput.memory;
     const context = {
       name: toPythonPackageName(input.name),
+      // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
+      memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
       // The AgentCore Runtime requires OTEL dependencies to be present; the AG-UI
       // app binds uvicorn on port 8080 under opentelemetry-instrument.
       enableOtel: true,
@@ -313,11 +316,18 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
+        filter: (name, isDir) => {
+          if (isDir && name === "memory") return memory !== undefined;
+          return true;
+        },
       },
     );
     return {
       tree,
-      spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "AGUI" as const }] },
+      spec: {
+        runtimes: [{ ...buildRuntimeSpec(input), protocol: "AGUI" as const }],
+        ...(memory && { memories: [memory] }),
+      },
     };
   },
 });

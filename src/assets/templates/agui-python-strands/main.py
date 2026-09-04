@@ -4,6 +4,7 @@ import uvicorn
 from strands import Agent, tool
 from ag_ui_strands import StrandsAgent, StrandsAgentConfig, create_strands_app
 from model.load import load_model
+from memory.session import get_memory_session_manager
 
 
 @tool
@@ -18,7 +19,14 @@ agent = Agent(
     tools=[add_numbers],
 )
 
-config = StrandsAgentConfig()
+# The AG-UI protocol carries a per-conversation thread_id; each thread gets its
+# own session manager so history is scoped to the conversation. Returns None
+# (in-process history only) until the deployed MEMORY_ID env var is set.
+def session_manager_provider(input_data):
+    return get_memory_session_manager(input_data.thread_id, "default-user")
+
+
+config = StrandsAgentConfig(session_manager_provider=session_manager_provider)
 
 agui_agent = StrandsAgent(
     agent=agent, name="{{ name }}", description="A helpful assistant", config=config

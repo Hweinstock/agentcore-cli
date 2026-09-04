@@ -304,7 +304,7 @@ describe("project add runtime", () => {
     ["a2a-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["agent-python-minimal", []],
     ["mcp-python-fastmcp", []],
-    ["agui-python-strands", []],
+    ["agui-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
   ])("%s ships with its pre-configured memory", async (templateName, expectedStrategies) => {
     const projectRoot = await inProject();
     await run(["add", "runtime", "--name", "my_agent", "--template", templateName]);
