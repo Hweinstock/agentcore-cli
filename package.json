@@ -29,6 +29,7 @@
     "compile:windows-arm64": "bun scripts/build.ts compile bun-windows-arm64",
     "start": "bun run src/index.ts",
     "test": "bun test",
+    "test:e2e": "bun test --preload ./test/preRunCleanup.ts ${E2E_TEST_PATH:-test/project}",
     "typecheck": "tsc --noEmit",
     "lint": "oxlint --fix",
     "lint:check": "oxlint",

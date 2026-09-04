@@ -1,0 +1,83 @@
+# End-to-end integration suite. Given a git reference and a test-path pattern,
+# builds the Node CLI at that reference and runs the matching e2e tests against a
+# real AWS account. Runs on pushes to refactor and is manually dispatchable
+# against an individual PR (or any ref) with a custom pattern; also reusable via
+# workflow_call. Reuses the agentcore-devx-devtools collaborator gate so only
+# authorized users can spend real AWS resources. Telemetry is disabled.
+name: e2e-test
+on:
+  push:
+    branches: [refactor]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: git reference (commit, branch, or tag) to build and test
+        type: string
+        default: refactor
+      test_path:
+        description: filepath pattern selecting which e2e tests to run
+        type: string
+        default: test/project
+  workflow_call:
+    inputs:
+      ref:
+        required: true
+        type: string
+      test_path:
+        type: string
+        default: test/project
+
+concurrency:
+  # A run deploys to real AWS; cancelling mid-deploy would orphan resources.
+  group: e2e-test-${{ inputs.ref || github.ref }}
+  cancel-in-progress: false
+
+env:
+  AGENTCORE_TELEMETRY_DISABLED: "1"
+
+jobs:
+  # Only collaborators with write access may trigger a run — on a personal fork
+  # that is the owner alone. Reuses the shared devx-devtools gate.
+  authorize:
+    if: github.repository_owner == 'Hweinstock'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      is-authorized: ${{ steps.gate.outputs.is-authorized }}
+    steps:
+      - id: gate
+        uses: aws/agentcore-devx-devtools/.github/actions/check-collaborator@31aa3b031a86664e29861d68956e44b07cf21a74
+        with:
+          subject: ${{ github.actor }}
+          required-permission: write
+
+  e2e:
+    needs: authorize
+    if: needs.authorize.outputs.is-authorized == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: astral-sh/setup-uv@v6
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.E2E_ROLE_ARN }}
+          aws-region: ${{ vars.E2E_REGION || 'us-east-1' }}
+      - name: Run e2e suite
+        env:
+          AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
+          E2E_TEST_PATH: ${{ inputs.test_path || 'test/project' }}
+        run: bun run test:e2e
