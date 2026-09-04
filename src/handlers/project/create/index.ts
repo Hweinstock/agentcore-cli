@@ -6,6 +6,7 @@ import {
   EMPTY_TEMPLATE_NAME,
   PROJECT_TEMPLATE_NAMES,
   resolveRuntimeTemplateShortcut,
+  runtimeTemplateSupportsModelProvider,
 } from "../shortcuts";
 import {
   type CreateProjectInput,
@@ -83,13 +84,17 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const runtimeCodeFlags = (["model-provider", "api-key"] as const).filter(
         (flagName) => flags[flagName] !== undefined,
       );
-      if (
-        runtimeCodeFlags.length > 0 &&
-        (template === undefined || template === EMPTY_TEMPLATE_NAME)
-      ) {
-        throw new InputValidationError(
-          `--${runtimeCodeFlags[0]} only applies to runtime templates`,
-        );
+      if (runtimeCodeFlags.length > 0) {
+        if (template === undefined || template === EMPTY_TEMPLATE_NAME) {
+          throw new InputValidationError(
+            `--${runtimeCodeFlags[0]} only applies to runtime templates`,
+          );
+        }
+        if (!runtimeTemplateSupportsModelProvider(template)) {
+          throw new InputValidationError(
+            `--${runtimeCodeFlags[0]} is not valid with the ${template} template`,
+          );
+        }
       }
 
       const base = {

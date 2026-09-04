@@ -134,6 +134,11 @@ export const PROJECT_TEMPLATE_NAMES = [
   EMPTY_TEMPLATE_NAME,
 ] as unknown as readonly [TemplateName, ...TemplateName[]];
 
+/** Whether a runtime template accepts --model-provider / --api-key overrides. */
+export function runtimeTemplateSupportsModelProvider(name: RuntimeTemplateShortcutName): boolean {
+  return RUNTIME_TEMPLATE_SHORTCUTS[name].supportsModelProviderOverride;
+}
+
 type RuntimeTemplateOverrides = {
   runtimeName?: string;
   modelProvider?: ModelProvider;
@@ -146,13 +151,6 @@ export function resolveRuntimeTemplateShortcut(
 ): ScaffoldRuntimeInput {
   const template: RuntimeTemplateShortcut = RUNTIME_TEMPLATE_SHORTCUTS[name];
   const runtimeName = overrides?.runtimeName ?? template.runtimeName;
-
-  if (!template.supportsModelProviderOverride) {
-    if (overrides?.modelProvider !== undefined)
-      throw new InputValidationError(`--model-provider is not valid with the ${name} template`);
-    if (overrides?.apiKey !== undefined)
-      throw new InputValidationError(`--api-key is not valid with the ${name} template`);
-  }
 
   const input = {
     runtimeName,

@@ -11,6 +11,7 @@ import {
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
   getDefaultMemorySpec,
   resolveRuntimeTemplateShortcut,
+  runtimeTemplateSupportsModelProvider,
 } from "../../shortcuts";
 import { ModelProviderSchema, type ScaffoldRuntimeInput } from "../../types";
 import { RuntimeResourceConfigSchema, type ImportBedrockAgentInput } from "./types";
@@ -137,10 +138,17 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         throw new InputValidationError("--agent-id and --agent-alias-id require --type import");
       }
 
-      if (!isImport && !isTemplate && modelFlagsPresent) {
-        throw new InputValidationError(
-          "--model-provider and --api-key only apply to templates that support them",
-        );
+      if (!isImport && modelFlagsPresent) {
+        if (!isTemplate) {
+          throw new InputValidationError(
+            "--model-provider and --api-key only apply to templates that support them",
+          );
+        }
+        if (!runtimeTemplateSupportsModelProvider(flags.template!)) {
+          throw new InputValidationError(
+            `--model-provider and --api-key are not valid with the ${flags.template} template`,
+          );
+        }
       }
 
       const source = new SourceResolver({ stdin: config.io.stdin });
