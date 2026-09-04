@@ -870,8 +870,9 @@ function MemoryStep({
         helpText="how should the harness remember conversations?"
         options={MEMORY_OPTIONS}
         focusedIndex={index}
+        selectedIndex={editing ? index : undefined}
       />
-      {value.kind === "byo" && (
+      {editing && value.kind === "byo" && (
         <FormTextInput
           name="Memory ARN"
           helpText="the ARN of an existing AgentCore Memory"
@@ -1089,15 +1090,7 @@ function PromptStep({
         onChange={onChange}
       />
       {value !== "" && (
-        <Box
-          borderStyle="single"
-          borderColor={theme.colors.border}
-          borderLeft={false}
-          borderRight={false}
-          borderBottom={false}
-        >
-          <Text color={theme.colors.muted}>{`${value.length} chars · ctrl+d continues`}</Text>
-        </Box>
+        <Text color={theme.colors.muted}>{`${value.length} chars · ctrl+d continues`}</Text>
       )}
     </Box>
   );

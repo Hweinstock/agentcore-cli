@@ -75,6 +75,12 @@ describe("harness create wizard", () => {
 
     // Step: prompt — type a prompt with a newline, then ctrl+d.
     await waitForText(r.lastFrame, "type or paste the agent's instructions");
+    const promptFrame = r.lastFrame()!;
+    const promptHelpLine = promptFrame
+      .split("\n")
+      .findIndex((line) => line.includes("type or paste the agent's instructions"));
+    expect(promptFrame.split("\n")[promptHelpLine + 1]).toContain("╭");
+    expect(promptFrame).toContain("╰");
     await r.write("You are helpful.");
     await r.press("return"); // newline
     await r.write("Be brief.");
@@ -323,7 +329,9 @@ describe("harness create wizard", () => {
     await waitForText(r.lastFrame, "how should the harness remember conversations?");
     await r.press("down"); // bring your own
     await waitForText(r.lastFrame, "● bring your own");
+    expect(r.lastFrame()).not.toContain("Memory ARN");
     await r.press("return"); // focus the memory arn field
+    await waitForText(r.lastFrame, "Memory ARN");
     await r.press("return"); // empty → error
     await waitForText(r.lastFrame, "enter the ARN of an existing AgentCore Memory");
     await r.write("arn:aws:bedrock-agentcore:us-east-1:123:memory/m-1");
