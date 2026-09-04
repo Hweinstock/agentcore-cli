@@ -1,9 +1,15 @@
 import { BedrockAgentCoreApp } from 'bedrock-agentcore/runtime';
+import { createAmazonBedrock } from '@ai-sdk/amazon-bedrock';
+import { fromNodeProviderChain } from '@aws-sdk/credential-providers';
 import { streamText } from 'ai';
 import { z } from 'zod';
-import { loadModel } from './model/load.js';
 
 const SYSTEM_PROMPT = `You are a helpful assistant.`;
+
+const bedrock = createAmazonBedrock({
+  region: process.env.AWS_REGION ?? 'us-east-1',
+  credentialProvider: fromNodeProviderChain(),
+});
 
 const requestSchema = z.object({
   prompt: z.string().default(''),
@@ -14,7 +20,7 @@ const app = new BedrockAgentCoreApp({
     requestSchema,
     async *process(payload) {
       const result = streamText({
-        model: loadModel(),
+        model: bedrock('global.anthropic.claude-sonnet-4-5-20250929-v1:0'),
         system: SYSTEM_PROMPT,
         prompt: payload.prompt,
       });

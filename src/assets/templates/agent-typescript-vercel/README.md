@@ -9,14 +9,7 @@ commands like `deploy`, `dev`, and `invoke` rely on the configuration stored her
 ## Agent Root
 
 The main entrypoint to your app is defined in `main.ts`. Using the AgentCore SDK `BedrockAgentCoreApp`, this file
-defines an HTTP app that streams tokens using the Vercel AI SDK's `streamText` API.
-
-`model/load.ts` instantiates the Amazon Bedrock model provider.
-
-## Input Validation
-
-The generated Zod request schema keeps plain prompts typed as strings before forwarding them to the agent framework.
-Retain this validation when extending the request shape, and pass only prompt text to the agent.
+defines an HTTP server that streams tokens from Amazon Bedrock via the Vercel AI SDK's `streamText` API.
 
 # Developing locally
 
@@ -27,5 +20,3 @@ If installation was successful, `node_modules/` is already populated with depend
 # Deployment
 
 After providing credentials, `agentcore project deploy` will deploy your project into Amazon Bedrock AgentCore.
-
-Use `agentcore project invoke` to invoke your deployed agent.
