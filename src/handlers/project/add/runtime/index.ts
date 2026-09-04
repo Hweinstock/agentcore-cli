@@ -137,6 +137,12 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         throw new InputValidationError("--agent-id and --agent-alias-id require --type import");
       }
 
+      if (!isImport && !isTemplate && modelFlagsPresent) {
+        throw new InputValidationError(
+          "--model-provider and --api-key only apply to templates that support them",
+        );
+      }
+
       const source = new SourceResolver({ stdin: config.io.stdin });
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
@@ -160,12 +166,6 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
               `app/${runtimeName}/IMPORT_NOTES.md.\n`,
           );
         }
-      }
-
-      if (!isImport && !isTemplate && modelFlagsPresent) {
-        throw new InputValidationError(
-          "--model-provider and --api-key only apply to templates that support them",
-        );
       }
 
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isImport
