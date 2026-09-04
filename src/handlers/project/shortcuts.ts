@@ -7,7 +7,7 @@ import {
 import { InputValidationError } from "../../errors";
 import { ScaffoldRuntimeInputSchema, type ModelProvider, type ScaffoldRuntimeInput } from "./types";
 
-/** The memory spec templates ship with, pre-configured and non-overridable. */
+/** The default memory that templates ship with. */
 export function getDefaultMemorySpec(runtimeName: string): Memory {
   return {
     name: `${runtimeName}Memory`,
