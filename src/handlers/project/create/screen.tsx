@@ -141,6 +141,11 @@ const TEMPLATE_OPTIONS: {
     description: "Strands agent on Bedrock with memory, in TypeScript (CodeZip build)",
   },
   {
+    template: "agent-typescript-vercel",
+    label: "agent-typescript-vercel",
+    description: "minimal Vercel AI SDK agent on Bedrock, in TypeScript (CodeZip build)",
+  },
+  {
     template: "mcp-python-fastmcp",
     label: "mcp-python-fastmcp",
     description: "MCP server exposing tools via FastMCP (CodeZip build)",
