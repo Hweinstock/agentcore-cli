@@ -5,8 +5,8 @@
 Workflows are organized into two roles:
 
 ```
-Orchestrators (e.g. ci.yml, release.yml)
-Jobs          (e.g. build.yml, unit-test.yml, publish-npm.yml)
+Orchestrators (ci.yml, release-prepare.yml, release-publish.yml)
+Jobs          (verify.yml)
 ```
 
 **Orchestrators** respond to events and coordinate work. They define _when_ and
@@ -19,32 +19,36 @@ care what triggered it.
 
 An orchestrator calls jobs via `workflow_call`.
 
-### Current example
+### Current examples
 
 ```
 ci.yml
-  |-- check.yml      (lint, format, typecheck, audit, secret scan)
-  |-- build.yml      (bundle, package, compile, smoke test)
-  `-- unit-test.yml  (tests on Linux, Windows, macOS)
+  `-- verify.yml     (one job per platform: static checks on Linux, then bundle,
+                      package, compile, smoke test and unit tests)
+
+release-prepare.yml (version bump, vended CDK pin, release PR)
+
+release-publish.yml (npm publish and GitHub release when a release PR merges)
+  `-- verify.yml
 ```
 
-### Future examples
-
-```
-release.yml
-  ├── unit-test.yml
-  ├── build.yml
-  └── publish-npm.yml
-```
-
-Jobs like `unit-test.yml` and `build.yml` appear in multiple orchestrators. This
-is the point — write once, compose freely.
+`verify.yml` appears in both orchestrators. This is the point — write once,
+compose freely.
 
 ## Naming Convention
 
-- **Orchestrators** are named for their purpose (e.g. `ci`, `release`).
+- **Orchestrators** are named for their purpose (e.g. `ci`, `release-publish`).
 - **Jobs** are named as verbs or noun-verb pairs describing the work
-  (e.g. `build`, `unit-test`, `publish-npm`).
+  (e.g. `verify`).
+
+## Releasing
+
+Dispatch `release-prepare` with a bump and a channel, review the release PR it opens, merge it.
+`release-publish` then publishes the merged package.json version.
+
+If publish fails after the merge, rerun the failed `release-publish` jobs. Both the npm publish
+and the GitHub release steps skip work that already succeeded. Do not re-dispatch
+`release-prepare`, package.json already holds the new version and it would bump again.
 
 ## Key Choices
 

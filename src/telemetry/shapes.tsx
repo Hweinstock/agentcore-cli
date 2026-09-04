@@ -2,7 +2,7 @@ import z from "zod";
 import { ERROR_SOURCE } from "../errors";
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SEMVER_PATTERN = /^\d+\.\d+\.\d+$/;
+const SEMVER_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 const NODE_VERSION_PATTERN = /^v\d+\.\d+\.\d+$/;
 const MAX_ATTR_LENGTH = 64;
 
@@ -12,7 +12,7 @@ const MAX_ATTR_LENGTH = 64;
  */
 export const resourceAttributesSchema = z.object({
   "service.name": z.literal("agentcore-cli"),
-  "service.version": z.string().regex(SEMVER_PATTERN),
+  "service.version": z.string().max(MAX_ATTR_LENGTH).regex(SEMVER_PATTERN),
   "agentcore-cli.installation_id": z.string().regex(UUID_PATTERN),
   "agentcore-cli.session_id": z.string().regex(UUID_PATTERN),
   "os.type": z.string().min(1).max(MAX_ATTR_LENGTH),

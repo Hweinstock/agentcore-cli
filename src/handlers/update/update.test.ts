@@ -1,13 +1,22 @@
 import { afterEach, describe, expect, mock, spyOn, test } from "bun:test";
-import { fetchLatestVersion, handleUpdate } from "./index";
+import { distTag, fetchLatestVersion, handleUpdate } from "./index";
 import { NetworkingError } from "../../errors";
 import type { ProcessRunner } from "../../io";
+import { PACKAGE_VERSION } from "../../constants";
 
 // No golden/fixture tests here: the repo's *.fixture.test.tsx harness records and
 // replays AWS SDK responses through CoreClient, but `update` makes no AWS calls —
 // it queries the npm registry (fetch) and shells out to `npm install -g`
 // (runProcess). There is nothing for that harness to record, so a fetch spy plus
 // an injected fake runner is the right, hermetic way to cover this command.
+
+test.each([
+  ["0.28.1", "latest"],
+  ["1.0.0-rc.1", "rc"],
+  ["1.0.0-preview.29", "preview"],
+])("distTag(%s) tracks the %s dist-tag", (version, tag) => {
+  expect(distTag(version)).toBe(tag);
+});
 
 describe("fetchLatestVersion", () => {
   afterEach(() => {
@@ -50,12 +59,12 @@ describe("handleUpdate", () => {
   });
 
   test("up-to-date when versions match, without invoking the runner", async () => {
-    mockLatest("1.0.0");
+    mockLatest(PACKAGE_VERSION);
     const runner: ProcessRunner = mock(async () => {});
     expect(await handleUpdate(false, { runner })).toEqual({
       status: "up-to-date",
-      currentVersion: "1.0.0",
-      latestVersion: "1.0.0",
+      currentVersion: PACKAGE_VERSION,
+      latestVersion: PACKAGE_VERSION,
     });
     expect(runner).not.toHaveBeenCalled();
   });
@@ -70,7 +79,7 @@ describe("handleUpdate", () => {
     const runner: ProcessRunner = mock(async () => {});
     expect(await handleUpdate(true, { runner })).toEqual({
       status: "update-available",
-      currentVersion: "1.0.0",
+      currentVersion: PACKAGE_VERSION,
       latestVersion: "2.0.0",
     });
     expect(runner).not.toHaveBeenCalled();
