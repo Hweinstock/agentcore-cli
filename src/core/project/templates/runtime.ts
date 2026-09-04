@@ -118,24 +118,10 @@ const importBedrockAgentResolver = () => async (input: RuntimeResourceConfig) =>
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
-    const { modelProvider } = input.scaffoldRuntimeInput;
-    if (modelProvider !== undefined && modelProvider !== "Bedrock")
-      throw new InputValidationError(
-        "the agent-python template only supports the Bedrock model provider",
-      );
-    if (input.scaffoldRuntimeInput.memory !== undefined)
-      throw new InputValidationError(`memory is not supported with the agent-python template`);
-    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
-      { assetDir: "templates/agent-python" },
-      {
-        rootDirName: input.name,
-        filter: (name) => {
-          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
-          return true;
-        },
-      },
+      { assetDir: "templates/agent-python-minimal" },
+      { rootDirName: input.name },
     );
     return { tree, spec: { runtimes: [buildRuntimeSpec(input)] } };
   },
@@ -145,10 +131,8 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const context = {
       name: toPythonPackageName(input.name),
       modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
-      hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
-      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
       ...modelScaffold.templateRenderContext,
       enableOtel: true,
       // The strands template's entrypoint is fixed to main.py; the container Dockerfile launches it as the `main` module.
@@ -183,31 +167,14 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
   [buildResolverKey("strands", "TypeScript", "HTTP")]: async (input: RuntimeResourceConfig) => {
     if (input.protocol !== undefined && input.protocol !== "HTTP")
       throw new InputValidationError("the agent-typescript-strands template only supports HTTP");
-    if (input.scaffoldRuntimeInput.modelProvider === "LiteLLM")
-      throw new InputValidationError(
-        "the agent-typescript-strands template does not support the LiteLLM model provider",
-      );
-
     const memory = input.scaffoldRuntimeInput.memory;
-    // The TypeScript strands SDK's createAgentCoreMemoryStores requires at least one
-    // namespace, so short-term-only memory (no long-term strategies) is unsupported.
-    // https://github.com/aws/bedrock-agentcore-sdk-typescript/blob/v0.3.0/src/memory/integrations/strands/factory.ts#L130-L133
-    if (memory !== undefined && memory.strategies.length === 0)
-      throw new InputValidationError(
-        "the agent-typescript-strands template does not support short-term-only memory; add long-term strategies or use --memory none",
-      );
-
     const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toNpmPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
-      hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
-      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
       ...modelScaffold.templateRenderContext,
     };
-    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/agent-typescript-strands" },
@@ -216,7 +183,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         transformContent: (raw) => templateRenderer.render(raw, context),
         filter: (name, isDir) => {
           if (isDir && name === "memory") return memory !== undefined;
-          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },
       },
@@ -264,17 +230,12 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       enableOtel: true,
       entrypoint: "main",
     };
-    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/mcp-python-fastmcp" },
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
-        filter: (name) => {
-          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
-          return true;
-        },
       },
     );
     return {
@@ -301,11 +262,8 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const modelScaffold = resolveModelProviderScaffold(input);
     const context = {
       name: toPythonPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
-      hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
-      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
       ...modelScaffold.templateRenderContext,
       sessionStorageMountPath,
       efsMounts,
@@ -317,7 +275,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       enableOtel: true,
       entrypoint: "main",
     };
-    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/a2a-python-strands" },
@@ -326,7 +283,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         transformContent: (raw) => templateRenderer.render(raw, context),
         filter: (name, isDir) => {
           if (isDir && name === "memory") return memory !== undefined;
-          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },
       },
@@ -347,17 +303,13 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
     const memory = input.scaffoldRuntimeInput.memory;
     const context = {
       name: toPythonPackageName(input.name),
-      hasMemory: memory !== undefined,
       // the CDK injects this env var corresponding to the actual ID once its resolved on deployment.
       memoryEnvVarName: memory ? `MEMORY_${memory.name.toUpperCase()}_ID` : undefined,
-      memoryStrategies: memory?.strategies.map(({ type }) => type) ?? [],
-      // The AgentCore Runtime requires OTEL dependencies to be present; the
-      // container launches main.py as the `main` module under
-      // opentelemetry-instrument, and the AG-UI app binds uvicorn on port 8080.
+      // The AgentCore Runtime requires OTEL dependencies to be present; the AG-UI
+      // app binds uvicorn on port 8080 under opentelemetry-instrument.
       enableOtel: true,
       entrypoint: "main",
     };
-    const isContainer = input.scaffoldRuntimeInput.build === "Container";
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/agui-python-strands" },
@@ -366,7 +318,6 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
         transformContent: (raw) => templateRenderer.render(raw, context),
         filter: (name, isDir) => {
           if (isDir && name === "memory") return memory !== undefined;
-          if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },
       },

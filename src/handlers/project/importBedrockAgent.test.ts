@@ -5,7 +5,6 @@ import type {
   CoreBedrockAgentImporter,
 } from "../../core/project/bedrockAgentImport";
 import { InputValidationError } from "../../errors";
-import { MEMORY_SHORTCUTS } from "./shortcuts";
 import { importScaffoldRuntimeInput, resolveImportBedrockAgentInput } from "./importBedrockAgent";
 
 const plan: BedrockAgentImportPlan = {
@@ -82,16 +81,14 @@ describe("resolveImportBedrockAgentInput", () => {
 });
 
 describe("importScaffoldRuntimeInput", () => {
-  test("uses the fixed Python CodeZip runtime shape and selected memory", () => {
-    const memory = MEMORY_SHORTCUTS.longAndShortTerm("support");
-
-    expect(importScaffoldRuntimeInput("support", memory)).toEqual({
+  test("uses the fixed Python CodeZip runtime shape with no memory", () => {
+    expect(importScaffoldRuntimeInput("support")).toEqual({
       runtimeName: "support",
       build: "CodeZip",
       language: "Python",
       framework: "none",
       modelProvider: "Bedrock",
-      memory,
+      memory: undefined,
       runtimeVersion: "PYTHON_3_14",
     });
   });

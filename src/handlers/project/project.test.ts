@@ -11,7 +11,6 @@ import {
   testIO,
 } from "../../testing";
 import { InputValidationError } from "../../errors";
-import type { BedrockAgentImportPlan } from "../../core/project/bedrockAgentImport";
 
 async function run(args: string[], opts?: { core?: TestCoreClient; stdin?: string }) {
   const io = testIO({ stdin: opts?.stdin });
@@ -37,21 +36,6 @@ test("project dev requires an AgentCore project", async () => {
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
-
-function translatedImportPlan(): BedrockAgentImportPlan {
-  return {
-    framework: "strands",
-    sourceAgentId: "A1B2C3D4E5",
-    sourceAgentAliasId: "TSTALIASID",
-    sourceAgentVersion: "7",
-    files: {
-      "main.py": "from strands import Agent\n# translated",
-      "pyproject.toml": '[project]\nname = "my-import"\n',
-      "IMPORT_NOTES.md": "# Bedrock Agent Import Notes\n",
-    },
-    notes: [],
-  };
-}
 
 async function inTempDirectory(): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "agentcore-project-"));
@@ -81,7 +65,7 @@ async function inProject(name = "TestProject"): Promise<string> {
 describe("project create", () => {
   test("scaffolds a harness project by default, named for the project", async () => {
     const directory = await inTempDirectory();
-    const { io } = await run(["create", "--name", "MyAgent"]);
+    await run(["create", "--name", "MyAgent"]);
 
     const projectRoot = join(directory, "MyAgent");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
@@ -97,159 +81,6 @@ describe("project create", () => {
     expect(await Bun.file(join(projectRoot, "app", "MyAgent", "system-prompt.md")).exists()).toBe(
       true,
     );
-    expect(io.stderr()).toContain("Creating a harness project");
-  });
-
-  test("rejects the removed --defaults flag", async () => {
-    await inTempDirectory();
-    await expect(run(["create", "--name", "MyAgent", "--defaults"])).rejects.toThrow(
-      /unknown option '--defaults'/,
-    );
-  });
-
-  test("harness-only flags flow into the harness spec", async () => {
-    const directory = await inTempDirectory();
-    await run([
-      "create",
-      "--name",
-      "MyAgent",
-      "--model-id",
-      "us.amazon.nova-lite-v1:0",
-      "--api-key-arn",
-      "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/k",
-      "--max-iterations",
-      "5",
-      "--max-tokens",
-      "2048",
-      "--timeout",
-      "60",
-      "--truncation-strategy",
-      "sliding_window",
-      "--no-harness-memory",
-    ]);
-
-    const harness = await Bun.file(
-      join(directory, "MyAgent", "app", "MyAgent", "harness.json"),
-    ).json();
-    expect(harness).toMatchObject({
-      model: {
-        provider: "bedrock",
-        modelId: "us.amazon.nova-lite-v1:0",
-        apiKeyArn:
-          "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/k",
-      },
-      maxIterations: 5,
-      maxTokens: 2048,
-      timeoutSeconds: 60,
-      truncation: { strategy: "sliding_window" },
-    });
-    expect(harness.memory).toBeUndefined();
-  });
-
-  test.each([
-    ["bedrock", "global.anthropic.claude-sonnet-4-6", undefined],
-    [
-      "open_ai",
-      "gpt-5",
-      "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/openai",
-    ],
-    [
-      "gemini",
-      "gemini-2.5-flash",
-      "arn:aws:bedrock-agentcore:us-east-1:111122223333:token-vault/default/apikeycredentialprovider/gemini",
-    ],
-  ])(
-    "--model-provider %s selects the harness path with its provider default",
-    async (provider, modelId, apiKeyArn) => {
-      const directory = await inTempDirectory();
-      const args = ["create", "--name", "MyAgent", "--model-provider", provider];
-      if (apiKeyArn) args.push("--api-key-arn", apiKeyArn);
-
-      await run(args);
-
-      const projectRoot = join(directory, "MyAgent");
-      const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-      const harness = await Bun.file(join(projectRoot, "app", "MyAgent", "harness.json")).json();
-      expect(spec.runtimes).toEqual([]);
-      expect(harness.model).toEqual({
-        provider,
-        modelId,
-        ...(apiKeyArn && { apiKeyArn }),
-      });
-    },
-  );
-
-  test("rejects a runtime-only provider on the harness path", async () => {
-    await inTempDirectory();
-    await expect(
-      run(["create", "--name", "MyAgent", "--model-provider", "anthropic"]),
-    ).rejects.toThrow(/'anthropic' model provider is not supported for harness projects/);
-  });
-
-  test("supports LiteLLM model configuration on the harness path", async () => {
-    const directory = await inTempDirectory();
-    await run([
-      "create",
-      "--name",
-      "MyAgent",
-      "--model-provider",
-      "lite_llm",
-      "--api-base",
-      "https://litellm.example.com/v1",
-      "--additional-params",
-      '{"max_retries":2}',
-    ]);
-
-    const harness = await Bun.file(
-      join(directory, "MyAgent", "app", "MyAgent", "harness.json"),
-    ).json();
-    expect(harness.model).toEqual({
-      provider: "lite_llm",
-      modelId: "bedrock/global.anthropic.claude-sonnet-4-6",
-      apiBase: "https://litellm.example.com/v1",
-      additionalParams: { max_retries: 2 },
-    });
-  });
-
-  test("--container with an image URI records containerUri on the harness", async () => {
-    const directory = await inTempDirectory();
-    await run([
-      "create",
-      "--name",
-      "MyAgent",
-      "--container",
-      "111122223333.dkr.ecr.us-east-1.amazonaws.com/agents:latest",
-    ]);
-
-    const harness = await Bun.file(
-      join(directory, "MyAgent", "app", "MyAgent", "harness.json"),
-    ).json();
-    expect(harness.containerUri).toBe("111122223333.dkr.ecr.us-east-1.amazonaws.com/agents:latest");
-    expect(harness.dockerfile).toBeUndefined();
-  });
-
-  test("--container with a Dockerfile path vendors the Dockerfile into the harness", async () => {
-    const directory = await inTempDirectory();
-    await Bun.write(join(directory, "MyDockerfile"), "FROM public.ecr.aws/docker/library/python");
-    await run(["create", "--name", "MyAgent", "--container", "MyDockerfile"]);
-
-    const harnessRoot = join(directory, "MyAgent", "app", "MyAgent");
-    const harness = await Bun.file(join(harnessRoot, "harness.json")).json();
-    expect(harness.dockerfile).toBe("Dockerfile");
-    expect(await Bun.file(join(harnessRoot, "Dockerfile")).text()).toContain("FROM ");
-  });
-
-  test("rejects mixing runtime scaffolding flags with harness-only flags", async () => {
-    await inTempDirectory();
-    await expect(
-      run(["create", "--name", "MyAgent", "--framework", "strands", "--model-id", "x"]),
-    ).rejects.toThrow(/Cannot mix runtime scaffolding flags \(--framework\)/);
-    await expect(
-      run(["create", "--name", "MyAgent", "--template", "agent-python", "--timeout", "9"]),
-    ).rejects.toThrow(/harness-only flags \(--timeout\)/);
-    await expect(
-      run(["create", "--name", "MyAgent", "--template", "agent-python", "--no-harness-memory"]),
-    ).rejects.toThrow(/harness-only flags \(--no-harness-memory\)/);
   });
 
   test("a harness create installs CDK dependencies and git only (no uv sync)", async () => {
@@ -266,100 +97,86 @@ describe("project create", () => {
     ]);
   });
 
-  test("--type import scaffolds a translated Bedrock Agent project", async () => {
+  test("the empty template scaffolds a project with no runtime and no harness", async () => {
     const directory = await inTempDirectory();
-    const core = new TestCoreClient();
-    core.bedrockAgentImportPlans["A1B2C3D4E5/TSTALIASID"] = translatedImportPlan();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--template",
+      "empty",
+      "--skip-install",
+      "--skip-git",
+    ]);
 
-    await run(
-      [
-        "create",
-        "--name",
-        "MyImport",
-        "--type",
-        "import",
-        "--agent-id",
-        "A1B2C3D4E5",
-        "--agent-alias-id",
-        "TSTALIASID",
-        "--region",
-        "us-east-1",
-      ],
-      { core },
-    );
-
-    const projectRoot = join(directory, "MyImport");
+    const projectRoot = join(directory, "MyAgent");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect(spec.harnesses).toBeUndefined();
-    expect(spec.runtimes[0]).toMatchObject({
-      name: "MyImport",
-      build: "CodeZip",
-      runtimeVersion: "PYTHON_3_14",
-    });
-
-    const main = await Bun.file(join(projectRoot, "app", "MyImport", "main.py")).text();
-    expect(main).toContain("# translated");
-    expect(main).not.toContain("client.invoke_agent");
-    expect(core.importedBedrockAgents[0]).toMatchObject({
-      runtimeName: "MyImport",
-      framework: "strands",
-      memory: "none",
-    });
+    expect(spec.runtimes ?? []).toEqual([]);
+    expect(spec.harnesses ?? []).toEqual([]);
+    expect(existsSync(join(projectRoot, "app"))).toBe(true);
   });
 
-  test("--type import conflicts with harness-only and incompatible scaffolding flags", async () => {
+  test("rejects --model-provider with the empty template", async () => {
     await inTempDirectory();
     await expect(
-      run(["create", "--name", "MyImport", "--type", "import", "--model-id", "x"]),
-    ).rejects.toThrow(/Cannot mix runtime scaffolding flags \(--type\)/);
+      run(["create", "--name", "MyAgent", "--template", "empty", "--model-provider", "anthropic"]),
+    ).rejects.toThrow(/--model-provider only applies to runtime templates/);
+  });
+
+  test("rejects --model-provider without a template", async () => {
+    await inTempDirectory();
+    await expect(
+      run(["create", "--name", "MyAgent", "--model-provider", "anthropic"]),
+    ).rejects.toThrow(/--model-provider only applies to runtime templates/);
+  });
+
+  test("rejects --api-key with a template that does not support it", async () => {
+    const directory = await inTempDirectory();
+    await expect(
+      run(
+        [
+          "create",
+          "--name",
+          "MyProject",
+          "--template",
+          "agent-python-minimal",
+          "--api-key",
+          "-",
+          "--skip-install",
+          "--skip-git",
+        ],
+        { stdin: "secret-key" },
+      ),
+    ).rejects.toThrow(/--api-key is not valid with the agent-python-minimal template/);
+    expect(existsSync(join(directory, "MyProject"))).toBe(false);
+  });
+
+  test("rejects --model-provider with a template that does not support it", async () => {
+    await inTempDirectory();
     await expect(
       run([
         "create",
         "--name",
-        "MyImport",
-        "--type",
-        "import",
-        "--agent-id",
-        "A",
-        "--agent-alias-id",
-        "B",
-        "--build",
-        "Container",
+        "MyProject",
+        "--template",
+        "a2a-python-strands",
+        "--model-provider",
+        "anthropic",
+        "--skip-install",
+        "--skip-git",
       ]),
-    ).rejects.toThrow(/--build cannot be combined/);
-    await expect(run(["create", "--name", "MyImport", "--agent-id", "A"])).rejects.toThrow(
-      /--agent-id and --agent-alias-id require --type import/,
-    );
-  });
-
-  test("rejects invalid harness flag combinations before scaffolding anything", async () => {
-    const directory = await inTempDirectory();
-    // apiBase is a lite_llm-only model setting; the bedrock harness path
-    // surfaces the schema's guidance without writing a partial project.
-    await expect(
-      run(["create", "--name", "MyAgent", "--api-base", "https://example.com"]),
-    ).rejects.toThrow(/lite_llm/);
-    expect(await Bun.file(join(directory, "MyAgent")).exists()).toBe(false);
-
-    await expect(
-      run(["create", "--name", "MyAgent", "--additional-params", "{not-json"]),
-    ).rejects.toThrow(/JSON/i);
-    expect(await Bun.file(join(directory, "MyAgent")).exists()).toBe(false);
-  });
-
-  test("rejects an invalid --project-name", async () => {
-    await inTempDirectory();
-    await expect(run(["create", "--name", "1-bad"])).rejects.toThrow();
-  });
-
-  test("rejects a reserved --project-name", async () => {
-    await inTempDirectory();
-    await expect(run(["create", "--name", "test"])).rejects.toThrow(/conflicts with/);
+    ).rejects.toThrow(/--model-provider is not valid with the a2a-python-strands template/);
   });
 
   test("runs the post-scaffold steps and reports progress on stderr", async () => {
     const directory = await inTempDirectory();
-    const { io, core } = await run(["create", "--name", "MyAgent", "--template", "agent-python"]);
+    const { io, core } = await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--template",
+      "agent-python-minimal",
+    ]);
 
     const projectRoot = join(directory, "MyAgent");
     expect(core.projectCommands).toEqual([
@@ -367,7 +184,7 @@ describe("project create", () => {
         command: ["npm", "install", "--loglevel=http"],
         cwd: join(projectRoot, "agentcore", "cdk"),
       },
-      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent_python") },
+      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent_python_minimal") },
       { command: ["git", "init"], cwd: projectRoot },
     ]);
     expect(io.stderr()).toContain("Creating project tree");
@@ -384,17 +201,7 @@ describe("project create", () => {
     expect(core.projectCommands).toEqual([]);
   });
 
-  test.each([
-    ["language", "Python"],
-    ["framework", "none"],
-  ])("rejects --%s as a template override", async (flagName, value) => {
-    await inTempDirectory();
-    await expect(
-      run(["create", "--name", "MyAgent", "--template", "agent-python", `--${flagName}`, value]),
-    ).rejects.toThrow(`--${flagName} cannot override a template`);
-  });
-
-  test("applies compatible overrides to a template", async () => {
+  test("scaffolds the strands template with longAndShortTerm memory pre-configured", async () => {
     const directory = await inTempDirectory();
     await run([
       "create",
@@ -402,14 +209,6 @@ describe("project create", () => {
       "MyProject",
       "--template",
       "agent-python-strands",
-      "--runtime-name",
-      "custom_agent",
-      "--build",
-      "CodeZip",
-      "--model-provider",
-      "bedrock",
-      "--memory",
-      "none",
       "--skip-install",
       "--skip-git",
     ]);
@@ -417,12 +216,22 @@ describe("project create", () => {
     const projectRoot = join(directory, "MyProject");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "custom_agent",
+      name: "agent_python_strands",
       build: "CodeZip",
-      codeLocation: "app/custom_agent",
+      codeLocation: "app/agent_python_strands",
       runtimeVersion: "PYTHON_3_14",
     });
-    expect(await Bun.file(join(projectRoot, "app", "custom_agent", "main.py")).exists()).toBe(true);
+    const memory = (spec.memories ?? [])[0];
+    expect(memory).toMatchObject({ name: "agent_python_strandsMemory", eventExpiryDuration: 30 });
+    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual([
+      "SEMANTIC",
+      "USER_PREFERENCE",
+      "SUMMARIZATION",
+      "EPISODIC",
+    ]);
+    expect(
+      await Bun.file(join(projectRoot, "app", "agent_python_strands", "main.py")).exists(),
+    ).toBe(true);
   });
 
   test("scaffolds a keyless LiteLLM runtime with no credential", async () => {
@@ -479,23 +288,28 @@ describe("project create", () => {
     expect(envLocal).toContain("test-api-key");
   });
 
-  test.each([
-    ["--build Container override", ["--template", "agent-python-strands", "--build", "Container"]],
-    ["container template", ["--template", "agent-python-strands-container"]],
-  ])("scaffolds a Container agent from the strands template (%s)", async (_label, flags) => {
+  test("scaffolds a Container agent from the strands -container template", async () => {
     const directory = await inTempDirectory();
-    await run(["create", "--name", "MyProject", ...flags, "--skip-install", "--skip-git"]);
+    await run([
+      "create",
+      "--name",
+      "MyProject",
+      "--template",
+      "agent-python-strands-container",
+      "--skip-install",
+      "--skip-git",
+    ]);
 
     const projectRoot = join(directory, "MyProject");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "agent_python_strands",
+      name: "agent_python_strands_container",
       build: "Container",
-      codeLocation: "app/agent_python_strands",
+      codeLocation: "app/agent_python_strands_container",
       dockerfile: "Dockerfile",
     });
     expect(spec.runtimes[0].runtimeVersion).toBeUndefined();
-    const runtimeRoot = join(projectRoot, "app", "agent_python_strands");
+    const runtimeRoot = join(projectRoot, "app", "agent_python_strands_container");
     expect(await Bun.file(join(runtimeRoot, "Dockerfile")).exists()).toBe(true);
     expect(await Bun.file(join(runtimeRoot, ".dockerignore")).exists()).toBe(true);
   });
@@ -524,16 +338,14 @@ describe("project create", () => {
       "--name",
       "MyProject",
       "--template",
-      "agent-python-strands",
-      "--build",
-      "Container",
+      "agent-python-strands-container",
       "--skip-install",
       "--skip-git",
     ]);
 
     expect(core.projectCommands).toContainEqual({
       command: ["uv", "lock"],
-      cwd: join(directory, "MyProject", "app", "agent_python_strands"),
+      cwd: join(directory, "MyProject", "app", "agent_python_strands_container"),
     });
   });
 
@@ -563,97 +375,17 @@ describe("project create", () => {
     expect(mainPy).toContain("FastMCP");
     expect(mainPy).toContain('mcp.run(transport="streamable-http")');
     expect(await Bun.file(join(runtimeRoot, "Dockerfile")).exists()).toBe(false);
+    expect(spec.memories ?? []).toEqual([]);
   });
 
-  test("scaffolds a Container MCP server from the mcp-python-fastmcp template", async () => {
+  test("scaffolds the minimal Python template", async () => {
     const directory = await inTempDirectory();
     await run([
       "create",
       "--name",
-      "MyProject",
+      "MyAgent",
       "--template",
-      "mcp-python-fastmcp",
-      "--build",
-      "Container",
-      "--skip-install",
-      "--skip-git",
-    ]);
-
-    const projectRoot = join(directory, "MyProject");
-    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect(spec.runtimes[0]).toMatchObject({
-      name: "mcp_python_fastmcp",
-      build: "Container",
-      protocol: "MCP",
-      dockerfile: "Dockerfile",
-    });
-    expect(spec.runtimes[0].runtimeVersion).toBeUndefined();
-    expect(
-      await Bun.file(join(projectRoot, "app", "mcp_python_fastmcp", "Dockerfile")).exists(),
-    ).toBe(true);
-  });
-
-  test.each([
-    ["default", [], ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
-    ["none", ["--memory", "none"], []],
-    ["short", ["--memory", "shortTerm"], []],
-    [
-      "shortAndLongTerm",
-      ["--memory", "longAndShortTerm"],
-      ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"],
-    ],
-  ])("custom strands %s memory", async (_label, memoryFlags, expectedStrategies) => {
-    const directory = await inTempDirectory();
-    await run([
-      "create",
-      "--name",
-      "MyAgent",
-      "--build",
-      "CodeZip",
-      "--language",
-      "Python",
-      "--framework",
-      "strands",
-      "--model-provider",
-      "bedrock",
-      ...memoryFlags,
-      "--skip-install",
-      "--skip-git",
-    ]);
-
-    const projectRoot = join(directory, "MyAgent");
-    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    const memories = spec.memories ?? [];
-    const memory = memories[0];
-
-    if (memoryFlags.length > 1 && memoryFlags[1] === "none") {
-      expect(memories).toEqual([]);
-      return;
-    }
-
-    expect(memory).toMatchObject({
-      name: "MyAgentMemory",
-      eventExpiryDuration: 30,
-    });
-    expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
-  });
-
-  test("scaffolds from explicit custom flags", async () => {
-    const directory = await inTempDirectory();
-    await run([
-      "create",
-      "--name",
-      "MyAgent",
-      "--build",
-      "CodeZip",
-      "--language",
-      "Python",
-      "--framework",
-      "none",
-      "--model-provider",
-      "bedrock",
-      "--memory",
-      "none",
+      "agent-python-minimal",
       "--skip-install",
       "--skip-git",
     ]);
@@ -662,31 +394,24 @@ describe("project create", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes).toEqual([
       {
-        name: "MyAgent",
+        name: "agent_python_minimal",
         build: "CodeZip",
         entrypoint: "main.py",
-        codeLocation: "app/MyAgent",
+        codeLocation: "app/agent_python_minimal",
         runtimeVersion: "PYTHON_3_14",
       },
     ]);
+    expect(spec.memories ?? []).toEqual([]);
   });
 
-  test("scaffolds a TypeScript strands runtime from custom flags", async () => {
+  test("scaffolds a TypeScript strands runtime with memory pre-configured", async () => {
     const directory = await inTempDirectory();
     await run([
       "create",
       "--name",
       "MyAgent",
-      "--build",
-      "CodeZip",
-      "--language",
-      "TypeScript",
-      "--framework",
-      "strands",
-      "--model-provider",
-      "bedrock",
-      "--memory",
-      "none",
+      "--template",
+      "agent-typescript-strands",
       "--skip-install",
       "--skip-git",
     ]);
@@ -695,108 +420,28 @@ describe("project create", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     // NODE_22 runtimes deploy a compiled main.js, so the spec entrypoint is main.js
     // even though the scaffolded source is main.ts.
-    expect(spec.runtimes).toEqual([
-      {
-        name: "MyAgent",
-        build: "CodeZip",
-        entrypoint: "main.js",
-        codeLocation: "app/MyAgent",
-        runtimeVersion: "NODE_22",
-        protocol: "HTTP",
-      },
-    ]);
-    expect(await Bun.file(join(projectRoot, "app", "MyAgent", "main.ts")).exists()).toBe(true);
+    expect(spec.runtimes[0]).toMatchObject({
+      name: "agent_typescript_strands",
+      build: "CodeZip",
+      entrypoint: "main.js",
+      codeLocation: "app/agent_typescript_strands",
+      runtimeVersion: "NODE_22",
+      protocol: "HTTP",
+    });
+    expect(spec.memories ?? []).toHaveLength(1);
+    expect(
+      await Bun.file(join(projectRoot, "app", "agent_typescript_strands", "main.ts")).exists(),
+    ).toBe(true);
   });
 
-  test.each(["shortTerm", "longAndShortTerm"] as const)(
-    "rejects --memory %s with --framework none",
-    async (memoryShortcut) => {
-      await inTempDirectory();
-      await expect(
-        run([
-          "create",
-          "--name",
-          "MyAgent",
-          "--build",
-          "CodeZip",
-          "--language",
-          "Python",
-          "--framework",
-          "none",
-          "--model-provider",
-          "bedrock",
-          "--memory",
-          memoryShortcut,
-          "--skip-install",
-          "--skip-git",
-        ]),
-      ).rejects.toBeInstanceOf(InputValidationError);
-    },
-  );
-
-  test.each([
-    ["path traversal", "../MyAgent", /Must begin with a letter/],
-    ["starts with a digit", "1Agent", /Must begin with a letter/],
-    ["contains a hyphen", "my-agent", /Must begin with a letter/],
-    ["contains a space", "my agent", /Must begin with a letter/],
-    ["exceeds 42 chars", "a".repeat(43), /<=42 characters/],
-  ])(
-    "rejects an invalid --runtime-name before scaffolding (%s)",
-    async (_label, runtimeName, expectedError) => {
-      const directory = await inTempDirectory();
-      await expect(
-        run([
-          "create",
-          "--name",
-          "MyProject",
-          "--runtime-name",
-          runtimeName,
-          "--build",
-          "CodeZip",
-          "--language",
-          "Python",
-          "--framework",
-          "none",
-          "--model-provider",
-          "bedrock",
-          "--memory",
-          "none",
-          "--skip-install",
-          "--skip-git",
-        ]),
-      ).rejects.toThrow(expectedError);
-
-      expect(existsSync(join(directory, "MyProject"))).toBe(false);
-    },
-  );
-
-  test("rejects an incompatible API-key template override before scaffolding", async () => {
-    const directory = await inTempDirectory();
-    await expect(
-      run(
-        [
-          "create",
-          "--name",
-          "MyProject",
-          "--template",
-          "agent-python",
-          "--api-key",
-          "-",
-          "--skip-install",
-          "--skip-git",
-        ],
-        { stdin: "secret-key" },
-      ),
-    ).rejects.toThrow(/API keys are not compatible with Bedrock model providers/);
-
-    expect(existsSync(join(directory, "MyProject"))).toBe(false);
-  });
-
-  test("rejects incomplete custom flags", async () => {
+  test("rejects an invalid --name", async () => {
     await inTempDirectory();
-    await expect(
-      run(["create", "--name", "MyAgent", "--build", "CodeZip", "--language", "Python"]),
-    ).rejects.toThrow();
+    await expect(run(["create", "--name", "1-bad"])).rejects.toThrow();
+  });
+
+  test("rejects a reserved --name", async () => {
+    await inTempDirectory();
+    await expect(run(["create", "--name", "test"])).rejects.toThrow(/conflicts with/);
   });
 
   test("rejects an unknown --template value", async () => {

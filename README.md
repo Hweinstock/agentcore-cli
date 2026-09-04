@@ -115,7 +115,7 @@ agentcore                          # interactive TUI
 │       └── delete                 # delete an evaluator by id
 ├── project                        # manage an AgentCore project (scaffold → deploy)
 │   ├── create                     # create a project: a managed harness by default,
-│   │                              #   or scaffolded runtime code via --template/--framework;
+│   │                              #   or scaffolded runtime code via --template;
 │   │                              #   bare `project create` opens an interactive wizard
 │   ├── add                        # add a resource to the project (runtime, harness, memory, …)
 │   ├── export
@@ -185,8 +185,8 @@ one resource of the requested type, `--name` may be omitted.
 
 ```bash
 # Create a project. The default is a harness project: a managed agent
-# configured by spec, no model-loop code to maintain. Harness flags
-# (--model-id, --max-iterations, --timeout, …) tune it.
+# configured by spec, no model-loop code to maintain. Passing only --name
+# scaffolds the default harness.
 agentcore project create --name MyAssistant
 cd MyAssistant && agentcore project deploy
 # … or run `agentcore project create` bare in a terminal for the guided
@@ -194,22 +194,24 @@ cd MyAssistant && agentcore project deploy
 # creation path.
 agentcore harness invoke --id <id from the deploy outputs> --prompt "hello"
 
-# Scaffold runtime code instead (pass a template or framework flags).
+# Scaffold runtime code instead by selecting a template. Templates that support
+# a model provider (agent-python-strands) accept --model-provider/--api-key;
+# add the -container suffix for a container build, or use `empty` for a project
+# with no runtime.
 agentcore project create --name MyAgent --template agent-python-strands
 # The same Strands agent built as a container image, with a Dockerfile.
 agentcore project create --name MyAgent --template agent-python-strands-container
 
-# Translate an existing Amazon Bedrock Agent version into editable runtime code.
-# The selected alias identifies the immutable source version; generated code
-# invokes models and translated tools directly rather than proxying the alias.
-# Use --framework strands (default) or langgraph and optionally select target
-# AgentCore Memory. Also available as `project add runtime --type import`.
-# The alias must point at a prepared version, not the mutable DRAFT that the
-# built-in test alias (TSTALIASID) routes to. Anything that could not be
-# translated automatically is listed in the generated IMPORT_NOTES.md.
-agentcore project create --name MyImportedAgent --type import \
+# Translate an existing Amazon Bedrock Agent version into editable runtime code
+# with `project add runtime --type import` from inside a project. The selected
+# alias identifies the immutable source version; generated code invokes models
+# and translated tools directly rather than proxying the alias. Use --framework
+# strands (default) or langgraph. The alias must point at a prepared version,
+# not the mutable DRAFT that the built-in test alias (TSTALIASID) routes to.
+# Anything that could not be translated is listed in the generated IMPORT_NOTES.md.
+agentcore project add runtime --name MyImportedAgent --type import \
   --agent-id A1B2C3D4E5 --agent-alias-id XYZ123ABC4 --region us-east-1 \
-  --framework strands --memory none
+  --framework strands
 ```
 
 ```bash

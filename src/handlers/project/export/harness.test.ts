@@ -65,7 +65,7 @@ async function inProjectWithHarness(
     "--name",
     "orders",
     "--template",
-    "agent-python",
+    "agent-python-minimal",
     "--skip-install",
     "--skip-git",
   ]);
@@ -155,8 +155,8 @@ describe("project export harness handler", () => {
 
     // The scaffolded template runtime already owns its name.
     await expect(
-      subject.run(["--name", "exportme", "--target-agent-name", "agent_python"]),
-    ).rejects.toThrow(/runtime with name 'agent_python' already exists/);
+      subject.run(["--name", "exportme", "--target-agent-name", "agent_python_minimal"]),
+    ).rejects.toThrow(/runtime with name 'agent_python_minimal' already exists/);
     // A harness name is just as taken.
     await expect(
       subject.run(["--name", "exportme", "--target-agent-name", "exportme"]),
