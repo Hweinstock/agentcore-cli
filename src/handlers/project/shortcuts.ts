@@ -83,6 +83,16 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     supportsModelProviderOverride: false,
     runtimeVersion: "NODE_22",
   },
+  "agent-typescript-vercel": {
+    runtimeName: "agent_typescript_vercel",
+    build: "CodeZip",
+    language: "TypeScript",
+    framework: "vercelai",
+    modelProvider: "Bedrock",
+    includesMemory: false,
+    supportsModelProviderOverride: false,
+    runtimeVersion: "NODE_22",
+  },
   "mcp-python-fastmcp": {
     runtimeName: "mcp_python_fastmcp",
     build: "CodeZip",
