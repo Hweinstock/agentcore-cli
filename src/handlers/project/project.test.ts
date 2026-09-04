@@ -303,13 +303,13 @@ describe("project create", () => {
     const projectRoot = join(directory, "MyProject");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "agent_python_strands",
+      name: "agent_python_strands_container",
       build: "Container",
-      codeLocation: "app/agent_python_strands",
+      codeLocation: "app/agent_python_strands_container",
       dockerfile: "Dockerfile",
     });
     expect(spec.runtimes[0].runtimeVersion).toBeUndefined();
-    const runtimeRoot = join(projectRoot, "app", "agent_python_strands");
+    const runtimeRoot = join(projectRoot, "app", "agent_python_strands_container");
     expect(await Bun.file(join(runtimeRoot, "Dockerfile")).exists()).toBe(true);
     expect(await Bun.file(join(runtimeRoot, ".dockerignore")).exists()).toBe(true);
   });
@@ -345,7 +345,7 @@ describe("project create", () => {
 
     expect(core.projectCommands).toContainEqual({
       command: ["uv", "lock"],
-      cwd: join(directory, "MyProject", "app", "agent_python_strands"),
+      cwd: join(directory, "MyProject", "app", "agent_python_strands_container"),
     });
   });
 

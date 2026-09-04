@@ -65,7 +65,7 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     runtimeVersion: "PYTHON_3_14",
   },
   "agent-python-strands-container": {
-    runtimeName: "agent_python_strands",
+    runtimeName: "agent_python_strands_container",
     build: "Container",
     language: "Python",
     framework: "strands",

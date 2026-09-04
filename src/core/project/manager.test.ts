@@ -218,7 +218,7 @@ describe("FsProjectManager.create", () => {
       scaffoldRuntimeInput: AGENT_PYTHON_STRANDS_CONTAINER,
     });
 
-    const appDir = join(directory, "example", "app", "agent_python_strands");
+    const appDir = join(directory, "example", "app", "agent_python_strands_container");
     // dockerignore.template must render to .dockerignore (the fsTree regex fix).
     expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
     expect(await Bun.file(join(appDir, "dockerignore.template")).exists()).toBe(false);
@@ -349,7 +349,7 @@ describe("FsProjectManager.create", () => {
       "Python",
       resolveRuntimeTemplateShortcut("agent-python-strands-container"),
       ["uv", "lock"],
-      "agent_python_strands",
+      "agent_python_strands_container",
     ],
   ])(
     "skipInstall still generates the container lockfile for %s",
