@@ -17,9 +17,9 @@ exports[`FsProjectManager.create scaffolds the expected file tree into a fresh d
   "agentcore/cdk/package.json",
   "agentcore/cdk/test/cdk.test.ts",
   "agentcore/cdk/tsconfig.json",
-  "app/agent_python/README.md",
-  "app/agent_python/main.py",
-  "app/agent_python/pyproject.toml",
+  "app/agent_python_minimal/README.md",
+  "app/agent_python_minimal/main.py",
+  "app/agent_python_minimal/pyproject.toml",
 ]
 `;
 

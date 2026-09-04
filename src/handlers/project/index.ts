@@ -49,7 +49,6 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   const createProject = createCreateProjectHandler({
     projectManager,
     io,
-    bedrockAgentImporter: core.bedrockAgentImporter,
   });
   const createProjectWithWizard = withTuiOnEmptyFlagsAndArgs(core, io)(createProject);
   const isInteractive = () => io.stdin.isTTY === true && io.stdout.isTTY === true;

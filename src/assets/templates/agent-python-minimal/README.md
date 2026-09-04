@@ -1,4 +1,4 @@
-# agent-python
+# agent-python-minimal
 
 A minimal AgentCore Runtime HTTP agent with no agent framework. Its
 `@app.entrypoint` returns a fixed `Hello, world!` message for every

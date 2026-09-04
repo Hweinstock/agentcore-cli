@@ -3,9 +3,7 @@ import { Agent, McpClient, tool, type ToolList } from '@strands-agents/sdk';
 import { z } from 'zod';
 import { loadModel } from './model/load.js';
 import { getStreamableHttpMcpClient } from './mcp_client/client.js';
-{{#if hasMemory}}
 import { getActorId, getOrCreateMemoryManager } from './memory/memory.js';
-{{/if}}
 
 // Define a collection of MCP clients (filter out anything that failed to initialize)
 const mcpClients: McpClient[] = [getStreamableHttpMcpClient()].filter(
@@ -39,7 +37,6 @@ const requestSchema = z.object({
   userId: z.string().optional(),
 });
 
-{{#if hasMemory}}
 const agentCache = new Map<string, Agent>();
 
 async function getOrCreateAgent(sessionId: string, actorId: string): Promise<Agent> {
@@ -57,53 +54,15 @@ async function getOrCreateAgent(sessionId: string, actorId: string): Promise<Age
   agentCache.set(key, agent);
   return agent;
 }
-{{else}}
-const AGENT_CACHE_LIMIT = 128;
-
-// Reuses one Agent per sessionId so each session keeps its own in-process
-// conversation history (best-effort; resets on cold start). A Map preserves
-// insertion order, so it doubles as an LRU bounded to 128 sessions — a local
-// dev process serving many sessions cannot leak history between them or grow
-// without bound. On AgentCore Runtime each microVM serves a single session, so
-// this holds one entry. For durable history, attach memory.
-const agentCache = new Map<string, Agent>();
-
-async function getOrCreateAgent(sessionId: string): Promise<Agent> {
-  const existing = agentCache.get(sessionId);
-  if (existing) {
-    agentCache.delete(sessionId);
-    agentCache.set(sessionId, existing);
-    return existing;
-  }
-  if (agentCache.size >= AGENT_CACHE_LIMIT) {
-    const oldest = agentCache.keys().next().value;
-    if (oldest !== undefined) agentCache.delete(oldest);
-  }
-  const model = await loadModel();
-  const agent = new Agent({
-    model,
-    systemPrompt: SYSTEM_PROMPT,
-    tools,
-  });
-  agentCache.set(sessionId, agent);
-  return agent;
-}
-{{/if}}
 
 const app = new BedrockAgentCoreApp({
   invocationHandler: {
     requestSchema,
     async *process(payload, context) {
-      {{#if hasMemory}}
       const sessionId = context?.sessionId ?? 'default-session';
       const actorId = getActorId(payload, context);
       const agent = await getOrCreateAgent(sessionId, actorId);
-      {{else}}
-      const sessionId = context?.sessionId ?? 'default-session';
-      const agent = await getOrCreateAgent(sessionId);
-      {{/if}}
 
-      {{#if hasMemory}}
       try {
         for await (const event of agent.stream(payload.prompt)) {
           if (
@@ -120,29 +79,6 @@ const app = new BedrockAgentCoreApp({
         // it, an idle reclamation can lose the tail of the conversation.
         await agent.memoryManager?.flush();
       }
-      {{else}}
-      // Snapshot history before streaming so a failed turn can be rolled back.
-      // Agent.stream() appends the user message before invoking the model; on a
-      // mid-stream error that user turn would otherwise linger in the cached
-      // agent, and the next turn for this session would send consecutive user
-      // messages (rejected by providers that require strict role alternation,
-      // e.g. Anthropic). Restoring on error keeps the session reusable.
-      const snapshot = agent.takeSnapshot({ include: ['messages'] });
-      try {
-        for await (const event of agent.stream(payload.prompt)) {
-          if (
-            event.type === 'modelStreamUpdateEvent' &&
-            event.event?.type === 'modelContentBlockDeltaEvent' &&
-            event.event.delta?.type === 'textDelta'
-          ) {
-            yield { data: event.event.delta.text };
-          }
-        }
-      } catch (error) {
-        agent.loadSnapshot(snapshot);
-        throw error;
-      }
-      {{/if}}
     },
   },
 });

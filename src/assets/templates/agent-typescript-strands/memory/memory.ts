@@ -28,18 +28,10 @@ export function getOrCreateMemoryManager(sessionId: string, actorId: string): Me
     actorId,
     sessionId,
     namespaces: [
-{{#if (includes memoryStrategies "SEMANTIC")}}
       { namespace: '/users/{actorId}/facts' },
-{{/if}}
-{{#if (includes memoryStrategies "USER_PREFERENCE")}}
       { namespace: '/users/{actorId}/preferences' },
-{{/if}}
-{{#if (includes memoryStrategies "EPISODIC")}}
       { namespace: '/episodes/{actorId}/{sessionId}' },
-{{/if}}
-{{#if (includes memoryStrategies "SUMMARIZATION")}}
       { namespace: '/summaries/{actorId}/{sessionId}' },
-{{/if}}
     ],
     // readMode defaults to 'per-namespace' (one retrieve call per namespace).
     // Switch to 'subtree' to consolidate to a single hierarchical recall call.

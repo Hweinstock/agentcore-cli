@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "agent-python"
+name = "agent-python-minimal"
 version = "0.1.0"
 description = "Minimal AgentCore Runtime HTTP agent"
 readme = "README.md"

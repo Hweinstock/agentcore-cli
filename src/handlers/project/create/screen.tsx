@@ -7,10 +7,9 @@ import type { HarnessModelProvider } from "../../../projectSchemas/harness";
 import type { ScreenProps } from "../../types";
 import type { CreateProjectInput } from "../types";
 import {
-  RUNTIME_TEMPLATE_SHORTCUTS,
+  EMPTY_TEMPLATE_NAME,
   resolveRuntimeTemplateShortcut,
-  type MemoryShortcutName,
-  type RuntimeTemplateShortcutName,
+  type TemplateName,
 } from "../shortcuts";
 import { HARNESS_DEFAULT_MODEL_IDS, resolveScaffoldHarnessInput } from "./index";
 import { Layout } from "../../../components/Layout";
@@ -47,9 +46,7 @@ interface CreateProjectFormValues {
   name: string;
   kind: ProjectKind;
   model: ProjectModelValues;
-  // template + memory configure the agent path; memory applies to strands only.
-  template: RuntimeTemplateShortcutName;
-  memory: MemoryShortcutName;
+  template: TemplateName;
 }
 
 // defaultModelId is not declared here: the wizard and the flag path must offer
@@ -99,7 +96,6 @@ function emptyCreateProjectForm(): CreateProjectFormValues {
     kind: "harness",
     model: emptyProjectModel(),
     template: "agent-python-strands",
-    memory: "longAndShortTerm",
   };
 }
 
@@ -117,7 +113,7 @@ const PROJECT_KIND_OPTIONS: { kind: ProjectKind; label: string; description: str
 ];
 
 const TEMPLATE_OPTIONS: {
-  template: RuntimeTemplateShortcutName;
+  template: TemplateName;
   label: string;
   description: string;
 }[] = [
@@ -129,12 +125,17 @@ const TEMPLATE_OPTIONS: {
   {
     template: "agent-python-strands-container",
     label: "agent-python-strands-container",
-    description: "Strands agent on Bedrock with memory (Container build)",
+    description: "Strands agent on Bedrock with memory (container build)",
   },
   {
-    template: "agent-python",
-    label: "agent-python",
+    template: "agent-python-minimal",
+    label: "agent-python-minimal",
     description: "minimal Python agent on Bedrock, no framework (CodeZip build)",
+  },
+  {
+    template: "agent-typescript-strands",
+    label: "agent-typescript-strands",
+    description: "Strands agent on Bedrock with memory, in TypeScript (CodeZip build)",
   },
   {
     template: "mcp-python-fastmcp",
@@ -151,22 +152,10 @@ const TEMPLATE_OPTIONS: {
     label: "agui-python-strands",
     description: "Strands agent speaking the AG-UI protocol on Bedrock (CodeZip build)",
   },
-];
-
-const asksMemory = (template: RuntimeTemplateShortcutName) =>
-  RUNTIME_TEMPLATE_SHORTCUTS[template].framework === "strands";
-
-const MEMORY_OPTIONS: { memory: MemoryShortcutName; label: string; description: string }[] = [
   {
-    memory: "longAndShortTerm",
-    label: "long and short-term",
-    description: "session events plus long-term memory strategies (recommended)",
-  },
-  { memory: "none", label: "none", description: "no memory resources" },
-  {
-    memory: "shortTerm",
-    label: "short-term",
-    description: "raw session events, 30-day expiry",
+    template: EMPTY_TEMPLATE_NAME,
+    label: "empty",
+    description: "an empty project with no runtime or harness",
   },
 ];
 
@@ -196,14 +185,14 @@ export function buildCreateInput(values: CreateProjectFormValues): CreateProject
       }),
     };
   }
+  if (values.template === EMPTY_TEMPLATE_NAME) {
+    return { name: values.name, skipInstall: false, skipGit: false };
+  }
   return {
     name: values.name,
     skipInstall: false,
     skipGit: false,
-    scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(
-      values.template,
-      asksMemory(values.template) ? { memory: values.memory } : undefined,
-    ),
+    scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(values.template),
   };
 }
 
@@ -223,14 +212,8 @@ function summaryOf(values: CreateProjectFormValues): Record<string, string> {
       directory: `./${values.name}`,
     };
   }
-  const withTemplate = { ...base, type: "agent code", template: values.template };
-  return asksMemory(values.template)
-    ? {
-        ...withTemplate,
-        memory: MEMORY_OPTIONS.find((option) => option.memory === values.memory)!.label,
-        directory: `./${values.name}`,
-      }
-    : { ...withTemplate, directory: `./${values.name}` };
+  const type = values.template === EMPTY_TEMPLATE_NAME ? "empty project" : "agent code";
+  return { ...base, type, template: values.template, directory: `./${values.name}` };
 }
 
 function providerLabel(provider: HarnessModelProvider): string {
@@ -246,7 +229,7 @@ type WizardPhase =
   { kind: "form" } | { kind: "running" } | { kind: "success" } | { kind: "error"; error: Error };
 
 // ProjectCreateScreen is the interactive flow behind a bare `agentcore project
-// create`: name → type → (model | template [→ memory]) → review, then the
+// create`: name → type → (model | template) → review, then the
 // creation itself, streaming the ProjectManager's progress events. It drives
 // core.projectManager.create with the same input the flag-driven handler
 // builds, so both entry points scaffold identical projects — in the current
@@ -261,22 +244,19 @@ export function ProjectCreateScreen({ core }: ScreenProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
 
   // The step list is dynamic: the branch chosen on the type step decides
-  // whether model or template (and, for strands, memory) questions follow.
+  // whether the model or the template question follows.
   const steps: Step[] = useMemo(() => {
     const branch: Step[] =
       values.kind === "harness"
         ? [{ key: "model", title: "model" }]
-        : [
-            { key: "template", title: "template" },
-            ...(asksMemory(values.template) ? [{ key: "memory", title: "memory" }] : []),
-          ];
+        : [{ key: "template", title: "template" }];
     return [
       { key: "name", title: "name" },
       { key: "type", title: "type" },
       ...branch,
       { key: "review", title: "review" },
     ];
-  }, [values.kind, values.template]);
+  }, [values.kind]);
 
   const stepKey = steps[stepIndex]!.key;
   const patch = (update: Partial<CreateProjectFormValues>) =>
@@ -366,7 +346,6 @@ function hintsFor(stepKey: string, phase: WizardPhase): { key: string; label: st
       return [{ key: "↑↓", label: "navigate" }, { key: "enter", label: "continue" }, ...base];
     case "type":
     case "template":
-    case "memory":
       return [{ key: "↑↓", label: "choose" }, { key: "enter", label: "continue" }, ...base];
     case "review":
       return [{ key: "enter", label: "create" }, ...base];
@@ -426,18 +405,6 @@ function WizardStep({ stepKey, values, patch, onNext, onBack, onSubmit }: Wizard
           options={TEMPLATE_OPTIONS}
           focusedIndex={TEMPLATE_OPTIONS.findIndex((option) => option.template === values.template)}
           onSelect={(index) => patch({ template: TEMPLATE_OPTIONS[index]!.template })}
-          onNext={onNext}
-          onBack={onBack}
-        />
-      );
-    case "memory":
-      return (
-        <RadioStep
-          name="choose a memory configuration"
-          helpText="how should the Strands agent remember conversations?"
-          options={MEMORY_OPTIONS}
-          focusedIndex={MEMORY_OPTIONS.findIndex((option) => option.memory === values.memory)}
-          onSelect={(index) => patch({ memory: MEMORY_OPTIONS[index]!.memory })}
           onNext={onNext}
           onBack={onBack}
         />

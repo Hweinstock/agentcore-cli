@@ -25,20 +25,13 @@ import {
 import { createSilentLogger, TestIdentityClient } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
 
-const AGENT_PYTHON = resolveRuntimeTemplateShortcut("agent-python");
-const AGENT_PYTHON_CONTAINER = resolveRuntimeTemplateShortcut("agent-python", {
-  build: "Container",
-});
+const AGENT_PYTHON = resolveRuntimeTemplateShortcut("agent-python-minimal");
 const AGENT_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("agent-python-strands");
+const AGENT_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut(
+  "agent-python-strands-container",
+);
 const AGENT_TYPESCRIPT_STRANDS = resolveRuntimeTemplateShortcut("agent-typescript-strands");
 const A2A_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("a2a-python-strands");
-const A2A_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut("a2a-python-strands", {
-  build: "Container",
-});
-const AGUI_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("agui-python-strands");
-const AGUI_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut("agui-python-strands", {
-  build: "Container",
-});
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -196,77 +189,6 @@ describe("FsProjectManager.create", () => {
     expect(spec.memories).toMatchObject([{ name: "a2a_python_strandsMemory" }]);
   });
 
-  test("scaffolds the Strands A2A runtime as a container with --build Container", async () => {
-    const directory = await inTempDirectory();
-    await runCreate(manager().manager, {
-      name: "example",
-      scaffoldRuntimeInput: A2A_PYTHON_STRANDS_CONTAINER,
-    });
-
-    const appDir = join(directory, "example", "app", "a2a_python_strands");
-    expect(await Bun.file(join(appDir, "Dockerfile")).exists()).toBe(true);
-    expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
-
-    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
-    expect(spec.runtimes[0]).toMatchObject({
-      build: "Container",
-      dockerfile: "Dockerfile",
-      protocol: "A2A",
-    });
-  });
-
-  test("snapshots the Strands AG-UI project manifest and runtime spec", async () => {
-    const directory = await inTempDirectory();
-    await runCreate(manager().manager, {
-      name: "example",
-      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS,
-    });
-
-    const projectRoot = join(directory, "example");
-    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect({
-      manifest: await projectManifest(projectRoot),
-      runtimes: spec.runtimes,
-      memories: spec.memories,
-    }).toMatchSnapshot();
-  });
-
-  test("scaffolds the Strands AG-UI runtime with the AGUI protocol", async () => {
-    const directory = await inTempDirectory();
-    await runCreate(manager().manager, {
-      name: "example",
-      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS,
-    });
-
-    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
-    expect(spec.runtimes[0]).toMatchObject({
-      name: "agui_python_strands",
-      build: "CodeZip",
-      protocol: "AGUI",
-      entrypoint: "main.py",
-    });
-    expect(spec.memories).toMatchObject([{ name: "agui_python_strandsMemory" }]);
-  });
-
-  test("scaffolds the Strands AG-UI runtime as a container with --build Container", async () => {
-    const directory = await inTempDirectory();
-    await runCreate(manager().manager, {
-      name: "example",
-      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS_CONTAINER,
-    });
-
-    const appDir = join(directory, "example", "app", "agui_python_strands");
-    expect(await Bun.file(join(appDir, "Dockerfile")).exists()).toBe(true);
-    expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
-
-    const spec = await Bun.file(join(directory, "example", "agentcore", "agentcore.json")).json();
-    expect(spec.runtimes[0]).toMatchObject({
-      build: "Container",
-      dockerfile: "Dockerfile",
-      protocol: "AGUI",
-    });
-  });
-
   test("writes a deploy-ready agentcore.json registering the template agent", async () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
@@ -279,10 +201,10 @@ describe("FsProjectManager.create", () => {
     expect(spec.name).toBe("example");
     expect(spec.runtimes).toEqual([
       {
-        name: "agent_python",
+        name: "agent_python_minimal",
         build: "CodeZip",
         entrypoint: "main.py",
-        codeLocation: "app/agent_python",
+        codeLocation: "app/agent_python_minimal",
         runtimeVersion: "PYTHON_3_14",
       },
     ]);
@@ -293,10 +215,10 @@ describe("FsProjectManager.create", () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
       name: "example",
-      scaffoldRuntimeInput: AGENT_PYTHON_CONTAINER,
+      scaffoldRuntimeInput: AGENT_PYTHON_STRANDS_CONTAINER,
     });
 
-    const appDir = join(directory, "example", "app", "agent_python");
+    const appDir = join(directory, "example", "app", "agent_python_strands_container");
     // dockerignore.template must render to .dockerignore (the fsTree regex fix).
     expect(await Bun.file(join(appDir, ".dockerignore")).exists()).toBe(true);
     expect(await Bun.file(join(appDir, "dockerignore.template")).exists()).toBe(false);
@@ -351,7 +273,7 @@ describe("FsProjectManager.create", () => {
         command: ["npm", "install", "--loglevel=http"],
         cwd: join(projectRoot, "agentcore", "cdk"),
       },
-      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent_python") },
+      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent_python_minimal") },
       { command: ["git", "init"], cwd: projectRoot },
     ]);
   });
@@ -425,15 +347,9 @@ describe("FsProjectManager.create", () => {
   test.each([
     [
       "Python",
-      resolveRuntimeTemplateShortcut("agent-python-strands", { build: "Container" }),
+      resolveRuntimeTemplateShortcut("agent-python-strands-container"),
       ["uv", "lock"],
-      "agent_python_strands",
-    ],
-    [
-      "TypeScript",
-      resolveRuntimeTemplateShortcut("agent-typescript-strands", { build: "Container" }),
-      ["npm", "install", "--package-lock-only"],
-      "agent_typescript_strands",
+      "agent_python_strands_container",
     ],
   ])(
     "skipInstall still generates the container lockfile for %s",
@@ -1005,10 +921,10 @@ describe("FsProjectManager.resolve", () => {
         version: 1,
         runtimes: [
           {
-            name: "agent_python",
+            name: "agent_python_minimal",
             build: "CodeZip",
             entrypoint: "main.py",
-            codeLocation: "app/agent_python",
+            codeLocation: "app/agent_python_minimal",
           },
         ],
       }),

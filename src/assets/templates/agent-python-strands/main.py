@@ -1,13 +1,10 @@
 from typing import Any
-from collections import OrderedDict
 
 from strands import Agent, tool
 from strands.agent.conversation_manager.null_conversation_manager import NullConversationManager
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
-{{#if hasMemory}}
 from memory.session import get_memory_session_manager
-{{/if}}
 
 app = BedrockAgentCoreApp()
 log = app.logger
@@ -32,7 +29,6 @@ def _make_conversation_manager():
     return NullConversationManager()
 
 
-{{#if hasMemory}}
 def agent_factory():
     cache = {}
     def get_or_create_agent(session_id, user_id):
@@ -48,30 +44,6 @@ def agent_factory():
         return cache[key]
     return get_or_create_agent
 get_or_create_agent = agent_factory()
-{{else}}
-# Reuses one Agent per session_id so each session keeps its own in-process
-# conversation history (best-effort; resets on cold start). The cache is bounded
-# to 128 sessions with LRU eviction (least-recently-used is dropped and its
-# history reset) so a single process serving many sessions cannot leak history
-# between them or grow without limit. For durable history, attach a session manager.
-def agent_factory():
-    cache = OrderedDict()
-    def get_or_create_agent(session_id):
-        if session_id in cache:
-            cache.move_to_end(session_id)
-            return cache[session_id]
-        if len(cache) >= 128:
-            cache.popitem(last=False)
-        cache[session_id] = Agent(
-            model=load_model(),
-            system_prompt=DEFAULT_SYSTEM_PROMPT,
-            tools=tools,
-            conversation_manager=_make_conversation_manager(),
-        )
-        return cache[session_id]
-    return get_or_create_agent
-get_or_create_agent = agent_factory()
-{{/if}}
 
 
 def strip_trailing_tool_use(messages: Any) -> list[dict]:
@@ -116,12 +88,8 @@ async def invoke(payload, context):
     log.info("Invoking Agent.....")
 
     session_id = getattr(context, "session_id", "default-session")
-    {{#if hasMemory}}
     user_id = getattr(context, "user_id", "default-user")
     agent = get_or_create_agent(session_id, user_id)
-    {{else}}
-    agent = get_or_create_agent(session_id)
-    {{/if}}
 
     prompt = _extract_prompt(payload)
 

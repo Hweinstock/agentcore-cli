@@ -132,6 +132,12 @@ export type CreateProjectInput = CreateProjectInputBase &
         scaffoldRuntimeInput?: undefined;
         importBedrockAgent?: undefined;
       }
+    | {
+        /** The empty template: a project with neither a runtime nor a harness. */
+        scaffoldRuntimeInput?: undefined;
+        scaffoldHarnessInput?: undefined;
+        importBedrockAgent?: undefined;
+      }
   );
 
 /**
