@@ -134,11 +134,6 @@ export const PROJECT_TEMPLATE_NAMES = [
   EMPTY_TEMPLATE_NAME,
 ] as unknown as readonly [TemplateName, ...TemplateName[]];
 
-/** Whether a runtime template accepts --model-provider / --api-key overrides. */
-export function runtimeTemplateSupportsModelProvider(name: RuntimeTemplateShortcutName): boolean {
-  return RUNTIME_TEMPLATE_SHORTCUTS[name].supportsModelProviderOverride;
-}
-
 type RuntimeTemplateOverrides = {
   runtimeName?: string;
   modelProvider?: ModelProvider;

@@ -5,8 +5,8 @@ import { runWithProgress } from "../../../tui/progress";
 import {
   EMPTY_TEMPLATE_NAME,
   PROJECT_TEMPLATE_NAMES,
+  RUNTIME_TEMPLATE_SHORTCUTS,
   resolveRuntimeTemplateShortcut,
-  runtimeTemplateSupportsModelProvider,
 } from "../shortcuts";
 import {
   type CreateProjectInput,
@@ -90,7 +90,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
             `--${runtimeCodeFlags[0]} only applies to runtime templates`,
           );
         }
-        if (!runtimeTemplateSupportsModelProvider(template)) {
+        if (!RUNTIME_TEMPLATE_SHORTCUTS[template].supportsModelProviderOverride) {
           throw new InputValidationError(
             `--${runtimeCodeFlags[0]} is not valid with the ${template} template`,
           );

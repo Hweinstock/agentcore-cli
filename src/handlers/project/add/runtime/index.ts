@@ -8,10 +8,10 @@ import { RuntimeAuthorizerTypeSchema } from "../../../../projectSchemas/auth";
 import { NetworkModeSchema } from "../../../../projectSchemas/constants";
 import { SourceResolver } from "../../../../io";
 import {
+  RUNTIME_TEMPLATE_SHORTCUTS,
   RUNTIME_TEMPLATE_SHORTCUT_NAMES,
   getDefaultMemorySpec,
   resolveRuntimeTemplateShortcut,
-  runtimeTemplateSupportsModelProvider,
 } from "../../shortcuts";
 import { ModelProviderSchema, type ScaffoldRuntimeInput } from "../../types";
 import { RuntimeResourceConfigSchema, type ImportBedrockAgentInput } from "./types";
@@ -144,7 +144,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
             "--model-provider and --api-key only apply to templates that support them",
           );
         }
-        if (!runtimeTemplateSupportsModelProvider(flags.template!)) {
+        if (!RUNTIME_TEMPLATE_SHORTCUTS[flags.template!].supportsModelProviderOverride) {
           throw new InputValidationError(
             `--model-provider and --api-key are not valid with the ${flags.template} template`,
           );
