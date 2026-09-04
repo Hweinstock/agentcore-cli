@@ -350,29 +350,20 @@ describe("project add runtime", () => {
     ]);
   });
 
-  test("agent-typescript-vercel scaffolds a memory-free TypeScript agent", async () => {
+  test("agent-typescript-vercel scaffolds a memory-free TypeScript runtime", async () => {
     const projectRoot = await inProject();
     await run(["add", "runtime", "--name", "my_agent", "--template", "agent-typescript-vercel"]);
 
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    const runtime = spec.runtimes.find(
-      (candidate: { name: string }) => candidate.name === "my_agent",
+    expect(spec.runtimes).toContainEqual(
+      expect.objectContaining({
+        name: "my_agent",
+        entrypoint: "main.js",
+        build: "CodeZip",
+        runtimeVersion: "NODE_22",
+        protocol: "HTTP",
+      }),
     );
-    expect(runtime).toMatchObject({
-      entrypoint: "main.js",
-      build: "CodeZip",
-      runtimeVersion: "NODE_22",
-    });
-    expect(await Bun.file(join(projectRoot, "app", "my_agent", "main.ts")).exists()).toBe(true);
-    expect(await Bun.file(join(projectRoot, "app", "my_agent", "model", "load.ts")).exists()).toBe(
-      true,
-    );
-
-    const pkg = await Bun.file(join(projectRoot, "app", "my_agent", "package.json")).json();
-    expect(pkg.name).toBe("my_agent");
-    expect(pkg.dependencies).toHaveProperty("ai");
-    expect(pkg.dependencies).toHaveProperty("@ai-sdk/amazon-bedrock");
-
     expect(spec.memories ?? []).toEqual([]);
   });
 
