@@ -39,6 +39,7 @@ export function Oauth2CredentialProviderListScreen({ ctx, core }: ScreenProps) {
   return (
     <PaginatedTablePicker
       breadcrumb={["agentcore", "identity", "oauth2-credential-provider", "list"]}
+      description="list OAuth2 credential providers"
       queryKey={["oauth2-credential-providers", opts.region]}
       loadPage={async (token, pageSize) => {
         const response = await core.identity.listOauth2CredentialProviders(token, pageSize, opts);
@@ -55,7 +56,7 @@ export function Oauth2CredentialProviderListScreen({ ctx, core }: ScreenProps) {
       }
       onBack={() => navigate("/agentcore/identity/oauth2-credential-provider")}
       maxPageSize={MAX_PAGE_SIZE}
-      loadingMessage="Loading OAuth2 credential providers…"
+      loadingMessage="loading OAuth2 credential providers…"
       errorMessage={(error) => `Error: ${error.message}`}
       emptyMessage="No OAuth2 credential providers found in this Region."
       emptyPageMessage="No OAuth2 credential providers on this page."

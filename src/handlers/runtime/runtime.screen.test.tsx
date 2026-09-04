@@ -85,8 +85,8 @@ describe("runtime picker", () => {
     await waitForText(r.lastFrame, "orders");
     const frame = r.lastFrame()!;
     expect(frame).toContain("name");
-    expect(frame).toContain("id");
-    expect(frame).toContain("id suffix");
+    expect(frame).toContain("ID");
+    expect(frame).toContain("ID suffix");
     expect(frame).toContain("version");
     expect(frame).toContain("status");
     expect(frame).toContain("updated UTC");
@@ -463,7 +463,7 @@ describe("runtime hub", () => {
 
     await waitForText(hub.lastFrame, "checkout");
     await hub.press("return");
-    await waitForText(hub.lastFrame, "Loading Runtime…");
+    await waitForText(hub.lastFrame, "loading Runtime…");
     await hub.press("escape");
     await waitForText(hub.lastFrame, "agentcore → runtime → list");
   });

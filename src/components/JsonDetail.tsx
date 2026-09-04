@@ -14,7 +14,7 @@ export interface JsonDetailProps {
   error: Error | null;
   // data is the resource to render (already unwrapped from its response).
   data: unknown;
-  // loadingLabel names what's loading (e.g. "Loading endpoint…").
+  // loadingLabel names what's loading (e.g. "loading endpoint…").
   loadingLabel: string;
   onRetry?: () => void;
   // warning, when set, renders a persistent advisory above the JSON — the TUI's
@@ -60,7 +60,7 @@ export function JsonDetail({
     <Layout
       breadcrumb={breadcrumb}
       keyHints={[
-        { key: "↑↓/kj", label: "navigate" },
+        { key: "↑↓/jk", label: "navigate" },
         ...(error && onRetry ? [{ key: "r", label: "retry" }] : []),
         { key: "esc", label: "back" },
         { key: "ctl+c", label: "quit" },

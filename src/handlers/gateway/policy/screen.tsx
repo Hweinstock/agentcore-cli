@@ -135,7 +135,7 @@ function GeneratePolicyForm({ ctx, core, gatewayId }: ScreenProps & { gatewayId:
         ]
       : phase.kind === "result"
         ? [
-            { key: "↑↓/kj", label: "scroll" },
+            { key: "↑↓/jk", label: "scroll" },
             { key: "e", label: "edit prompt" },
             { key: "esc", label: "back" },
             { key: "ctl+c", label: "quit" },
@@ -151,7 +151,7 @@ function GeneratePolicyForm({ ctx, core, gatewayId }: ScreenProps & { gatewayId:
       keyHints={keyHints}
     >
       {gateway.isPending ? (
-        <Spinner label="Loading Gateway…" />
+        <Spinner label="loading Gateway…" />
       ) : gateway.isError ? (
         <Text color={theme.colors.error}>Error: {(gateway.error as Error).message}</Text>
       ) : (

@@ -147,7 +147,7 @@ describe("Gateway menu and list", () => {
     loadingCore.gateway.listGateways = async () => pending.promise;
     const loading = renderScreen("/agentcore/gateway/list", { core: loadingCore });
 
-    await waitForText(loading.lastFrame, "Loading Gateways");
+    await waitForText(loading.lastFrame, "loading Gateways");
     await loading.press("escape");
     await waitForText(loading.lastFrame, "manage AgentCore Gateways");
     loading.unmount();
@@ -390,7 +390,7 @@ describe("Gateway Connector flow", () => {
       `/agentcore/gateway/connector/list/${encodeURIComponent(GATEWAY_ID)}`,
     );
 
-    await waitForText(screen.lastFrame, "This Gateway has no Connectors.");
+    await waitForText(screen.lastFrame, "This Gateway has no connectors.");
     expect(screen.lastFrame()).not.toContain("more →");
   });
 

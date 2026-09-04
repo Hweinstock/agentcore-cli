@@ -427,7 +427,7 @@ function GatewayInvokeConsole({ ctx, core, gatewayId, initialContext }: GatewayI
         editingPath
           ? [
               { key: "enter", label: "save" },
-              { key: "esc", label: "cancel" },
+              { key: "esc", label: "back" },
               { key: "ctl+c", label: "quit" },
             ]
           : busy
@@ -451,7 +451,7 @@ function GatewayInvokeConsole({ ctx, core, gatewayId, initialContext }: GatewayI
     >
       <Box height="100%" flexDirection="column" position="relative">
         {detail.isPending ? (
-          <Spinner label="Loading Gateway…" />
+          <Spinner label="loading Gateway…" />
         ) : detail.isError ? (
           <ErrorBlock details={errorDetails(detail.error)} />
         ) : (

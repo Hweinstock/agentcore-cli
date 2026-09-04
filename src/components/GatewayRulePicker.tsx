@@ -18,7 +18,7 @@ export const gatewayRuleColumns = [
   { key: "description", header: "description", flex: true },
   {
     key: "ruleId",
-    header: "id suffix",
+    header: "ID suffix",
     width: 10,
     render: (value: unknown) => String(value ?? "").slice(-8),
   },
@@ -68,7 +68,7 @@ export function GatewayRulePicker({
       getValue={(row) => row.ruleId}
       onSelect={onSelect}
       onBack={() => navigate(-1)}
-      loadingMessage={`Loading Rules for Gateway ${gatewayId}…`}
+      loadingMessage={`loading Rules for Gateway ${gatewayId}…`}
       errorMessage={(error) => `Error loading Rules for Gateway ${gatewayId}: ${error.message}`}
       emptyMessage="This Gateway has no Rules."
       emptyPageMessage={`No Rules on this page for Gateway ${gatewayId}.`}

@@ -36,6 +36,7 @@ export function ApiKeyCredentialProviderListScreen({ ctx, core }: ScreenProps) {
   return (
     <PaginatedTablePicker
       breadcrumb={["agentcore", "identity", "api-key-credential-provider", "list"]}
+      description="list API key credential providers"
       queryKey={["api-key-credential-providers", opts.region]}
       loadPage={async (token, pageSize) => {
         const response = await core.identity.listApiKeyCredentialProviders(token, pageSize, opts);
@@ -52,7 +53,7 @@ export function ApiKeyCredentialProviderListScreen({ ctx, core }: ScreenProps) {
       }
       onBack={() => navigate("/agentcore/identity/api-key-credential-provider")}
       maxPageSize={MAX_PAGE_SIZE}
-      loadingMessage="Loading API key credential providers…"
+      loadingMessage="loading API key credential providers…"
       errorMessage={(error) => `Error: ${error.message}`}
       emptyMessage="No API key credential providers found in this Region."
       emptyPageMessage="No API key credential providers on this page."

@@ -46,9 +46,9 @@ export function ApiKeyCredentialProviderGetScreen(props: ScreenProps) {
             ]
           : []
       }
-      loadingLabel="Loading API key credential provider…"
+      loadingLabel="loading API key credential provider…"
       onRetry={() => void detail.refetch()}
-      selectLabel="open detail"
+      selectLabel="open"
     />
   );
 }
@@ -70,7 +70,7 @@ export function ApiKeyCredentialProviderGetJsonScreen(props: ScreenProps) {
       isPending={detail.isPending}
       error={detail.isError ? (detail.error as Error) : null}
       data={detail.data}
-      loadingLabel="Loading API key credential provider…"
+      loadingLabel="loading API key credential provider…"
       onRetry={() => void detail.refetch()}
     />
   );

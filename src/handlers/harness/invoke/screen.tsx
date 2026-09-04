@@ -339,7 +339,7 @@ export function HarnessChat({
       }
     >
       {detail.isPending ? (
-        <Spinner label="Loading harness…" />
+        <Spinner label="loading harness…" />
       ) : detail.isError ? (
         <Text color="red">Error: {(detail.error as Error).message}</Text>
       ) : (

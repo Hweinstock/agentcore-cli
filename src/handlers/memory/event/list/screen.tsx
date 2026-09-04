@@ -15,7 +15,7 @@ interface EventRow extends Record<string, unknown> {
 }
 
 const eventColumns = [
-  { key: "eventId", header: "event id", flex: true },
+  { key: "eventId", header: "event ID", flex: true },
   { key: "branch", header: "branch", width: 18, minWidth: 8 },
   {
     key: "occurredAt",
@@ -73,7 +73,7 @@ function EventPicker({ ctx, core, memoryId, actorId, sessionId }: EventPickerPro
         )
       }
       onBack={() => navigate(-1)}
-      loadingMessage={`Loading events for session ${sessionId}...`}
+      loadingMessage={`loading events for session ${sessionId}...`}
       errorMessage={(error) => `Error loading events for session ${sessionId}: ${error.message}`}
       emptyMessage={`No events found for session ${sessionId}.`}
       emptyPageMessage={`No events on this page for session ${sessionId}.`}

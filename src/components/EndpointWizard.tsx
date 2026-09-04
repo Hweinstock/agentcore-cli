@@ -197,7 +197,7 @@ function hintsFor(
     { key: "ctl+c", label: "quit" },
   ];
   if (stepKey === "version") {
-    return [{ key: "↑↓", label: "choose" }, { key: "enter", label: "continue" }, ...base];
+    return [{ key: "↑↓", label: "navigate" }, { key: "enter", label: "continue" }, ...base];
   }
   if (stepKey === "review") return [{ key: "enter", label: verb }, ...base];
   return [{ key: "enter", label: "continue" }, ...base];

@@ -405,7 +405,7 @@ export function RuntimeInvokeConsole({
     >
       <Box height="100%" flexDirection="column">
         {detail.isPending ? (
-          <Spinner label="Loading Runtime…" />
+          <Spinner label="loading Runtime…" />
         ) : detail.isError ? (
           <ErrorBlock details={errorDetails(detail.error)} />
         ) : (

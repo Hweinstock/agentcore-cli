@@ -68,11 +68,11 @@ export function GatewayConnectorPicker({
       getValue={(row) => row.targetId}
       onSelect={onSelect}
       onBack={() => navigate(-1)}
-      loadingMessage={`Loading Connectors for Gateway ${gatewayId}…`}
+      loadingMessage={`loading Connectors for Gateway ${gatewayId}…`}
       errorMessage={(error) =>
         `Error loading Connectors for Gateway ${gatewayId}: ${error.message}`
       }
-      emptyMessage="This Gateway has no Connectors."
+      emptyMessage="This Gateway has no connectors."
       emptyPageMessage="No Connectors on this page."
     />
   );
