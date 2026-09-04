@@ -121,6 +121,10 @@ describe("project add runtime", () => {
       build: "CodeZip",
       protocol: "A2A",
     },
+    "agui-python-strands template preset": {
+      build: "CodeZip",
+      protocol: "AGUI",
+    },
     "all infrastructure flags": {
       description: "Configured runtime",
       executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
@@ -175,6 +179,10 @@ describe("project add runtime", () => {
     [
       "a2a-python-strands template preset",
       ["--name", "my_a2a", "--template", "a2a-python-strands"],
+    ],
+    [
+      "agui-python-strands template preset",
+      ["--name", "my_agui", "--template", "agui-python-strands"],
     ],
     [
       "agent-python-strands with session, EFS, and S3 mounts",
@@ -296,6 +304,7 @@ describe("project add runtime", () => {
     ["a2a-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["agent-python-minimal", []],
     ["mcp-python-fastmcp", []],
+    ["agui-python-strands", []],
   ])("%s ships with its pre-configured memory", async (templateName, expectedStrategies) => {
     const projectRoot = await inProject();
     await run(["add", "runtime", "--name", "my_agent", "--template", templateName]);
