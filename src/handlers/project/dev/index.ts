@@ -103,8 +103,8 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
       flag("traces", "disable local OTEL trace collection", z.boolean().default(true)),
       flag(
         "mode",
-        "how to run: browser (Agent Inspector web UI), headless (agents stream to the terminal), or tui",
-        z.enum(["browser", "headless", "tui"]).default("browser"),
+        "how to run: browser (Agent Inspector web UI) or headless (agents stream to the terminal)",
+        z.enum(["browser", "headless"]).default("headless"),
       ),
       flag(
         "ui-port",
@@ -127,11 +127,6 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
       try {
         const project = ctx.require(ProjectKey);
         const region = ctx.require(RegionKey);
-        if (flags.mode === "tui") {
-          throw new InputValidationError(
-            "TUI mode is not available yet. Use --mode browser (default) or --mode headless.",
-          );
-        }
         const runtimes = selectRuntimes(project, flags.agent);
         if (runtimes.length > 1 && flags.port !== undefined) {
           throw new InputValidationError(
