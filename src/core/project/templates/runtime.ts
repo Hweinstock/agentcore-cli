@@ -118,15 +118,6 @@ const importBedrockAgentResolver = () => async (input: RuntimeResourceConfig) =>
 
 const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: TemplateRenderer) => ({
   [buildResolverKey("none", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
-    const { modelProvider } = input.scaffoldRuntimeInput;
-    if (modelProvider !== undefined && modelProvider !== "Bedrock")
-      throw new InputValidationError(
-        "the agent-python-minimal template only supports the Bedrock model provider",
-      );
-    if (input.scaffoldRuntimeInput.memory !== undefined)
-      throw new InputValidationError(
-        `memory is not supported with the agent-python-minimal template`,
-      );
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/agent-python-minimal" },
