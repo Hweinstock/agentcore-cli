@@ -450,7 +450,7 @@ describe("project add runtime --type import", () => {
         agentId: "A1B2C3D4E5",
         agentAliasId: "TSTALIASID",
         framework: "strands",
-        memory: "none",
+        memory: "longAndShortTerm",
       },
     ]);
 
@@ -488,10 +488,16 @@ describe("project add runtime --type import", () => {
 
     expect(core.importedBedrockAgents[0]).toMatchObject({
       framework: "langgraph",
-      memory: "none",
+      memory: "longAndShortTerm",
     });
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
-    expect(spec.memories ?? []).toEqual([]);
+    expect(spec.memories).toMatchObject([{ name: "support_proxyMemory" }]);
+    expect(spec.memories[0].strategies.map(({ type }: { type: string }) => type)).toEqual([
+      "SEMANTIC",
+      "USER_PREFERENCE",
+      "SUMMARIZATION",
+      "EPISODIC",
+    ]);
   });
 
   test("documents required permissions instead of generating policies for a caller-owned role", async () => {

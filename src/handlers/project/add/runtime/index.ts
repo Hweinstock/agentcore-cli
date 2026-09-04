@@ -7,7 +7,11 @@ import { type EnvVar } from "../../../../projectSchemas/runtime";
 import { RuntimeAuthorizerTypeSchema } from "../../../../projectSchemas/auth";
 import { NetworkModeSchema } from "../../../../projectSchemas/constants";
 import { SourceResolver } from "../../../../io";
-import { RUNTIME_TEMPLATE_SHORTCUT_NAMES, resolveRuntimeTemplateShortcut } from "../../shortcuts";
+import {
+  RUNTIME_TEMPLATE_SHORTCUT_NAMES,
+  getDefaultMemorySpec,
+  resolveRuntimeTemplateShortcut,
+} from "../../shortcuts";
 import { ModelProviderSchema, type ScaffoldRuntimeInput } from "../../types";
 import { RuntimeResourceConfigSchema, type ImportBedrockAgentInput } from "./types";
 import {
@@ -147,7 +151,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
           agentId: flags["agent-id"],
           agentAliasId: flags["agent-alias-id"],
           framework: flags.framework === "langgraph" ? "langgraph" : "strands",
-          memory: "none",
+          memory: "longAndShortTerm",
         });
         if (importBedrockAgent.notes.length > 0) {
           config.io.stderr.write(
@@ -160,12 +164,12 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
 
       if (!isImport && !isTemplate && modelFlagsPresent) {
         throw new InputValidationError(
-          "--model-provider and --api-key require the agent-python-strands template",
+          "--model-provider and --api-key only apply to templates that support them",
         );
       }
 
       const scaffoldRuntimeInput: ScaffoldRuntimeInput = isImport
-        ? importScaffoldRuntimeInput(runtimeName)
+        ? importScaffoldRuntimeInput(runtimeName, getDefaultMemorySpec(runtimeName))
         : isTemplate
           ? resolveRuntimeTemplateShortcut(flags.template!, {
               runtimeName: flags.name,
