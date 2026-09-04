@@ -46,9 +46,6 @@ interface CreateProjectFormValues {
   name: string;
   kind: ProjectKind;
   model: ProjectModelValues;
-  // template selects the agent-path scaffold (a runtime shortcut, or the empty
-  // project). Memory is no longer a choice: templates that support it ship with
-  // longAndShortTerm memory pre-configured.
   template: TemplateName;
 }
 

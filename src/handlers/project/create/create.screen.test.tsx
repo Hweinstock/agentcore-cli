@@ -335,7 +335,7 @@ describe("project create wizard", () => {
     await waitForText(r.lastFrame, "● agent-python-minimal ");
     await r.press("return");
 
-    // Straight to review: memory is not a question for any template.
+    // Straight to review.
     await waitForText(r.lastFrame, "this project will be created");
     await r.press("return");
     await waitForText(r.lastFrame, "✔ project created in ./HelloApp", 5000);

@@ -80,9 +80,6 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const modelProviderFlag = flags["model-provider"];
       const apiKeyFlag = flags["api-key"];
 
-      // --model-provider / --api-key only tune scaffolded runtime code, and only
-      // the agent-python-strands template accepts them (enforced by the shortcut
-      // resolver). Without a runtime template there is nothing for them to tune.
       const runtimeCodeFlags = (["model-provider", "api-key"] as const).filter(
         (flagName) => flags[flagName] !== undefined,
       );
@@ -91,7 +88,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         (template === undefined || template === EMPTY_TEMPLATE_NAME)
       ) {
         throw new InputValidationError(
-          `--${runtimeCodeFlags[0]} requires the agent-python-strands template`,
+          `--${runtimeCodeFlags[0]} only applies to runtime templates`,
         );
       }
 

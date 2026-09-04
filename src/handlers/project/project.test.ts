@@ -120,14 +120,14 @@ describe("project create", () => {
     await inTempDirectory();
     await expect(
       run(["create", "--name", "MyAgent", "--template", "empty", "--model-provider", "anthropic"]),
-    ).rejects.toThrow(/--model-provider requires the agent-python-strands template/);
+    ).rejects.toThrow(/--model-provider only applies to runtime templates/);
   });
 
   test("rejects --model-provider without a template", async () => {
     await inTempDirectory();
     await expect(
       run(["create", "--name", "MyAgent", "--model-provider", "anthropic"]),
-    ).rejects.toThrow(/--model-provider requires the agent-python-strands template/);
+    ).rejects.toThrow(/--model-provider only applies to runtime templates/);
   });
 
   test("rejects --api-key with a template that does not support it", async () => {
