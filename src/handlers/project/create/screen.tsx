@@ -10,6 +10,8 @@ import { assertProjectPathFits } from "./pathLimit";
 import type { CreateProjectInput } from "../types";
 import {
   EMPTY_TEMPLATE_NAME,
+  PROJECT_TEMPLATE_NAMES,
+  RUNTIME_TEMPLATE_SHORTCUTS,
   resolveRuntimeTemplateShortcut,
   type TemplateName,
 } from "../shortcuts";
@@ -98,7 +100,7 @@ function emptyCreateProjectForm(): CreateProjectFormValues {
     name: "",
     kind: "agent",
     model: emptyProjectModel(),
-    template: "agent-python-strands",
+    template: DEFAULT_TEMPLATE,
   };
 }
 
@@ -115,57 +117,16 @@ const PROJECT_KIND_OPTIONS: { kind: ProjectKind; label: string; description: str
   },
 ];
 
-const TEMPLATE_OPTIONS: {
-  template: TemplateName;
-  label: string;
-  description: string;
-}[] = [
-  {
-    template: "agent-python-strands",
-    label: "agent-python-strands",
-    description: "Strands agent on Bedrock with memory (CodeZip build)",
-  },
-  {
-    template: "agent-python-strands-container",
-    label: "agent-python-strands-container",
-    description: "Strands agent on Bedrock with memory (container build)",
-  },
-  {
-    template: "agent-python-minimal",
-    label: "agent-python-minimal",
-    description: "minimal Python agent on Bedrock, no framework (CodeZip build)",
-  },
-  {
-    template: "agent-typescript-strands",
-    label: "agent-typescript-strands",
-    description: "Strands agent on Bedrock with memory, in TypeScript (CodeZip build)",
-  },
-  {
-    template: "agent-typescript-vercel",
-    label: "agent-typescript-vercel",
-    description: "minimal Vercel AI SDK agent on Bedrock, in TypeScript (CodeZip build)",
-  },
-  {
-    template: "mcp-python-fastmcp",
-    label: "mcp-python-fastmcp",
-    description: "MCP server exposing tools via FastMCP (CodeZip build)",
-  },
-  {
-    template: "a2a-python-strands",
-    label: "a2a-python-strands",
-    description: "Strands agent speaking the A2A protocol on Bedrock (CodeZip build)",
-  },
-  {
-    template: "agui-python-strands",
-    label: "agui-python-strands",
-    description: "Strands agent speaking the AG-UI protocol on Bedrock (CodeZip build)",
-  },
-  {
-    template: EMPTY_TEMPLATE_NAME,
-    label: "empty",
-    description: "an empty project with no runtime or harness",
-  },
-];
+const DEFAULT_TEMPLATE: TemplateName = "agent-python-strands";
+
+const TEMPLATE_OPTIONS = PROJECT_TEMPLATE_NAMES.map((template) => ({
+  template,
+  label: template,
+  description:
+    template === EMPTY_TEMPLATE_NAME
+      ? "an empty project with no runtime or harness"
+      : RUNTIME_TEMPLATE_SHORTCUTS[template].description,
+}));
 
 function selectedModel(values: CreateProjectFormValues): ProjectModelConfig {
   return values.model.configs[values.model.provider];

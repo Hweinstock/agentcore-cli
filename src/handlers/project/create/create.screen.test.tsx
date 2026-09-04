@@ -338,6 +338,7 @@ describe("project create wizard", () => {
     await r.press("return");
     await waitForText(r.lastFrame, "choose a template");
     await r.press("down"); // agent-python-strands-container
+    await r.press("down"); // agent-python-langchain
     await r.press("down"); // agent-python-minimal
     await waitForText(r.lastFrame, "● agent-python-minimal ");
     await r.press("return");
@@ -356,6 +357,41 @@ describe("project create wizard", () => {
 
     const spec = await Bun.file(join(directory, "HelloApp", "agentcore", "agentcore.json")).json();
     expect(spec.memories ?? []).toHaveLength(0);
+    r.unmount();
+  }, 10000);
+
+  test("template flow: the LangChain template hands the preset to create", async () => {
+    await inTempDirectory();
+    const core = new TestCoreClient();
+    const inputs = spyOnCreate(core);
+    const r = renderScreen("/agentcore/project/create", { core });
+
+    await waitForText(r.lastFrame, "name your project");
+    await r.write("LangChainApp");
+    await r.press("return");
+
+    await waitForText(r.lastFrame, "what should the project be built around?");
+    await r.press("return");
+
+    await waitForText(r.lastFrame, "choose a template");
+    await r.press("down"); // agent-python-strands-container
+    await r.press("down"); // agent-python-langchain
+    await waitForText(r.lastFrame, "● agent-python-langchain");
+    await r.press("return");
+
+    await waitForText(r.lastFrame, "this project will be created");
+    expect(r.lastFrame()).toContain("agent-python-langchain");
+    await r.press("return");
+    await waitForText(r.lastFrame, "✔ project created in ./LangChainApp", 5000);
+
+    expect(inputs).toEqual([
+      {
+        name: "LangChainApp",
+        skipInstall: false,
+        skipGit: false,
+        scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-langchain"),
+      },
+    ]);
     r.unmount();
   }, 10000);
 

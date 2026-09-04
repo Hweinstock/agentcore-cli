@@ -423,6 +423,27 @@ describe("project create", () => {
     expect(spec.memories ?? []).toEqual([]);
   });
 
+  test("renders the LangChain template's pyproject name and no credentials", async () => {
+    const directory = await inTempDirectory();
+    await run([
+      "create",
+      "--name",
+      "MyAgent",
+      "--template",
+      "agent-python-langchain",
+      "--skip-install",
+      "--skip-git",
+    ]);
+
+    const projectRoot = join(directory, "MyAgent");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.credentials ?? []).toEqual([]);
+    const pyproject = await Bun.file(
+      join(projectRoot, "app", "agent_python_langchain", "pyproject.toml"),
+    ).text();
+    expect(pyproject).toContain('name = "agent_python_langchain"');
+  });
+
   test("scaffolds a TypeScript strands runtime with memory pre-configured", async () => {
     const directory = await inTempDirectory();
     await run([
