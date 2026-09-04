@@ -303,6 +303,7 @@ describe("project add runtime", () => {
     ["agent-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["a2a-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
     ["agent-python-minimal", []],
+    ["agent-typescript-vercel", []],
     ["mcp-python-fastmcp", []],
     ["agui-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
   ])("%s ships with its pre-configured memory", async (templateName, expectedStrategies) => {
@@ -347,6 +348,32 @@ describe("project add runtime", () => {
       "SUMMARIZATION",
       "EPISODIC",
     ]);
+  });
+
+  test("agent-typescript-vercel scaffolds a memory-free TypeScript agent", async () => {
+    const projectRoot = await inProject();
+    await run(["add", "runtime", "--name", "my_agent", "--template", "agent-typescript-vercel"]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const runtime = spec.runtimes.find(
+      (candidate: { name: string }) => candidate.name === "my_agent",
+    );
+    expect(runtime).toMatchObject({
+      entrypoint: "main.js",
+      build: "CodeZip",
+      runtimeVersion: "NODE_22",
+    });
+    expect(await Bun.file(join(projectRoot, "app", "my_agent", "main.ts")).exists()).toBe(true);
+    expect(await Bun.file(join(projectRoot, "app", "my_agent", "model", "load.ts")).exists()).toBe(
+      true,
+    );
+
+    const pkg = await Bun.file(join(projectRoot, "app", "my_agent", "package.json")).json();
+    expect(pkg.name).toBe("my_agent");
+    expect(pkg.dependencies).toHaveProperty("ai");
+    expect(pkg.dependencies).toHaveProperty("@ai-sdk/amazon-bedrock");
+
+    expect(spec.memories ?? []).toEqual([]);
   });
 
   test.each<[string, string]>([
@@ -396,6 +423,17 @@ describe("project add runtime", () => {
     [
       "--api-key is not valid with the agent-python-minimal template",
       ["--name", "my_agent", "--template", "agent-python-minimal", "--api-key", "secret-key"],
+    ],
+    [
+      "--model-provider is not valid with the agent-typescript-vercel template",
+      [
+        "--name",
+        "my_agent",
+        "--template",
+        "agent-typescript-vercel",
+        "--model-provider",
+        "Anthropic",
+      ],
     ],
     [
       "--model-provider without a template requires agent-python-strands",
