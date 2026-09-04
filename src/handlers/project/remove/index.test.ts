@@ -224,6 +224,25 @@ describe("project remove", () => {
     expect(io.stderr()).toContain("removed credential with name 'svc-key' from project");
   });
 
+  test("--json reports a removal and its cleaned environment keys", async () => {
+    const projectRoot = await inProject();
+    await run(["add", "credentials", "api-key", "--name", "svc-key", "--api-key", "-"], {
+      stdin: "sekret",
+    });
+    const envKey = credentialEnvVarName("svc-key");
+
+    const { io } = await run(["remove", "credential", "--name", "svc-key", "--json"]);
+
+    expect(JSON.parse(io.stdout())).toEqual({
+      operation: "remove",
+      project: { name: "TestProject", path: projectRoot },
+      resource: { type: "credential", name: "svc-key" },
+      removedEnvironmentKeys: [envKey],
+    });
+    expect(io.stdout()).not.toContain("removed credential with name");
+    expect(io.stderr()).toContain(`removed '${envKey}' from ${ENV_LOCAL_RELATIVE_PATH}`);
+  });
+
   test("removing a secret-reference credential leaves .env.local alone", async () => {
     const projectRoot = await inProject();
     await run([
@@ -287,12 +306,30 @@ describe("project remove", () => {
     ]);
     await run([...add]);
 
-    await run(["remove", resource, "--gateway", "tools", "--name", "remove"]);
+    const { io } = await run([
+      "remove",
+      resource,
+      "--gateway",
+      "tools",
+      "--name",
+      "remove",
+      "--json",
+    ]);
 
     const agentcoreJson = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(
       agentcoreJson.agentCoreGateways[0].targets.map((target: { name: string }) => target.name),
     ).toEqual(["keep"]);
+    expect(JSON.parse(io.stdout())).toEqual({
+      operation: "remove",
+      project: { name: "TestProject", path: projectRoot },
+      resource: {
+        type: resource,
+        name: "remove",
+        parent: { type: "gateway", name: "tools" },
+      },
+      removedEnvironmentKeys: [],
+    });
   });
 
   test("removes a payment manager with its connectors while preserving reusable credentials", async () => {
@@ -351,7 +388,15 @@ describe("project remove", () => {
       "shared",
     ]);
 
-    await run(["remove", "payment-connector", "--manager", "payments", "--name", "remove"]);
+    const { io } = await run([
+      "remove",
+      "payment-connector",
+      "--manager",
+      "payments",
+      "--name",
+      "remove",
+      "--json",
+    ]);
 
     const agentcoreJson = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(
@@ -364,6 +409,16 @@ describe("project remove", () => {
         provider: "CoinbaseCDP",
       },
     ]);
+    expect(JSON.parse(io.stdout())).toEqual({
+      operation: "remove",
+      project: { name: "TestProject", path: projectRoot },
+      resource: {
+        type: "payment-connector",
+        name: "remove",
+        parent: { type: "payment-manager", name: "payments" },
+      },
+      removedEnvironmentKeys: [],
+    });
   });
 
   // Verifies that missing required inputs are rejected before calling the manager.
@@ -413,9 +468,19 @@ describe("project remove", () => {
     await run(["add", "policy-engine", "--name", "Guardrails"]);
     await addPolicy("Guardrails", "DenyAll");
 
-    await run(["remove", "policy", "--name", "DenyAll", ...engineArgs]);
+    const { io } = await run(["remove", "policy", "--name", "DenyAll", ...engineArgs, "--json"]);
 
     expect((await projectSpec(projectRoot)).policyEngines[0].policies).toEqual([]);
+    expect(JSON.parse(io.stdout())).toEqual({
+      operation: "remove",
+      project: { name: "TestProject", path: projectRoot },
+      resource: {
+        type: "policy",
+        name: "DenyAll",
+        parent: { type: "policy-engine", name: "Guardrails" },
+      },
+      removedEnvironmentKeys: [],
+    });
   });
 
   test("rejects an ambiguous policy name without --engine", async () => {
@@ -541,11 +606,17 @@ describe("project remove all", () => {
   });
 
   test("reports the removal as JSON under --json", async () => {
-    await populatedProject();
+    const projectRoot = await populatedProject();
+    const envKey = credentialEnvVarName("svc-key");
 
     const { io } = await run(["remove", "all", "--yes", "--json"]);
 
-    expect(JSON.parse(io.stdout())).toEqual({ message: "removed all resources from project" });
+    expect(JSON.parse(io.stdout())).toEqual({
+      operation: "remove",
+      project: { name: "TestProject", path: projectRoot },
+      resource: { type: "all" },
+      removedEnvironmentKeys: [envKey],
+    });
   });
 
   test("prompts on a TTY and proceeds on 'y'", async () => {

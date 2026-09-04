@@ -20,6 +20,7 @@ import {
   resolveImportBedrockAgentInput,
 } from "../../importBedrockAgent";
 import { RegionKey } from "../../../keys";
+import { addProjectResource } from "../shared";
 
 export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -155,6 +156,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       const apiKey = await source.resolveSecret("api-key", flags["api-key"]);
 
       const runtimeName = flags.name;
+      const notes: string[] = [];
 
       let importBedrockAgent: ImportBedrockAgentInput | undefined;
       if (isImport) {
@@ -168,10 +170,10 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
           memory: "longAndShortTerm",
         });
         if (importBedrockAgent.notes.length > 0) {
-          config.io.stderr.write(
+          notes.push(
             `Import generated ${importBedrockAgent.notes.length} manual follow-up ` +
               `${importBedrockAgent.notes.length === 1 ? "item" : "items"} in ` +
-              `app/${runtimeName}/IMPORT_NOTES.md.\n`,
+              `app/${runtimeName}/IMPORT_NOTES.md.`,
           );
         }
       }
@@ -223,14 +225,17 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         throw new InputValidationError(z.prettifyError(result.error), { cause: result.error });
 
       const project = ctx.require(ProjectKey);
-      for await (const event of config.projectManager.addResource(project, {
-        resourceType: "runtime",
-        resourceConfig: result.data,
-      })) {
-        if (event.type === "step") config.io.stderr.write(`${event.message}\n`);
-      }
-
-      config.io.stderr.write(`added runtime '${flags.name}' to '${project.name}'\n`);
+      await addProjectResource(
+        ctx,
+        config,
+        project,
+        {
+          resourceType: "runtime",
+          resourceConfig: result.data,
+        },
+        `added runtime '${flags.name}' to '${project.name}'`,
+        { notes },
+      );
     },
   });
 

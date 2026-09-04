@@ -9,6 +9,7 @@ import {
 import { createHandler, flag, ProjectKey } from "../../../../router";
 import { parseJsonFlagWithSchema } from "../../../utils";
 import type { AddProjectResourceConfig } from "../types";
+import { addProjectResource } from "../shared";
 
 export const createAddGatewayConnectorHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -85,15 +86,17 @@ export const createAddGatewayConnectorHandler = (config: AddProjectResourceConfi
         );
       }
 
-      for await (const event of config.projectManager.addResource(project, {
-        resourceType: "gateway-target",
-        gatewayName: flags.gateway,
-        resourceConfig: target,
-      })) {
-        if (event.type === "step") config.io.stderr.write(`${event.message}\n`);
-      }
-      config.io.stderr.write(
-        `added Connector Target '${target.name}' to Gateway '${flags.gateway}' in '${project.name}'\n`,
+      await addProjectResource(
+        ctx,
+        config,
+        project,
+        {
+          resourceType: "gateway-target",
+          gatewayName: flags.gateway,
+          resourceConfig: target,
+        },
+        `added Connector Target '${target.name}' to Gateway '${flags.gateway}' in '${project.name}'`,
+        { resourceType: "gateway-connector" },
       );
     },
   });
