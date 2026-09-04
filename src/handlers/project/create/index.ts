@@ -21,13 +21,11 @@ import {
 } from "../../../projectSchemas/harness";
 import { InputValidationError } from "../../../errors";
 import { DEFAULT_HARNESS_MODEL } from "../add/harness";
-import type { CoreBedrockAgentImporter } from "../../../core/project/bedrockAgentImport";
 import { JsonKey } from "../../keys";
 
 type CreateProjectHandlerConfig = {
   projectManager: ProjectManager;
   io: AppIO;
-  bedrockAgentImporter: CoreBedrockAgentImporter;
 };
 
 const ModelProviderFlagSchema = z.enum([...HarnessModelProviderSchema.options, "anthropic"]);
@@ -51,13 +49,12 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       flag("name", "name of the project to create", ProjectNameSchema.optional()),
       flag(
         "template",
-        "a preset of flags for scaffolding the Runtime; compatible flags override preset values",
+        "the template to scaffold the Runtime from; some templates also accept --model-provider/--api-key",
         z.enum(PROJECT_TEMPLATE_NAMES).optional(),
       ),
       flag(
         "model-provider",
-        "model provider: bedrock, open_ai, gemini, or lite_llm for harnesses; " +
-          "bedrock, anthropic, open_ai, or gemini for Runtime code",
+        "model provider for templates that support it: bedrock, anthropic, open_ai, gemini, or lite_llm",
         ModelProviderFlagSchema.optional(),
       ),
       flag(
