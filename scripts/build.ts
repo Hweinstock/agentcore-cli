@@ -78,6 +78,37 @@ function assetLoaderPlugin(): Bun.BunPlugin {
   };
 }
 
+function runtimeShellSdkPlugin(): Bun.BunPlugin {
+  const runtimeEntry = Bun.resolveSync("bedrock-agentcore/runtime", REPO_ROOT);
+  const runtimeDirectory = resolve(runtimeEntry, "..");
+  const runtimeClient = join(runtimeDirectory, "client.js");
+  const shellProtocol = join(runtimeDirectory, "shell", "protocol.js");
+  const namespace = "runtime-shell-sdk";
+
+  return {
+    name: "runtime-shell-sdk-client",
+    setup(build) {
+      build.onResolve({ filter: /^bedrock-agentcore\/runtime$/ }, () => ({
+        path: "runtime",
+        namespace,
+      }));
+      build.onResolve({ filter: /^runtime-shell-sdk\/client$/ }, () => ({
+        path: runtimeClient,
+      }));
+      build.onResolve({ filter: /^runtime-shell-sdk\/protocol$/ }, () => ({
+        path: shellProtocol,
+      }));
+      build.onLoad({ filter: /^runtime$/, namespace }, () => ({
+        contents: [
+          'export { RuntimeClient } from "runtime-shell-sdk/client";',
+          'export { ShellChannel, MAX_FRAME_SIZE } from "runtime-shell-sdk/protocol";',
+        ].join("\n"),
+        loader: "js",
+      }));
+    },
+  };
+}
+
 function bootstrapTemplate(): string {
   const manifest = Bun.resolveSync("@aws-cdk/toolkit-lib/package.json", REPO_ROOT);
   const template = join(resolve(manifest, ".."), ...BOOTSTRAP_TEMPLATE);
@@ -133,6 +164,7 @@ async function bundle(): Promise<void> {
     minify: MINIFY,
     define: DEFINE,
     external: EXTERNAL,
+    plugins: [runtimeShellSdkPlugin()],
   });
   const bin = join(DIST, "index.js");
   await Bun.write(bin, BIN_LOADER);
@@ -165,7 +197,7 @@ async function compile(target: string): Promise<void> {
     define: DEFINE,
     root: REPO_ROOT,
     naming: { asset: ASSET_NAMING },
-    plugins: [assetLoaderPlugin()],
+    plugins: [assetLoaderPlugin(), runtimeShellSdkPlugin()],
   });
   await assertTemplateIsEmbedded(outfile, template);
   console.log(

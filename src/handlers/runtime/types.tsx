@@ -54,12 +54,36 @@ export type RuntimeInvokeResponse = {
   body: AsyncIterable<Uint8Array>;
 };
 
+export type RuntimeShellRequest = {
+  runtimeArn: string;
+  qualifier: string;
+  runtimeSessionId?: string;
+  bearerToken?: string;
+  onReconnect?: (reconnected: boolean) => void | Promise<void>;
+};
+
+export type RuntimeShellFrame =
+  { type: "stdout"; data: Uint8Array } | { type: "stderr"; data: Uint8Array };
+
+export interface RuntimeShellSession extends AsyncIterable<RuntimeShellFrame> {
+  readonly runtimeSessionId: string;
+  readonly kicked: boolean;
+  readonly exitCode: number | null;
+  send(data: Uint8Array): Promise<void>;
+  resize(columns: number, rows: number): Promise<void>;
+  close(): Promise<void>;
+}
+
 export interface CoreRuntimeClient {
   invokeRuntime(
     request: RuntimeInvokeRequest,
     options: CoreOptions,
     signal?: AbortSignal,
   ): Promise<RuntimeInvokeResponse>;
+  openRuntimeShell(
+    request: RuntimeShellRequest,
+    options: CoreOptions,
+  ): Promise<RuntimeShellSession>;
   getRuntime(
     id: string,
     options: CoreOptions,

@@ -19,6 +19,12 @@ export {
   type StreamProcessOptions,
 } from "./exec";
 export { FsReadWriteJson } from "./json";
+export {
+  InteractiveTerminal,
+  type InteractiveTerminalConfig,
+  type InteractiveTerminalPeer,
+  type TerminalFrame,
+} from "./interactiveTerminal";
 export { readTextFile, type ReadTextFileOptions } from "./fileRead";
 export { readOptionalBytes, resolvePackageFileDir } from "./packagedAssets";
 export {
