@@ -18,12 +18,6 @@ defines an HTTP server that streams tokens from your chosen Agent framework SDK.
 The generated Zod request schema keeps plain prompts typed as strings before forwarding them to Strands. Retain this
 validation when extending the request shape, and pass only prompt text to the agent.
 
-## Environment Variables
-
-| Variable | Required | Description |
-| --- | --- | --- |
-| `LOCAL_DEV` | No | Set to `1` to use `.env.local` instead of AgentCore Identity |
-
 # Developing locally
 
 If installation was successful, `node_modules/` is already populated with dependencies.
