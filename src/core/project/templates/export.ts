@@ -19,6 +19,7 @@ import type { Memory } from "../../../projectSchemas/memory";
 import type { EnvLocalEntry } from "../../../handlers/project/types";
 import { InputValidationError } from "../../../errors/errors";
 import { toPythonPackageName } from "../fsUtils";
+import { resourceNameFromArn } from "../../arn";
 
 type ProjectSpec = z.infer<typeof ProjectSpecSchema>;
 
@@ -768,9 +769,7 @@ function resolveSkills(
   for (const skill of gitSkillSources) {
     const reference = skill.auth?.credentialArn ?? skill.auth?.credentialName;
     if (!reference) continue;
-    const name = reference.includes("/")
-      ? reference.slice(reference.lastIndexOf("/") + 1)
-      : reference;
+    const name = resourceNameFromArn(reference);
     if (seenGitCredentials.has(name)) continue;
     seenGitCredentials.add(name);
     if (!credentials.some((c) => c.name === name)) {
