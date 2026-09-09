@@ -39,6 +39,10 @@ const CredentialStateSchema = z
 const ResourceStateSchema = z
   .object({
     credentials: z.record(z.string(), CredentialStateSchema).optional(),
+    // The legacy deployer recorded the CloudFormation stack name
+    // here. New deploys record the stack ARN instead. Keep this
+    // field so projects can be correctly inspected after upgrading.
+    stackName: z.string().optional(),
   })
   .passthrough();
 
@@ -60,6 +64,15 @@ export const DeployedStateSchema = z
 
 export type DeployedState = z.infer<typeof DeployedStateSchema>;
 export type TargetState = z.infer<typeof TargetStateSchema>;
+
+/**
+ * Returns the CloudFormation reference recorded for a target. New deploys bind
+ * to the exact stack ARN; legacy deploys recorded only the stack name under
+ * resources, which CloudFormation also accepts when describing the stack.
+ */
+export function stackReferenceOf(state: TargetState | undefined): string | undefined {
+  return state?.stackArn ?? state?.resources?.stackName;
+}
 
 function statePathFor(projectRoot: string): string {
   return join(projectRoot, DEPLOYED_STATE_RELATIVE_PATH);
