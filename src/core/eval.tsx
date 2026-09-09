@@ -172,10 +172,10 @@ import {
   grantOnlineEvalScope,
   isManagedOnlineEvalRole,
   revokeOnlineEvalScope,
-  roleNameFromArn,
   scopePolicyName,
 } from "./onlineEvalExecutionRole";
 import { accountIdFromArn, deleteAbTestRole, provisionAbTestRole } from "./abTestExecutionRole";
+import { resourceNameFromArn } from "./arn";
 import { harnessRuntimeFromResponse } from "./harness";
 
 const DEFAULT_INGESTION_WAIT_MS = 180_000;
@@ -1289,7 +1289,7 @@ export class EvalClient implements CoreEvalClient {
         options.region,
         newLogGroups,
         kmsKeys,
-        roleNameFromArn(roleArn!),
+        resourceNameFromArn(roleArn!),
       );
       const oldPolicyName = scopePolicyName(
         executionPolicy(
@@ -1312,7 +1312,7 @@ export class EvalClient implements CoreEvalClient {
       if (newPolicyName !== oldPolicyName) {
         const revoked = await revokeOnlineEvalScope(
           iam,
-          roleNameFromArn(managedRoleArn),
+          resourceNameFromArn(managedRoleArn),
           oldPolicyName,
         ).catch(() => false);
         // The config is already correct; the role just still grants a data

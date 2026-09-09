@@ -17,10 +17,6 @@ export function abTestExecutionRoleName(testName: string): string {
   return `${base.slice(0, 55)}-${hash}`;
 }
 
-export function roleNameFromArn(roleArn: string): string {
-  return resourceNameFromArn(roleArn);
-}
-
 export function accountIdFromArn(arn: string): string {
   const accountId = parseArn(arn)?.account;
   if (!accountId) throw new Error(`could not extract account id from ARN: ${arn}`);
@@ -139,7 +135,7 @@ export async function provisionAbTestRole(
 }
 
 export async function deleteAbTestRole(iam: IAMClient, roleArn: string): Promise<void> {
-  const roleName = roleNameFromArn(roleArn);
+  const roleName = resourceNameFromArn(roleArn);
   try {
     await iam.send(
       new DeleteRolePolicyCommand({ RoleName: roleName, PolicyName: AB_TEST_POLICY_NAME }),

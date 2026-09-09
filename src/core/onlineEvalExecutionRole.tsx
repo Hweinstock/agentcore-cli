@@ -50,15 +50,11 @@ function truncatedRolePrefix(configName: string): string {
   return `${ROLE_NAME_PREFIX}${configName.slice(0, room)}-`;
 }
 
-export function roleNameFromArn(roleArn: string): string {
-  return resourceNameFromArn(roleArn);
-}
-
 // isManagedOnlineEvalRole recognises the CLI's default role for a config. Roles
 // created before the hash moved off Bun.hash carry a different suffix, so a
 // truncated name is matched on its prefix rather than recomputed.
 export function isManagedOnlineEvalRole(roleArn: string, configName: string): boolean {
-  const roleName = roleNameFromArn(roleArn);
+  const roleName = resourceNameFromArn(roleArn);
   const full = `${ROLE_NAME_PREFIX}${configName}`;
   if (full.length <= ROLE_NAME_MAX) return roleName === full;
   return roleName.startsWith(truncatedRolePrefix(configName));
