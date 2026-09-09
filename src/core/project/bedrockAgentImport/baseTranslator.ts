@@ -1,3 +1,4 @@
+import { regionFromArn, resourceNameFromArn } from "../../arn";
 import { IMPORT_NOTES_FILE, renderImportNotes } from "./importNotes";
 import { generateImportPyproject } from "./pyproject";
 import type {
@@ -220,7 +221,7 @@ def ${pythonIdentifier(fn.name)}(${parameters}) -> str:
  */
 export function providerFromModelArn(foundationModel: string): string | undefined {
   if (!foundationModel.startsWith("arn:")) return undefined;
-  const resource = foundationModel.split("/").pop() ?? "";
+  const resource = resourceNameFromArn(foundationModel);
   const provider = resource.split(".")[0];
   return provider && provider !== resource ? provider.toLowerCase() : undefined;
 }
@@ -230,7 +231,7 @@ export function providerFromModelArn(foundationModel: string): string | undefine
  * its ARN and fall back to the agent's region only when the ARN was unavailable.
  */
 export function knowledgeBaseRegion(knowledgeBase: { arn?: string }, agentRegion: string): string {
-  return knowledgeBase.arn?.split(":")[3] || agentRegion;
+  return regionFromArn(knowledgeBase.arn ?? "") ?? agentRegion;
 }
 
 /** The root snapshot followed by every collaborator reachable from it, depth-first. */

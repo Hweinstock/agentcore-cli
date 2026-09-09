@@ -4,6 +4,7 @@ import {
   PutRolePolicyCommand,
   type IAMClient,
 } from "@aws-sdk/client-iam";
+import { parseArn } from "./arn";
 
 // Default harness execution role provisioning.
 //
@@ -223,7 +224,7 @@ function executionPolicy(region: string, accountId: string, harnessName: string)
 // (arn:aws:iam::<account>:role/<name>), which saves an STS lookup: the account
 // only becomes relevant once we hold the role's ARN anyway.
 function accountIdFromRoleArn(arn: string): string {
-  const accountId = arn.split(":")[4];
+  const accountId = parseArn(arn)?.account;
   if (!accountId) {
     throw new Error(`Cannot extract an account id from role ARN "${arn}"`);
   }
