@@ -17,3 +17,5 @@ process.env.FORCE_COLOR = "0";
 // terminal env at import time. Pin the Windows Terminal marker so frame
 // assertions on ❯ ✗ ↵ hold on a plain conhost dev box as well.
 process.env.WT_SESSION ??= "bun-test";
+
+process.env.AGENTCORE_TELEMETRY_DISABLED = "1";
