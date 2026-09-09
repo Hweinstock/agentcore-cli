@@ -6,6 +6,7 @@ import {
   PutRolePolicyCommand,
   type IAMClient,
 } from "@aws-sdk/client-iam";
+import { parseArn, resourceNameFromArn } from "./arn";
 
 // Default online-evaluation execution role provisioning, mirroring
 // core/executionRole.tsx's pattern for harnesses: CreateOnlineEvaluationConfig
@@ -50,7 +51,7 @@ function truncatedRolePrefix(configName: string): string {
 }
 
 export function roleNameFromArn(roleArn: string): string {
-  return roleArn.slice(roleArn.lastIndexOf("/") + 1);
+  return resourceNameFromArn(roleArn);
 }
 
 // isManagedOnlineEvalRole recognises the CLI's default role for a config. Roles
@@ -188,7 +189,7 @@ export function executionPolicy(
 }
 
 export function accountIdFromRoleArn(arn: string): string {
-  const accountId = arn.split(":")[4];
+  const accountId = parseArn(arn)?.account;
   if (!accountId) {
     throw new Error(`Cannot extract an account id from role ARN "${arn}"`);
   }

@@ -7,6 +7,7 @@ import {
   type IAMClient,
 } from "@aws-sdk/client-iam";
 import { createHash } from "node:crypto";
+import { parseArn, resourceNameFromArn } from "./arn";
 
 const AB_TEST_POLICY_NAME = "ABTestExecutionPolicy";
 
@@ -17,12 +18,11 @@ export function abTestExecutionRoleName(testName: string): string {
 }
 
 export function roleNameFromArn(roleArn: string): string {
-  const parts = roleArn.split("/");
-  return parts[parts.length - 1] ?? roleArn;
+  return resourceNameFromArn(roleArn);
 }
 
 export function accountIdFromArn(arn: string): string {
-  const accountId = arn.split(":")[4];
+  const accountId = parseArn(arn)?.account;
   if (!accountId) throw new Error(`could not extract account id from ARN: ${arn}`);
   return accountId;
 }
