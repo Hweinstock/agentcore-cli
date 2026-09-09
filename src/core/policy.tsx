@@ -22,6 +22,7 @@ import type {
 import type { Logger } from "../logging";
 import type { ProgressEvent } from "../tui/progress";
 import type { AwsClients, CoreOptions } from "./types";
+import { resourceNameFromArn } from "./arn";
 import { toClientConfig } from "./utils";
 
 export type PolicyGenerationWait = {
@@ -31,10 +32,6 @@ export type PolicyGenerationWait = {
 };
 
 const DEFAULT_WAIT: PolicyGenerationWait = { maxWaitTime: 60, minDelay: 2, maxDelay: 5 };
-
-function resourceIdFromArn(value: string): string {
-  return value.startsWith("arn:") ? value.slice(value.lastIndexOf("/") + 1) : value;
-}
 
 export class PolicyClient implements CorePolicyClient {
   constructor(
@@ -49,7 +46,7 @@ export class PolicyClient implements CorePolicyClient {
     signal?: AbortSignal,
   ): AsyncGenerator<ProgressEvent, PolicyGenerationResult> {
     const control = this.clients.control(toClientConfig(options));
-    const gatewayId = resourceIdFromArn(input.gatewayId);
+    const gatewayId = resourceNameFromArn(input.gatewayId);
 
     yield { type: "step", message: `Resolving gateway ${gatewayId}` };
     const gateway = await control.send(new GetGatewayCommand({ gatewayIdentifier: gatewayId }), {
@@ -62,7 +59,7 @@ export class PolicyClient implements CorePolicyClient {
         `gateway '${gatewayId}' has no Policy Engine attached; pass --policy-engine-id`,
       );
     }
-    const policyEngineId = resourceIdFromArn(engine);
+    const policyEngineId = resourceNameFromArn(engine);
 
     yield { type: "step", message: `Starting policy generation ${input.name}` };
     const started = await control.send(
