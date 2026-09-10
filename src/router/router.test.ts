@@ -367,6 +367,7 @@ test("a required (non-optional) flag is mandatory", async () => {
 
   const root = new Router("app");
   root.handler(get);
+  root.supportedTuiCommands();
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
@@ -502,6 +503,7 @@ test("validates, coerces, and passes typed positional arguments to handle", asyn
 
   const root = new Router("app");
   root.handler(serve);
+  root.supportedTuiCommands();
 
   await root.route(["node", "app", "serve", "api", "8080", "true"]);
 
@@ -528,7 +530,7 @@ test("optional arguments resolve to undefined when omitted", async () => {
   expect(seen).toEqual({ key: undefined });
 });
 
-test("arguments with schema defaults use the default when omitted", async () => {
+test("arguments with schema defaults use the default value when omitted", async () => {
   let seen: { env: string } | undefined;
 
   const deploy = createHandler({
@@ -542,6 +544,7 @@ test("arguments with schema defaults use the default when omitted", async () => 
 
   const root = new Router("app");
   root.handler(deploy);
+  root.supportedTuiCommands();
 
   await root.route(["node", "app", "deploy"]);
 

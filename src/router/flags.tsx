@@ -29,9 +29,6 @@ export function toOption(flag: Flag): Option {
   } else if (info.boolean) {
     option.default(false);
   }
-  if (info.required && !info.boolean) {
-    option.makeOptionMandatory(true);
-  }
   return option;
 }
 

@@ -118,7 +118,7 @@ function attachAction(
   // of where they appear on the command line.
   c.action(async (...actionArgs: unknown[]) => {
     const command = actionArgs[actionArgs.length - 1] as Command;
-    const merged = command.optsWithGlobals();
+    const allOptions = command.optsWithGlobals();
 
     recordCommandPath(ctx);
 
@@ -133,10 +133,18 @@ function attachAction(
 
     // Inherited group/global flags -> context (typed, read via ctx.value(key)).
     let leafCtx = ctx.withValue(CommandKey, command);
-    leafCtx = applyGlobalFlags(globals, merged, leafCtx);
+    leafCtx = applyGlobalFlags(globals, allOptions, leafCtx);
+    if (
+      node.doesSupportTui() &&
+      Object.keys(command.opts()).length === 0 &&
+      node.arguments().length == 0
+    ) {
+      await wrapped.handle(leafCtx, {}, {});
+      return;
+    }
 
     // Own flags -> the statically-typed object passed to handle.
-    const parsedFlags = parseFlags(ownFlags, merged);
+    const parsedFlags = parseFlags(ownFlags, allOptions);
     const parsedArguments = parseArguments(node.arguments(), command);
 
     await wrapped.handle(leafCtx, parsedFlags, parsedArguments);
