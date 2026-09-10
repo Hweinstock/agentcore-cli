@@ -89,9 +89,9 @@ describe("project export harness handler", () => {
     const subject = testExportCommand();
     await inProjectWithHarness(subject);
 
-    await expect(subject.run([])).rejects.toThrow(/exactly one of --name .* or --arn/);
+    await expect(subject.run([])).rejects.toThrow(/specify exactly one of --name, --arn/);
     await expect(subject.run(["--name", "exportme", "--arn", HARNESS_ARN])).rejects.toThrow(
-      /exactly one of --name .* or --arn/,
+      /specify exactly one of --name, --arn/,
     );
   });
 
