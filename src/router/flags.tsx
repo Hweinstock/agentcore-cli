@@ -8,8 +8,7 @@ import { coerce, formatZodError, inspect } from "./schema";
 // to true is exposed as `--no-<name>`: the behavior is already on, so the only useful
 // action is turning it off, which Commander stores under the positive name (e.g.
 // `--no-traces` sets `traces=false`). A boolean that defaults off stays `--<name>`.
-// Everything else takes a value (`<name>` / variadic `<name...>`); a required
-// non-boolean flag is made mandatory; defaults are forwarded.
+// Everything else takes a value (`<name>` / variadic `<name...>`); defaults are forwarded.
 export function toOption(flag: Flag): Option {
   const info = inspect(flag.schema);
   const long = `--${flag.name}`;
@@ -52,7 +51,7 @@ export function formatParameterDetails(flags: Flag[]): string | undefined {
 
 // attributeName mirrors how Commander camelCases an option name into the key it
 // stores on the parsed options object (e.g. "harness-id" -> "harnessId").
-function attributeName(name: string): string {
+export function attributeName(name: string): string {
   return new Option(`--${name}`).attributeName();
 }
 

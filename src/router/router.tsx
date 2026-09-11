@@ -1,15 +1,21 @@
 import type { Argument, Flag, GlobalFlag, Handler } from "./handler";
 import { type Middleware, type MiddlewareProvider, isMiddlewareProvider } from "./middleware";
 import { type Context, type ContextKey, ValueContext, contextKey } from "./context";
-import { applyGlobalFlags, formatParameterDetails, parseFlags, toOption } from "./flags";
+import {
+  applyGlobalFlags,
+  attributeName,
+  formatParameterDetails,
+  parseFlags,
+  toOption,
+} from "./flags";
 import { parseArguments, toCommanderArgument } from "./args";
-
-import { Command, CommanderError } from "commander";
+import { Command, CommanderError, Option } from "commander";
 import { InputValidationError } from "../errors";
 import type { Logger } from "../logging";
 import type { GlobalConfigAccessor } from "../globalConfig";
 import type { Project } from "../handlers/project/types";
 import { type MetricEvent } from "../telemetry";
+import { JsonKey } from "../handlers/keys";
 
 // CommandKey exposes the Commander Command for the executing leaf via context.
 export const CommandKey: ContextKey<Command> = contextKey<Command>("commander.command");
@@ -25,6 +31,8 @@ export const CommandRunMetricEventKey =
 export const GlobalConfigAccessorKey: ContextKey<GlobalConfigAccessor> =
   contextKey<GlobalConfigAccessor>("globalConfigAccessor");
 export const ProjectKey = contextKey<Project>("project");
+// TuiKey exposes whether or not the command should be opened in the tui or in headless mode.
+export const TuiKey = contextKey<boolean>("tui");
 
 // RoutedCommand keeps the compiled handler and Commander command tree together.
 // TUI consumers can therefore read handler metadata without module-level state.
@@ -99,6 +107,21 @@ function declareArguments(c: Command, args: Argument[]): void {
   }
 }
 
+function shouldRenderTui(c: Command, node: Handler, ctx: Context) {
+  const countPassedFlags = (h: Handler, command: Command) =>
+    h.flags().filter((f) => {
+      const attribute = new Option(`--${f.name}`).attributeName();
+      return command.getOptionValueSource(attribute) === "cli";
+    }).length;
+
+  return (
+    node.doesSupportTui() &&
+    !ctx.value(JsonKey) &&
+    countPassedFlags(node, c) === 0 &&
+    c.args.length === 0
+  );
+}
+
 // attachAction wires `node` as the executing handler for command `c`. The
 // accumulated middleware `stack` wraps the node (ancestor-first, via reduceRight),
 // `globals` are validated and injected into the context under their keys, and the
@@ -134,12 +157,14 @@ function attachAction(
     // Inherited group/global flags -> context (typed, read via ctx.value(key)).
     let leafCtx = ctx.withValue(CommandKey, command);
     leafCtx = applyGlobalFlags(globals, allOptions, leafCtx);
-    if (
-      node.doesSupportTui() &&
-      Object.keys(command.opts()).length === 0 &&
-      node.arguments().length == 0
-    ) {
-      await wrapped.handle(leafCtx, {}, {});
+    leafCtx = leafCtx.withValue(TuiKey, shouldRenderTui(c, node, leafCtx));
+
+    if (leafCtx.require(TuiKey)) {
+      // inject defaults into handler to allow TUI paths to consume handler defaults
+      const defaults = Object.fromEntries(
+        ownFlags.map((f) => [f.name, allOptions[attributeName(f.name)]]),
+      );
+      await wrapped.handle(leafCtx, defaults, {});
       return;
     }
 
