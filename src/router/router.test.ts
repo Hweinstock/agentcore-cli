@@ -289,6 +289,7 @@ test("boolean flags default to false when omitted", async () => {
   });
 
   const root = new Router("app");
+  root.supportedTuiCommands();
   root.handler(run);
 
   await root.route(["node", "app", "run"]);
@@ -309,6 +310,7 @@ test("a boolean flag defaulting to true is declared as its --no- negation", asyn
   });
 
   const root = new Router("app");
+  root.supportedTuiCommands();
   root.handler(run);
 
   await root.route(["node", "app", "run"]);
@@ -331,6 +333,7 @@ test("applies a schema default for an omitted flag", async () => {
 
   const root = new Router("app");
   root.handler(opt);
+  root.supportedTuiCommands();
 
   await root.route(["node", "app", "opt"]);
 
@@ -567,7 +570,6 @@ test("variadic argument collects multiple values into an array", async () => {
   root.handler(lint);
 
   await root.route(["node", "app", "lint", "a.ts", "b.ts", "c.ts"]);
-
   expect(seen).toEqual({ files: ["a.ts", "b.ts", "c.ts"] });
 });
 
@@ -599,6 +601,7 @@ test("rejects an argument that fails schema validation", async () => {
 
   const root = new Router("app");
   root.handler(config);
+  root.supportedTuiCommands();
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
