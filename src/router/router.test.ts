@@ -374,7 +374,6 @@ test("a required (non-optional) flag is mandatory", async () => {
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
-  // Omitting the mandatory option makes Commander reject before the handler runs.
   await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow();
 });
 
