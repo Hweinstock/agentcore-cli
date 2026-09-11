@@ -157,14 +157,14 @@ function attachAction(
     let leafCtx = ctx.withValue(CommandKey, command);
     leafCtx = applyGlobalFlags(globals, allOptions, leafCtx);
 
-    const named = Object.fromEntries(
+    const namedFlags = Object.fromEntries(
       ownFlags.map((f) => [f.name, allOptions[attributeName(f.name)]]),
     );
     const namedArgs = Object.fromEntries(
       node.arguments().map((a, i) => [a.name, command.processedArgs[i]]),
     );
 
-    await wrapped.handle(leafCtx, named, namedArgs);
+    await wrapped.handle(leafCtx, namedFlags, namedArgs);
   });
 }
 
@@ -283,7 +283,7 @@ export class Router implements Handler, MiddlewareProvider, DefaultHandlerProvid
   constructor(
     private readonly cmdName: string,
     private readonly cmdDescription: string = "",
-  ) { }
+  ) {}
 
   // --- Router authoring API ---
 
@@ -358,7 +358,7 @@ export class Router implements Handler, MiddlewareProvider, DefaultHandlerProvid
   }
 
   // A group/branch never executes directly; it just hosts subcommands.
-  async handle(_ctx: Context, _flags: any, _args: any): Promise<void> { }
+  async handle(_ctx: Context, _flags: any, _args: any): Promise<void> {}
 
   children(): Handler[] {
     return this.handlers;
