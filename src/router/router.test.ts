@@ -374,7 +374,9 @@ test("a required (non-optional) flag is mandatory", async () => {
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
-  await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow();
+  await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow(
+    "required option '--harness-id <harness-id>' not specified",
+  );
 });
 
 // --- flag inheritance (group-level / global flags) -------------------------
@@ -585,7 +587,9 @@ test("a required positional argument is mandatory", async () => {
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
-  await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow();
+  await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow(
+    "missing required argument 'id'",
+  );
 });
 
 test("rejects an argument that fails schema validation", async () => {

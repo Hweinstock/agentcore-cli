@@ -62,8 +62,14 @@ export function attributeName(name: string): string {
 // `command.error`, which prints a message and exits (or, with exitOverride,
 // throws) — so this returns only on success.
 function validateFlag(flag: Flag, opts: Record<string, unknown>): unknown {
-  const result = flag.schema.safeParse(coerce(flag.schema, opts[attributeName(flag.name)]));
+  const raw = opts[attributeName(flag.name)];
+  const result = flag.schema.safeParse(coerce(flag.schema, raw));
   if (!result.success) {
+    if (raw === undefined) {
+      throw new InputValidationError(
+        `required option '--${flag.name} <${flag.name}>' not specified`,
+      );
+    }
     throw new InputValidationError(
       `Invalid value for option '--${flag.name}': ${formatZodError(result.error)}`,
       { cause: result.error },
