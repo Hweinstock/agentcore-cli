@@ -1,4 +1,4 @@
-import { Router } from "../../router";
+import { Router, type Handler, type MiddlewareProvider } from "../../router";
 import { checkPort, openBrowser, startHttpServer, watchFile, type AppIO } from "../../io";
 import { CodeZipDevRunner } from "../../core/dev/codezip";
 import { ContainerDevRunner } from "../../core/dev/container";
@@ -46,9 +46,21 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
 
   // A bare `agentcore project create` in an interactive session opens the TUI
   // create wizard; any user-supplied flag, --json, or a non-TTY invocation keeps
-  // the headless handler (see withTuiWhenInteractive).
-  const tuiWhenInteractive = withTuiWhenInteractive(core, io);
-  project.handler(tuiWhenInteractive(createCreateProjectHandler({ projectManager, io })));
+  // the headless handler. The TUI is exposed via middlewares() (not hand-wrapped)
+  // so the router runs it before flag validation, letting the wizard supply a
+  // required flag the headless path would otherwise reject.
+  const createProject = createCreateProjectHandler({ projectManager, io });
+  const createProjectWithTui: Handler & MiddlewareProvider = {
+    name: () => createProject.name(),
+    description: () => createProject.description(),
+    flags: () => createProject.flags(),
+    arguments: () => createProject.arguments(),
+    doesSupportTui: () => createProject.doesSupportTui(),
+    children: () => createProject.children(),
+    handle: (ctx, flags, args) => createProject.handle(ctx, flags, args),
+    middlewares: () => [withTuiWhenInteractive(core, io)],
+  };
+  project.handler(createProjectWithTui);
   project.handler(createAddProjectResourceHandler(config, core));
   project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
@@ -84,14 +96,22 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createProjectInvokeHandler(core, io));
   // A bare `agentcore project status` in an interactive session opens the TUI
   // linked-resources screen; any user-supplied flag, --json, or a non-TTY
-  // invocation keeps the headless JSON report. withProject stays outermost so
-  // the not-found guidance outside a project is the CLI's own, and the resolved
-  // project seeds the screen via ProjectKey.
-  project.handler(
-    withProject({ projectManager: config.projectManager })(
-      tuiWhenInteractive(createStatusProjectHandler({ projectManager: config.projectManager })),
-    ),
-  );
+  // invocation keeps the headless JSON report. withProject runs before the TUI
+  // so the not-found guidance is the CLI's own and the resolved project seeds
+  // the screen via ProjectKey.
+  const statusProject = createStatusProjectHandler({ projectManager: config.projectManager });
+  const withStatusProject = withProject({ projectManager: config.projectManager });
+  const statusProjectWithTui: Handler & MiddlewareProvider = {
+    name: () => statusProject.name(),
+    description: () => statusProject.description(),
+    flags: () => statusProject.flags(),
+    arguments: () => statusProject.arguments(),
+    doesSupportTui: () => statusProject.doesSupportTui(),
+    children: () => statusProject.children(),
+    handle: (ctx, flags, args) => statusProject.handle(ctx, flags, args),
+    middlewares: () => [withStatusProject, withTuiWhenInteractive(core, io)],
+  };
+  project.handler(statusProjectWithTui);
   // withProject wraps only the commands that require an existing project, so
   // `create` (which refuses to nest inside one) stays unaffected.
   project.handler(
