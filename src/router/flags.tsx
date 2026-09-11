@@ -22,7 +22,9 @@ export function toOption(flag: Flag): Option {
     token = `${long} <${flag.name}>`;
   }
 
-  const option = new Option(token, flag.description);
+  const description =
+    info.required && !info.boolean ? `${flag.description} (required)` : flag.description;
+  const option = new Option(token, description);
   if (info.hasDefault) {
     option.default(info.defaultValue);
   } else if (info.boolean) {
