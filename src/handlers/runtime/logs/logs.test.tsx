@@ -107,7 +107,7 @@ describe("runtime logs", () => {
     process.chdir(root);
     try {
       await expect(route(["runtime", "logs", "--since", `${SINCE_MS}`])).rejects.toThrow(
-        "required option '--id <id>' not specified",
+        "Invalid value for option '--id': Invalid input: expected string, received undefined",
       );
     } finally {
       process.chdir(previousCwd);
