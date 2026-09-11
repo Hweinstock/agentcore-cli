@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
+import z from "zod";
 import {
   DeserializationError,
   InputValidationError,
@@ -14,14 +15,17 @@ import { credentialEnvVarName } from "../../projectSchemas/credential";
 import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { ENV_LOCAL_RELATIVE_PATH } from "./envLocal";
 import { FsProjectManager } from "./manager";
+import { FsReadWriteJson, type ReadWriteJson } from "../../io";
 import { resolveRuntimeTemplateShortcut } from "../../handlers/project/shortcuts";
 import {
   type AddResourceInput,
   type CreateProjectInput,
   type DeployResult,
+  type ExportHarnessInput,
   type Project,
   type ProjectEvent,
 } from "../../handlers/project/types";
+import { HarnessSpecSchema } from "../../projectSchemas/harness";
 import { createSilentLogger, TestIdentityClient } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
 
@@ -54,7 +58,7 @@ afterEach(async () => {
 });
 
 // A manager whose runner records commands instead of spawning them.
-function manager(): {
+function manager(options: { json?: ReadWriteJson } = {}): {
   manager: FsProjectManager;
   commands: { command: string[]; cwd: string }[];
   checkedTools: string[];
@@ -65,6 +69,7 @@ function manager(): {
     manager: new FsProjectManager({
       logger: createSilentLogger(),
       identity: new TestIdentityClient(),
+      json: options.json,
       runner: async (command, { cwd }) => {
         commands.push({ command, cwd });
       },
@@ -76,6 +81,61 @@ function manager(): {
     commands,
     checkedTools,
   };
+}
+
+async function drainToResult<T>(generator: AsyncGenerator<ProjectEvent, T>): Promise<T> {
+  let next = await generator.next();
+  while (!next.done) next = await generator.next();
+  return next.value;
+}
+
+/** Creates a project with a harness built from `harness` overrides; returns the refreshed project. */
+async function projectWithHarness(
+  subject: FsProjectManager,
+  harness: Record<string, unknown> = {},
+): Promise<Project> {
+  await inTempDirectory();
+  let project = await drainToResult(
+    subject.create({
+      name: "orders",
+      skipInstall: true,
+      skipGit: true,
+      scaffoldRuntimeInput: AGENT_PYTHON,
+    }),
+  );
+  project = await drainToResult(
+    subject.addResource(project, {
+      resourceType: "harness",
+      resourceConfig: {
+        name: "assistant",
+        model: { provider: "bedrock", modelId: "us.amazon.nova-lite-v1:0" },
+        systemPrompt: "You are a terse assistant.",
+        ...harness,
+      } as z.input<typeof HarnessSpecSchema>,
+    }),
+  );
+  return project;
+}
+
+function exportInput(overrides: Partial<ExportHarnessInput> = {}): ExportHarnessInput {
+  return { harnessName: "assistant", targetAgentName: "assistantAgent", ...overrides };
+}
+
+/** A ReadWriteJson that can be told to fail its next write, delegating otherwise. */
+function failingWriteJson() {
+  const real = new FsReadWriteJson({ logger: createSilentLogger() });
+  let shouldFail = false;
+  const json: ReadWriteJson = {
+    read: (path, schema) => real.read(path, schema),
+    write: (path, data) => {
+      if (shouldFail) {
+        shouldFail = false;
+        throw new Error("disk full");
+      }
+      return real.write(path, data);
+    },
+  };
+  return { json, failNextWrite: () => (shouldFail = true) };
 }
 
 async function runCreate(
@@ -1081,5 +1141,164 @@ describe("FsProjectManager removal", () => {
 
     expect(twice.removedEnvKeys).toEqual([]);
     expect(twice.project.spec.runtimes).toEqual([]);
+  });
+});
+
+describe("FsProjectManager.exportHarness rendered tree", () => {
+  test("leaves hooks/ and memory/ out of a plain export", async () => {
+    const { manager: subject } = manager();
+    const project = await projectWithHarness(subject);
+
+    const result = await drainToResult(subject.exportHarness(project, exportInput()));
+
+    expect(existsSync(join(result.agentPath, "hooks"))).toBe(false);
+    expect(existsSync(join(result.agentPath, "memory"))).toBe(false);
+    expect(existsSync(join(result.agentPath, "Dockerfile"))).toBe(false);
+  });
+
+  test("emits a CodeZip runtime with no container files", async () => {
+    const { manager: subject } = manager();
+    const project = await projectWithHarness(subject);
+
+    const result = await drainToResult(subject.exportHarness(project, exportInput()));
+
+    expect(existsSync(join(result.agentPath, "Dockerfile"))).toBe(false);
+    expect(existsSync(join(result.agentPath, ".dockerignore"))).toBe(false);
+    const spec = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).json();
+    const runtime = spec.runtimes.find((r: { name: string }) => r.name === "assistantAgent");
+    expect(runtime.build).toBe("CodeZip");
+    expect(runtime.runtimeVersion).toBe("PYTHON_3_14");
+    expect(runtime.dockerfile).toBeUndefined();
+  });
+
+  test("exports a containerUri harness as CodeZip and reports the dropped image", async () => {
+    const { manager: subject } = manager();
+    const project = await projectWithHarness(subject, {
+      containerUri: "111122223333.dkr.ecr.us-east-1.amazonaws.com/base-image:latest",
+    });
+
+    const result = await drainToResult(subject.exportHarness(project, exportInput()));
+
+    expect(existsSync(join(result.agentPath, "Dockerfile"))).toBe(false);
+    expect(result.notes.map((note) => note.category)).toEqual(["Container image not carried over"]);
+    const spec = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).json();
+    const runtime = spec.runtimes.find((r: { name: string }) => r.name === "assistantAgent");
+    expect(runtime.build).toBe("CodeZip");
+  });
+
+  test("writes generated IAM policy files next to the code", async () => {
+    const { manager: subject } = manager();
+    const project = await projectWithHarness(subject, {
+      skills: [{ s3Uri: "s3://skills-bucket/team" }],
+    });
+
+    const result = await drainToResult(subject.exportHarness(project, exportInput()));
+
+    const policy = await Bun.file(join(result.agentPath, "s3-skills-policy.json")).json();
+    expect(policy.Statement[0].Resource).toEqual(["arn:aws:s3:::skills-bucket/team/*"]);
+    const spec = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).json();
+    const runtime = spec.runtimes.find((r: { name: string }) => r.name === "assistantAgent");
+    expect(runtime.additionalPolicies).toEqual(["s3-skills-policy.json"]);
+  });
+});
+
+describe("FsProjectManager.exportHarness side effects", () => {
+  test("cleans up the agent dir and .env.local when the spec write fails", async () => {
+    const failing = failingWriteJson();
+    const { manager: subject } = manager({ json: failing.json });
+    const project = await projectWithHarness(subject, {
+      tools: [
+        {
+          type: "remote_mcp",
+          name: "internal",
+          config: {
+            remoteMcp: { url: "https://mcp.internal.example", headers: { "X-Api-Key": "s3cret" } },
+          },
+        },
+      ],
+    });
+
+    failing.failNextWrite();
+    await expect(drainToResult(subject.exportHarness(project, exportInput()))).rejects.toThrow(
+      "disk full",
+    );
+
+    expect(existsSync(join(project.rootPath, "app", "assistantAgent"))).toBe(false);
+    // The scaffolded .env.local survives, but the staged secret is rolled back.
+    expect(await Bun.file(join(project.rootPath, "agentcore", ".env.local")).text()).not.toContain(
+      "AGENTCORE_CREDENTIAL_ORDERSMCPINTERNALXAPIKEY",
+    );
+    const spec = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes.map((r: { name: string }) => r.name)).not.toContain("assistantAgent");
+  });
+
+  test("registers a credential and writes the MCP header secret to .env.local", async () => {
+    const { manager: subject } = manager();
+    const project = await projectWithHarness(subject, {
+      tools: [
+        {
+          type: "remote_mcp",
+          name: "internal",
+          config: {
+            remoteMcp: { url: "https://mcp.internal.example", headers: { "X-Api-Key": "s3cret" } },
+          },
+        },
+      ],
+    });
+
+    await drainToResult(subject.exportHarness(project, exportInput()));
+
+    const spec = await Bun.file(join(project.rootPath, "agentcore", "agentcore.json")).json();
+    const credential = spec.credentials[0];
+    expect(credential.authorizerType).toBe("ApiKeyCredentialProvider");
+    expect(credential.name).toMatch(/^ordersMcpinternalX-Api-Key-[a-f0-9]{10}$/);
+    const envLocal = await Bun.file(join(project.rootPath, "agentcore", ".env.local")).text();
+    expect(envLocal).toContain(
+      `AGENTCORE_CREDENTIAL_${credential.name.replace(/-/g, "_").toUpperCase()}='s3cret'`,
+    );
+  });
+
+  test("notes that memory messagesCount is not portable to Strands", async () => {
+    const { manager: subject } = manager();
+    let project = await projectWithHarness(subject, {
+      memory: { mode: "existing", name: "chat_history", messagesCount: 12 },
+    });
+    project = await drainToResult(
+      subject.addResource(project, {
+        resourceType: "memory",
+        resourceConfig: {
+          name: "chat_history",
+          eventExpiryDuration: 30,
+          strategies: [{ type: "SEMANTIC" }],
+        },
+      }),
+    );
+
+    const result = await drainToResult(subject.exportHarness(project, exportInput()));
+
+    expect(result.notes.map((note) => note.category)).toContain(
+      "Memory messagesCount is not directly portable to Strands",
+    );
+  });
+
+  test("exports a prefetched (service) harness under the target agent name", async () => {
+    const { manager: subject } = manager();
+    const project = await projectWithHarness(subject);
+
+    const result = await drainToResult(
+      subject.exportHarness(project, {
+        prefetched: {
+          spec: HarnessSpecSchema.parse({
+            name: "remote_harness",
+            model: { provider: "bedrock", modelId: "us.amazon.nova-lite-v1:0" },
+          }),
+          systemPrompt: "Fetched prompt.",
+        },
+        targetAgentName: "exported_arn",
+      }),
+    );
+
+    expect(result.harnessName).toBe("remote_harness");
+    expect(existsSync(result.agentPath)).toBe(true);
   });
 });
