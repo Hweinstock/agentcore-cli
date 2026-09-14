@@ -124,20 +124,6 @@ describe("project create", () => {
     expect(existsSync(join(projectRoot, "app"))).toBe(true);
   });
 
-  test("rejects --model-provider with the empty template", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(
-      run(["create", "--name", "MyAgent", "--template", "empty", "--model-provider", "anthropic"]),
-    ).rejects.toThrow(/--model-provider only applies to runtime templates/);
-  });
-
-  test("rejects --model-provider without a template", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(
-      run(["create", "--name", "MyAgent", "--model-provider", "anthropic"]),
-    ).rejects.toThrow(/--model-provider only applies to runtime templates/);
-  });
-
   test("rejects --api-key with a template that does not support it", async () => {
     const { path: directory, cleanup } = await inTempDirectory();
     cleanups.push(cleanup);
@@ -158,23 +144,6 @@ describe("project create", () => {
       ),
     ).rejects.toThrow(/--api-key is not valid with the agent-python-minimal template/);
     expect(existsSync(join(directory, "MyProject"))).toBe(false);
-  });
-
-  test("rejects --model-provider with a template that does not support it", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(
-      run([
-        "create",
-        "--name",
-        "MyProject",
-        "--template",
-        "a2a-python-strands",
-        "--model-provider",
-        "anthropic",
-        "--skip-install",
-        "--skip-git",
-      ]),
-    ).rejects.toThrow(/--model-provider is not valid with the a2a-python-strands template/);
   });
 
   test("runs the post-scaffold steps and reports progress on stderr", async () => {
@@ -476,18 +445,41 @@ describe("project create", () => {
     ).toBe(true);
   });
 
-  test("rejects an invalid --name", async () => {
+  test.each<[string, string[], RegExp | undefined]>([
+    [
+      "--model-provider with the empty template",
+      ["create", "--name", "MyAgent", "--template", "empty", "--model-provider", "anthropic"],
+      /--model-provider only applies to runtime templates/,
+    ],
+    [
+      "--model-provider without a template",
+      ["create", "--name", "MyAgent", "--model-provider", "anthropic"],
+      /--model-provider only applies to runtime templates/,
+    ],
+    [
+      "--model-provider with a template that does not support it",
+      [
+        "create",
+        "--name",
+        "MyProject",
+        "--template",
+        "a2a-python-strands",
+        "--model-provider",
+        "anthropic",
+        "--skip-install",
+        "--skip-git",
+      ],
+      /--model-provider is not valid with the a2a-python-strands template/,
+    ],
+    ["an invalid --name", ["create", "--name", "1-bad"], undefined],
+    ["a reserved --name", ["create", "--name", "test"], /conflicts with/],
+    [
+      "an unknown --template value",
+      ["create", "--name", "MyAgent", "--template", "nonsense"],
+      undefined,
+    ],
+  ])("rejects %s", async (_label, args, message) => {
     cleanups.push((await inTempDirectory()).cleanup);
-    await expect(run(["create", "--name", "1-bad"])).rejects.toThrow();
-  });
-
-  test("rejects a reserved --name", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(run(["create", "--name", "test"])).rejects.toThrow(/conflicts with/);
-  });
-
-  test("rejects an unknown --template value", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(run(["create", "--name", "MyAgent", "--template", "nonsense"])).rejects.toThrow();
+    await expect(run(args)).rejects.toThrow(message);
   });
 });
