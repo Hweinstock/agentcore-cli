@@ -16,7 +16,7 @@ import { z } from "zod";
 export const AgentNameSchema = z
   .string()
   .min(1, "Name is required")
-  .max(48)
+  .max(48, "Must be at most 48 characters")
   .regex(
     /^[a-zA-Z][a-zA-Z0-9_]{0,47}$/,
     "Must begin with a letter and contain only alphanumeric characters and underscores (max 48 chars)",
