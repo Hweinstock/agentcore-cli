@@ -1,5 +1,6 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import { join } from "node:path";
+import { createRootHandler } from "../../index";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
 import {
   InputValidationError,
@@ -9,7 +10,13 @@ import {
 } from "../../../errors";
 import type { HttpRequestHandler, PortChecker } from "../../../io";
 import { ProjectKey, ValueContext } from "../../../router";
-import { testIO } from "../../../testing";
+import {
+  createSilentLogger,
+  inTempDirectory,
+  TestCoreClient,
+  TestGlobalConfigAccessor,
+  testIO,
+} from "../../../testing";
 import { JsonRendererKey } from "../../../tui";
 import { JsonKey, RegionKey } from "../../keys";
 import type { Project } from "../types";
@@ -542,4 +549,28 @@ describe("project dev interruption", () => {
 
     await expect(harness({ codeZip }).run({ agent: "orders" })).rejects.toBe(failure);
   });
+});
+
+async function run(
+  args: string[],
+  opts?: { core?: TestCoreClient; stdin?: string; platform?: NodeJS.Platform },
+) {
+  const io = testIO({ stdin: opts?.stdin });
+  const core = opts?.core ?? new TestCoreClient();
+  const root = createRootHandler(core, {
+    io: io.io,
+    globalConfigAccessor: new TestGlobalConfigAccessor(),
+    logger: createSilentLogger(),
+    platform: opts?.platform,
+  });
+  await root.route(["node", "agentcore", "project", ...args]);
+  return { io, core };
+}
+
+const cleanups: Array<() => Promise<void>> = [];
+afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
+
+test("project dev requires an AgentCore project", async () => {
+  cleanups.push((await inTempDirectory()).cleanup);
+  await expect(run(["dev"])).rejects.toThrow(/No AgentCore project found/);
 });
