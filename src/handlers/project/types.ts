@@ -247,7 +247,8 @@ export type DeployableResource =
   | "policy"
   | "config-bundle"
   | "payment-manager"
-  | "payment-connector";
+  | "payment-connector"
+  | "runtime-endpoint";
 
 /**
  * A declared resource paired with what the target holds for it. `local-only`
@@ -354,6 +355,13 @@ export type AddResourceInput =
       resourceType: "payment-connector";
       managerName: string;
       resourceConfig: z.input<typeof PaymentConnectorSchema>;
+    }
+  | {
+      // A runtime endpoint is a named version alias nested under a runtime, keyed
+      // by name in the runtime's `endpoints` record; `runtimeName` is the parent.
+      resourceType: "runtime-endpoint";
+      runtimeName: string;
+      resourceConfig: { name: string; version: number; description?: string };
     };
 
 export type ProjectResource = AddResourceInput["resourceType"];
@@ -415,6 +423,11 @@ export type RemoveResourceInput =
   | {
       resourceType: "payment-connector";
       managerName: string;
+      name: string;
+    }
+  | {
+      resourceType: "runtime-endpoint";
+      runtimeName: string;
       name: string;
     };
 
