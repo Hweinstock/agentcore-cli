@@ -14,7 +14,7 @@ export function withTuiOnEmptyFlagsAndArgs(
   const boundRenderTui = renderTui(core, io);
   const isInteractive = () => io.stdin.isTTY === true && io.stdout.isTTY === true;
 
-  return (h) => ({
+  const middleware: Middleware = (h) => ({
     name: () => h.name(),
     description: () => h.description(),
     flags: () => h.flags(),
@@ -41,4 +41,6 @@ export function withTuiOnEmptyFlagsAndArgs(
       await h.handle(ctx, flags, args);
     },
   });
+  middleware.runAfterDescendants = true;
+  return middleware;
 }

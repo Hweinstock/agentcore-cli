@@ -1,4 +1,4 @@
-import { Router } from "../../router";
+import { PathKey, Router } from "../../router";
 import { checkPort, openBrowser, startHttpServer, watchFile, type AppIO } from "../../io";
 import { CodeZipDevRunner } from "../../core/dev/codezip";
 import { ContainerDevRunner } from "../../core/dev/container";
@@ -41,6 +41,16 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
     "status",
     "add",
     "remove",
+  );
+
+  project.use(
+    withProject({
+      projectManager,
+      when: (ctx) => {
+        const path = ctx.require(PathKey);
+        return !path.endsWith("/project") && !path.endsWith("/project/create");
+      },
+    }),
   );
 
   // Without a default, a bare `agentcore project` falls back to Commander's help

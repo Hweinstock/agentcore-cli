@@ -225,8 +225,11 @@ export function compile(
     c.addHelpText("after", parameterDetails);
   }
 
-  const own = isMiddlewareProvider(node) ? node.middlewares() : [];
-  const nextStack = [...stack, ...own];
+  const accumulated = [...stack, ...(isMiddlewareProvider(node) ? node.middlewares() : [])];
+  const nextStack = [
+    ...accumulated.filter((middleware) => !middleware.runAfterDescendants),
+    ...accumulated.filter((middleware) => middleware.runAfterDescendants),
+  ];
 
   const path = ctx.value(PathKey) || "";
   const newPath = `${path}/${node.name()}`;

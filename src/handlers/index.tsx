@@ -18,7 +18,6 @@ import {
   withLogging,
   withGlobalConfigAccessor,
   withPlatform,
-  withProject,
   withTuiOnEmptyFlagsAndArgs,
 } from "../middleware";
 import type { AppIO } from "../io";
@@ -68,13 +67,6 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
   root.use(withPlatform(config.platform ?? process.platform));
 
   root.use(
-    withProject({
-      projectManager: core.projectManager,
-      when: (ctx) => {
-        const path = ctx.require(PathKey);
-        return path.startsWith("/agentcore/project/") && path !== "/agentcore/project/create";
-      },
-    }),
     withTuiOnEmptyFlagsAndArgs(core, io, (ctx) => {
       const path = ctx.require(PathKey);
       return (

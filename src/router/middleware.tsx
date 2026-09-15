@@ -1,6 +1,8 @@
 import type { Handler } from "./handler";
 
-export type Middleware = (handler: Handler) => Handler;
+export type Middleware = ((handler: Handler) => Handler) & {
+  runAfterDescendants?: boolean;
+};
 
 export interface MiddlewareProvider {
   middlewares(): Middleware[];
