@@ -2,7 +2,6 @@ import type { AppIO } from "../../../io";
 import { InputValidationError } from "../../../errors";
 import { Router } from "../../../router";
 import { renderTuiAt } from "../../../tui";
-import { withProject } from "../../../middleware";
 import { JsonKey } from "../../keys";
 import type { Core } from "../../types";
 import { createProjectInvokeHarnessHandler } from "./harness";
@@ -14,7 +13,6 @@ export function createProjectInvokeHandler(
   renderInvokeTui: typeof renderTuiAt = renderTuiAt,
 ): Router {
   return new Router("invoke", "invoke a Runtime or harness from the current project")
-    .use(withProject({ projectManager: core.projectManager }))
     .handler(createProjectInvokeRuntimeHandler(core, io, renderInvokeTui))
     .handler(createProjectInvokeHarnessHandler(core, io, renderInvokeTui))
     .default((ctx) => {

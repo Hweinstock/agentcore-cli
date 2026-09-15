@@ -1,4 +1,4 @@
-import { Router } from "../router";
+import { PathKey, Router } from "../router";
 import { createEvalHandler } from "./eval/index.tsx";
 import { createFeedbackHandler } from "./feedback/index.tsx";
 import { createGatewayHandler } from "./gateway/index.tsx";
@@ -17,6 +17,8 @@ import {
   withLogging,
   withGlobalConfigAccessor,
   withPlatform,
+  withProject,
+  withTuiOnEmptyFlagsAndArgs,
 } from "../middleware";
 import type { AppIO } from "../io";
 import type { Core } from "./types.tsx";
@@ -63,6 +65,24 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
 
   // Pin the host platform so Windows-specific behavior is decided from the context.
   root.use(withPlatform(config.platform ?? process.platform));
+
+  root.use(
+    withProject({
+      projectManager: core.projectManager,
+      when: (ctx) => {
+        const path = ctx.require(PathKey);
+        return path.startsWith("/agentcore/project/") && path !== "/agentcore/project/create";
+      },
+    }),
+    withTuiOnEmptyFlagsAndArgs(core, io, (ctx) => {
+      const path = ctx.require(PathKey);
+      return (
+        path !== "/agentcore/project/build" &&
+        path !== "/agentcore/project/deploy" &&
+        !path.startsWith("/agentcore/project/invoke")
+      );
+    }),
+  );
 
   // Install sub handlers. Registration order is menu/help order; project is
   // the primary workflow, so it goes first.

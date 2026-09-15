@@ -167,21 +167,28 @@ describe("memory command hierarchy", () => {
 describe("memory TUI dispatch", () => {
   test.each([
     ["get", ["memory", "get"]],
-    ["list", ["memory", "list"]],
     ["event get", ["memory", "event", "get"]],
     ["event list", ["memory", "event", "list"]],
     ["record get", ["memory", "record", "get"]],
     ["record list", ["memory", "record", "list"]],
     ["actor list", ["memory", "actor", "list"]],
     ["session list", ["memory", "session", "list"]],
-  ] as const)("opens the TUI for a bare Memory %s leaf", async (_label, args) => {
+  ] as const)("rejects a bare Memory %s leaf without a TTY", async (_label, args) => {
     const { core, route } = testMemoryCommand();
 
-    await expect(route([...args])).rejects.toThrow(
-      "interactive mode requires a TTY on stdin and stdout",
-    );
+    await expect(route([...args])).rejects.toThrow("required option");
     expect(core.memory.calls).toEqual([]);
   });
+
+  test.each([["list", ["memory", "list"]] as const])(
+    "runs a bare Memory %s leaf headlessly without a TTY",
+    async (_label, args) => {
+      const { core, route } = testMemoryCommand();
+
+      await route([...args]);
+      expect(core.memory.calls.map((call) => call.method)).toContain("listMemories");
+    },
+  );
 });
 
 describe("memory read-only commands", () => {
