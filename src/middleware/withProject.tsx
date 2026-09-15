@@ -1,11 +1,12 @@
 import type { Project, ProjectManager } from "../handlers/project/types";
 import { ProjectStateError } from "../errors/errors";
-import { ProjectKey, type Middleware } from "../router";
+import { ProjectKey, type Context, type Middleware } from "../router";
 
 interface WithProjectConfig {
   projectManager: ProjectManager;
   /** Directory to search upwards from. Defaults to the cwd at invocation time. */
   cwd?: string;
+  when?: (ctx: Context) => boolean;
 }
 
 /**
@@ -33,6 +34,7 @@ export function withProject(config: WithProjectConfig): Middleware {
     doesSupportTui: () => h.doesSupportTui(),
     children: () => h.children(),
     handle: async (ctx, flags, args) => {
+      if (config.when && !config.when(ctx)) return h.handle(ctx, flags, args);
       // Resolved per invocation rather than at wiring time so the cwd the user
       // actually ran in is the one searched.
       const from = config.cwd ?? process.cwd();

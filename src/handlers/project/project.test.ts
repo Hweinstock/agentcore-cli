@@ -10,14 +10,20 @@ import {
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
+  ttyTestIO,
 } from "../../testing";
 import { InputValidationError } from "../../errors";
 
 async function run(
   args: string[],
-  opts?: { core?: TestCoreClient; stdin?: string; platform?: NodeJS.Platform },
+  opts?: {
+    core?: TestCoreClient;
+    stdin?: string;
+    platform?: NodeJS.Platform;
+    isTTY?: boolean;
+  },
 ) {
-  const io = testIO({ stdin: opts?.stdin });
+  const io = opts?.isTTY ? ttyTestIO().streams : testIO({ stdin: opts?.stdin });
   const core = opts?.core ?? new TestCoreClient();
   const root = createRootHandler(core, {
     io: io.io,
@@ -32,10 +38,17 @@ async function run(
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
 
-test("project status requires an AgentCore project", async () => {
-  cleanups.push((await inTempDirectory()).cleanup);
-  await expect(run(["status"])).rejects.toThrow(/No AgentCore project found/);
-});
+test.each([
+  ["status", ["status"]],
+  ["add runtime", ["add", "runtime"]],
+  ["deploy", ["deploy"]],
+] as const)(
+  "project %s requires an AgentCore project before opening a TUI",
+  async (_label, args) => {
+    cleanups.push((await inTempDirectory()).cleanup);
+    await expect(run([...args], { isTTY: true })).rejects.toThrow(/No AgentCore project found/);
+  },
+);
 
 test("project dev requires an AgentCore project", async () => {
   cleanups.push((await inTempDirectory()).cleanup);
@@ -1042,7 +1055,7 @@ describe("project build", () => {
 
   test("synthesizes the CDK app of the enclosing project", async () => {
     const projectRoot = await inBuildableProject();
-    const { io, core } = await run(["build"]);
+    const { io, core } = await run(["build"], { isTTY: true });
 
     expect(core.projectCommands).toEqual([
       {
@@ -1089,11 +1102,6 @@ describe("project build", () => {
 });
 
 describe("project deploy", () => {
-  test("requires an AgentCore project", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(run(["deploy"])).rejects.toThrow(/No AgentCore project found/);
-  });
-
   // A bare `deploy` on a fresh project synthesizes the default target instead
   // of rejecting (covered with a stubbed backend in deploy/index.test.ts); only
   // a named target still demands configuration.

@@ -61,7 +61,6 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
       io: config.io,
       middlewares: [
         withProject({ projectManager: config.projectManager }),
-        withTuiWhenInteractive(core, io),
       ],
     }),
   );
