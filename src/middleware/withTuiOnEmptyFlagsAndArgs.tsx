@@ -1,12 +1,16 @@
 import { renderTui } from "../tui";
 import type { AppIO } from "../io";
 import type { Core } from "../handlers/types";
-import { PathKey, ProjectKey, type Middleware } from "../router";
+import type { Context, Middleware } from "../router";
 import { CommandKey } from "../router/router";
 import { attributeName } from "../router/flags";
 import { JsonKey } from "../handlers/keys";
 
-export function withTuiOnEmptyFlagsAndArgs(core: Core, io: AppIO): Middleware {
+export function withTuiOnEmptyFlagsAndArgs(
+  core: Core,
+  io: AppIO,
+  shouldRenderTui: (ctx: Context) => boolean = () => true,
+): Middleware {
   const boundRenderTui = renderTui(core, io);
   const isInteractive = () => io.stdin.isTTY === true && io.stdout.isTTY === true;
 
@@ -25,24 +29,12 @@ export function withTuiOnEmptyFlagsAndArgs(core: Core, io: AppIO): Middleware {
 
       if (
         isInteractive() &&
+        shouldRenderTui(ctx) &&
         h.doesSupportTui() &&
         !ctx.value(JsonKey) &&
         noFlagsPassed &&
         command.args.length === 0
       ) {
-        const path = ctx.value(PathKey);
-        const needsProject =
-          path === "/agentcore/project/add" ||
-          path?.startsWith("/agentcore/project/add/") === true ||
-          path === "/agentcore/project/build" ||
-          path === "/agentcore/project/deploy" ||
-          path === "/agentcore/project/invoke" ||
-          path === "/agentcore/project/status";
-        if (needsProject && !ctx.value(ProjectKey)) {
-          const project = await core.projectManager.resolve({ filePath: process.cwd() });
-          if (!project) return h.handle(ctx, flags, args);
-          ctx = ctx.withValue(ProjectKey, project);
-        }
         await boundRenderTui(ctx, flags, args);
         return;
       }

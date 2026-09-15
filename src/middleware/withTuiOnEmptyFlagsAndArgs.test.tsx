@@ -5,8 +5,6 @@ import { Router, createHandler, flag } from "../router";
 import { JsonKey } from "../handlers/keys";
 import { TestCoreClient, testIO } from "../testing";
 
-// route runs a command tree whose leaf flags all carry defaults. The branch the
-// middleware takes is observable through whether the leaf handler runs.
 function route(
   args: string[],
   supportedTuiCommands?: string[],

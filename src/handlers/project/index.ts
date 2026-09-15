@@ -4,7 +4,6 @@ import { CodeZipDevRunner } from "../../core/dev/codezip";
 import { ContainerDevRunner } from "../../core/dev/container";
 import { InspectorAssets } from "../../core/dev/inspectorAssets";
 import { startOtelCollector } from "../../core/dev/otel/collector";
-import { withProject } from "../../middleware";
 import { renderTui } from "../../tui";
 import type { Core } from "../types";
 import { createCreateProjectHandler } from "./create";
@@ -54,52 +53,38 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createAddProjectResourceHandler(config, core));
   project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
-    withProject({ projectManager: config.projectManager })(
-      createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io }),
-    ),
+    createRemoveProjectHandler({ projectManager: config.projectManager, io: config.io }),
   );
   project.handler(
-    withProject({ projectManager: config.projectManager })(
-      createDevProjectHandler({
-        io: config.io,
-        runners: {
-          CodeZip: new CodeZipDevRunner(),
-          Container: new ContainerDevRunner(),
-        },
-        loadDevEnvironment,
-        checkPort,
-        startTraceCollector: startOtelCollector,
-        startServer: startHttpServer,
-        openBrowser,
-        inspectorAssets: new InspectorAssets(),
-        isInteractive: () => process.stdout.isTTY === true,
-        watchFile,
-        projectManager: config.projectManager,
-      }),
-    ),
+    createDevProjectHandler({
+      io: config.io,
+      runners: {
+        CodeZip: new CodeZipDevRunner(),
+        Container: new ContainerDevRunner(),
+      },
+      loadDevEnvironment,
+      checkPort,
+      startTraceCollector: startOtelCollector,
+      startServer: startHttpServer,
+      openBrowser,
+      inspectorAssets: new InspectorAssets(),
+      isInteractive: () => process.stdout.isTTY === true,
+      watchFile,
+      projectManager: config.projectManager,
+    }),
   );
   project.handler(
-    withProject({ projectManager: config.projectManager })(
-      createDeployProjectHandler({ projectManager: config.projectManager, io: config.io }),
-    ),
+    createDeployProjectHandler({ projectManager: config.projectManager, io: config.io }),
   );
   project.handler(createProjectInvokeHandler(core, io));
   project.handler(createProjectLogHandler(core, io));
-  // withProject keeps the headless status report scoped to the current project.
-  const withStatusProject = withProject({ projectManager: config.projectManager });
   project.handler(
-    withStatusProject(
-      createStatusProjectHandler({
-        projectManager: config.projectManager,
-      }),
-    ),
+    createStatusProjectHandler({
+      projectManager: config.projectManager,
+    }),
   );
-  // withProject wraps only the commands that require an existing project, so
-  // `create` (which refuses to nest inside one) stays unaffected.
   project.handler(
-    withProject({ projectManager: config.projectManager })(
-      createBuildProjectHandler({ projectManager: config.projectManager, io: config.io }),
-    ),
+    createBuildProjectHandler({ projectManager: config.projectManager, io: config.io }),
   );
 
   return project;

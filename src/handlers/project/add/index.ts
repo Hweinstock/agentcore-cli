@@ -1,4 +1,3 @@
-import { withProject } from "../../../middleware/";
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
 import type { Core } from "../../types";
@@ -31,9 +30,6 @@ export function createAddProjectResourceHandler(
     "memory",
   );
   projectAdd.default(renderTui(core, config.io));
-  // A resource added outside a project gets the CLI's own not-found guidance,
-  // while the root TUI middleware handles interactive dispatch.
-  projectAdd.use(withProject({ projectManager: config.projectManager, cwd: process.cwd() }));
   projectAdd.handler(createAddConfigBundleHandler(config));
   projectAdd.handler(createAddHarnessHandler(config));
   projectAdd.handler(createAddMemoryHandler(config));
