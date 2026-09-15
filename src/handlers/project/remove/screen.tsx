@@ -283,7 +283,7 @@ function RemoveConfirm({
       rows={rows}
       trigger={{
         kind: "confirm",
-        message: `Remove ${config.resourceType} '${resource.name}' from project ${project.name}? This edits agentcore.json; deployed infrastructure is untouched until you deploy.`,
+        message: `Remove ${config.resourceType} '${resource.name}' from project ${project.name}?`,
       }}
       isPending={false}
       error={null}
@@ -346,7 +346,7 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
       rows={summary}
       trigger={{
         kind: "confirm",
-        message: `Remove every resource from project ${project.name}? This empties each resource collection in agentcore.json; code under app/ is kept.`,
+        message: `Remove every resource from project ${project.name}?`,
       }}
       isPending={false}
       error={null}
