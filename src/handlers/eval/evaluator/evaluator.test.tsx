@@ -156,17 +156,15 @@ describe("eval command hierarchy", () => {
     expect(stdout).toContain("Commands:");
   });
 
-  // A bare read leaf (no flags, no --json) opens the interactive TUI, which the
-  // headless test IO cannot host — proving the empty-invocation middleware is
-  // wired onto the evaluator commands.
-  test.each([["get"], ["list"]] as const)(
-    "opens the TUI for a bare `eval evaluator %s` leaf",
-    async (command) => {
-      await expect(run(["eval", "evaluator", command])).rejects.toThrow(
-        "interactive mode requires a TTY on stdin and stdout",
-      );
-    },
-  );
+  test("keeps a bare evaluator get headless without a TTY", async () => {
+    await expect(run(["eval", "evaluator", "get"])).rejects.toThrow(
+      "required option '--id <id>' not specified",
+    );
+  });
+
+  test("runs a bare evaluator list headlessly without a TTY", async () => {
+    expect(await run(["eval", "evaluator", "list"])).toBeString();
+  });
 
   test("runs normal validation for a bare CLI-only evaluator command", async () => {
     await expect(run(["eval", "evaluator", "delete"])).rejects.toThrow(

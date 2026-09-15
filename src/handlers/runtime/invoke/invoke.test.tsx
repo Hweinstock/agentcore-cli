@@ -450,12 +450,12 @@ describe("runtime invoke", () => {
     expect(core.runtime.calls.map((call) => call.method)).toEqual(["getRuntime"]);
   });
 
-  test("a bare command enters existing TUI middleware without Runtime Core calls", async () => {
+  test("a bare command stays headless and reports the missing Runtime ID", async () => {
     const core = new TestCoreClient();
     const output = captureIO();
 
     await expect(runCommand(core, output.io, ["runtime", "invoke"])).rejects.toThrow(
-      "interactive mode requires a TTY on stdin and stdout",
+      "required option '--id <id>' not specified",
     );
     expect(core.runtime.calls).toEqual([]);
   });

@@ -1,7 +1,6 @@
 import type { AppIO } from "../../../io";
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
-import { withTuiOnEmptyFlagsAndArgs } from "../../../middleware";
 import type { Core } from "../../types";
 import { createDeleteRecommendationHandler } from "./delete";
 import { createGetRecommendationHandler } from "./get";
@@ -12,7 +11,6 @@ import { createStartRecommendationHandler } from "./start";
 // batch-evaluation; start/delete stay below the command-line-only divider.
 export function createRecommendationHandler(core: Core, io: AppIO): Router {
   return new Router("recommendation", "manage AgentCore recommendations")
-    .use(withTuiOnEmptyFlagsAndArgs(core, io))
     .default(renderTui(core, io))
     .supportedTuiCommands("get", "list")
     .handler(createStartRecommendationHandler(core, io))
