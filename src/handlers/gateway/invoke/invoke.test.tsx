@@ -384,12 +384,12 @@ describe("gateway invoke", () => {
     expect(core.gateway.calls).toEqual([]);
   });
 
-  test("a bare command enters existing TUI middleware without Gateway Core calls", async () => {
+  test("a bare command stays headless and reports the missing Gateway ID", async () => {
     const core = configuredCore();
     const output = captureIO();
 
     await expect(runCommand(core, output.io, ["gateway", "invoke"])).rejects.toThrow(
-      "interactive mode requires a TTY on stdin and stdout",
+      "required option '--id <id>' not specified",
     );
     expect(core.gateway.calls).toEqual([]);
   });

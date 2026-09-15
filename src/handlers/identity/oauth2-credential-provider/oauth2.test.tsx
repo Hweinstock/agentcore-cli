@@ -111,14 +111,21 @@ describe("oauth2-credential-provider command hierarchy", () => {
 });
 
 describe("oauth2-credential-provider TUI dispatch", () => {
-  test.each([
-    ["oauth2-credential-provider", ["identity", "oauth2-credential-provider"]],
-    ["get", ["identity", "oauth2-credential-provider", "get"]],
-    ["list", ["identity", "oauth2-credential-provider", "list"]],
-  ] as const)("opens the TUI for a bare `%s`", async (_label, args) => {
-    await expect(run([...args])).rejects.toThrow(
+  test("opens the TUI for a bare oauth2-credential-provider group", async () => {
+    await expect(run(["identity", "oauth2-credential-provider"])).rejects.toThrow(
       "interactive mode requires a TTY on stdin and stdout",
     );
+  });
+
+  test("keeps a bare get headless without a TTY", async () => {
+    await expect(run(["identity", "oauth2-credential-provider", "get"])).rejects.toThrow(
+      "required option '--name <name>' not specified",
+    );
+  });
+
+  test("runs a bare list headlessly without a TTY", async () => {
+    const { stdout } = await run(["identity", "oauth2-credential-provider", "list"]);
+    expect(stdout).toBeString();
   });
 
   test.each(["create", "update", "delete"] as const)(

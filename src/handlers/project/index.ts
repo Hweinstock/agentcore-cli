@@ -4,7 +4,7 @@ import { CodeZipDevRunner } from "../../core/dev/codezip";
 import { ContainerDevRunner } from "../../core/dev/container";
 import { InspectorAssets } from "../../core/dev/inspectorAssets";
 import { startOtelCollector } from "../../core/dev/otel/collector";
-import { withProject, withTuiWhenInteractive } from "../../middleware";
+import { withProject } from "../../middleware";
 import { renderTui } from "../../tui";
 import type { Core } from "../types";
 import { createCreateProjectHandler } from "./create";
@@ -47,15 +47,10 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   // and a usage exit code instead of the menu every sibling router opens.
   project.default(renderTui(core, io));
 
-  // A bare `agentcore project create` in an interactive session opens the TUI
-  // create wizard; any user-supplied flag, --json, or a non-TTY invocation keeps
-  // the headless handler. The TUI is exposed as middleware so the router runs it
-  // before flag validation, letting the wizard supply a required flag.
   project.handler(
     createCreateProjectHandler({
       projectManager,
       io,
-      middlewares: [withTuiWhenInteractive(core, io)],
     }),
   );
   project.handler(createAddProjectResourceHandler(config, core));
@@ -98,20 +93,14 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createProjectInvokeHandler(core, io));
   project.handler(createProjectLogHandler(core, io));
   project.handler(createProjectTracesHandler(core, io));
-  // A bare `agentcore project status` in an interactive session opens the TUI
-  // linked-resources screen; any user-supplied flag, --json, or a non-TTY
-  // invocation keeps the headless JSON report. withProject runs before the TUI
-  // so the not-found guidance is the CLI's own and the resolved project seeds
-  // the screen via ProjectKey.
   const withStatusProject = withProject({ projectManager: config.projectManager });
   project.handler(
-    createStatusProjectHandler({
-      projectManager: config.projectManager,
-      middlewares: [withStatusProject, withTuiWhenInteractive(core, io)],
-    }),
+    withStatusProject(
+      createStatusProjectHandler({
+        projectManager: config.projectManager,
+      }),
+    ),
   );
-  // withProject wraps only the commands that require an existing project, so
-  // `create` (which refuses to nest inside one) stays unaffected.
   project.handler(
     withProject({ projectManager: config.projectManager })(
       createBuildProjectHandler({ projectManager: config.projectManager, io: config.io }),

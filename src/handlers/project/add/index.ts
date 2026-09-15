@@ -1,4 +1,4 @@
-import { withProject, withTuiWhenInteractive } from "../../../middleware/";
+import { withProject } from "../../../middleware/";
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
 import type { Core } from "../../types";
@@ -32,15 +32,9 @@ export function createAddProjectResourceHandler(
     "memory",
   );
   projectAdd.default(renderTui(core, config.io));
-  // withProject first, so it is the outermost wrapper: a resource added outside
-  // a project gets the CLI's own not-found guidance, and the resolved project
-  // seeds the wizard through ProjectKey. withTuiWhenInteractive then opens that
-  // wizard for a bare `add <resource>` on a TTY; it is inert for a resource
-  // declared command-line only above, and for flags, --json and non-TTY runs.
-  projectAdd.use(
-    withProject({ projectManager: config.projectManager, cwd: process.cwd() }),
-    withTuiWhenInteractive(core, config.io),
-  );
+  // A resource added outside a project gets the CLI's own not-found guidance,
+  // while the root TUI middleware handles interactive dispatch.
+  projectAdd.use(withProject({ projectManager: config.projectManager, cwd: process.cwd() }));
   projectAdd.handler(createAddConfigBundleHandler(config));
   projectAdd.handler(createAddHarnessHandler(config));
   projectAdd.handler(createAddMemoryHandler(config));

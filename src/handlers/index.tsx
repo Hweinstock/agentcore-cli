@@ -18,6 +18,7 @@ import {
   withLogging,
   withGlobalConfigAccessor,
   withPlatform,
+  withTuiOnEmptyFlagsAndArgs,
 } from "../middleware";
 import type { AppIO } from "../io";
 import type { Core } from "./types.tsx";
@@ -64,6 +65,10 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
 
   // Pin the host platform so Windows-specific behavior is decided from the context.
   root.use(withPlatform(config.platform ?? process.platform));
+
+  // Open the TUI for supported commands with no explicit flags or arguments
+  // when both standard input and output are interactive terminals.
+  root.use(withTuiOnEmptyFlagsAndArgs(core, io));
 
   // Install sub handlers. Registration order is menu/help order; project is
   // the primary workflow, so it goes first.

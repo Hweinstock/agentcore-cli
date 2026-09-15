@@ -174,13 +174,16 @@ describe("memory TUI dispatch", () => {
     ["record list", ["memory", "record", "list"]],
     ["actor list", ["memory", "actor", "list"]],
     ["session list", ["memory", "session", "list"]],
-  ] as const)("opens the TUI for a bare Memory %s leaf", async (_label, args) => {
+  ] as const)("keeps a bare Memory %s leaf headless without a TTY", async (label, args) => {
     const { core, route } = testMemoryCommand();
 
-    await expect(route([...args])).rejects.toThrow(
-      "interactive mode requires a TTY on stdin and stdout",
-    );
-    expect(core.memory.calls).toEqual([]);
+    if (label === "list") {
+      await route([...args]);
+      expect(core.memory.calls.map((call) => call.method)).toContain("listMemories");
+    } else {
+      await expect(route([...args])).rejects.toThrow("required option");
+      expect(core.memory.calls).toEqual([]);
+    }
   });
 });
 

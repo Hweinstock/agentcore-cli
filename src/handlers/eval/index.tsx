@@ -1,6 +1,5 @@
 import { Router } from "../../router";
 import { renderTui } from "../../tui";
-import { withTuiOnEmptyFlagsAndArgs } from "../../middleware";
 import type { AppIO } from "../../io";
 import type { Core } from "../types";
 import { createEvaluatorHandler } from "./evaluator";
@@ -18,7 +17,6 @@ export function createEvalHandler(core: Core, io: AppIO): Router {
   // Only the groups with an interactive screen are marked TUI-supported;
   // ondemand is listed below the command-line-only divider.
   return new Router("eval", "evaluate and optimize AgentCore agents")
-    .use(withTuiOnEmptyFlagsAndArgs(core, io))
     .default(renderTui(core, io))
     .supportedTuiCommands(
       "evaluator",
