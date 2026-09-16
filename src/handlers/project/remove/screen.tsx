@@ -29,7 +29,8 @@ type RemovableResourceType =
   | "gateway-target"
   | "gateway-connector"
   | "policy"
-  | "payment-connector";
+  | "payment-connector"
+  | "runtime-endpoint";
 
 type RemovableResource = RemoveResourceInput & { parentName?: string };
 
@@ -128,6 +129,19 @@ const RESOURCE_PICKER_CONFIGS: RemovableResourcePickerConfig[] = [
           managerName: manager.name,
           name: connector.name,
           parentName: manager.name,
+        })),
+      ),
+  },
+  {
+    resourceType: "runtime-endpoint",
+    parentColumnLabel: "runtime",
+    listResources: (spec) =>
+      spec.runtimes.flatMap((runtime) =>
+        Object.keys(runtime.endpoints ?? {}).map((name) => ({
+          resourceType: "runtime-endpoint",
+          runtimeName: runtime.name,
+          name,
+          parentName: runtime.name,
         })),
       ),
   },

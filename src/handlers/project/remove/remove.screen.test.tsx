@@ -158,6 +158,11 @@ describe("project remove screen", () => {
         managerName: "payments",
         resourceConfig: { name: "conn", credentialName: "payCred" },
       },
+      {
+        resourceType: "runtime-endpoint",
+        runtimeName: RUNTIME,
+        resourceConfig: { name: "prod", version: 1 },
+      },
     ]);
     const r = render("/agentcore/project/remove", core, project);
 
@@ -179,6 +184,7 @@ describe("project remove screen", () => {
       "policy",
       "payment-manager",
       "payment-connector",
+      "runtime-endpoint",
     ]) {
       expect(frame).toContain(resourceType);
     }
