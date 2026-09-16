@@ -106,48 +106,28 @@ function setupDeployTest(
   };
 }
 
-function testDeployRootCommand(
-  result: DeployResult,
-  events: ProjectEvent[] = [],
-  options: TestDeployOptions = {},
-) {
-  const subject = setupDeployTest(result, events, options);
+function testDeployRootCommand(subject: ReturnType<typeof setupDeployTest>) {
   const root = createRootHandler(subject.core, {
     io: subject.io.io,
     globalConfigAccessor: new TestGlobalConfigAccessor(),
     logger: createSilentLogger(),
   });
 
-  return {
-    ...subject,
-    run: (args: string[] = []) => root.route(["node", "agentcore", "project", "deploy", ...args]),
-  };
+  return (args: string[] = []) => root.route(["node", "agentcore", "project", "deploy", ...args]);
 }
 
-function testDeployHandlerCommand(
-  result: DeployResult,
-  events: ProjectEvent[] = [],
-  options: TestDeployOptions = {},
-) {
-  const subject = setupDeployTest(result, events, options);
-  const project = createProjectHandler({ core: subject.core, io: subject.io.io }).groupFlags(
-    RegionKey,
-    JsonKey,
-  );
-  const directContext = ValueContext.EmptyContext().withValue(JsonRendererKey, {
-    renderJson: (data) => subject.io.io.stdout.write(`${JSON.stringify(data, null, 2)}\n`),
-    renderJsonLine: (data) => subject.io.io.stdout.write(`${JSON.stringify(data)}\n`),
-  });
+function testDeployHandlerCommand(subject: ReturnType<typeof setupDeployTest>) {
+  const project = createProjectHandler({ core: subject.core, io: subject.io.io });
+  const directContext = ValueContext.EmptyContext()
+    .withValue(JsonRendererKey, {
+      renderJson: () => {},
+      renderJsonLine: () => {},
+    })
+    .withValue(RegionKey, "us-east-1")
+    .withValue(JsonKey, false);
 
-  return {
-    ...subject,
-    run: (args: string[] = []) => {
-      const withDefaultRegion = args.includes("--region")
-        ? args
-        : ["--region", "us-east-1", ...args];
-      return project.route(["node", "project", "deploy", ...withDefaultRegion], directContext);
-    },
-  };
+  return (args: string[] = []) =>
+    project.route(["node", "project", "deploy", ...args], directContext);
 }
 
 // Keep existing test cases focused on deploy behavior while selecting the
@@ -157,9 +137,15 @@ function testDeployCommand(
   events: ProjectEvent[] = [],
   options: TestDeployOptions = {},
 ) {
-  return options.isTTY === true
-    ? testDeployHandlerCommand(result, events, options)
-    : testDeployRootCommand(result, events, options);
+  const subject = setupDeployTest(result, events, options);
+  const rootRun = testDeployRootCommand(subject);
+  const handlerRun = testDeployHandlerCommand(subject);
+
+  return {
+    ...subject,
+    run: (args: string[] = []) =>
+      options.isTTY === true && !args.includes("--json") ? handlerRun(args) : rootRun(args),
+  };
 }
 
 const cleanups: Array<() => Promise<void>> = [];
