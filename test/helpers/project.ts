@@ -1,7 +1,4 @@
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { run, type RunResult } from "./run";
+import type { CliRunner, RunResult } from "./run";
 
 export const uniqueName = (prefix: string): string =>
   `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`
@@ -17,31 +14,33 @@ export function expectOk(result: RunResult): RunResult {
   return result;
 }
 
-export class Project {
-  private constructor(
-    readonly name: string,
-    readonly root: string,
-    readonly dir: string,
-  ) {}
-
-  static async create(name: string, createArgs: string[]): Promise<Project> {
-    const root = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
-    expectOk(await run(["project", "create", "--name", name, "--skip-git", ...createArgs], root));
-    return new Project(name, root, join(root, name));
+export function parseJson<T>(result: RunResult): T {
+  try {
+    return JSON.parse(result.stdout) as T;
+  } catch (error) {
+    throw new Error(`invalid JSON output: ${result.stdout}`, { cause: error });
   }
+}
 
-  run(args: string[]): Promise<RunResult> {
-    return run(args, this.dir);
+export async function cleanupProject(
+  cli: CliRunner,
+  projectDir: string | undefined,
+): Promise<void> {
+  if (!projectDir) return;
+  const failures: string[] = [];
+  let removed = false;
+  try {
+    expectOk(await cli.run(["project", "remove", "all", "--yes", "--json"], projectDir));
+    removed = true;
+  } catch (error) {
+    failures.push(`remove: ${error instanceof Error ? error.message : String(error)}`);
   }
-
-  async teardown(): Promise<void> {
+  if (removed) {
     try {
-      await this.run(["project", "remove", "all", "--yes"]);
-      await this.run(["project", "deploy", "--yes", "--json"]);
-    } catch {
-      // Best-effort; the pre-run stale-stack sweep is the backstop.
-    } finally {
-      await rm(this.root, { recursive: true, force: true });
+      expectOk(await cli.run(["project", "deploy", "--yes", "--json"], projectDir));
+    } catch (error) {
+      failures.push(`deploy: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
+  if (failures.length > 0) console.warn(`[e2e] project teardown failed\n${failures.join("\n")}`);
 }

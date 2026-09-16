@@ -1,9 +1,3 @@
-# End-to-end integration suite. Given a git reference and a test-path pattern,
-# builds the Node CLI at that reference and runs the matching e2e tests against a
-# real AWS account. Runs on pushes to refactor and is manually dispatchable
-# against an individual PR (or any ref) with a custom pattern; also reusable via
-# workflow_call. Reuses the agentcore-devx-devtools collaborator gate so only
-# authorized users can spend real AWS resources. Telemetry is disabled.
 name: e2e-test
 on:
   push:
@@ -14,21 +8,27 @@ on:
         description: git reference (commit, branch, or tag) to build and test
         type: string
         default: refactor
-      test_path:
+      test_pattern:
         description: filepath pattern selecting which e2e tests to run
         type: string
-        default: test/project
+        default: ""
+      test_path:
+        description: deprecated alias for test_pattern
+        type: string
+        default: ""
   workflow_call:
     inputs:
       ref:
         required: true
         type: string
+      test_pattern:
+        type: string
+        default: ""
       test_path:
         type: string
-        default: test/project
+        default: ""
 
 concurrency:
-  # A run deploys to real AWS; cancelling mid-deploy would orphan resources.
   group: e2e-test-${{ inputs.ref || github.ref }}
   cancel-in-progress: false
 
@@ -36,8 +36,6 @@ env:
   AGENTCORE_TELEMETRY_DISABLED: "1"
 
 jobs:
-  # Only collaborators with write access may trigger a run — on a personal fork
-  # that is the owner alone. Reuses the shared devx-devtools gate.
   authorize:
     if: github.repository_owner == 'Hweinstock'
     runs-on: ubuntu-latest
@@ -70,7 +68,6 @@ jobs:
           node-version: "20"
       - uses: astral-sh/setup-uv@v6
       - run: bun install --frozen-lockfile
-      - run: bun run build
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
@@ -79,5 +76,5 @@ jobs:
       - name: Run e2e suite
         env:
           AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
-          E2E_TEST_PATH: ${{ inputs.test_path || 'test/project' }}
+          E2E_TEST_PATH: ${{ inputs.test_pattern || inputs.test_path || 'test/project' }}
         run: bun run test:e2e
