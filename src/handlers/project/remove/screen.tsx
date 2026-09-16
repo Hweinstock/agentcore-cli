@@ -17,14 +17,19 @@ type RootResourceType =
   | "memory"
   | "credential"
   | "config-bundle"
-  | "online-eval"
   | "evaluator"
   | "gateway"
   | "policy-engine"
   | "payment-manager";
 
 type RemovableResourceType =
-  RootResourceType | "gateway-target" | "gateway-connector" | "policy" | "payment-connector";
+  | RootResourceType
+  | "online-eval"
+  | "online-insight"
+  | "gateway-target"
+  | "gateway-connector"
+  | "policy"
+  | "payment-connector";
 
 type RemovableResource = RemoveResourceInput & { parentName?: string };
 
@@ -50,8 +55,23 @@ const RESOURCE_PICKER_CONFIGS: RemovableResourcePickerConfig[] = [
   rootResourceTypePickerConfig("memory", (spec) => spec.memories),
   rootResourceTypePickerConfig("credential", (spec) => spec.credentials),
   rootResourceTypePickerConfig("config-bundle", (spec) => spec.configBundles),
-  rootResourceTypePickerConfig("online-eval", (spec) => spec.onlineEvalConfigs),
   rootResourceTypePickerConfig("evaluator", (spec) => spec.evaluators),
+  // online-eval and online-insight share the onlineEvalConfigs collection; an
+  // insight config is the one with a non-empty `insights` array.
+  {
+    resourceType: "online-eval",
+    listResources: (spec) =>
+      spec.onlineEvalConfigs
+        .filter((config) => (config.insights?.length ?? 0) === 0)
+        .map(({ name }) => ({ resourceType: "online-eval", name })),
+  },
+  {
+    resourceType: "online-insight",
+    listResources: (spec) =>
+      spec.onlineEvalConfigs
+        .filter((config) => (config.insights?.length ?? 0) > 0)
+        .map(({ name }) => ({ resourceType: "online-insight", name })),
+  },
   rootResourceTypePickerConfig("gateway", (spec) => spec.agentCoreGateways),
   rootResourceTypePickerConfig("policy-engine", (spec) => spec.policyEngines),
   rootResourceTypePickerConfig("payment-manager", (spec) => spec.payments ?? []),
