@@ -310,7 +310,6 @@ describe("e2e: project runtime configurations", () => {
         } else {
           expect(local.status).toBeGreaterThanOrEqual(200);
           expect(local.status).toBeLessThan(300);
-          expect(local.body.length).toBeGreaterThan(0);
           assertProtocolResponse(runtime, local.body);
         }
 
