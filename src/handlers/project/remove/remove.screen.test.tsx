@@ -296,6 +296,26 @@ describe("project remove screen", () => {
     confirm.unmount();
   });
 
+  test("a resource list hints at paging only when it spans multiple pages", async () => {
+    const core = new TestCoreClient();
+    const memories: AddResourceInput[] = Array.from({ length: 11 }, (_, i) => ({
+      resourceType: "memory",
+      resourceConfig: { name: `mem${i}`, eventExpiryDuration: 30, strategies: [] },
+    }));
+    const { project } = await createProject(core, memories);
+
+    const many = render("/agentcore/project/remove/memory", core, project);
+    await waitForText(many.lastFrame, "choose a memory to remove");
+    expect(many.lastFrame()).toContain("page"); // ←→/hl page hint on a paged list
+    many.unmount();
+
+    // The runtime list has a single entry, so no paging hint.
+    const few = render("/agentcore/project/remove/runtime", core, project);
+    await waitForText(few.lastFrame, "choose a runtime to remove");
+    expect(few.lastFrame()).not.toContain("page");
+    few.unmount();
+  });
+
   test("the all row counts the sum of every resource", async () => {
     const core = new TestCoreClient();
     const { project } = await createProject(core, POLICY);

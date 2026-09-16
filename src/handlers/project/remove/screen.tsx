@@ -156,12 +156,17 @@ const STATIC_KEY_HINTS = [
   { key: "ctrl+c", label: "quit" },
 ];
 
-const KEY_HINTS = [
+const LIST_KEY_HINTS = [
   { key: "↑↓/jk", label: "navigate" },
   { key: "/", label: "filter" },
   { key: "enter", label: "select" },
-  ...STATIC_KEY_HINTS,
 ];
+
+const KEY_HINTS = [...LIST_KEY_HINTS, ...STATIC_KEY_HINTS];
+
+const PAGED_KEY_HINTS = [...LIST_KEY_HINTS, { key: "←→/hl", label: "page" }, ...STATIC_KEY_HINTS];
+
+const RESOURCE_PAGE_SIZE = 10;
 
 function resourceTypeCounts(
   spec: ProjectSpec,
@@ -291,16 +296,24 @@ function ResourcePicker({
       ]
     : [{ key: "name", header: "name", flex: true }];
 
+  const keyHints =
+    rows.length === 0
+      ? STATIC_KEY_HINTS
+      : rows.length > RESOURCE_PAGE_SIZE
+        ? PAGED_KEY_HINTS
+        : KEY_HINTS;
+
   return (
     <Layout
       breadcrumb={["agentcore", "project", "remove", config.resourceType]}
       description={`choose a ${config.resourceType} to remove`}
-      keyHints={rows.length > 0 ? KEY_HINTS : STATIC_KEY_HINTS}
+      keyHints={keyHints}
     >
       <DataTable
         borderStyle="none"
         showFooter={false}
         focus
+        pageSize={RESOURCE_PAGE_SIZE}
         columns={columns}
         data={rows}
         emptyMessage={`This project has no ${config.resourceType} resources.`}
