@@ -1,3 +1,4 @@
+import { withProject } from "../../../middleware/";
 import { Router } from "../../../router";
 import { createExportHarnessHandler } from "./harness";
 import type { ExportProjectResourceConfig } from "./types";
@@ -7,6 +8,7 @@ export function createExportProjectResourceHandler(config: ExportProjectResource
     "export",
     "convert project resources into editable code you own",
   );
+  projectExport.use(withProject({ projectManager: config.projectManager }));
   projectExport.handler(createExportHarnessHandler(config));
   return projectExport;
 }

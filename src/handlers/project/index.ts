@@ -1,4 +1,4 @@
-import { PathKey, Router } from "../../router";
+import { Router } from "../../router";
 import { checkPort, openBrowser, startHttpServer, watchFile, type AppIO } from "../../io";
 import { CodeZipDevRunner } from "../../core/dev/codezip";
 import { ContainerDevRunner } from "../../core/dev/container";
@@ -43,16 +43,6 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
     "remove",
   );
 
-  project.use(
-    withProject({
-      projectManager,
-      when: (ctx) => {
-        const path = ctx.require(PathKey);
-        return !path.endsWith("/project") && !path.endsWith("/project/create");
-      },
-    }),
-  );
-
   // Without a default, a bare `agentcore project` falls back to Commander's help
   // and a usage exit code instead of the menu every sibling router opens.
   project.default(renderTui(core, io));
@@ -66,13 +56,12 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   project.handler(createAddProjectResourceHandler(config, core));
   project.handler(createExportProjectResourceHandler({ projectManager, core, io }));
   project.handler(
-    createRemoveProjectHandler({
-      projectManager: config.projectManager,
-      io: config.io,
-      middlewares: [
-        withProject({ projectManager: config.projectManager }),
-      ],
-    }),
+    withProject({ projectManager: config.projectManager })(
+      createRemoveProjectHandler({
+        projectManager: config.projectManager,
+        io: config.io,
+      }),
+    ),
   );
   project.handler(
     withProject({ projectManager: config.projectManager })(

@@ -1,12 +1,11 @@
 import type { Project, ProjectManager } from "../handlers/project/types";
 import { ProjectStateError } from "../errors/errors";
-import { ProjectKey, type Context, type Middleware } from "../router";
+import { ProjectKey, type Middleware } from "../router";
 
 interface WithProjectConfig {
   projectManager: ProjectManager;
   /** Directory to search upwards from. Defaults to the cwd at invocation time. */
   cwd?: string;
-  when?: (ctx: Context) => boolean;
 }
 
 /**
@@ -25,7 +24,7 @@ export function projectNotFoundMessage(from: string): string {
   );
 }
 
-export function withProject(config: WithProjectConfig): Middleware {
+function resolveProject(config: WithProjectConfig): Middleware {
   return (h) => ({
     name: () => h.name(),
     description: () => h.description(),
@@ -34,7 +33,11 @@ export function withProject(config: WithProjectConfig): Middleware {
     doesSupportTui: () => h.doesSupportTui(),
     children: () => h.children(),
     handle: async (ctx, flags, args) => {
-      if (config.when && !config.when(ctx)) return h.handle(ctx, flags, args);
+      const existingProject = ctx.value(ProjectKey);
+      if (existingProject) {
+        await h.handle(ctx, flags, args);
+        return;
+      }
       // Resolved per invocation rather than at wiring time so the cwd the user
       // actually ran in is the one searched.
       const from = config.cwd ?? process.cwd();
@@ -45,4 +48,15 @@ export function withProject(config: WithProjectConfig): Middleware {
       await h.handle(ctx.withValue<Project>(ProjectKey, project), flags, args);
     },
   });
+}
+
+export function withProject(config: WithProjectConfig): Middleware {
+  const middleware = resolveProject(config);
+  return (h) => {
+    const wrapped = middleware(h);
+    return {
+      ...wrapped,
+      middlewares: () => [middleware],
+    };
+  };
 }

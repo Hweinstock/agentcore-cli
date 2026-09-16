@@ -1,3 +1,4 @@
+import { withProject } from "../../../middleware/";
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
 import type { Core } from "../../types";
@@ -31,6 +32,7 @@ export function createAddProjectResourceHandler(
     "memory",
   );
   projectAdd.default(renderTui(core, config.io));
+  projectAdd.use(withProject({ projectManager: config.projectManager, cwd: process.cwd() }));
   projectAdd.handler(createAddConfigBundleHandler(config));
   projectAdd.handler(createAddHarnessHandler(config));
   projectAdd.handler(createAddMemoryHandler(config));
