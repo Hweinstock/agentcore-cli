@@ -1,20 +1,16 @@
 import { renderTui } from "../tui";
 import type { AppIO } from "../io";
 import type { Core } from "../handlers/types";
-import type { Context, Middleware } from "../router";
+import type { Middleware } from "../router";
 import { CommandKey } from "../router/router";
 import { attributeName } from "../router/flags";
 import { JsonKey } from "../handlers/keys";
 
-export function withTuiOnEmptyFlagsAndArgs(
-  core: Core,
-  io: AppIO,
-  shouldRenderTui: (ctx: Context) => boolean = () => true,
-): Middleware {
+export function withTuiOnEmptyFlagsAndArgs(core: Core, io: AppIO): Middleware {
   const boundRenderTui = renderTui(core, io);
   const isInteractive = () => io.stdin.isTTY === true && io.stdout.isTTY === true;
 
-  const middleware: Middleware = (h) => ({
+  return (h) => ({
     name: () => h.name(),
     description: () => h.description(),
     flags: () => h.flags(),
@@ -29,7 +25,6 @@ export function withTuiOnEmptyFlagsAndArgs(
 
       if (
         isInteractive() &&
-        shouldRenderTui(ctx) &&
         h.doesSupportTui() &&
         !ctx.value(JsonKey) &&
         noFlagsPassed &&
@@ -41,6 +36,4 @@ export function withTuiOnEmptyFlagsAndArgs(
       await h.handle(ctx, flags, args);
     },
   });
-  middleware.runAfterDescendants = true;
-  return middleware;
 }

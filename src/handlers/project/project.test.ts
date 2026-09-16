@@ -38,18 +38,6 @@ async function run(
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
 
-test.each([
-  ["status", ["status"]],
-  ["add runtime", ["add", "runtime"]],
-  ["deploy", ["deploy"]],
-] as const)(
-  "project %s requires an AgentCore project before opening a TUI",
-  async (_label, args) => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    await expect(run([...args], { isTTY: true })).rejects.toThrow(/No AgentCore project found/);
-  },
-);
-
 test("project dev requires an AgentCore project", async () => {
   cleanups.push((await inTempDirectory()).cleanup);
   await expect(run(["dev"])).rejects.toThrow(/No AgentCore project found/);

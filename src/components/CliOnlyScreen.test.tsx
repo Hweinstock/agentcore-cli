@@ -19,7 +19,10 @@ function cliOnlyCommands(
   path: string[] = [],
 ): [string[], Command][] {
   const here = [...path, command.name()];
-  const own: [string[], Command][] = isTuiCommandSupported(command) ? [] : [[here, command]];
+  const own: [string[], Command][] =
+    isTuiCommandSupported(command) || SCREEN_BACKED_CLI_ONLY.has(here.join("/"))
+      ? []
+      : [[here, command]];
   return [
     ...own,
     ...command.commands
@@ -28,6 +31,13 @@ function cliOnlyCommands(
   ];
 }
 
+// These commands are intentionally CLI-only in the project parent menu, but
+// retain explicit screen routes for deep links and their screen-level tests.
+const SCREEN_BACKED_CLI_ONLY = new Set([
+  "agentcore/project/build",
+  "agentcore/project/deploy",
+  "agentcore/project/invoke",
+]);
 const CLI_ONLY = cliOnlyCommands();
 
 describe("menus list command-line-only subcommands below a divider", () => {

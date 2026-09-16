@@ -24,7 +24,7 @@ export function projectNotFoundMessage(from: string): string {
   );
 }
 
-function resolveProject(config: WithProjectConfig): Middleware {
+export function withProject(config: WithProjectConfig): Middleware {
   return (h) => ({
     name: () => h.name(),
     description: () => h.description(),
@@ -33,11 +33,6 @@ function resolveProject(config: WithProjectConfig): Middleware {
     doesSupportTui: () => h.doesSupportTui(),
     children: () => h.children(),
     handle: async (ctx, flags, args) => {
-      const existingProject = ctx.value(ProjectKey);
-      if (existingProject) {
-        await h.handle(ctx, flags, args);
-        return;
-      }
       // Resolved per invocation rather than at wiring time so the cwd the user
       // actually ran in is the one searched.
       const from = config.cwd ?? process.cwd();
@@ -48,15 +43,4 @@ function resolveProject(config: WithProjectConfig): Middleware {
       await h.handle(ctx.withValue<Project>(ProjectKey, project), flags, args);
     },
   });
-}
-
-export function withProject(config: WithProjectConfig): Middleware {
-  const middleware = resolveProject(config);
-  return (h) => {
-    const wrapped = middleware(h);
-    return {
-      ...wrapped,
-      middlewares: () => [middleware],
-    };
-  };
 }
