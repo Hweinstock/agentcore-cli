@@ -1043,7 +1043,7 @@ describe("project build", () => {
 
   test("synthesizes the CDK app of the enclosing project", async () => {
     const projectRoot = await inBuildableProject();
-    const { io, core } = await run(["build"], { isTTY: true });
+    const { io, core } = await run(["build"]);
 
     expect(core.projectCommands).toEqual([
       {

@@ -35,6 +35,9 @@ export function createProjectHandler({ core, io }: ProjectHandlerConfig): Router
   // its resources have a wizard is declared on that router.
   const project = new Router("project", "manage an AgentCore project").supportedTuiCommands(
     "create",
+    "invoke",
+    "build",
+    "deploy",
     "status",
     "add",
     "remove",
