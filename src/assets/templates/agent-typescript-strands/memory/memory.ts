@@ -20,7 +20,7 @@ export function getOrCreateMemoryManager(sessionId: string, actorId: string): Me
       { namespace: '/users/{actorId}/facts' },
       { namespace: '/users/{actorId}/preferences' },
       { namespace: '/episodes/{actorId}/{sessionId}' },
-      { namespace: '/summaries/{actorId}' },
+      { namespace: '/summaries/{actorId}/{sessionId}' },
     ],
     // readMode defaults to 'per-namespace' (one retrieve call per namespace).
     // Switch to 'subtree' to consolidate to a single hierarchical recall call.
