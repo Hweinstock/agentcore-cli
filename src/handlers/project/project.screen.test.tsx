@@ -211,25 +211,11 @@ describe("agentcore project (no subcommand)", () => {
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
 
-    const outcome = root.route(["node", "agentcore", "project"]).then(
-      () => ({ ok: true as const }),
-      (error: unknown) => ({ ok: false as const, error }),
-    );
-    let settled = false;
-    void outcome.finally(() => {
-      settled = true;
-    });
+    const outcome = root.route(["node", "agentcore", "project"]);
+    await waitFor(() => streams.stdout().includes("manage an AgentCore project"), 5000);
+    stdin.write("\x03");
 
-    await waitFor(
-      () => {
-        if (!settled) stdin.write("\x03");
-        return settled;
-      },
-      5000,
-      150,
-    );
-
-    expect(await outcome).toEqual({ ok: true });
+    await expect(outcome).resolves.toBeUndefined();
     expect(streams.stderr()).not.toContain("No AgentCore project found");
   }, 10000);
 
