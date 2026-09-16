@@ -172,6 +172,27 @@ function resourceTypeCounts(
   });
 }
 
+// Allow remove-all when the spec is non-empty, including resources that can't be
+// exposed for individual removal.
+const EXTRA_REMOVE_ALL_COLLECTIONS: { field: keyof ProjectSpec; label: string }[] = [
+  { field: "knowledgeBases", label: "knowledge base" },
+  { field: "abTests", label: "AB test" },
+  { field: "datasets", label: "dataset" },
+  { field: "mcpRuntimeTools", label: "MCP runtime tool" },
+  { field: "unassignedTargets", label: "unassigned target" },
+];
+
+function removeAllRows(spec: ProjectSpec): { label: string; count: number }[] {
+  return [
+    ...resourceTypeCounts(spec).map(({ resourceType, count }) => ({ label: resourceType, count })),
+    ...EXTRA_REMOVE_ALL_COLLECTIONS.flatMap(({ field, label }) => {
+      const value = spec[field];
+      const count = Array.isArray(value) ? value.length : 0;
+      return count > 0 ? [{ label, count }] : [];
+    }),
+  ];
+}
+
 export function ProjectRemoveScreen({ ctx, core }: ScreenProps) {
   const { resourceType, resourceIndex } = useParams();
   const navigate = useNavigate();
@@ -215,14 +236,15 @@ const resourceTypeColumns = [
 function ResourceTypePicker({ project }: { project: Project }) {
   const navigate = useNavigate();
 
-  const counts = resourceTypeCounts(project.spec);
-  const rows: ResourceTypeRow[] = counts.map(({ resourceType, count }) => ({
-    resourceType,
-    count: String(count),
-  }));
-  const total = counts.reduce((sum, { count }) => sum + count, 0);
-  if (total > 0) {
-    rows.push({ resourceType: "all", count: String(total) });
+  const rows: ResourceTypeRow[] = resourceTypeCounts(project.spec).map(
+    ({ resourceType, count }) => ({
+      resourceType,
+      count: String(count),
+    }),
+  );
+  const allTotal = removeAllRows(project.spec).reduce((sum, { count }) => sum + count, 0);
+  if (allTotal > 0) {
+    rows.push({ resourceType: "all", count: String(allTotal) });
   }
 
   return (
@@ -353,8 +375,8 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
   const queryClient = useQueryClient();
   const removedProject = useRef<Project | null>(null);
 
-  const counts = resourceTypeCounts(project.spec);
-  const nothingToRemove = counts.length === 0;
+  const rows = removeAllRows(project.spec);
+  const nothingToRemove = rows.length === 0;
   useInput(
     (_input, key) => {
       if (key.escape) navigate(REMOVE_ROOT);
@@ -370,7 +392,7 @@ function RemoveAllConfirm({ project, core }: { project: Project; core: ScreenPro
   }
 
   const summary: SummaryRows = Object.fromEntries(
-    counts.map(({ resourceType, count }) => [resourceType, String(count)]),
+    rows.map(({ label, count }) => [label, String(count)]),
   );
 
   return (

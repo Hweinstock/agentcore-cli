@@ -273,6 +273,29 @@ describe("project remove screen", () => {
     r.unmount();
   });
 
+  test("offers remove all when spec entries still exist", async () => {
+    const core = new TestCoreClient();
+    const { project } = await createProject(core);
+    const { project: empty } = await core.projectManager.removeResource(project, {
+      resourceType: "runtime",
+      name: project.spec.runtimes[0]!.name,
+    });
+    const withKb: Project = {
+      ...empty,
+      spec: { ...empty.spec, knowledgeBases: [{ name: "kb" }] as ProjectSpec["knowledgeBases"] },
+    };
+
+    const picker = render("/agentcore/project/remove", core, withKb);
+    await waitForText(picker.lastFrame, "choose a resource to remove from project orders");
+    expect(picker.lastFrame()).toContain("all");
+    picker.unmount();
+
+    const confirm = render("/agentcore/project/remove/all", core, withKb);
+    await waitForText(confirm.lastFrame, "Remove every resource from project orders?");
+    expect(confirm.lastFrame()).toContain("knowledge base");
+    confirm.unmount();
+  });
+
   test("the all row counts the sum of every resource", async () => {
     const core = new TestCoreClient();
     const { project } = await createProject(core, POLICY);
