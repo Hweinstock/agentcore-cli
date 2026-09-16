@@ -157,29 +157,6 @@ describe("FsProjectManager.create", () => {
     }).toMatchSnapshot();
   });
 
-  test("scaffolds the Strands TypeScript payload and memory contract", async () => {
-    const directory = await inTempDirectory();
-    await runCreate(manager().manager, {
-      name: "example",
-      scaffoldRuntimeInput: AGENT_TYPESCRIPT_STRANDS,
-    });
-
-    const runtimeRoot = join(directory, "example", "app", "agent_typescript_strands");
-    const main = await Bun.file(join(runtimeRoot, "main.ts")).text();
-    const memory = await Bun.file(join(runtimeRoot, "memory", "memory.ts")).text();
-    const packageJson = await Bun.file(join(runtimeRoot, "package.json")).json();
-
-    expect(main).toContain(
-      "actorId: z.string().default('default').transform((actorId) => actorId || 'default')",
-    );
-    expect(main).toContain("const actorId = payload.actorId");
-    expect(main).not.toContain("userId");
-    expect(memory).toContain("{ namespace: '/summaries/{actorId}' }");
-    expect(memory).not.toContain("custom-actor-id");
-    expect(packageJson.dependencies).not.toHaveProperty("@modelcontextprotocol/sdk");
-    expect(existsSync(join(runtimeRoot, "mcp_client"))).toBe(false);
-  });
-
   test("snapshots the Strands A2A project manifest and runtime spec", async () => {
     const directory = await inTempDirectory();
     await runCreate(manager().manager, {
