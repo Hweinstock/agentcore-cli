@@ -10,9 +10,13 @@ import {
   TestGlobalConfigAccessor,
   testIO,
 } from "../../../testing";
+import { createProjectHandler } from "../index";
 import type { DeployBackendInput, ProjectBackend } from "../../../core/project";
 import type { AwsDeploymentTarget } from "../../../projectSchemas/aws-targets";
 import type { DeployResult, Project, ProjectEvent, TeardownConfirmationRequest } from "../types";
+import { JsonKey, RegionKey } from "../../keys";
+import { ValueContext } from "../../../router";
+import { JsonRendererKey } from "../../../tui";
 
 const DEFAULT_TARGET: AwsDeploymentTarget = {
   name: "default",
@@ -100,11 +104,19 @@ function testDeployCommand(
     globalConfigAccessor: new TestGlobalConfigAccessor(),
     logger: createSilentLogger(),
   });
+  const project = createProjectHandler({ core, io: io.io });
+  const directContext = ValueContext.EmptyContext()
+    .withValue(RegionKey, "us-east-1")
+    .withValue(JsonKey, false)
+    .withValue(JsonRendererKey, { renderJson: () => {}, renderJsonLine: () => {} });
 
   return {
     ...fake,
     io,
-    run: (args: string[] = []) => root.route(["node", "agentcore", "project", "deploy", ...args]),
+    run: (args: string[] = []) =>
+      options.isTTY === true && !args.includes("--json")
+        ? project.route(["node", "project", "deploy", ...args], directContext)
+        : root.route(["node", "agentcore", "project", "deploy", ...args]),
   };
 }
 
