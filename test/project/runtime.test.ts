@@ -1,23 +1,26 @@
-import { beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import z from "zod";
 import { CliRunner, type RunResult } from "../helpers/run";
-
-const DEV_TIMEOUT_MS = 15 * 60 * 1000;
-const DEPLOY_TIMEOUT_MS = 40 * 60 * 1000;
-const LOCAL_STARTUP_WAIT_MS = 15_000;
+import { retry } from "../helpers/retry";
 
 type RuntimeCase = {
   name: string;
   template: string;
   protocol: "HTTP" | "MCP" | "A2A" | "AGUI";
-  port: number;
   payload: Record<string, unknown>;
-  path: string;
-  memory?: string;
-  headers?: Record<string, string>;
-  cliFlags?: string[];
+  invokeFlags?: string[];
+};
+
+export const TIMEOUT_MS = {
+  PROJECT_CREATE: 3 * 60 * 1000,
+  PROJECT_DEV: 3 * 60 * 1000,
+  PROJECT_DEPLOY: 10 * 60 * 1000,
+  PROJECT_ADD: 3 * 60 * 1000,
+  PROJECT_REMOVE: 60 * 1000,
+  PROJECT_INVOKE: 3 * 60 * 1000,
 };
 
 const RUNTIMES: RuntimeCase[] = [
@@ -25,59 +28,42 @@ const RUNTIMES: RuntimeCase[] = [
     name: "agent_python_minimal",
     template: "agent-python-minimal",
     protocol: "HTTP",
-    port: 18080,
     payload: { prompt: "Reply with a short greeting." },
-    path: "/invocations",
   },
   {
     name: "strands",
     template: "agent-python-strands",
     protocol: "HTTP",
-    port: 18081,
     payload: { prompt: "Reply with a short greeting." },
-    path: "/invocations",
-    memory: "strandsMemory",
   },
   {
     name: "strandsc",
     template: "agent-python-strands-container",
     protocol: "HTTP",
-    port: 18082,
     payload: { prompt: "Reply with a short greeting." },
-    path: "/invocations",
-    memory: "strandscMemory",
   },
   {
     name: "lcagent",
     template: "agent-python-langchain",
     protocol: "HTTP",
-    port: 18083,
     payload: { prompt: "Reply with a short greeting." },
-    path: "/invocations",
   },
   {
     name: "tsstrands",
     template: "agent-typescript-strands",
     protocol: "HTTP",
-    port: 18084,
     payload: { prompt: "Reply with a short greeting." },
-    path: "/invocations",
-    memory: "tsstrandsMemory",
   },
   {
     name: "vercel",
     template: "agent-typescript-vercel",
     protocol: "HTTP",
-    port: 18085,
     payload: { prompt: "Reply with a short greeting." },
-    path: "/invocations",
   },
   {
     name: "mcpfast",
     template: "mcp-python-fastmcp",
     protocol: "MCP",
-    port: 8000,
-    path: "/mcp",
     payload: {
       jsonrpc: "2.0",
       id: 1,
@@ -88,8 +74,7 @@ const RUNTIMES: RuntimeCase[] = [
         clientInfo: { name: "agentcore-e2e", version: "1" },
       },
     },
-    headers: { accept: "application/json, text/event-stream" },
-    cliFlags: [
+    invokeFlags: [
       "--accept",
       "application/json, text/event-stream",
       "--mcp-protocol-version",
@@ -102,9 +87,6 @@ const RUNTIMES: RuntimeCase[] = [
     name: "a2aagent",
     template: "a2a-python-strands",
     protocol: "A2A",
-    port: 9000,
-    path: "/",
-    memory: "a2aagentMemory",
     payload: {
       jsonrpc: "2.0",
       id: "agentcore-e2e",
@@ -122,9 +104,6 @@ const RUNTIMES: RuntimeCase[] = [
     name: "aguiagent",
     template: "agui-python-strands",
     protocol: "AGUI",
-    port: 18088,
-    path: "/invocations",
-    memory: "aguiagentMemory",
     payload: {
       threadId: "agentcore-e2e",
       runId: "agentcore-e2e",
@@ -135,15 +114,56 @@ const RUNTIMES: RuntimeCase[] = [
       forwardedProps: {},
     },
   },
-];
+] as const;
 
-function json<T>(result: RunResult): T {
+const ProjectCreatedSchema = z.object({
+  project: z.object({ path: z.string() }),
+});
+const OperationSchema = z.object({ operation: z.string() });
+const RuntimeInvokeResponseSchema = z.object({
+  statusCode: z.number().int(),
+  body: z.string(),
+  bodyEncoding: z.string(),
+  complete: z.boolean(),
+});
+const LocalRuntimeInvokeResponseSchema = RuntimeInvokeResponseSchema.extend({
+  statusCode: z.number().int().min(200).max(299),
+  body: z.string().refine((value) => value.trim().length > 0, "response body must not be empty"),
+  bodyEncoding: z.literal("utf8"),
+  complete: z.literal(true),
+});
+const DeployResponseSchema = z.object({ message: z.string() });
+const JsonObjectSchema = z.record(z.string(), z.unknown());
+const McpResponseSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  id: z.unknown(),
+  result: z.object({ protocolVersion: z.string() }),
+  error: z.undefined().optional(),
+});
+const A2aResponseSchema = z.object({
+  jsonrpc: z.literal("2.0"),
+  id: z.unknown(),
+  result: z.object({ kind: z.literal("task") }),
+  error: z.undefined().optional(),
+});
+
+function parse<TSchema extends z.ZodType>(schema: TSchema, result: RunResult): z.infer<TSchema> {
   if (result.exitCode !== 0) {
     throw new Error(
       `CLI exited ${result.exitCode}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
     );
   }
-  return JSON.parse(result.stdout) as T;
+
+  const parseResult = schema.safeParse(JSON.parse(result.stdout));
+
+  if (!parseResult.success) {
+    throw new Error(
+      `CLI output did not match expected. stdout: ${result.stdout}\nstderr: ${result.stderr}\n` +
+        `error: ${z.prettifyError(parseResult.error)}`,
+    );
+  }
+
+  return parseResult.data;
 }
 
 function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
@@ -151,48 +171,55 @@ function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
     .split(/\r?\n/)
     .find((line) => line.startsWith("data: "))
     ?.slice("data: ".length);
-  const response = JSON.parse(data ?? body) as {
-    jsonrpc: string;
-    id: unknown;
-    result: unknown;
-    error?: unknown;
+
+  // convert parsed text back into a result to that we can parse it.
+  const result: RunResult = {
+    stdout: data ?? body,
+    stderr: "",
+    exitCode: 0,
   };
 
-  expect(response.jsonrpc).toBe("2.0");
-  expect(response.id).toBe(runtime.payload.id);
-  expect(response.error).toBeUndefined();
-  expect(response.result).toBeDefined();
-  expect(typeof response.result).toBe("object");
   if (runtime.protocol === "MCP") {
-    expect(typeof (response.result as { protocolVersion?: unknown }).protocolVersion).toBe(
-      "string",
-    );
+    const response = parse(McpResponseSchema, result);
+    expect(response.id).toBe(runtime.payload.id);
+    return;
   }
+
   if (runtime.protocol === "A2A") {
-    expect((response.result as { kind?: unknown }).kind).toBe("task");
+    const response = parse(A2aResponseSchema, result);
+    expect(response.id).toBe(runtime.payload.id);
   }
 }
 
-describe.serial("e2e: project runtime configurations", () => {
+function getSessionId(prefix: string): string {
+  return `${prefix}${Date.now().toString(36)}`
+    .replace(/[^a-z0-9]/gi, "")
+    .padEnd(40, "x")
+    .slice(0, 60);
+}
+
+describe.serial("add, dev, deploy, invoke for runtime templates", () => {
   const cli = new CliRunner();
   const projectName = `e2ert${Date.now().toString(36)}`;
   let projectDir: string;
 
   beforeAll(async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
-    const created = json<{ project: { path: string } }>(
+    const created = parse(
+      ProjectCreatedSchema,
       await cli.run(
         ["project", "create", "--name", projectName, "--template", "empty", "--skip-git", "--json"],
         projectRoot,
       ),
     );
     projectDir = created.project.path;
-  }, DEV_TIMEOUT_MS);
+  }, TIMEOUT_MS.PROJECT_CREATE);
 
   test.serial.each(RUNTIMES)(
-    "$name adds its runtime",
+    "$name can be added to a project",
     async (runtime) => {
-      const added = json<{ operation: string }>(
+      const added = parse(
+        OperationSchema,
         await cli.run(
           [
             "project",
@@ -209,37 +236,58 @@ describe.serial("e2e: project runtime configurations", () => {
       );
       expect(added.operation).toBe("add");
     },
-    DEV_TIMEOUT_MS,
+    TIMEOUT_MS.PROJECT_CREATE,
   );
 
-  test.serial.each(RUNTIMES)(
-    "$name runs locally",
-    async (runtime) => {
-      const dev = cli.start(
-        [
-          "project",
-          "dev",
-          "--mode",
-          "headless",
-          "--agent",
-          runtime.name,
-          "--port",
-          String(runtime.port),
-        ],
-        projectDir,
-      );
+  describe.serial("local invocation", () => {
+    // invoke --local does not yet support MCP or A2A invocations
+    const localRuntimes = RUNTIMES.filter((runtime) => ["HTTP", "AGUI"].includes(runtime.protocol));
+    const runtimePorts = new Map<string, number>();
+    let dev: ReturnType<CliRunner["start"]> | undefined;
+    let pendingOutput = "";
+
+    const captureDevOutput = (chunk: Buffer) => {
+      pendingOutput += chunk.toString();
+      const lines = pendingOutput.split(/\r?\n/);
+      pendingOutput = lines.pop() ?? "";
+
+      // parse the out for the ports each agent is running on
+      for (const line of lines) {
+        const match = line.match(/Agent '([^']+)' is running on port (\d+)\./);
+        if (match?.[1] && match[2]) runtimePorts.set(match[1], Number(match[2]));
+      }
+    };
+
+    beforeAll(() => {
+      dev = cli.start(["project", "dev", "--mode", "headless"], projectDir);
+      dev.stdout?.on("data", captureDevOutput);
+      dev.stderr?.on("data", captureDevOutput);
       dev.stdout?.resume();
       dev.stderr?.resume();
+    }, TIMEOUT_MS.PROJECT_DEV);
 
-      try {
-        await Bun.sleep(LOCAL_STARTUP_WAIT_MS);
-        const sessionId = `e2elocal${runtime.name}${Date.now().toString(36)}`
-          .replace(/[^a-z0-9]/gi, "")
-          .padEnd(40, "x")
-          .slice(0, 60);
+    afterAll(async () => {
+      if (!dev || dev.exitCode !== null) return;
+      dev.kill("SIGTERM");
+      await new Promise<void>((resolve) => dev?.once("close", resolve));
+    });
 
-        if (runtime.protocol === "HTTP" || runtime.protocol === "AGUI") {
-          const response = json<{ body: string; bodyEncoding: string; complete: boolean }>(
+    test.concurrent.each(localRuntimes)(
+      "$name runs locally",
+      async (runtime) => {
+        const sessionId = getSessionId(`${runtime.name}`);
+
+        // the server may take a bit to get ready, so we retry on a timeout.
+        const response = await retry(async () => {
+          if (!dev) throw new Error("project dev did not start.");
+          if (dev.exitCode !== null)
+            throw new Error(`project dev exited with code ${dev.exitCode ?? "unknown"}.`);
+
+          const port = runtimePorts.get(runtime.name);
+          if (!port) throw new Error(`Runtime '${runtime.name}' is not ready.`);
+
+          return parse(
+            LocalRuntimeInvokeResponseSchema,
             await cli.run(
               [
                 "project",
@@ -247,7 +295,7 @@ describe.serial("e2e: project runtime configurations", () => {
                 "runtime",
                 "--local",
                 "--port",
-                String(runtime.port),
+                String(port),
                 "--session-id",
                 sessionId,
                 "--payload",
@@ -257,51 +305,32 @@ describe.serial("e2e: project runtime configurations", () => {
               projectDir,
             ),
           );
-          expect(typeof response.body).toBe("string");
-          expect(typeof response.bodyEncoding).toBe("string");
-          expect(response.complete).toBe(true);
-        } else {
-          const response = await fetch(`http://127.0.0.1:${runtime.port}${runtime.path}`, {
-            method: "POST",
-            headers: {
-              "content-type": "application/json",
-              "x-amzn-bedrock-agentcore-runtime-session-id": sessionId,
-              ...runtime.headers,
-            },
-            body: JSON.stringify(runtime.payload),
-          });
-          expect(response.ok).toBe(true);
-          assertProtocolResponse(runtime, await response.text());
-        }
-      } finally {
-        if (dev.exitCode === null) {
-          dev.kill("SIGTERM");
-          await new Promise<void>((resolve) => dev.once("close", resolve));
-        }
-      }
-    },
-    DEV_TIMEOUT_MS,
-  );
+        });
+
+        expect(response.body.trim()).not.toBe("");
+      },
+      TIMEOUT_MS.PROJECT_INVOKE,
+    );
+  });
 
   test.serial(
     "deploys all runtimes",
     async () => {
-      const deployment = json<{ message: string }>(
+      const deployment = parse(
+        DeployResponseSchema,
         await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
       );
       expect(deployment.message).toContain("Deployed project");
     },
-    DEPLOY_TIMEOUT_MS,
+    TIMEOUT_MS.PROJECT_DEPLOY,
   );
 
   test.serial.each(RUNTIMES)(
-    "$name invokes remotely",
+    "$name can be invoked after deployed",
     async (runtime) => {
-      const sessionId = `e2eremote${runtime.name}${Date.now().toString(36)}`
-        .replace(/[^a-z0-9]/gi, "")
-        .padEnd(40, "x")
-        .slice(0, 60);
-      const response = json<{ body: string; bodyEncoding: string; complete: boolean }>(
+      const sessionId = getSessionId(runtime.name);
+      const response = parse(
+        RuntimeInvokeResponseSchema,
         await cli.run(
           [
             "project",
@@ -314,52 +343,45 @@ describe.serial("e2e: project runtime configurations", () => {
             "--payload",
             JSON.stringify(runtime.payload),
             "--json",
-            ...(runtime.cliFlags ?? []),
+            ...(runtime.invokeFlags ?? []),
           ],
           projectDir,
         ),
       );
 
-      expect(typeof response.body).toBe("string");
-      expect(typeof response.bodyEncoding).toBe("string");
       expect(response.complete).toBe(true);
       if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
         assertProtocolResponse(runtime, response.body);
       }
     },
-    DEV_TIMEOUT_MS,
+    TIMEOUT_MS.PROJECT_INVOKE,
   );
 
   test.serial.each(RUNTIMES)(
-    "$name removes its runtime",
+    "$name can be removed from the project",
     async (runtime) => {
-      const removed = json<{ operation: string }>(
+      const removed = parse(
+        OperationSchema,
         await cli.run(
           ["project", "remove", "runtime", "--name", runtime.name, "--json"],
           projectDir,
         ),
       );
       expect(removed.operation).toBe("remove");
-      if (runtime.memory) {
-        const memory = json<{ operation: string }>(
-          await cli.run(
-            ["project", "remove", "memory", "--name", runtime.memory, "--json"],
-            projectDir,
-          ),
-        );
-        expect(memory.operation).toBe("remove");
-      }
     },
-    DEV_TIMEOUT_MS,
+    TIMEOUT_MS.PROJECT_REMOVE,
   );
 
   test.serial(
     "deploys the empty project",
     async () => {
-      json<Record<string, unknown>>(
-        await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
+      parse(
+        JsonObjectSchema,
+        await cli.run(["project", "remove", "all", "--yes", "--json"], projectDir),
       );
+
+      parse(JsonObjectSchema, await cli.run(["project", "deploy", "--yes", "--json"], projectDir));
     },
-    DEPLOY_TIMEOUT_MS,
+    TIMEOUT_MS.PROJECT_DEPLOY,
   );
 });

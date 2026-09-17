@@ -1,17 +1,4 @@
 import { spawn } from "node:child_process";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-
-const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..");
-
-const TARGETS: Record<string, string> = {
-  "darwin-arm64": "darwin-arm64",
-  "darwin-x64": "darwin-x64",
-  "linux-arm64": "linux-arm64",
-  "linux-x64": "linux-x64",
-  "win32-arm64": "windows-arm64",
-  "win32-x64": "windows-x64",
-};
 
 export type RunResult = {
   stdout: string;
@@ -19,19 +6,21 @@ export type RunResult = {
   exitCode: number;
 };
 
-export function compiledCliPath(): string {
-  const target = TARGETS[`${process.platform}-${process.arch}`];
-  if (!target) throw new Error(`Unsupported e2e platform: ${process.platform}-${process.arch}`);
-  return join(
-    REPO_ROOT,
-    "dist",
-    "bin",
-    `agentcore-${target}${process.platform === "win32" ? ".exe" : ""}`,
-  );
+function requireEnv(key: string): string {
+  const value = process.env[key];
+  if (!value) throw new Error(`missing environment variable for ${key}`);
+  return value;
+}
+
+function quoteShellArg(value: string): string {
+  if (process.platform === "win32") {
+    return `"${value.replaceAll('"', '\\"')}"`;
+  }
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 export class CliRunner {
-  private readonly executable = compiledCliPath();
+  private readonly command = requireEnv("AGENTCORE_CLI_PATH");
 
   run(args: string[], cwd: string): Promise<RunResult> {
     return new Promise((resolve, reject) => {
@@ -46,9 +35,11 @@ export class CliRunner {
   }
 
   start(args: string[], cwd: string) {
-    return spawn(this.executable, args, {
+    const command = [this.command, ...args.map(quoteShellArg)].join(" ");
+    return spawn(command, {
       cwd,
       env: { ...process.env, AGENTCORE_TELEMETRY_DISABLED: "1", FORCE_COLOR: "0" },
+      shell: true,
       stdio: ["ignore", "pipe", "pipe"],
     });
   }
