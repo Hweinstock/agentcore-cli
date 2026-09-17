@@ -106,17 +106,17 @@ function setupDeployTest(
   };
 }
 
-function testDeployRootCommand(subject: ReturnType<typeof setupDeployTest>) {
+function testDeployCommand(
+  result: DeployResult,
+  events: ProjectEvent[] = [],
+  options: TestDeployOptions = {},
+) {
+  const subject = setupDeployTest(result, events, options);
   const root = createRootHandler(subject.core, {
     io: subject.io.io,
     globalConfigAccessor: new TestGlobalConfigAccessor(),
     logger: createSilentLogger(),
   });
-
-  return (args: string[] = []) => root.route(["node", "agentcore", "project", "deploy", ...args]);
-}
-
-function testDeployHandlerCommand(subject: ReturnType<typeof setupDeployTest>) {
   const project = createProjectHandler({ core: subject.core, io: subject.io.io });
   const directContext = ValueContext.EmptyContext()
     .withValue(JsonRendererKey, {
@@ -126,25 +126,12 @@ function testDeployHandlerCommand(subject: ReturnType<typeof setupDeployTest>) {
     .withValue(RegionKey, "us-east-1")
     .withValue(JsonKey, false);
 
-  return (args: string[] = []) =>
-    project.route(["node", "project", "deploy", ...args], directContext);
-}
-
-// Keep existing test cases focused on deploy behavior while selecting the
-// appropriate routing boundary for interactive versus headless coverage.
-function testDeployCommand(
-  result: DeployResult,
-  events: ProjectEvent[] = [],
-  options: TestDeployOptions = {},
-) {
-  const subject = setupDeployTest(result, events, options);
-  const rootRun = testDeployRootCommand(subject);
-  const handlerRun = testDeployHandlerCommand(subject);
-
   return {
     ...subject,
     run: (args: string[] = []) =>
-      options.isTTY === true && !args.includes("--json") ? handlerRun(args) : rootRun(args),
+      options.isTTY === true && args.length === 0
+        ? project.route(["node", "project", "deploy"], directContext)
+        : root.route(["node", "agentcore", "project", "deploy", ...args]),
   };
 }
 
