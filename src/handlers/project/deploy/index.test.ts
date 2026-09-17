@@ -6,6 +6,7 @@ import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
   initProject,
+  inTempDirectory,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -488,4 +489,11 @@ describe("project deploy reports which field of aws-targets.json is wrong", () =
     await expect(subject.run()).rejects.toThrow(/JSON Parse error/);
     expect(subject.calls).toEqual([]);
   });
+});
+
+test("requires an AgentCore project", async () => {
+  cleanups.push((await inTempDirectory()).cleanup);
+  await expect(testDeployCommand({ outputs: {} }).run()).rejects.toThrow(
+    /No AgentCore project found/,
+  );
 });
