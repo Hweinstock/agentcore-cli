@@ -9,6 +9,7 @@ import type { AwsClients } from "../../core/types";
 import { NetworkingError, UserCancellationError } from "../../errors";
 import {
   createSilentLogger,
+  expectInputValidationError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -126,29 +127,72 @@ describe("gateway command hierarchy", () => {
   });
 
   test.each([
-    ["Gateway create", ["gateway", "create"], /--name/],
-    ["Target create", ["gateway", "target", "create"], /--gateway-id/],
-    ["Connector create", ["gateway", "connector", "create"], /--gateway-id/],
-    ["Rule create", ["gateway", "rule", "create"], /--gateway-id/],
-  ] as const)("keeps bare CLI-only %s out of the TUI", async (_label, args, error) => {
+    ["Gateway create", ["gateway", "create"], "name"],
+    ["Target create", ["gateway", "target", "create"], "gateway-id"],
+    ["Connector create", ["gateway", "connector", "create"], "gateway-id"],
+    ["Rule create", ["gateway", "rule", "create"], "gateway-id"],
+  ] as const)("keeps bare CLI-only %s out of the TUI", async (_label, args, flagName) => {
     expect(supportsTui(args)).toBe(false);
-    await expect(run([...args])).rejects.toThrow(error);
+    await expectInputValidationError(
+      run([...args]),
+      `required option '--${flagName} <${flagName}>' not specified`,
+    );
   });
 });
 
 describe("gateway validation", () => {
   test.each([
-    ["Gateway get", ["gateway", "get", "--id", ""], /--id/],
-    ["Target get parent", ["gateway", "target", "get", "--target-id", TARGET_ID], /--gateway-id/],
-    ["Target get child", ["gateway", "target", "get", "--gateway-id", GATEWAY_ID], /--target-id/],
-    ["Target list", ["gateway", "target", "list", "--max-results", "1"], /--gateway-id/],
-    ["Connector get parent", ["gateway", "connector", "get", "--id", TARGET_ID], /--gateway-id/],
-    ["Connector get child", ["gateway", "connector", "get", "--gateway-id", GATEWAY_ID], /--id/],
-    ["Connector list", ["gateway", "connector", "list", "--max-results", "1"], /--gateway-id/],
-    ["Rule get parent", ["gateway", "rule", "get", "--rule-id", RULE_ID], /--gateway-id/],
-    ["Rule get child", ["gateway", "rule", "get", "--gateway-id", GATEWAY_ID], /--rule-id/],
-    ["Rule list", ["gateway", "rule", "list", "--max-results", "1"], /--gateway-id/],
-    ["Policy generate gateway", ["gateway", "policy", "generate", "--prompt", "x"], /--gateway-id/],
+    ["Gateway get", ["gateway", "get", "--json"], "required option '--id <id>' not specified"],
+    [
+      "Target get parent",
+      ["gateway", "target", "get", "--target-id", TARGET_ID],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
+    [
+      "Target get child",
+      ["gateway", "target", "get", "--gateway-id", GATEWAY_ID],
+      "required option '--target-id <target-id>' not specified",
+    ],
+    [
+      "Target list",
+      ["gateway", "target", "list", "--max-results", "1"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
+    [
+      "Connector get parent",
+      ["gateway", "connector", "get", "--id", TARGET_ID],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
+    [
+      "Connector get child",
+      ["gateway", "connector", "get", "--gateway-id", GATEWAY_ID],
+      "required option '--id <id>' not specified",
+    ],
+    [
+      "Connector list",
+      ["gateway", "connector", "list", "--max-results", "1"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
+    [
+      "Rule get parent",
+      ["gateway", "rule", "get", "--rule-id", RULE_ID],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
+    [
+      "Rule get child",
+      ["gateway", "rule", "get", "--gateway-id", GATEWAY_ID],
+      "required option '--rule-id <rule-id>' not specified",
+    ],
+    [
+      "Rule list",
+      ["gateway", "rule", "list", "--max-results", "1"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
+    [
+      "Policy generate gateway",
+      ["gateway", "policy", "generate", "--prompt", "x"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
     [
       "Policy generate prompt",
       ["gateway", "policy", "generate", "--gateway-id", GATEWAY_ID, "--json"],
@@ -159,7 +203,11 @@ describe("gateway validation", () => {
     async (_name, args, error) => {
       const core = new TestCoreClient();
 
-      await expect(run([...args], core)).rejects.toThrow(error);
+      if (typeof error === "string" && error.startsWith("required option")) {
+        await expectInputValidationError(run([...args], core), error);
+      } else {
+        await expect(run([...args], core)).rejects.toThrow(error);
+      }
       expect(core.gateway.calls).toEqual([]);
       expect(core.policy.calls).toEqual([]);
     },

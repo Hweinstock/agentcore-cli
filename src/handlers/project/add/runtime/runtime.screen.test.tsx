@@ -312,7 +312,7 @@ describe("project add runtime dispatch", () => {
     const error = await routeError(testIO().io, []);
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain(MISSING_NAME);
+    expect((error as Error).message).toBe(MISSING_NAME);
   });
 
   test("any user-supplied flag stays headless even in a TTY", async () => {
@@ -321,7 +321,7 @@ describe("project add runtime dispatch", () => {
     const error = await routeError(ttyTestIO().streams.io, ["--description", "an agent"]);
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain(MISSING_NAME);
+    expect((error as Error).message).toBe(MISSING_NAME);
   });
 
   test("--json stays headless even in a TTY", async () => {
@@ -330,7 +330,7 @@ describe("project add runtime dispatch", () => {
     const error = await routeError(ttyTestIO().streams.io, ["--json"]);
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain(MISSING_NAME);
+    expect((error as Error).message).toBe(MISSING_NAME);
   });
 
   test("flag-driven add runtime still runs headless in a TTY session", async () => {

@@ -1,5 +1,4 @@
 import z from "zod";
-import { InputValidationError } from "../../../../errors";
 import { SourceResolver } from "../../../../io";
 import {
   ComponentConfigurationSchema,
@@ -25,7 +24,7 @@ export const createAddConfigBundleHandler = (config: AddProjectResourceConfig) =
     name: "config-bundle",
     description: "add a configuration bundle to the current project",
     flags: [
-      flag("name", "the name of the configuration bundle", ConfigBundleNameSchema.optional()),
+      flag("name", "the name of the configuration bundle", ConfigBundleNameSchema),
       flag(
         "description",
         "a description of the configuration bundle",
@@ -34,7 +33,7 @@ export const createAddConfigBundleHandler = (config: AddProjectResourceConfig) =
       flag(
         "components",
         "component configuration map (JSON inline, file://<path>, or - for stdin)",
-        z.string().optional(),
+        z.string().min(1),
         { sensitive: true },
       ),
       flag(
@@ -54,19 +53,9 @@ export const createAddConfigBundleHandler = (config: AddProjectResourceConfig) =
       ),
     ],
     handle: async (ctx, flags) => {
-      if (!flags.name) {
-        throw new InputValidationError("required option '--name <name>' not specified");
-      }
-      if (!flags.components) {
-        throw new InputValidationError("required option '--components <components>' not specified");
-      }
-
       const source = new SourceResolver({ stdin: config.io.stdin });
       const componentsText = await source.resolveText("components", flags.components);
-      const components = parseJsonFlagWithSchema("components", componentsText, ComponentsSchema);
-      if (components === undefined) {
-        throw new InputValidationError("required option '--components <components>' not specified");
-      }
+      const components = parseJsonFlagWithSchema("components", componentsText, ComponentsSchema)!;
 
       const project = ctx.require(ProjectKey);
       await addProjectResource(

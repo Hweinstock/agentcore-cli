@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
+  expectInputValidationError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -388,8 +389,12 @@ describe("project add runtime", () => {
     },
   );
 
-  test.each<[string, string[]]>([
-    ["missing --name", ["--template", "agent-python-minimal"]],
+  test.each<[string, string[], string?]>([
+    [
+      "missing --name",
+      ["--template", "agent-python-minimal"],
+      "required option '--name <name>' not specified",
+    ],
     [
       "--model-provider is not valid with the a2a-python-strands template",
       ["--name", "my_agent", "--template", "a2a-python-strands", "--model-provider", "Anthropic"],
@@ -419,10 +424,15 @@ describe("project add runtime", () => {
       ["--name", "my_agent", ...template, "--network-config", "{bad}"],
     ],
     ["runtime names are limited in length", ["--name", "x".repeat(49)]],
-  ])("%s", async (_label, flags) => {
+  ])("%s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    await expect(run(["add", "runtime", ...flags])).rejects.toBeInstanceOf(InputValidationError);
+    const promise = run(["add", "runtime", ...flags]);
+    if (typeof requiredMessage === "string") {
+      await expectInputValidationError(promise, requiredMessage);
+    } else {
+      await expect(promise).rejects.toBeInstanceOf(InputValidationError);
+    }
   });
 
   test("rejects an unknown --template value", async () => {

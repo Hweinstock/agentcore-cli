@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { expectInputValidationError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const { addGateway, cleanup, inProject, projectSpec, run } =
@@ -44,7 +45,7 @@ describe("project add policy-engine", () => {
   });
 
   test.each([
-    ["missing --name", ["add", "policy-engine"], "required option '--name"],
+    ["missing --name", ["add", "policy-engine"], "required option '--name <name>' not specified"],
     [
       "invalid name",
       ["add", "policy-engine", "--name", "9starts-with-digit"],
@@ -57,7 +58,11 @@ describe("project add policy-engine", () => {
     ],
   ])("rejects %s", async (_label, args, message) => {
     await inProject();
-    await expect(run(args)).rejects.toThrow(message);
+    if (message.startsWith("required option")) {
+      await expectInputValidationError(run(args), message);
+    } else {
+      await expect(run(args)).rejects.toThrow(message);
+    }
   });
 
   test("checks the deployed name against the longest declared target", async () => {

@@ -10,6 +10,7 @@ import {
 import { join } from "node:path";
 import { CoreClient } from "../../../core";
 import { createDataClient } from "../../../core/factories";
+import { InputValidationError } from "../../../errors";
 import {
   createSilentLogger,
   fixtureFactories,
@@ -104,6 +105,12 @@ async function run(args: string[]): Promise<string> {
 
   await root.route(["bun", "agentcore", ...args, "--region", REGION]);
   return io.stdout();
+}
+
+async function expectInputValidation(promise: Promise<unknown>, message: string): Promise<void> {
+  const error = await promise.catch((caught) => caught);
+  expect(error).toBeInstanceOf(InputValidationError);
+  expect(error).toHaveProperty("message", message);
 }
 
 let recommendationId: string | undefined;
@@ -214,6 +221,23 @@ afterAll(async () => {
 }, RECORDING_TIMEOUT_MS);
 
 describe("eval recommendation against recorded responses", () => {
+  test("rejects a null recommendation config", async () => {
+    await expectInputValidation(
+      run([
+        "eval",
+        "recommendation",
+        "start",
+        "--name",
+        RECOMMENDATION_NAME,
+        "--type",
+        "SYSTEM_PROMPT_RECOMMENDATION",
+        "--recommendation-config",
+        "null",
+      ]),
+      "Option '--recommendation-config' must resolve to a nonempty JSON value",
+    );
+  });
+
   test("starts a recommendation", async () => {
     const stdout = await run([
       "eval",

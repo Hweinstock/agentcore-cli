@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { expectInputValidationError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 import { inferAuthorizationPhase } from "./index";
 
@@ -106,16 +107,20 @@ describe("project add policy", () => {
   });
 
   test.each([
-    ["missing --engine", ["add", "policy", "--name", "P", "--statement", FORBID_ALL], "--engine"],
+    [
+      "missing --engine",
+      ["add", "policy", "--name", "P", "--statement", FORBID_ALL],
+      "required option '--engine <engine>' not specified",
+    ],
     [
       "missing --name",
       ["add", "policy", "--engine", "Guardrails", "--statement", FORBID_ALL],
-      "--name",
+      "required option '--name <name>' not specified",
     ],
     [
       "missing --statement",
       ["add", "policy", "--engine", "Guardrails", "--name", "P"],
-      "required option '--statement",
+      "required option '--statement <statement>' not specified",
     ],
     [
       "unknown engine",
@@ -124,7 +129,11 @@ describe("project add policy", () => {
     ],
   ])("rejects %s", async (_label, args, message) => {
     await withEngine();
-    await expect(run(args)).rejects.toThrow(message);
+    if (message.startsWith("required option")) {
+      await expectInputValidationError(run(args), message);
+    } else {
+      await expect(run(args)).rejects.toThrow(message);
+    }
   });
 
   test("rejects a duplicate policy name across engines", async () => {

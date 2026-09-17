@@ -14,8 +14,8 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
     description:
       "add a code-based evaluator — scaffold a Python Lambda with custom evaluation logic, or reference an existing Lambda with --lambda-arn",
     flags: [
-      flag("name", "the name of the evaluator", z.string().optional()),
-      flag("level", "what to score: SESSION, TRACE, or TOOL_CALL", z.string().optional()),
+      flag("name", "the name of the evaluator", z.string().min(1)),
+      flag("level", "what to score: SESSION, TRACE, or TOOL_CALL", z.string().min(1)),
       flag("lambda-arn", "ARN of an existing Lambda that scores a session", z.string().optional()),
       flag(
         "timeout-seconds",
@@ -31,10 +31,6 @@ export const createAddCodeBasedEvaluatorHandler = (config: AddProjectResourceCon
       flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
     ],
     handle: async (ctx, flags) => {
-      if (!flags["name"])
-        throw new InputValidationError("required option '--name <name>' not specified");
-      if (!flags["level"])
-        throw new InputValidationError("required option '--level <level>' not specified");
       const levelParsed = EvaluationLevelSchema.safeParse(flags["level"]);
       if (!levelParsed.success) throw new InputValidationError(z.prettifyError(levelParsed.error));
       const level = levelParsed.data;

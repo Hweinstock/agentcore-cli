@@ -18,6 +18,7 @@ import { CoreClient } from "../../core";
 import { createControlClient, createIamClient } from "../../core/factories";
 import {
   createSilentLogger,
+  expectInputValidationError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -220,16 +221,20 @@ async function cleanup(state: FixtureState): Promise<void> {
 
 describe("Gateway create validation", () => {
   test.each([
-    ["Gateway name", ["gateway", "create", "--authorizer-type", "NONE"], /--name/],
+    [
+      "Gateway name",
+      ["gateway", "create", "--authorizer-type", "NONE"],
+      "required option '--name <name>' not specified",
+    ],
     [
       "Gateway role",
       ["gateway", "create", "--name", "orders", "--authorizer-type", "NONE"],
-      /--role-arn/,
+      "required option '--role-arn <role-arn>' not specified",
     ],
     [
       "Gateway authorizer",
       ["gateway", "create", "--name", "orders", "--role-arn", TEST_ROLE_ARN],
-      /--authorizer-type/,
+      "required option '--authorizer-type <authorizer-type>' not specified",
     ],
     [
       "CUSTOM_JWT configuration",
@@ -261,7 +266,11 @@ describe("Gateway create validation", () => {
       ],
       /must be supplied together/,
     ],
-    ["Target parent", ["gateway", "target", "create", "--name", "target"], /--gateway-id/],
+    [
+      "Target parent",
+      ["gateway", "target", "create", "--name", "target"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
     [
       "Target input",
       ["gateway", "target", "create", "--gateway-id", "gateway-1", "--name", "target"],
@@ -283,7 +292,7 @@ describe("Gateway create validation", () => {
     [
       "Connector name",
       ["gateway", "connector", "create", "--gateway-id", "gateway-1", "--connector", "web-search"],
-      /--name/,
+      "required option '--name <name>' not specified",
     ],
     [
       "Knowledge Base ID",
@@ -400,19 +409,27 @@ describe("Gateway create validation", () => {
       ],
       /--tool-schema requires --endpoint/,
     ],
-    ["Rule parent", ["gateway", "rule", "create", "--priority", "10"], /--gateway-id/],
+    [
+      "Rule parent",
+      ["gateway", "rule", "create", "--priority", "10"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
     [
       "Rule priority",
       ["gateway", "rule", "create", "--gateway-id", "gateway-1", "--actions", "[]"],
-      /--priority/,
+      "required option '--priority <priority>' not specified",
     ],
     [
       "Rule actions",
       ["gateway", "rule", "create", "--gateway-id", "gateway-1", "--priority", "10"],
-      /--actions/,
+      "required option '--actions <actions>' not specified",
     ],
   ] as const)("rejects missing or inconsistent %s before Core", async (_name, args, error) => {
-    await expect(run([...args])).rejects.toThrow(error);
+    if (typeof error === "string" && error.startsWith("required option")) {
+      await expectInputValidationError(run([...args]), error);
+    } else {
+      await expect(run([...args])).rejects.toThrow(error);
+    }
   });
 
   test("rejects conflicting Target inputs", async () => {

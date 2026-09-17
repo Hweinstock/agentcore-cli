@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { expectInputValidationError } from "../../../../testing";
 import { createPaymentProjectTestHarness } from "../payment-test-support";
 
 const DISCOVERY_URL = "https://idp.example.com/.well-known/openid-configuration";
@@ -100,7 +101,7 @@ describe("project add payment-manager", () => {
   });
 
   test.each([
-    ["missing name", [], "required option '--name"],
+    ["missing name", [], "required option '--name <name>' not specified"],
     [
       "CUSTOM_JWT without discovery URL",
       ["--name", "payments", "--authorizer-type", "CUSTOM_JWT"],
@@ -125,7 +126,11 @@ describe("project add payment-manager", () => {
   ])("rejects %s", async (_label, flags, message) => {
     const projectRoot = await inProject();
 
-    await expect(run(["add", "payment-manager", ...flags])).rejects.toThrow(message);
+    if (message.startsWith("required option")) {
+      await expectInputValidationError(run(["add", "payment-manager", ...flags]), message);
+    } else {
+      await expect(run(["add", "payment-manager", ...flags])).rejects.toThrow(message);
+    }
     expect((await projectSpec(projectRoot)).payments ?? []).toEqual([]);
   });
 

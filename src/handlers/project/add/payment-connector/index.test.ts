@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { expectInputValidationError } from "../../../../testing";
 import { createPaymentProjectTestHarness } from "../payment-test-support";
 
 const { cleanup, inProject, projectSpec, run, writeProjectSpec } =
@@ -69,8 +70,16 @@ describe("project add payment-connector", () => {
   });
 
   test.each([
-    ["missing manager", ["--name", "connector", "--quick-create"], "required option '--manager"],
-    ["missing name", ["--manager", "payments", "--quick-create"], "required option '--name"],
+    [
+      "missing manager",
+      ["--name", "connector", "--quick-create"],
+      "required option '--manager <manager>' not specified",
+    ],
+    [
+      "missing name",
+      ["--manager", "payments", "--quick-create"],
+      "required option '--name <name>' not specified",
+    ],
     ["no mode", ["--manager", "payments", "--name", "connector"], "specify exactly one"],
     [
       "multiple modes",
@@ -89,7 +98,11 @@ describe("project add payment-connector", () => {
     const projectRoot = await inProject();
     await addManager();
 
-    await expect(run(["add", "payment-connector", ...flags])).rejects.toThrow(message);
+    if (message.startsWith("required option")) {
+      await expectInputValidationError(run(["add", "payment-connector", ...flags]), message);
+    } else {
+      await expect(run(["add", "payment-connector", ...flags])).rejects.toThrow(message);
+    }
     expect((await projectSpec(projectRoot)).payments[0].connectors).toEqual([]);
   });
 

@@ -22,6 +22,7 @@ import { CoreClient } from "../../core";
 import { createControlClient, createIamClient } from "../../core/factories";
 import {
   createSilentLogger,
+  expectInputValidationError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -67,7 +68,11 @@ describe("Gateway update command hierarchy", () => {
 
 describe("Gateway update validation", () => {
   test.each([
-    ["Gateway selector", ["gateway", "update", "--description", "after"], /--id/],
+    [
+      "Gateway selector",
+      ["gateway", "update", "--description", "after"],
+      "required option '--id <id>' not specified",
+    ],
     ["Gateway mutation", ["gateway", "update", "--id", "gateway-1"], /at least one/],
     [
       "Gateway description conflict",
@@ -87,7 +92,11 @@ describe("Gateway update validation", () => {
       ],
       /conflicts/,
     ],
-    ["Target selector", ["gateway", "target", "update", "--name", "after"], /--gateway-id/],
+    [
+      "Target selector",
+      ["gateway", "target", "update", "--name", "after"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
     [
       "Target mutation",
       ["gateway", "target", "update", "--gateway-id", "gateway-1", "--target-id", "target-1"],
@@ -113,21 +122,29 @@ describe("Gateway update validation", () => {
     [
       "Connector selector",
       ["gateway", "connector", "update", "--connector", "web-search"],
-      /--gateway-id/,
+      "required option '--gateway-id <gateway-id>' not specified",
     ],
     [
       "Connector mutation",
       ["gateway", "connector", "update", "--gateway-id", "gateway-1", "--id", "target-1"],
       /at least one/,
     ],
-    ["Rule selector", ["gateway", "rule", "update", "--priority", "20"], /--gateway-id/],
+    [
+      "Rule selector",
+      ["gateway", "rule", "update", "--priority", "20"],
+      "required option '--gateway-id <gateway-id>' not specified",
+    ],
     [
       "Rule mutation",
       ["gateway", "rule", "update", "--gateway-id", "gateway-1", "--rule-id", "rule-1"],
       /at least one/,
     ],
   ] as const)("rejects invalid %s input", async (_name, args, error) => {
-    await expect(runWithTestCore([...args])).rejects.toThrow(error);
+    if (typeof error === "string" && error.startsWith("required option")) {
+      await expectInputValidationError(runWithTestCore([...args]), error);
+    } else {
+      await expect(runWithTestCore([...args])).rejects.toThrow(error);
+    }
   });
 });
 

@@ -1,7 +1,6 @@
 import z from "zod";
 import type { ComponentConfiguration } from "@aws-sdk/client-bedrock-agentcore-control";
 import type { SourceResolver } from "../../../io";
-import { InputValidationError } from "../../../errors";
 import { parseJsonFlagWithSchema } from "../../utils";
 
 const componentConfigurationSchema = z
@@ -22,10 +21,10 @@ export async function resolveConfigurationBundleComponents(
   value: string,
   source: SourceResolver,
 ): Promise<ConfigurationBundleComponents> {
-  const text = await source.resolveText("components", value);
-  const components = parseJsonFlagWithSchema("components", text, componentMapSchema);
-  if (components === undefined) {
-    throw new InputValidationError("required option '--components <components>' not specified");
-  }
-  return components as ConfigurationBundleComponents;
+  const text = (await source.resolveText("components", value))!;
+  return parseJsonFlagWithSchema(
+    "components",
+    text,
+    componentMapSchema,
+  )! as ConfigurationBundleComponents;
 }

@@ -4,6 +4,7 @@ import { CoreClient } from "../../core";
 import { createRootHandler } from "../index";
 import {
   createSilentLogger,
+  expectInputValidationError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -76,10 +77,10 @@ describe("harness get", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    // No id and no other flags would normally open the TUI, but withRegion adds
-    // no arg; the get leaf throws its own required-option error. Assert the flow
-    // surfaces it rather than printing output.
-    await expect(run(["harness", "get", "--id", ""])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "get", "--json"]),
+      "required option '--id <id>' not specified",
+    );
   });
 });
 
@@ -109,7 +110,10 @@ describe("harness endpoint list", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expect(run(["harness", "endpoint", "list", "--id", ""])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "endpoint", "list", "--json"]),
+      "required option '--id <id>' not specified",
+    );
   });
 });
 
@@ -128,15 +132,17 @@ describe("harness endpoint get", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expect(
-      run(["harness", "endpoint", "get", "--id", "", "--qualifier", "DEFAULT"]),
-    ).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "endpoint", "get", "--qualifier", "DEFAULT"]),
+      "required option '--id <id>' not specified",
+    );
   });
 
   test("errors when --qualifier is omitted (leaf requires it)", async () => {
-    await expect(
-      run(["harness", "endpoint", "get", "--id", "MyPDXHarness-rhkXkAE1IS", "--qualifier", ""]),
-    ).rejects.toThrow(/--qualifier/);
+    await expectInputValidationError(
+      run(["harness", "endpoint", "get", "--id", "MyPDXHarness-rhkXkAE1IS"]),
+      "required option '--qualifier <qualifier>' not specified",
+    );
   });
 });
 
@@ -153,7 +159,10 @@ describe("harness version list", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expect(run(["harness", "version", "list", "--id", ""])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "version", "list", "--json"]),
+      "required option '--id <id>' not specified",
+    );
   });
 });
 
@@ -172,52 +181,73 @@ describe("harness version get", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expect(run(["harness", "version", "get", "--id", "", "--version", "1"])).rejects.toThrow(
-      /--id/,
+    await expectInputValidationError(
+      run(["harness", "version", "get", "--version", "1"]),
+      "required option '--id <id>' not specified",
     );
   });
 
   test("errors when --version is omitted (leaf requires it)", async () => {
-    await expect(
-      run(["harness", "version", "get", "--id", "MyPDXHarness-rhkXkAE1IS", "--version", ""]),
-    ).rejects.toThrow(/--version/);
+    await expectInputValidationError(
+      run(["harness", "version", "get", "--id", "MyPDXHarness-rhkXkAE1IS"]),
+      "required option '--version <version>' not specified",
+    );
   });
 });
 
 describe("write command validation", () => {
-  // Each write leaf declares its identifying flags optional (so a bare
-  // invocation opens the TUI) but requires them at runtime.
   test("`harness create` errors when --name is omitted", async () => {
-    await expect(run(["harness", "create", "--name", ""])).rejects.toThrow(/--name/);
+    await expectInputValidationError(
+      run(["harness", "create", "--json"]),
+      "required option '--name <name>' not specified",
+    );
   });
 
   test("`harness update` errors when --id is omitted", async () => {
-    await expect(run(["harness", "update", "--id", ""])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "update", "--json"]),
+      "required option '--id <id>' not specified",
+    );
   });
 
   test("`harness delete` errors when --id is omitted", async () => {
-    await expect(run(["harness", "delete", "--id", ""])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "delete", "--json"]),
+      "required option '--id <id>' not specified",
+    );
   });
 
   test("`harness endpoint create` errors when --id or --name is omitted", async () => {
-    await expect(run(["harness", "endpoint", "create", "--id", ""])).rejects.toThrow(/--id/);
-    await expect(
-      run(["harness", "endpoint", "create", "--id", "h-1", "--name", ""]),
-    ).rejects.toThrow(/--name/);
+    await expectInputValidationError(
+      run(["harness", "endpoint", "create", "--name", "prod"]),
+      "required option '--id <id>' not specified",
+    );
+    await expectInputValidationError(
+      run(["harness", "endpoint", "create", "--id", "h-1"]),
+      "required option '--name <name>' not specified",
+    );
   });
 
   test("`harness endpoint update` errors when --id or --qualifier is omitted", async () => {
-    await expect(run(["harness", "endpoint", "update", "--id", ""])).rejects.toThrow(/--id/);
-    await expect(
-      run(["harness", "endpoint", "update", "--id", "h-1", "--qualifier", ""]),
-    ).rejects.toThrow(/--qualifier/);
+    await expectInputValidationError(
+      run(["harness", "endpoint", "update", "--qualifier", "DEFAULT"]),
+      "required option '--id <id>' not specified",
+    );
+    await expectInputValidationError(
+      run(["harness", "endpoint", "update", "--id", "h-1"]),
+      "required option '--qualifier <qualifier>' not specified",
+    );
   });
 
   test("`harness endpoint delete` errors when --id or --qualifier is omitted", async () => {
-    await expect(run(["harness", "endpoint", "delete", "--id", ""])).rejects.toThrow(/--id/);
-    await expect(
-      run(["harness", "endpoint", "delete", "--id", "h-1", "--qualifier", ""]),
-    ).rejects.toThrow(/--qualifier/);
+    await expectInputValidationError(
+      run(["harness", "endpoint", "delete", "--qualifier", "DEFAULT"]),
+      "required option '--id <id>' not specified",
+    );
+    await expectInputValidationError(
+      run(["harness", "endpoint", "delete", "--id", "h-1"]),
+      "required option '--qualifier <qualifier>' not specified",
+    );
   });
 
   test("`harness create` rejects malformed JSON flags", async () => {

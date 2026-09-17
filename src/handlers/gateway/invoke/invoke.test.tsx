@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { PassThrough } from "node:stream";
 import type { GetGatewayResponse } from "@aws-sdk/client-bedrock-agentcore-control";
 import type { AppIO } from "../../../io";
-import { UserCancellationError } from "../../../errors";
+import { InputValidationError, UserCancellationError } from "../../../errors";
 import { ExitCode, runWithExitCode } from "../../../runnable";
 import {
   createSilentLogger,
@@ -343,7 +343,6 @@ describe("gateway invoke", () => {
   });
 
   test.each([
-    [["gateway", "invoke", "--payload", "{}"], /--id/],
     [["gateway", "invoke", "--id", GATEWAY_ID, "--json"], /--payload/],
     [["gateway", "invoke", "--id", GATEWAY_ID, "--method", "POST"], /--payload/],
     [["gateway", "invoke", "--id", GATEWAY_ID, "--output-file", "response.bin"], /--payload/],
@@ -372,15 +371,17 @@ describe("gateway invoke", () => {
     expect(core.gateway.calls.some((call) => call.method === "invokeGateway")).toBe(false);
   });
 
-  test("classifies a missing ID as usage", async () => {
+  test("reports a missing ID as input validation", async () => {
     const core = configuredCore();
     const output = captureIO();
 
-    const code = await runWithExitCode(async () =>
-      runCommand(core, output.io, ["gateway", "invoke", "--payload", "{}"]),
+    const error = await runCommand(core, output.io, ["gateway", "invoke", "--payload", "{}"]).catch(
+      (caught) => caught,
     );
 
-    expect(code).toBe(ExitCode.USAGE);
+    expect(error).toBeInstanceOf(InputValidationError);
+    expect(error).toHaveProperty("message", "required option '--id <id>' not specified");
+    expect(error).toHaveProperty("exitCode", ExitCode.FAILURE);
     expect(core.gateway.calls).toEqual([]);
   });
 

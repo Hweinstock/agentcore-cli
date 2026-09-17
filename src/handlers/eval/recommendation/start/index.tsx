@@ -12,34 +12,21 @@ const RECOMMENDATION_TYPES = [
   "TOOL_DESCRIPTION_RECOMMENDATION",
 ] as const;
 
-const REQUIRED_FLAGS = ["name", "type", "recommendation-config"] as const;
-type RequiredFlag = (typeof REQUIRED_FLAGS)[number];
-
-function assertRequiredFlags(
-  flags: Partial<Record<RequiredFlag, string>>,
-): asserts flags is Record<RequiredFlag, string> {
-  for (const name of REQUIRED_FLAGS) {
-    if (!flags[name]) {
-      throw new InputValidationError(`required option '--${name} <${name}>' not specified`);
-    }
-  }
-}
-
 export const createStartRecommendationHandler = (core: Core, io: AppIO) =>
   createHandler({
     name: "start",
     description: "start an asynchronous recommendation",
     flags: [
-      flag("name", "the name of the recommendation", z.string().optional()),
+      flag("name", "the name of the recommendation", z.string().min(1)),
       flag(
         "type",
         `the recommendation type (${RECOMMENDATION_TYPES.join(" | ")})`,
-        z.enum(RECOMMENDATION_TYPES).optional(),
+        z.enum(RECOMMENDATION_TYPES),
       ),
       flag(
         "recommendation-config",
         "recommendation configuration (JSON inline, file://<path>, or - for stdin)",
-        z.string().optional(),
+        z.string().min(1),
         { sensitive: true },
       ),
       flag("description", "a description of the recommendation", z.string().optional()),
@@ -51,8 +38,6 @@ export const createStartRecommendationHandler = (core: Core, io: AppIO) =>
       flag("tags", "tags as key=value (repeatable) or JSON object", z.array(z.string()).optional()),
     ],
     handle: async (ctx, flags) => {
-      assertRequiredFlags(flags);
-
       const source = new SourceResolver({ stdin: io.stdin });
       const recommendationConfig = parseJsonFlag<RecommendationConfig>(
         "recommendation-config",
@@ -60,7 +45,7 @@ export const createStartRecommendationHandler = (core: Core, io: AppIO) =>
       );
       if (!recommendationConfig) {
         throw new InputValidationError(
-          "required option '--recommendation-config <recommendation-config>' not specified",
+          "Option '--recommendation-config' must resolve to a nonempty JSON value",
         );
       }
 

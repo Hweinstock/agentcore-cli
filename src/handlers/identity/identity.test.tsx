@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { CoreClient } from "../../core";
 import {
   createSilentLogger,
+  expectInputValidationError,
   fixtureFactories,
   matchGolden,
   TestGlobalConfigAccessor,
@@ -93,7 +94,8 @@ describe("api-key-credential-provider TUI dispatch", () => {
   test.each(["create", "update", "delete"] as const)(
     "runs normal validation for bare CLI-only `%s`",
     async (command) => {
-      await expect(run(["identity", "api-key-credential-provider", command])).rejects.toThrow(
+      await expectInputValidationError(
+        run(["identity", "api-key-credential-provider", command]),
         "required option '--name <name>' not specified",
       );
     },
@@ -233,12 +235,12 @@ describe("api-key-credential-provider CRUDL", () => {
     [
       "create --api-key only",
       ["identity", "api-key-credential-provider", "create", "--api-key", "x"],
-      /--name/,
+      "required option '--name <name>' not specified",
     ],
     [
       "get --json (no name)",
       ["identity", "api-key-credential-provider", "get", "--json"],
-      /--name/,
+      "required option '--name <name>' not specified",
     ],
     [
       "update --name only",
@@ -248,10 +250,14 @@ describe("api-key-credential-provider CRUDL", () => {
     [
       "delete --json (no name)",
       ["identity", "api-key-credential-provider", "delete", "--json"],
-      /--name/,
+      "required option '--name <name>' not specified",
     ],
   ] as const)("rejects missing required flags for `%s`", async (_label, args, message) => {
-    expect(run([...args])).rejects.toThrow(message);
+    if (typeof message === "string" && message.startsWith("required option")) {
+      await expectInputValidationError(run([...args]), message);
+    } else {
+      await expect(run([...args])).rejects.toThrow(message);
+    }
   });
 
   test.each([

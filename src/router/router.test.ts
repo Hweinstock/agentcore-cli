@@ -374,9 +374,13 @@ test("a required (non-optional) flag is mandatory", async () => {
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
-  await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow(
+  const error = await cmd.parseAsync(["node", "app", "get"]).catch((caught) => caught);
+  expect(error).toBeInstanceOf(InputValidationError);
+  expect(error).toHaveProperty(
+    "message",
     "required option '--harness-id <harness-id>' not specified",
   );
+  expect(error).toHaveProperty("exitCode", 1);
 });
 
 // --- flag inheritance (group-level / global flags) -------------------------

@@ -7,6 +7,7 @@ import type { GetHarnessResponse } from "@aws-sdk/client-bedrock-agentcore-contr
 import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
+  expectInputValidationError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -150,7 +151,10 @@ describe("harness invoke", () => {
   });
 
   test("errors when --id is omitted", async () => {
-    await expect(run(["harness", "invoke", "--prompt", "hi"])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["harness", "invoke", "--prompt", "hi"]),
+      "required option '--id <id>' not specified",
+    );
   });
 
   // Without --prompt (and outside JSON mode) the handler opens the interactive

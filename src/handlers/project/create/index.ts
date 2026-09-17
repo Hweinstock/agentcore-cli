@@ -51,10 +51,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
     description: "create a new AgentCore project",
     middlewares: config.middlewares,
     flags: [
-      // Optional at the flag layer (and enforced in handle) so a bare
-      // interactive `project create` reaches the TUI wizard middleware instead
-      // of dying on Commander's mandatory-option check.
-      flag("name", "name of the project to create", ProjectNameSchema.optional()),
+      flag("name", "name of the project to create", ProjectNameSchema),
       flag(
         "template",
         "the template to scaffold the Runtime from; some templates also accept --model-provider/--api-key",
@@ -80,9 +77,6 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
     ],
     handle: async (ctx, flags) => {
       const name = flags["name"];
-      if (name === undefined) {
-        throw new InputValidationError("required option '--name <name>' not specified");
-      }
       if (!flags["skip-install"]) {
         assertProjectPathFits(name, ctx.require(PlatformKey), {
           alternative: "pass --skip-install and install the CDK dependencies yourself",

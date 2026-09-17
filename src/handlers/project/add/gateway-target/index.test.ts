@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { expectInputValidationError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const DISCOVERY_URL = "https://idp.example.com/.well-known/openid-configuration";
@@ -248,7 +249,7 @@ describe("project add gateway-target", () => {
     [
       "missing parent Gateway",
       ["--name", "target", "--endpoint", ENDPOINT],
-      "required option '--gateway",
+      "required option '--gateway <gateway>' not specified",
     ],
     ["no Target mode", ["--gateway", "tools", "--name", "target"], "specify exactly one"],
     [
@@ -264,7 +265,7 @@ describe("project add gateway-target", () => {
     [
       "shortcut without name",
       ["--gateway", "tools", "--endpoint", ENDPOINT],
-      "required option '--name",
+      "required option '--name <name>' not specified",
     ],
     [
       "non-HTTPS endpoint",
@@ -330,7 +331,11 @@ describe("project add gateway-target", () => {
     ],
   ])("rejects %s", async (_label, flags, message) => {
     await projectWithCredentials();
-    await expect(run(["add", "gateway-target", ...flags])).rejects.toThrow(message);
+    if (message.startsWith("required option")) {
+      await expectInputValidationError(run(["add", "gateway-target", ...flags]), message);
+    } else {
+      await expect(run(["add", "gateway-target", ...flags])).rejects.toThrow(message);
+    }
   });
 
   test("rejects a direct API-key reference to an OAuth credential", async () => {

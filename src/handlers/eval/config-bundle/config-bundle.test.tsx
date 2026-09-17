@@ -3,6 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { InputValidationError } from "../../../errors";
 import {
   createSilentLogger,
   TestCoreClient,
@@ -55,6 +56,12 @@ function testConfigBundleCommand(stdin?: string) {
     stdout: io.stdout,
     route: (args: string[]) => root.route(["bun", "agentcore", ...args, "--region", REGION]),
   };
+}
+
+async function expectInputValidation(promise: Promise<unknown>, message: string): Promise<void> {
+  const error = await promise.catch((caught) => caught);
+  expect(error).toBeInstanceOf(InputValidationError);
+  expect(error).toHaveProperty("message", message);
 }
 
 function callArgs(core: TestCoreClient, method: string): unknown[] {
@@ -157,7 +164,8 @@ describe("eval config-bundle command hierarchy", () => {
   test("runs normal validation for a bare CLI-only command", async () => {
     const { route } = testConfigBundleCommand();
 
-    await expect(route(["eval", "config-bundle", "create"])).rejects.toThrow(
+    await expectInputValidation(
+      route(["eval", "config-bundle", "create"]),
       "required option '--name <name>' not specified",
     );
   });
@@ -273,12 +281,14 @@ describe("config-bundle create", () => {
   test("requires both --name and --components", async () => {
     const { core, route } = testConfigBundleCommand();
 
-    await expect(
+    await expectInputValidation(
       route(["eval", "config-bundle", "create", "--components", JSON.stringify(COMPONENTS)]),
-    ).rejects.toThrow(/--name/);
-    await expect(
+      "required option '--name <name>' not specified",
+    );
+    await expectInputValidation(
       route(["eval", "config-bundle", "create", "--name", "orders-prompt"]),
-    ).rejects.toThrow(/--components/);
+      "required option '--components <components>' not specified",
+    );
     expect(core.eval.calls).toHaveLength(0);
   });
 });
@@ -379,7 +389,7 @@ describe("config-bundle update", () => {
   test("requires components even when a KMS key is provided", async () => {
     const { core, route } = testConfigBundleCommand();
 
-    await expect(
+    await expectInputValidation(
       route([
         "eval",
         "config-bundle",
@@ -391,7 +401,8 @@ describe("config-bundle update", () => {
         "--kms-key-arn",
         "arn:aws:kms:us-west-2:123456789012:key/replacement",
       ]),
-    ).rejects.toThrow(/required option '--components <components>' not specified/);
+      "required option '--components <components>' not specified",
+    );
     expect(core.eval.calls).toHaveLength(0);
   });
 
@@ -399,9 +410,10 @@ describe("config-bundle update", () => {
     const path = await writeTempJson(COMPONENTS);
     const { core, route } = testConfigBundleCommand();
 
-    await expect(
+    await expectInputValidation(
       route(["eval", "config-bundle", "update", "--id", "b-1", "--components", `file://${path}`]),
-    ).rejects.toThrow(/required option '--commit-message <commit-message>' not specified/);
+      "required option '--commit-message <commit-message>' not specified",
+    );
     expect(core.eval.calls).toHaveLength(0);
   });
 
@@ -409,7 +421,7 @@ describe("config-bundle update", () => {
     const path = await writeTempJson(COMPONENTS);
     const { core, route } = testConfigBundleCommand();
 
-    await expect(
+    await expectInputValidation(
       route([
         "eval",
         "config-bundle",
@@ -419,7 +431,8 @@ describe("config-bundle update", () => {
         "--commit-message",
         "Replace order support configuration",
       ]),
-    ).rejects.toThrow(/required option '--id <id>' not specified/);
+      "required option '--id <id>' not specified",
+    );
     expect(core.eval.calls).toHaveLength(0);
   });
 });

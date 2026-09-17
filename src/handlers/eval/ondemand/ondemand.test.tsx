@@ -19,6 +19,7 @@ import type { Logger } from "../../../logging";
 import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
+  expectInputValidationError,
   TestCoreClient,
   testIO,
   TestGlobalConfigAccessor,
@@ -199,22 +200,22 @@ describe("eval ondemand simulate", () => {
     "Builtin.Helpfulness",
   ];
 
-  test.each<[RegExp, string[]]>([
+  test.each<[string, string[]]>([
+    ["runtime-id", ["--payload-template", "{}", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E"]],
     [
-      /--runtime-id/,
-      ["--payload-template", "{}", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E"],
-    ],
-    [
-      /--payload-template/,
+      "payload-template",
       ["--runtime-id", "r-1", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E"],
     ],
-    [/--dataset/, ["--runtime-id", "r-1", "--payload-template", "{}", "--evaluators", "E"]],
+    ["dataset", ["--runtime-id", "r-1", "--payload-template", "{}", "--evaluators", "E"]],
     [
-      /--evaluators/,
+      "evaluators",
       ["--runtime-id", "r-1", "--payload-template", "{}", "--dataset", "/tmp/ds.jsonl"],
     ],
-  ])("rejects when a required flag is missing (%s)", async (expected, args) => {
-    await expect(run(["eval", "ondemand", "simulate", ...args])).rejects.toThrow(expected);
+  ])("rejects when required --%s is missing", async (name, args) => {
+    await expectInputValidationError(
+      run(["eval", "ondemand", "simulate", ...args]),
+      `required option '--${name} <${name}>' not specified`,
+    );
   });
 
   test("refuses to grade when nothing was invoked, naming the first failure", async () => {
@@ -277,7 +278,7 @@ describe("eval ondemand simulate", () => {
 });
 
 describe("eval ondemand evaluate validation", () => {
-  test.each<[string, string[], RegExp]>([
+  test.each<[string, string[], string]>([
     [
       "requires --agent",
       [
@@ -289,13 +290,18 @@ describe("eval ondemand evaluate validation", () => {
         "--session-ids",
         "s1",
       ],
-      /--agent/,
+      "required option '--agent <agent>' not specified",
     ],
     [
       "requires --evaluators",
       ["eval", "ondemand", "evaluate", "--agent", "a-1", "--session-ids", "s1"],
-      /--evaluators/,
+      "required option '--evaluators <evaluators>' not specified",
     ],
+  ])("%s", async (_name, args, expectedError) => {
+    await expectInputValidationError(run(args), expectedError);
+  });
+
+  test.each<[string, string[], RegExp]>([
     ["rejects an empty session source", BASE, /session source/],
     [
       "rejects --lookback-days combined with an explicit window",

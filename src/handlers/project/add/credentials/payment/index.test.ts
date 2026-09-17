@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { generateKeyPairSync } from "node:crypto";
 import { join } from "node:path";
+import { expectInputValidationError } from "../../../../../testing";
 import { createPaymentProjectTestHarness } from "../../payment-test-support";
 
 const { cleanup, inProject, projectSpec, run } =
@@ -188,8 +189,16 @@ describe("project add credentials payment", () => {
   });
 
   test.each([
-    ["missing name", ["--provider", "CoinbaseCDP"], "required option '--name"],
-    ["missing provider", ["--name", "payment-credential"], "required option '--provider"],
+    [
+      "missing name",
+      ["--provider", "CoinbaseCDP"],
+      "required option '--name <name>' not specified",
+    ],
+    [
+      "missing provider",
+      ["--name", "payment-credential"],
+      "required option '--provider <provider>' not specified",
+    ],
     [
       "unsupported provider",
       ["--name", "payment-credential", "--provider", "Unsupported"],
@@ -198,7 +207,11 @@ describe("project add credentials payment", () => {
   ])("rejects %s", async (_label, flags, message) => {
     const projectRoot = await inProject();
 
-    await expect(run(["add", "credentials", "payment", ...flags])).rejects.toThrow(message);
+    if (message.startsWith("required option")) {
+      await expectInputValidationError(run(["add", "credentials", "payment", ...flags]), message);
+    } else {
+      await expect(run(["add", "credentials", "payment", ...flags])).rejects.toThrow(message);
+    }
     expect((await projectSpec(projectRoot)).credentials ?? []).toEqual([]);
   });
 

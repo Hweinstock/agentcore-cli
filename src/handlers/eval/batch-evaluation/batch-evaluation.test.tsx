@@ -4,7 +4,12 @@ import type {
   ListBatchEvaluationsResponse,
 } from "@aws-sdk/client-bedrock-agentcore";
 import { createRootHandler } from "../../index";
-import { createSilentLogger, TestCoreClient, testIO } from "../../../testing";
+import {
+  createSilentLogger,
+  expectInputValidationError,
+  TestCoreClient,
+  testIO,
+} from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
 import type { BatchEvaluationResultEntry } from "../types";
 
@@ -84,7 +89,10 @@ describe("eval batch-evaluation command hierarchy", () => {
 
 describe("eval batch-evaluation get", () => {
   test("requires --id", async () => {
-    await expect(run(["eval", "batch-evaluation", "get", "--json"])).rejects.toThrow(/--id/);
+    await expectInputValidationError(
+      run(["eval", "batch-evaluation", "get", "--json"]),
+      "required option '--id <id>' not specified",
+    );
   });
 
   test("includes CloudWatch results for a terminal job by default", async () => {
@@ -188,9 +196,9 @@ describe("eval batch-evaluation simulate", () => {
     "sim-1",
   ];
 
-  test.each<[RegExp, string[]]>([
+  test.each<[string, string[]]>([
     [
-      /--runtime-id/,
+      "runtime-id",
       [
         "--payload-template",
         "{}",
@@ -203,15 +211,15 @@ describe("eval batch-evaluation simulate", () => {
       ],
     ],
     [
-      /--payload-template/,
+      "payload-template",
       ["--runtime-id", "r-1", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E", "--name", "n"],
     ],
     [
-      /--dataset/,
+      "dataset",
       ["--runtime-id", "r-1", "--payload-template", "{}", "--evaluators", "E", "--name", "n"],
     ],
     [
-      /--evaluators/,
+      "evaluators",
       [
         "--runtime-id",
         "r-1",
@@ -224,7 +232,7 @@ describe("eval batch-evaluation simulate", () => {
       ],
     ],
     [
-      /--name/,
+      "name",
       [
         "--runtime-id",
         "r-1",
@@ -236,8 +244,11 @@ describe("eval batch-evaluation simulate", () => {
         "E",
       ],
     ],
-  ])("rejects when a required flag is missing (%s)", async (expected, args) => {
-    await expect(run(["eval", "batch-evaluation", "simulate", ...args])).rejects.toThrow(expected);
+  ])("rejects when required --%s is missing", async (name, args) => {
+    await expectInputValidationError(
+      run(["eval", "batch-evaluation", "simulate", ...args]),
+      `required option '--${name} <${name}>' not specified`,
+    );
   });
 
   test("refuses to grade when nothing was invoked, naming the first failure", async () => {

@@ -26,6 +26,7 @@ import { CoreClient } from "../../core";
 import { createControlClient, createIamClient } from "../../core/factories";
 import {
   createSilentLogger,
+  expectInputValidationError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -163,17 +164,20 @@ describe("gateway delete commands", () => {
 
 describe("gateway delete validation", () => {
   test.each([
-    ["Gateway selector", ["gateway", "delete"], /--id/],
-    ["Target parent", ["gateway", "target", "delete"], /--gateway-id/],
-    ["Target selector", ["gateway", "target", "delete", "--gateway-id", GATEWAY_ID], /--target-id/],
-    ["Connector parent", ["gateway", "connector", "delete"], /--gateway-id/],
-    ["Connector selector", ["gateway", "connector", "delete", "--gateway-id", GATEWAY_ID], /--id/],
-    ["Rule parent", ["gateway", "rule", "delete"], /--gateway-id/],
-    ["Rule selector", ["gateway", "rule", "delete", "--gateway-id", GATEWAY_ID], /--rule-id/],
-  ] as const)("rejects a missing %s before calling Core", async (_name, args, error) => {
+    ["Gateway selector", ["gateway", "delete"], "id"],
+    ["Target parent", ["gateway", "target", "delete"], "gateway-id"],
+    ["Target selector", ["gateway", "target", "delete", "--gateway-id", GATEWAY_ID], "target-id"],
+    ["Connector parent", ["gateway", "connector", "delete"], "gateway-id"],
+    ["Connector selector", ["gateway", "connector", "delete", "--gateway-id", GATEWAY_ID], "id"],
+    ["Rule parent", ["gateway", "rule", "delete"], "gateway-id"],
+    ["Rule selector", ["gateway", "rule", "delete", "--gateway-id", GATEWAY_ID], "rule-id"],
+  ] as const)("rejects a missing %s before calling Core", async (_name, args, flagName) => {
     const core = new TestCoreClient();
 
-    await expect(run([...args], core)).rejects.toThrow(error);
+    await expectInputValidationError(
+      run([...args], core),
+      `required option '--${flagName} <${flagName}>' not specified`,
+    );
     expect(core.gateway.calls).toEqual([]);
   });
 });
