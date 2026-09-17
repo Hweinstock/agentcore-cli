@@ -192,7 +192,7 @@ describe("project menu: command-line-only subcommands", () => {
 });
 
 describe("agentcore project (no subcommand)", () => {
-  test("skips project resolution for create when mounted independently", async () => {
+  test("allows project create outside an existing project", async () => {
     cleanups.push((await inTempDirectory()).cleanup);
     const io = testIO();
     const project = createProjectHandler({ core: new TestCoreClient(), io: io.io });
