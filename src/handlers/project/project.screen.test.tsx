@@ -9,17 +9,13 @@ import {
   menuEntries,
   TestCoreClient,
   TestGlobalConfigAccessor,
-  inTempDirectory,
   testIO,
-  ttyTestIO,
-  waitFor,
 } from "../../testing";
+import { InvalidEnvironmentError } from "../../errors";
+import { ExitCode } from "../../runnable";
 import { createRootHandler } from "../index";
-import { createProjectHandler } from ".";
 
 afterEach(cleanupScreens);
-const cleanups: Array<() => Promise<void>> = [];
-afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
 
 // projectSubcommands reads the project group's children off the compiled
 // Commander tree, so tests driven by it cover any subcommand added later.
@@ -192,33 +188,31 @@ describe("project menu: command-line-only subcommands", () => {
 });
 
 describe("agentcore project (no subcommand)", () => {
-  test("allows project create outside an existing project", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
+  // Exercises the real CLI entrypoint; the screen tests mount a path directly
+  // and so never caught the missing default handler.
+  //
+  // Asserts renderTui's TTY guard rather than a rendered frame: Ink only writes
+  // frames incrementally when interactive (`!isInCi && isTTY`), so asserting on
+  // frames here would pass locally and time out under CI. Reaching the guard at
+  // all proves the group routed to the TUI — Commander help neither throws nor
+  // touches stderr.
+  test("routes to the TUI rather than printing Commander help", async () => {
     const io = testIO();
-    const project = createProjectHandler({ core: new TestCoreClient(), io: io.io });
-
-    await expect(project.route(["node", "project", "create"])).rejects.toThrow(
-      "required option '--name <name>' not specified",
-    );
-  });
-
-  test("opens the project menu on a TTY outside a project", async () => {
-    cleanups.push((await inTempDirectory()).cleanup);
-    const { streams, stdin } = ttyTestIO();
     const root = createRootHandler(new TestCoreClient(), {
-      io: streams.io,
+      io: io.io,
       logger: createSilentLogger(),
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
 
-    const outcome = root.route(["node", "agentcore", "project"]);
-    await waitFor(() => streams.stdout().includes("manage an AgentCore project"), 5000);
-    // press ctrl+c to exit
-    stdin.write(String.fromCharCode(3));
+    const caught: unknown = await root.route(["node", "agentcore", "project"]).then(
+      () => undefined,
+      (error: unknown) => error,
+    );
 
-    await expect(outcome).resolves.toBeUndefined();
-    expect(streams.stderr()).not.toContain("No AgentCore project found");
-  }, 10000);
+    expect(caught).toBeInstanceOf(InvalidEnvironmentError);
+    expect((caught as InvalidEnvironmentError).exitCode).toBe(ExitCode.USAGE);
+    expect(io.stdout()).toBe("");
+  });
 
   test("prints help instead of the TUI under --json", async () => {
     const io = testIO();

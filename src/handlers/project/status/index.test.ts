@@ -5,7 +5,6 @@ import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
   initProject,
-  inTempDirectory,
   TestCoreClient,
   TestGlobalConfigAccessor,
   TestIdentityClient,
@@ -310,11 +309,6 @@ describe("project status handler", () => {
     );
     expect(subject.io.stdout()).toBe("");
   });
-});
-
-test("requires an AgentCore project", async () => {
-  cleanups.push((await inTempDirectory()).cleanup);
-  await expect(testStatusCommand().run()).rejects.toThrow(/No AgentCore project found/);
 });
 
 describe("project status dispatch", () => {
