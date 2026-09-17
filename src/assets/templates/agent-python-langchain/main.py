@@ -1,6 +1,6 @@
 from langchain.agents import create_agent
 from langchain.tools import tool
-from langchain_core.messages import AIMessageChunk
+from langchain_core.messages import AIMessage, AIMessageChunk
 from langgraph.checkpoint.memory import InMemorySaver
 from bedrock_agentcore.runtime import BedrockAgentCoreApp
 from model.load import load_model
@@ -42,10 +42,14 @@ async def invoke(payload, context):
         stream_mode="messages",
         version="v2",
     ):
+        if event["type"] != "messages":
+            continue
         message, metadata = event["data"]
-        if not isinstance(message, AIMessageChunk):
+        if not isinstance(message, (AIMessage, AIMessageChunk)):
             continue
         blocks = message.content_blocks
+        if not blocks and message.text:
+            blocks = [{"type": "text", "text": message.text}]
         if blocks:
             yield {"node": metadata["langgraph_node"], "content": blocks}
 
