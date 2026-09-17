@@ -199,7 +199,7 @@ describe("project status handler", () => {
       ],
     });
 
-    await subject.run();
+    await subject.run(["--json"]);
 
     expect(subject.json()).toEqual({
       projectName: "orders",
@@ -240,7 +240,7 @@ describe("project status handler", () => {
     ]);
     await inProject({ memories: [memory("shortTerm"), memory("longTerm")] });
 
-    await subject.run();
+    await subject.run(["--json"]);
 
     expect(subject.json().resources).toEqual([
       HARNESS_ROW,
@@ -258,7 +258,7 @@ describe("project status handler", () => {
     const subject = testStatusCommand([HARNESS_ROW, localOnly("memory", "shortTerm")]);
     await inProject({ memories: [memory("shortTerm")] });
 
-    await subject.run();
+    await subject.run(["--json"]);
 
     expect(subject.json()).toEqual({
       projectName: "orders",
@@ -275,7 +275,7 @@ describe("project status handler", () => {
     const subject = testStatusCommand([localOnly("memory", "shortTerm")]);
     await inProject({ memories: [memory("shortTerm")] }, []);
 
-    await expect(subject.run()).rejects.toThrow(
+    await expect(subject.run(["--json"])).rejects.toThrow(
       /No deployment targets are configured for project 'orders'\. Please deploy your project using 'agentcore project deploy'\./,
     );
     expect(subject.targets).toEqual([]);
@@ -304,7 +304,7 @@ describe("project status handler", () => {
     await expect(outcome).rejects.toBeInstanceOf(ProjectStateError);
     await expect(outcome).rejects.toThrow("This project is deployed to eu-west-1, not us-east-1");
     // An explicit --region takes part in the same comparison.
-    await expect(subject.run(["--region", "us-west-2"])).rejects.toThrow(
+    await expect(subject.run(["--region", "us-west-2", "--json"])).rejects.toThrow(
       "This project is deployed to us-east-1, not us-west-2",
     );
     expect(subject.io.stdout()).toBe("");
