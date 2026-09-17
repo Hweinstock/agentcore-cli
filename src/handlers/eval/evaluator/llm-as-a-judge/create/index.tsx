@@ -27,18 +27,11 @@ export const createLlmAsAJudgeCreateHandler = (core: Core, io: AppIO) =>
     ],
     handle: async (ctx, flags) => {
       const source = new SourceResolver({ stdin: io.stdin });
-      const instructions = await source.resolveText("instructions", flags["instructions"]);
-      if (!instructions) {
-        throw new InputValidationError(
-          "required option '--instructions <instructions>' not specified",
-        );
+      const instructions = (await source.resolveText("instructions", flags["instructions"]))!;
+      if (instructions.length === 0) {
+        throw new InputValidationError("Option '--instructions' must resolve to non-empty text");
       }
-      const ratingScale = await resolveRatingScale(flags["rating-scale"], source);
-      if (!ratingScale) {
-        throw new InputValidationError(
-          "required option '--rating-scale <rating-scale>' not specified",
-        );
-      }
+      const ratingScale = (await resolveRatingScale(flags["rating-scale"], source))!;
       const tags = parseJsonFlag<Record<string, string>>(
         "tags",
         await source.resolveText("tags", flags["tags"]),

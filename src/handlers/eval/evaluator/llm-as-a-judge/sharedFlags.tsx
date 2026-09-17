@@ -1,7 +1,7 @@
 import z from "zod";
 import type { RatingScale } from "@aws-sdk/client-bedrock-agentcore-control";
-import { flag } from "../../../../router";
-import { parseJsonFlag } from "../../../utils";
+import { flag, type Flag } from "../../../../router";
+import { parseJsonObjectFlag } from "../../../utils";
 import {
   RATING_SCALE_PRESET_IDS,
   isRatingScalePreset,
@@ -9,28 +9,24 @@ import {
 } from "../../ratingScale";
 import type { SourceResolver } from "../../../../io";
 
-export const instructionsFlag = flag(
+function sharedStringFlag<N extends string>(
+  name: N,
+  description: string,
+): Flag<N, string> & { optional: () => Flag<N, string | undefined> } {
+  return {
+    ...flag(name, description, z.string().min(1)),
+    optional: () => flag(name, description, z.string().optional()),
+  };
+}
+
+export const instructionsFlag = sharedStringFlag(
   "instructions",
   "evaluation instructions (inline, file://<path>, or - for stdin)",
-  z.string().min(1),
 );
 
-export const optionalInstructionsFlag = flag(
-  "instructions",
-  "evaluation instructions (inline, file://<path>, or - for stdin)",
-  z.string().optional(),
-);
-
-export const ratingScaleFlag = flag(
+export const ratingScaleFlag = sharedStringFlag(
   "rating-scale",
   `rating scale: a preset (${RATING_SCALE_PRESET_IDS.join(" | ")}) or a custom RatingScale (JSON inline, file://<path>, or - for stdin)`,
-  z.string().min(1),
-);
-
-export const optionalRatingScaleFlag = flag(
-  "rating-scale",
-  `rating scale: a preset (${RATING_SCALE_PRESET_IDS.join(" | ")}) or a custom RatingScale (JSON inline, file://<path>, or - for stdin)`,
-  z.string().optional(),
 );
 
 // resolveRatingScale turns the single --rating-scale value into a RatingScale, or
@@ -45,5 +41,5 @@ export async function resolveRatingScale(
   if (value === undefined) return undefined;
   if (isRatingScalePreset(value)) return ratingScaleFromPreset(value);
   const raw = await source.resolveText("rating-scale", value);
-  return parseJsonFlag<RatingScale>("rating-scale", raw);
+  return parseJsonObjectFlag<RatingScale>("rating-scale", raw);
 }

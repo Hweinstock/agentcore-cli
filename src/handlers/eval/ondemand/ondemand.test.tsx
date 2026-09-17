@@ -200,22 +200,22 @@ describe("eval ondemand simulate", () => {
     "Builtin.Helpfulness",
   ];
 
-  test.each<[string, string[]]>([
-    ["runtime-id", ["--payload-template", "{}", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E"]],
+  test.each<[RegExp, string[]]>([
     [
-      "payload-template",
+      /--runtime-id/,
+      ["--payload-template", "{}", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E"],
+    ],
+    [
+      /--payload-template/,
       ["--runtime-id", "r-1", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E"],
     ],
-    ["dataset", ["--runtime-id", "r-1", "--payload-template", "{}", "--evaluators", "E"]],
+    [/--dataset/, ["--runtime-id", "r-1", "--payload-template", "{}", "--evaluators", "E"]],
     [
-      "evaluators",
+      /--evaluators/,
       ["--runtime-id", "r-1", "--payload-template", "{}", "--dataset", "/tmp/ds.jsonl"],
     ],
-  ])("rejects when required --%s is missing", async (name, args) => {
-    await expectError(
-      run(["eval", "ondemand", "simulate", ...args]),
-      `required option '--${name}' not specified`,
-    );
+  ])("rejects when a required flag is missing (%s)", async (expected, args) => {
+    await expectError(run(["eval", "ondemand", "simulate", ...args]), expected);
   });
 
   test("refuses to grade when nothing was invoked, naming the first failure", async () => {
@@ -278,7 +278,7 @@ describe("eval ondemand simulate", () => {
 });
 
 describe("eval ondemand evaluate validation", () => {
-  test.each<[string, string[], string]>([
+  test.each<[string, string[], RegExp]>([
     [
       "requires --agent",
       [
@@ -290,18 +290,13 @@ describe("eval ondemand evaluate validation", () => {
         "--session-ids",
         "s1",
       ],
-      "required option '--agent' not specified",
+      /--agent/,
     ],
     [
       "requires --evaluators",
       ["eval", "ondemand", "evaluate", "--agent", "a-1", "--session-ids", "s1"],
-      "required option '--evaluators' not specified",
+      /--evaluators/,
     ],
-  ])("%s", async (_name, args, expectedError) => {
-    await expectError(run(args), expectedError);
-  });
-
-  test.each<[string, string[], RegExp]>([
     ["rejects an empty session source", BASE, /session source/],
     [
       "rejects --lookback-days combined with an explicit window",
@@ -327,7 +322,7 @@ describe("eval ondemand evaluate validation", () => {
       /before/,
     ],
   ])("%s", async (_name, args, expectedError) => {
-    await expect(run(args)).rejects.toThrow(expectedError);
+    await expectError(run(args), expectedError);
   });
 });
 

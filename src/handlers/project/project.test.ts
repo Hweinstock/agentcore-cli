@@ -949,7 +949,7 @@ describe("project add credentials", () => {
     );
   });
 
-  test.each<[string, string[], RegExp | string]>([
+  test.each<[string, string[], RegExp]>([
     [
       "api-key: an inline secret value",
       ["api-key", "--name", "x", "--api-key", "sk-inline"],
@@ -989,8 +989,8 @@ describe("project add credentials", () => {
       ],
       /mutually exclusive/,
     ],
-    ["api-key: a missing --name", ["api-key"], "required option '--name' not specified"],
-    ["oauth: a missing --name", ["oauth"], "required option '--name' not specified"],
+    ["api-key: a missing --name", ["api-key"], /--name/],
+    ["oauth: a missing --name", ["oauth"], /--name/],
     [
       "oauth: a vendored provider without --provider-configuration",
       ["oauth", "--name", "x", "--vendor", "GithubOauth2"],

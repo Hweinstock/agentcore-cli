@@ -45,7 +45,7 @@ describe("project add policy-engine", () => {
   });
 
   test.each([
-    ["missing --name", ["add", "policy-engine"], "required option '--name' not specified"],
+    ["missing --name", ["add", "policy-engine"], "required option '--name"],
     [
       "invalid name",
       ["add", "policy-engine", "--name", "9starts-with-digit"],

@@ -116,8 +116,8 @@ describe("project add runtime-endpoint", () => {
   });
 
   test.each<[string, string[], string]>([
-    ["missing runtime", ["--name", "prod"], "required option '--runtime' not specified"],
-    ["missing name", ["--runtime", "agent"], "required option '--name' not specified"],
+    ["missing runtime", ["--name", "prod"], "required option '--runtime"],
+    ["missing name", ["--runtime", "agent"], "required option '--name"],
     ["unknown runtime", ["--runtime", "ghost", "--name", "prod"], "no runtime named 'ghost'"],
   ])("rejects %s", async (_label, extra, message) => {
     const { projectRoot, cleanup } = await initProject();

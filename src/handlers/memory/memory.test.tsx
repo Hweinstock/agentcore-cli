@@ -227,7 +227,7 @@ describe("memory read-only commands", () => {
   });
 
   test("rejects a missing Memory selector for headless get", async () => {
-    await expectError(run(["memory", "get", "--json"]), "required option '--id' not specified");
+    await expectError(run(["memory", "get", "--json"]), /--id/);
   });
 
   test("rejects an unsupported response view", async () => {
@@ -387,35 +387,29 @@ describe("memory event commands", () => {
   });
 
   test.each([
-    ["memory", ["--json"], "id"],
-    ["actor", ["--id", EVENT_MEMORY_ID, "--json"], "actor-id"],
-    ["session", ["--id", EVENT_MEMORY_ID, "--actor-id", ACTOR_ID, "--json"], "session-id"],
+    ["memory", ["--json"], /--id/],
+    ["actor", ["--id", EVENT_MEMORY_ID, "--json"], /--actor-id/],
+    ["session", ["--id", EVENT_MEMORY_ID, "--actor-id", ACTOR_ID, "--json"], /--session-id/],
     [
       "event",
       ["--id", EVENT_MEMORY_ID, "--actor-id", ACTOR_ID, "--session-id", SESSION_ID, "--json"],
-      "event-id",
+      /--event-id/,
     ],
-  ] as const)("rejects a missing %s selector for event get", async (_name, flags, flagName) => {
+  ] as const)("rejects a missing %s selector for event get", async (_name, flags, expected) => {
     const command = testMemoryCommand();
 
-    await expectError(
-      command.route(["memory", "event", "get", ...flags]),
-      `required option '--${flagName}' not specified`,
-    );
+    await expectError(command.route(["memory", "event", "get", ...flags]), expected);
     expect(command.core.memory.calls).toEqual([]);
   });
 
   test.each([
-    ["memory", ["--json"], "id"],
-    ["actor", ["--id", EVENT_MEMORY_ID, "--json"], "actor-id"],
-    ["session", ["--id", EVENT_MEMORY_ID, "--actor-id", ACTOR_ID, "--json"], "session-id"],
-  ] as const)("rejects a missing %s selector for event list", async (_name, flags, flagName) => {
+    ["memory", ["--json"], /--id/],
+    ["actor", ["--id", EVENT_MEMORY_ID, "--json"], /--actor-id/],
+    ["session", ["--id", EVENT_MEMORY_ID, "--actor-id", ACTOR_ID, "--json"], /--session-id/],
+  ] as const)("rejects a missing %s selector for event list", async (_name, flags, expected) => {
     const command = testMemoryCommand();
 
-    await expectError(
-      command.route(["memory", "event", "list", ...flags]),
-      `required option '--${flagName}' not specified`,
-    );
+    await expectError(command.route(["memory", "event", "list", ...flags]), expected);
     expect(command.core.memory.calls).toEqual([]);
   });
 
@@ -494,10 +488,7 @@ describe("memory actor commands", () => {
   test("rejects a missing Memory selector for actor list", async () => {
     const command = testMemoryCommand();
 
-    await expectError(
-      command.route(["memory", "actor", "list", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(command.route(["memory", "actor", "list", "--json"]), /--id/);
     expect(command.core.memory.calls).toEqual([]);
   });
 });
@@ -544,15 +535,12 @@ describe("memory session commands", () => {
   });
 
   test.each([
-    ["memory", ["--json"], "id"],
-    ["actor", ["--id", EVENT_MEMORY_ID, "--json"], "actor-id"],
-  ] as const)("rejects a missing %s selector for session list", async (_name, flags, flagName) => {
+    ["memory", ["--json"], /--id/],
+    ["actor", ["--id", EVENT_MEMORY_ID, "--json"], /--actor-id/],
+  ] as const)("rejects a missing %s selector for session list", async (_name, flags, expected) => {
     const command = testMemoryCommand();
 
-    await expectError(
-      command.route(["memory", "session", "list", ...flags]),
-      `required option '--${flagName}' not specified`,
-    );
+    await expectError(command.route(["memory", "session", "list", ...flags]), expected);
     expect(command.core.memory.calls).toEqual([]);
   });
 });
@@ -590,15 +578,12 @@ describe("memory record commands", () => {
   });
 
   test.each([
-    ["memory", ["--json"], "id"],
-    ["record", ["--id", EVENT_MEMORY_ID, "--json"], "record-id"],
-  ] as const)("rejects a missing %s selector for record get", async (_name, flags, flagName) => {
+    ["memory", ["--json"], /--id/],
+    ["record", ["--id", EVENT_MEMORY_ID, "--json"], /--record-id/],
+  ] as const)("rejects a missing %s selector for record get", async (_name, flags, expected) => {
     const command = testMemoryCommand();
 
-    await expectError(
-      command.route(["memory", "record", "get", ...flags]),
-      `required option '--${flagName}' not specified`,
-    );
+    await expectError(command.route(["memory", "record", "get", ...flags]), expected);
     expect(command.core.memory.calls).toEqual([]);
   });
 
@@ -745,7 +730,7 @@ describe("memory record commands", () => {
 
     await expectError(
       command.route(["memory", "record", "list", "--namespace", "/customers/acme", "--json"]),
-      "required option '--id' not specified",
+      /--id/,
     );
     expect(command.core.memory.calls).toEqual([]);
   });

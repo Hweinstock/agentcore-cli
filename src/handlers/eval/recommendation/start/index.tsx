@@ -1,11 +1,10 @@
 import type { RecommendationConfig } from "@aws-sdk/client-bedrock-agentcore";
 import z from "zod";
-import { InputValidationError } from "../../../../errors";
 import { SourceResolver, type AppIO } from "../../../../io";
 import { createHandler, flag } from "../../../../router";
 import { JsonRendererKey } from "../../../../tui";
 import type { Core } from "../../../types";
-import { coreOptsFromCtx, parseJsonFlag, parseTags } from "../../../utils";
+import { coreOptsFromCtx, parseJsonObjectFlag, parseTags } from "../../../utils";
 
 const RECOMMENDATION_TYPES = [
   "SYSTEM_PROMPT_RECOMMENDATION",
@@ -39,15 +38,10 @@ export const createStartRecommendationHandler = (core: Core, io: AppIO) =>
     ],
     handle: async (ctx, flags) => {
       const source = new SourceResolver({ stdin: io.stdin });
-      const recommendationConfig = parseJsonFlag<RecommendationConfig>(
+      const recommendationConfig = parseJsonObjectFlag<RecommendationConfig>(
         "recommendation-config",
         await source.resolveText("recommendation-config", flags["recommendation-config"]),
-      );
-      if (!recommendationConfig) {
-        throw new InputValidationError(
-          "required option '--recommendation-config <recommendation-config>' not specified",
-        );
-      }
+      )!;
 
       const response = await core.eval.startRecommendation(
         {

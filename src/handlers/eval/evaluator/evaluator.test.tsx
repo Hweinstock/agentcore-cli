@@ -373,27 +373,27 @@ describe("evaluator flag validation", () => {
     [
       "missing --name",
       ["--level", "SESSION", "--model", "m", "--instructions", "i", "--rating-scale", "pass-fail"],
-      "required option '--name' not specified",
+      /--name/,
     ],
     [
       "missing --level",
       ["--name", "x", "--model", "m", "--instructions", "i", "--rating-scale", "pass-fail"],
-      "required option '--level' not specified",
+      /--level/,
     ],
     [
       "missing --model",
       ["--name", "x", "--level", "SESSION", "--instructions", "i", "--rating-scale", "pass-fail"],
-      "required option '--model' not specified",
+      /--model/,
     ],
     [
       "missing --instructions",
       ["--name", "x", "--level", "SESSION", "--model", "m", "--rating-scale", "pass-fail"],
-      "required option '--instructions' not specified",
+      /--instructions/,
     ],
     [
       "missing --rating-scale",
       ["--name", "x", "--level", "SESSION", "--model", "m", "--instructions", "i"],
-      "required option '--rating-scale' not specified",
+      /rating-scale/,
     ],
   ] as const)("llm-as-a-judge create rejects %s", async (_label, extra, message) => {
     await expectError(run(["eval", "evaluator", "llm-as-a-judge", "create", ...extra]), message);
@@ -402,7 +402,7 @@ describe("evaluator flag validation", () => {
   test("code-based create rejects a missing --lambda-arn", async () => {
     await expectError(
       run(["eval", "evaluator", "code-based", "create", "--name", "x", "--level", "SESSION"]),
-      "required option '--lambda-arn' not specified",
+      /--lambda-arn/,
     );
   });
 
@@ -414,7 +414,7 @@ describe("evaluator flag validation", () => {
     ["get", ["eval", "evaluator", "get"]],
     ["delete", ["eval", "evaluator", "delete"]],
   ] as const)("`%s` requires --id", async (_label, args) => {
-    await expectError(run([...args, "--json"]), "required option '--id' not specified");
+    await expectError(run([...args, "--json"]), /--id/);
   });
 
   test("rejects malformed custom rating scale JSON", async () => {

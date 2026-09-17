@@ -107,20 +107,16 @@ describe("project add policy", () => {
   });
 
   test.each([
-    [
-      "missing --engine",
-      ["add", "policy", "--name", "P", "--statement", FORBID_ALL],
-      "required option '--engine' not specified",
-    ],
+    ["missing --engine", ["add", "policy", "--name", "P", "--statement", FORBID_ALL], "--engine"],
     [
       "missing --name",
       ["add", "policy", "--engine", "Guardrails", "--statement", FORBID_ALL],
-      "required option '--name' not specified",
+      "--name",
     ],
     [
       "missing --statement",
       ["add", "policy", "--engine", "Guardrails", "--name", "P"],
-      "required option '--statement' not specified",
+      "required option '--statement",
     ],
     [
       "unknown engine",

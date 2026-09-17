@@ -189,12 +189,8 @@ describe("project add credentials payment", () => {
   });
 
   test.each([
-    ["missing name", ["--provider", "CoinbaseCDP"], "required option '--name' not specified"],
-    [
-      "missing provider",
-      ["--name", "payment-credential"],
-      "required option '--provider' not specified",
-    ],
+    ["missing name", ["--provider", "CoinbaseCDP"], "required option '--name"],
+    ["missing provider", ["--name", "payment-credential"], "required option '--provider"],
     [
       "unsupported provider",
       ["--name", "payment-credential", "--provider", "Unsupported"],

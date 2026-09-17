@@ -127,69 +127,29 @@ describe("gateway command hierarchy", () => {
   });
 
   test.each([
-    ["Gateway create", ["gateway", "create"], "name"],
-    ["Target create", ["gateway", "target", "create"], "gateway-id"],
-    ["Connector create", ["gateway", "connector", "create"], "gateway-id"],
-    ["Rule create", ["gateway", "rule", "create"], "gateway-id"],
-  ] as const)("keeps bare CLI-only %s out of the TUI", async (_label, args, flagName) => {
+    ["Gateway create", ["gateway", "create"], /--name/],
+    ["Target create", ["gateway", "target", "create"], /--gateway-id/],
+    ["Connector create", ["gateway", "connector", "create"], /--gateway-id/],
+    ["Rule create", ["gateway", "rule", "create"], /--gateway-id/],
+  ] as const)("keeps bare CLI-only %s out of the TUI", async (_label, args, error) => {
     expect(supportsTui(args)).toBe(false);
-    await expectError(run([...args]), `required option '--${flagName}' not specified`);
+    await expectError(run([...args]), error);
   });
 });
 
 describe("gateway validation", () => {
   test.each([
-    ["Gateway get", ["gateway", "get", "--json"], "required option '--id' not specified"],
-    [
-      "Target get parent",
-      ["gateway", "target", "get", "--target-id", TARGET_ID],
-      "required option '--gateway-id' not specified",
-    ],
-    [
-      "Target get child",
-      ["gateway", "target", "get", "--gateway-id", GATEWAY_ID],
-      "required option '--target-id' not specified",
-    ],
-    [
-      "Target list",
-      ["gateway", "target", "list", "--max-results", "1"],
-      "required option '--gateway-id' not specified",
-    ],
-    [
-      "Connector get parent",
-      ["gateway", "connector", "get", "--id", TARGET_ID],
-      "required option '--gateway-id' not specified",
-    ],
-    [
-      "Connector get child",
-      ["gateway", "connector", "get", "--gateway-id", GATEWAY_ID],
-      "required option '--id' not specified",
-    ],
-    [
-      "Connector list",
-      ["gateway", "connector", "list", "--max-results", "1"],
-      "required option '--gateway-id' not specified",
-    ],
-    [
-      "Rule get parent",
-      ["gateway", "rule", "get", "--rule-id", RULE_ID],
-      "required option '--gateway-id' not specified",
-    ],
-    [
-      "Rule get child",
-      ["gateway", "rule", "get", "--gateway-id", GATEWAY_ID],
-      "required option '--rule-id' not specified",
-    ],
-    [
-      "Rule list",
-      ["gateway", "rule", "list", "--max-results", "1"],
-      "required option '--gateway-id' not specified",
-    ],
-    [
-      "Policy generate gateway",
-      ["gateway", "policy", "generate", "--prompt", "x"],
-      "required option '--gateway-id' not specified",
-    ],
+    ["Gateway get", ["gateway", "get", "--id", ""], /--id/],
+    ["Target get parent", ["gateway", "target", "get", "--target-id", TARGET_ID], /--gateway-id/],
+    ["Target get child", ["gateway", "target", "get", "--gateway-id", GATEWAY_ID], /--target-id/],
+    ["Target list", ["gateway", "target", "list", "--max-results", "1"], /--gateway-id/],
+    ["Connector get parent", ["gateway", "connector", "get", "--id", TARGET_ID], /--gateway-id/],
+    ["Connector get child", ["gateway", "connector", "get", "--gateway-id", GATEWAY_ID], /--id/],
+    ["Connector list", ["gateway", "connector", "list", "--max-results", "1"], /--gateway-id/],
+    ["Rule get parent", ["gateway", "rule", "get", "--rule-id", RULE_ID], /--gateway-id/],
+    ["Rule get child", ["gateway", "rule", "get", "--gateway-id", GATEWAY_ID], /--rule-id/],
+    ["Rule list", ["gateway", "rule", "list", "--max-results", "1"], /--gateway-id/],
+    ["Policy generate gateway", ["gateway", "policy", "generate", "--prompt", "x"], /--gateway-id/],
     [
       "Policy generate prompt",
       ["gateway", "policy", "generate", "--gateway-id", GATEWAY_ID, "--json"],

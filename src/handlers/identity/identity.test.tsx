@@ -235,12 +235,12 @@ describe("api-key-credential-provider CRUDL", () => {
     [
       "create --api-key only",
       ["identity", "api-key-credential-provider", "create", "--api-key", "x"],
-      "required option '--name' not specified",
+      /--name/,
     ],
     [
       "get --json (no name)",
       ["identity", "api-key-credential-provider", "get", "--json"],
-      "required option '--name' not specified",
+      /--name/,
     ],
     [
       "update --name only",
@@ -250,7 +250,7 @@ describe("api-key-credential-provider CRUDL", () => {
     [
       "delete --json (no name)",
       ["identity", "api-key-credential-provider", "delete", "--json"],
-      "required option '--name' not specified",
+      /--name/,
     ],
   ] as const)("rejects missing required flags for `%s`", async (_label, args, message) => {
     await expectError(run([...args]), message);

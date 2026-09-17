@@ -151,10 +151,7 @@ describe("harness invoke", () => {
   });
 
   test("errors when --id is omitted", async () => {
-    await expectError(
-      run(["harness", "invoke", "--prompt", "hi"]),
-      "required option '--id' not specified",
-    );
+    await expectError(run(["harness", "invoke", "--prompt", "hi"]), /--id/);
   });
 
   // Without --prompt (and outside JSON mode) the handler opens the interactive

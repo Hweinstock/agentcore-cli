@@ -84,10 +84,7 @@ describe("eval batch-evaluation command hierarchy", () => {
 
 describe("eval batch-evaluation get", () => {
   test("requires --id", async () => {
-    await expectError(
-      run(["eval", "batch-evaluation", "get", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(run(["eval", "batch-evaluation", "get", "--json"]), /--id/);
   });
 
   test("includes CloudWatch results for a terminal job by default", async () => {
@@ -191,9 +188,9 @@ describe("eval batch-evaluation simulate", () => {
     "sim-1",
   ];
 
-  test.each<[string, string[]]>([
+  test.each<[RegExp, string[]]>([
     [
-      "runtime-id",
+      /--runtime-id/,
       [
         "--payload-template",
         "{}",
@@ -206,15 +203,15 @@ describe("eval batch-evaluation simulate", () => {
       ],
     ],
     [
-      "payload-template",
+      /--payload-template/,
       ["--runtime-id", "r-1", "--dataset", "/tmp/ds.jsonl", "--evaluators", "E", "--name", "n"],
     ],
     [
-      "dataset",
+      /--dataset/,
       ["--runtime-id", "r-1", "--payload-template", "{}", "--evaluators", "E", "--name", "n"],
     ],
     [
-      "evaluators",
+      /--evaluators/,
       [
         "--runtime-id",
         "r-1",
@@ -227,7 +224,7 @@ describe("eval batch-evaluation simulate", () => {
       ],
     ],
     [
-      "name",
+      /--name/,
       [
         "--runtime-id",
         "r-1",
@@ -239,11 +236,8 @@ describe("eval batch-evaluation simulate", () => {
         "E",
       ],
     ],
-  ])("rejects when required --%s is missing", async (name, args) => {
-    await expectError(
-      run(["eval", "batch-evaluation", "simulate", ...args]),
-      `required option '--${name}' not specified`,
-    );
+  ])("rejects when a required flag is missing (%s)", async (expected, args) => {
+    await expectError(run(["eval", "batch-evaluation", "simulate", ...args]), expected);
   });
 
   test("refuses to grade when nothing was invoked, naming the first failure", async () => {

@@ -138,7 +138,7 @@ describe("oauth2-credential-provider flag validation", () => {
     [
       "create --name only",
       ["identity", "oauth2-credential-provider", "create", "--name", "x"],
-      "required option '--vendor' not specified",
+      /--vendor/,
     ],
     [
       "create --name + --vendor only",
@@ -153,15 +153,11 @@ describe("oauth2-credential-provider flag validation", () => {
       ],
       /--client-secret.*--client-secret-reference/,
     ],
-    [
-      "get --json (no name)",
-      ["identity", "oauth2-credential-provider", "get", "--json"],
-      "required option '--name' not specified",
-    ],
+    ["get --json (no name)", ["identity", "oauth2-credential-provider", "get", "--json"], /--name/],
     [
       "delete --json (no name)",
       ["identity", "oauth2-credential-provider", "delete", "--json"],
-      "required option '--name' not specified",
+      /--name/,
     ],
   ] as const)("rejects missing required flags for `%s`", async (_label, args, message) => {
     await expectError(run([...args]), message);

@@ -116,10 +116,7 @@ describe("harness exec", () => {
   });
 
   test("errors when --id is omitted", async () => {
-    await expectError(
-      run(["harness", "exec", "--command", "ls"]),
-      "required option '--id' not specified",
-    );
+    await expectError(run(["harness", "exec", "--command", "ls"]), /--id/);
   });
 
   // Without --command (and outside JSON mode) the handler opens the interactive

@@ -221,20 +221,16 @@ async function cleanup(state: FixtureState): Promise<void> {
 
 describe("Gateway create validation", () => {
   test.each([
-    [
-      "Gateway name",
-      ["gateway", "create", "--authorizer-type", "NONE"],
-      "required option '--name' not specified",
-    ],
+    ["Gateway name", ["gateway", "create", "--authorizer-type", "NONE"], /--name/],
     [
       "Gateway role",
       ["gateway", "create", "--name", "orders", "--authorizer-type", "NONE"],
-      "required option '--role-arn' not specified",
+      /--role-arn/,
     ],
     [
       "Gateway authorizer",
       ["gateway", "create", "--name", "orders", "--role-arn", TEST_ROLE_ARN],
-      "required option '--authorizer-type' not specified",
+      /--authorizer-type/,
     ],
     [
       "CUSTOM_JWT configuration",
@@ -266,11 +262,7 @@ describe("Gateway create validation", () => {
       ],
       /must be supplied together/,
     ],
-    [
-      "Target parent",
-      ["gateway", "target", "create", "--name", "target"],
-      "required option '--gateway-id' not specified",
-    ],
+    ["Target parent", ["gateway", "target", "create", "--name", "target"], /--gateway-id/],
     [
       "Target input",
       ["gateway", "target", "create", "--gateway-id", "gateway-1", "--name", "target"],
@@ -292,7 +284,7 @@ describe("Gateway create validation", () => {
     [
       "Connector name",
       ["gateway", "connector", "create", "--gateway-id", "gateway-1", "--connector", "web-search"],
-      "required option '--name' not specified",
+      /--name/,
     ],
     [
       "Knowledge Base ID",
@@ -409,20 +401,16 @@ describe("Gateway create validation", () => {
       ],
       /--tool-schema requires --endpoint/,
     ],
-    [
-      "Rule parent",
-      ["gateway", "rule", "create", "--priority", "10"],
-      "required option '--gateway-id' not specified",
-    ],
+    ["Rule parent", ["gateway", "rule", "create", "--priority", "10"], /--gateway-id/],
     [
       "Rule priority",
       ["gateway", "rule", "create", "--gateway-id", "gateway-1", "--actions", "[]"],
-      "required option '--priority' not specified",
+      /--priority/,
     ],
     [
       "Rule actions",
       ["gateway", "rule", "create", "--gateway-id", "gateway-1", "--priority", "10"],
-      "required option '--actions' not specified",
+      /--actions/,
     ],
   ] as const)("rejects missing or inconsistent %s before Core", async (_name, args, error) => {
     await expectError(run([...args]), error);

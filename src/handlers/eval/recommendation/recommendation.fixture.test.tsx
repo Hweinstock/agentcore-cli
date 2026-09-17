@@ -12,6 +12,7 @@ import { CoreClient } from "../../../core";
 import { createDataClient } from "../../../core/factories";
 import {
   createSilentLogger,
+  expectError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -214,6 +215,20 @@ afterAll(async () => {
 }, RECORDING_TIMEOUT_MS);
 
 describe("eval recommendation against recorded responses", () => {
+  test.each([
+    [
+      "name",
+      ["--type", "SYSTEM_PROMPT_RECOMMENDATION", "--recommendation-config", JSON.stringify(CONFIG)],
+    ],
+    ["type", ["--name", RECOMMENDATION_NAME, "--recommendation-config", JSON.stringify(CONFIG)]],
+    [
+      "recommendation-config",
+      ["--name", RECOMMENDATION_NAME, "--type", "SYSTEM_PROMPT_RECOMMENDATION"],
+    ],
+  ] as const)("requires --%s", async (name, args) => {
+    await expectError(run(["eval", "recommendation", "start", ...args]), new RegExp(`--${name}`));
+  });
+
   test("starts a recommendation", async () => {
     const stdout = await run([
       "eval",

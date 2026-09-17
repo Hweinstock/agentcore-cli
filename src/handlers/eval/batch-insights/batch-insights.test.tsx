@@ -53,10 +53,7 @@ describe("eval batch-insights command hierarchy", () => {
 
 describe("eval batch-insights run", () => {
   test("requires --name and exactly one session source", async () => {
-    await expectError(
-      run(["eval", "batch-insights", "run", "--agent", "agent-1"]),
-      "required option '--name' not specified",
-    );
+    await expectError(run(["eval", "batch-insights", "run", "--agent", "agent-1"]), /--name/);
     await expect(run(["eval", "batch-insights", "run", "--name", "insights_run"])).rejects.toThrow(
       /specify exactly one of --agent, --online-eval, --data-source-config/,
     );

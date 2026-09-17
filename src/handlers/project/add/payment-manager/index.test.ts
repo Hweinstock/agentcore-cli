@@ -101,7 +101,7 @@ describe("project add payment-manager", () => {
   });
 
   test.each([
-    ["missing name", [], "required option '--name' not specified"],
+    ["missing name", [], "required option '--name"],
     [
       "CUSTOM_JWT without discovery URL",
       ["--name", "payments", "--authorizer-type", "CUSTOM_JWT"],

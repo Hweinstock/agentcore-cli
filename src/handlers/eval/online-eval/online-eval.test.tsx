@@ -428,7 +428,7 @@ describe("flag validation", () => {
   test.each(["get", "update", "pause", "resume", "delete"])("%s requires --id", async (command) => {
     await expectError(
       run(["eval", "online-eval", command, "--json"]),
-      "required option '--id' not specified",
+      /required option '--id' not specified/,
     );
   });
 });

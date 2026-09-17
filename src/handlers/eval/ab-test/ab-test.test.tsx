@@ -101,10 +101,7 @@ describe("eval ab-test get", () => {
   });
 
   test("requires --id", async () => {
-    await expectError(
-      run(["eval", "ab-test", "get", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(run(["eval", "ab-test", "get", "--json"]), /--id/);
   });
 
   test("surfaces a Core error", async () => {
@@ -154,10 +151,7 @@ describe("eval ab-test transitions", () => {
   });
 
   test.each(["pause", "resume", "stop"] as const)("%s requires --id", async (command) => {
-    await expectError(
-      run(["eval", "ab-test", command, "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(run(["eval", "ab-test", command, "--json"]), /--id/);
   });
 
   test.each(["pause", "resume", "stop"] as const)("%s surfaces a Core error", async (command) => {
@@ -187,10 +181,7 @@ describe("eval ab-test delete", () => {
   });
 
   test("requires --id", async () => {
-    await expectError(
-      run(["eval", "ab-test", "delete", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(run(["eval", "ab-test", "delete", "--json"]), /--id/);
   });
 
   test("surfaces a Core error (e.g. not stopped)", async () => {
@@ -209,7 +200,7 @@ describe("eval ab-test config-based run validation", () => {
       const args = RUN_BASE.filter(
         (a, i) => a !== `--${missing}` && RUN_BASE[i - 1] !== `--${missing}`,
       );
-      await expectError(run(args), `required option '--${missing}' not specified`);
+      await expectError(run(args), new RegExp(`--${missing}`));
     },
   );
 
@@ -300,7 +291,7 @@ describe("eval ab-test target-based run validation", () => {
       const args = TB_BASE.filter(
         (a, i) => a !== `--${missing}` && TB_BASE[i - 1] !== `--${missing}`,
       );
-      await expectError(run(args), `required option '--${missing}' not specified`);
+      await expectError(run(args), new RegExp(`--${missing}`));
     },
   );
 

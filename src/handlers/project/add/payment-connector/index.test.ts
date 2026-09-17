@@ -70,16 +70,8 @@ describe("project add payment-connector", () => {
   });
 
   test.each([
-    [
-      "missing manager",
-      ["--name", "connector", "--quick-create"],
-      "required option '--manager' not specified",
-    ],
-    [
-      "missing name",
-      ["--manager", "payments", "--quick-create"],
-      "required option '--name' not specified",
-    ],
+    ["missing manager", ["--name", "connector", "--quick-create"], "required option '--manager"],
+    ["missing name", ["--manager", "payments", "--quick-create"], "required option '--name"],
     ["no mode", ["--manager", "payments", "--name", "connector"], "specify exactly one"],
     [
       "multiple modes",

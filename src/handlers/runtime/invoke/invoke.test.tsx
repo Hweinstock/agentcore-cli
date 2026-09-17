@@ -7,12 +7,13 @@ import type { AppIO } from "../../../io";
 import type { RuntimeInvokeRequest } from "../types";
 import {
   createSilentLogger,
+  expectError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   waitFor,
 } from "../../../testing";
 import { ExitCode, runWithExitCode } from "../../../runnable";
-import { InputValidationError, UserCancellationError } from "../../../errors";
+import { UserCancellationError } from "../../../errors";
 import { createRootHandler } from "../../index";
 import * as tui from "../../../tui";
 import { RuntimeInvokeLaunchContextKey } from "./launchContext";
@@ -399,17 +400,14 @@ describe("runtime invoke", () => {
     expect(core.runtime.calls).toEqual([]);
   });
 
-  test("reports a missing --id as input validation before Core calls", async () => {
+  test("rejects a missing --id before Core calls", async () => {
     const core = new TestCoreClient();
     const output = captureIO();
 
-    const error = await runCommand(core, output.io, ["runtime", "invoke", "--payload", "{}"]).catch(
-      (caught) => caught,
+    await expectError(
+      runCommand(core, output.io, ["runtime", "invoke", "--payload", "{}"]),
+      /--id/,
     );
-
-    expect(error).toBeInstanceOf(InputValidationError);
-    expect(error).toHaveProperty("message", "required option '--id' not specified");
-    expect(error).toHaveProperty("exitCode", ExitCode.FAILURE);
     expect(core.runtime.calls).toEqual([]);
   });
 

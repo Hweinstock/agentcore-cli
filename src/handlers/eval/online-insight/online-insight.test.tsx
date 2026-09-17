@@ -374,7 +374,7 @@ describe("flag validation", () => {
   test.each(["get", "pause", "resume", "delete"])("%s requires --id", async (command) => {
     await expectError(
       run(["eval", "online-insight", command, "--json"]),
-      "required option '--id' not specified",
+      /required option '--id' not specified/,
     );
   });
 });

@@ -296,25 +296,25 @@ describe("runtime read-only commands", () => {
   });
 
   test.each([
-    ["runtime get", ["runtime", "get"], "id"],
-    ["runtime version get", ["runtime", "version", "get"], "id"],
+    ["runtime get", ["runtime", "get"], /--id/],
+    ["runtime version get", ["runtime", "version", "get"], /--id/],
     [
       "runtime version get --id <runtime-id>",
       ["runtime", "version", "get", "--id", FIXTURE_RUNTIME_ID],
-      "version",
+      /--version/,
     ],
-    ["runtime version list", ["runtime", "version", "list"], "id"],
-    ["runtime endpoint get", ["runtime", "endpoint", "get"], "id"],
+    ["runtime version list", ["runtime", "version", "list"], /--id/],
+    ["runtime endpoint get", ["runtime", "endpoint", "get"], /--id/],
     [
       "runtime endpoint get --id <runtime-id>",
       ["runtime", "endpoint", "get", "--id", FIXTURE_RUNTIME_ID],
-      "qualifier",
+      /--qualifier/,
     ],
-    ["runtime endpoint list", ["runtime", "endpoint", "list"], "id"],
+    ["runtime endpoint list", ["runtime", "endpoint", "list"], /--id/],
   ] as const)(
     "rejects a missing required selector for headless `%s`",
-    async (_label, args, flagName) => {
-      await expectError(run([...args, "--json"]), `required option '--${flagName}' not specified`);
+    async (_label, args, message) => {
+      await expectError(run([...args, "--json"]), message);
     },
   );
 

@@ -4,11 +4,7 @@ import { JsonRendererKey } from "../../../../../tui";
 import { SourceResolver, type AppIO } from "../../../../../io";
 import type { Core } from "../../../../types";
 import { coreOptsFromCtx } from "../../../../utils";
-import {
-  optionalInstructionsFlag,
-  optionalRatingScaleFlag,
-  resolveRatingScale,
-} from "../sharedFlags";
+import { instructionsFlag, ratingScaleFlag, resolveRatingScale } from "../sharedFlags";
 
 export const createLlmAsAJudgeUpdateHandler = (core: Core, io: AppIO) =>
   createHandler({
@@ -16,9 +12,9 @@ export const createLlmAsAJudgeUpdateHandler = (core: Core, io: AppIO) =>
     description: "update an LLM-as-a-Judge evaluator",
     flags: [
       flag("id", "the ID of the evaluator to update", z.string().min(1)),
-      optionalInstructionsFlag,
+      instructionsFlag.optional(),
       flag("model", "the Bedrock model ID used to judge", z.string().optional()),
-      optionalRatingScaleFlag,
+      ratingScaleFlag.optional(),
       flag("kms-key-arn", "customer managed KMS key ARN for evaluator data", z.string().optional()),
     ],
     handle: async (ctx, flags) => {

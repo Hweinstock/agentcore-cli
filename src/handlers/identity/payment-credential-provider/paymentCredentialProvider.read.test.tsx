@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { CoreClient } from "../../../core";
 import {
   createSilentLogger,
+  expectError,
   fixtureFactories,
   matchGolden,
   TestGlobalConfigAccessor,
@@ -77,7 +78,7 @@ describe("payment-credential-provider get", () => {
     ["omitted with --json", ["get", "--json"], "required option '--name' not specified"],
     ["empty", ["get", "--name", ""], "Invalid value for option '--name'"],
   ] as const)("requires a nonempty --name when %s", async (_label, args, message) => {
-    await expect(run([...args])).rejects.toThrow(message);
+    await expectError(run([...args]), message);
   });
 
   test("preserves the recorded service error name and message", async () => {

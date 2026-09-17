@@ -277,11 +277,11 @@ describe("config-bundle create", () => {
 
     await expectError(
       route(["eval", "config-bundle", "create", "--components", JSON.stringify(COMPONENTS)]),
-      "required option '--name' not specified",
+      /--name/,
     );
     await expectError(
       route(["eval", "config-bundle", "create", "--name", "orders-prompt"]),
-      "required option '--components' not specified",
+      /--components/,
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -395,7 +395,7 @@ describe("config-bundle update", () => {
         "--kms-key-arn",
         "arn:aws:kms:us-west-2:123456789012:key/replacement",
       ]),
-      "required option '--components' not specified",
+      /required option '--components' not specified/,
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -406,7 +406,7 @@ describe("config-bundle update", () => {
 
     await expectError(
       route(["eval", "config-bundle", "update", "--id", "b-1", "--components", `file://${path}`]),
-      "required option '--commit-message' not specified",
+      /required option '--commit-message' not specified/,
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -425,7 +425,7 @@ describe("config-bundle update", () => {
         "--commit-message",
         "Replace order support configuration",
       ]),
-      "required option '--id' not specified",
+      /required option '--id' not specified/,
     );
     expect(core.eval.calls).toHaveLength(0);
   });

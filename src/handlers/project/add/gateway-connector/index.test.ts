@@ -131,7 +131,7 @@ describe("project add gateway-connector", () => {
     [
       "missing parent Gateway",
       ["--name", "web", "--connector", "web-search"],
-      "required option '--gateway' not specified",
+      "required option '--gateway",
     ],
     ["no connector mode", ["--gateway", "tools", "--name", "web"], "specify exactly one"],
     [
@@ -168,7 +168,7 @@ describe("project add gateway-connector", () => {
     [
       "shortcut without name",
       ["--gateway", "tools", "--connector", "web-search"],
-      "required option '--name <name>' not specified",
+      "required option '--name",
     ],
     [
       "knowledge base with Web Search",

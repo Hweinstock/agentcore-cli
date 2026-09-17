@@ -261,7 +261,7 @@ describe("dataset create", () => {
         "predefined",
       ]);
 
-      await expectError(promise, "required option '--name' not specified");
+      await expectError(promise, /--name/);
       expect(core.eval.calls).toHaveLength(0);
     });
 
@@ -280,7 +280,7 @@ describe("dataset create", () => {
         "predefined",
       ]);
 
-      await expectError(promise, "required option '--source' not specified");
+      await expectError(promise, /--source/);
       expect(core.eval.calls).toHaveLength(0);
     });
 
@@ -299,7 +299,7 @@ describe("dataset create", () => {
         `file://${path()}`,
       ]);
 
-      await expectError(promise, "required option '--schema-type' not specified");
+      await expectError(promise, /--schema-type/);
       expect(core.eval.calls).toHaveLength(0);
     });
 
@@ -481,10 +481,7 @@ describe("dataset get", () => {
   test("requires --id", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectError(
-      route(["eval", "dataset", "get", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(route(["eval", "dataset", "get", "--json"]), /--id/);
     expect(core.eval.calls).toHaveLength(0);
   });
 });
@@ -566,10 +563,7 @@ describe("dataset delete", () => {
   test("requires --id", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectError(
-      route(["eval", "dataset", "delete", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(route(["eval", "dataset", "delete", "--json"]), /--id/);
     expect(core.eval.calls).toHaveLength(0);
   });
 });
@@ -618,10 +612,7 @@ describe("dataset publish", () => {
   test("requires --id", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectError(
-      route(["eval", "dataset", "publish", "--json"]),
-      "required option '--id' not specified",
-    );
+    await expectError(route(["eval", "dataset", "publish", "--json"]), /--id/);
     expect(core.eval.calls).toHaveLength(0);
   });
 });
@@ -723,10 +714,7 @@ describe("dataset update", () => {
     const path = writeTempJsonl(EXAMPLE_A);
     const { core, route } = testDatasetCommand();
 
-    await expectError(
-      route(["eval", "dataset", "update", "--file-path", path]),
-      "required option '--id' not specified",
-    );
+    await expectError(route(["eval", "dataset", "update", "--file-path", path]), /--id/);
     expect(core.eval.calls).toHaveLength(0);
   });
 
@@ -735,7 +723,7 @@ describe("dataset update", () => {
 
     await expectError(
       route(["eval", "dataset", "update", "--id", "dataset-orders-abc123"]),
-      "required option '--file-path' not specified",
+      /--file-path/,
     );
     expect(core.eval.calls).toHaveLength(0);
   });

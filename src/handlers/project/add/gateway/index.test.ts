@@ -152,7 +152,7 @@ describe("project add gateway", () => {
   });
 
   test.each([
-    ["missing --name", ["add", "gateway"], "required option '--name' not specified"],
+    ["missing --name", ["add", "gateway"], "required option '--name"],
     [
       "a deployed name over the 100-character service limit",
       ["add", "gateway", "--name", `g${"x".repeat(80)}`],

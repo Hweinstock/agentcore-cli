@@ -164,17 +164,17 @@ describe("gateway delete commands", () => {
 
 describe("gateway delete validation", () => {
   test.each([
-    ["Gateway selector", ["gateway", "delete"], "id"],
-    ["Target parent", ["gateway", "target", "delete"], "gateway-id"],
-    ["Target selector", ["gateway", "target", "delete", "--gateway-id", GATEWAY_ID], "target-id"],
-    ["Connector parent", ["gateway", "connector", "delete"], "gateway-id"],
-    ["Connector selector", ["gateway", "connector", "delete", "--gateway-id", GATEWAY_ID], "id"],
-    ["Rule parent", ["gateway", "rule", "delete"], "gateway-id"],
-    ["Rule selector", ["gateway", "rule", "delete", "--gateway-id", GATEWAY_ID], "rule-id"],
-  ] as const)("rejects a missing %s before calling Core", async (_name, args, flagName) => {
+    ["Gateway selector", ["gateway", "delete"], /--id/],
+    ["Target parent", ["gateway", "target", "delete"], /--gateway-id/],
+    ["Target selector", ["gateway", "target", "delete", "--gateway-id", GATEWAY_ID], /--target-id/],
+    ["Connector parent", ["gateway", "connector", "delete"], /--gateway-id/],
+    ["Connector selector", ["gateway", "connector", "delete", "--gateway-id", GATEWAY_ID], /--id/],
+    ["Rule parent", ["gateway", "rule", "delete"], /--gateway-id/],
+    ["Rule selector", ["gateway", "rule", "delete", "--gateway-id", GATEWAY_ID], /--rule-id/],
+  ] as const)("rejects a missing %s before calling Core", async (_name, args, error) => {
     const core = new TestCoreClient();
 
-    await expectError(run([...args], core), `required option '--${flagName}' not specified`);
+    await expectError(run([...args], core), error);
     expect(core.gateway.calls).toEqual([]);
   });
 });

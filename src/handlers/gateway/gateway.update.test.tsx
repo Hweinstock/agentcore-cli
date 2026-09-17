@@ -68,11 +68,7 @@ describe("Gateway update command hierarchy", () => {
 
 describe("Gateway update validation", () => {
   test.each([
-    [
-      "Gateway selector",
-      ["gateway", "update", "--description", "after"],
-      "required option '--id' not specified",
-    ],
+    ["Gateway selector", ["gateway", "update", "--description", "after"], /--id/],
     ["Gateway mutation", ["gateway", "update", "--id", "gateway-1"], /at least one/],
     [
       "Gateway description conflict",
@@ -92,11 +88,7 @@ describe("Gateway update validation", () => {
       ],
       /conflicts/,
     ],
-    [
-      "Target selector",
-      ["gateway", "target", "update", "--name", "after"],
-      "required option '--gateway-id' not specified",
-    ],
+    ["Target selector", ["gateway", "target", "update", "--name", "after"], /--gateway-id/],
     [
       "Target mutation",
       ["gateway", "target", "update", "--gateway-id", "gateway-1", "--target-id", "target-1"],
@@ -122,18 +114,14 @@ describe("Gateway update validation", () => {
     [
       "Connector selector",
       ["gateway", "connector", "update", "--connector", "web-search"],
-      "required option '--gateway-id' not specified",
+      /--gateway-id/,
     ],
     [
       "Connector mutation",
       ["gateway", "connector", "update", "--gateway-id", "gateway-1", "--id", "target-1"],
       /at least one/,
     ],
-    [
-      "Rule selector",
-      ["gateway", "rule", "update", "--priority", "20"],
-      "required option '--gateway-id' not specified",
-    ],
+    ["Rule selector", ["gateway", "rule", "update", "--priority", "20"], /--gateway-id/],
     [
       "Rule mutation",
       ["gateway", "rule", "update", "--gateway-id", "gateway-1", "--rule-id", "rule-1"],
