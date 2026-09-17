@@ -3,7 +3,8 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
-import { CliRunner, type RunResult } from "../helpers/run";
+import { E2E_PREFIX } from "../constants";
+import { CliRunner, parseResult, type RunResult } from "../helpers/run";
 import { retry } from "../helpers/retry";
 
 type RuntimeCase = {
@@ -147,65 +148,14 @@ const A2aResponseSchema = z.object({
   error: z.undefined().optional(),
 });
 
-function parse<TSchema extends z.ZodType>(schema: TSchema, result: RunResult): z.infer<TSchema> {
-  if (result.exitCode !== 0) {
-    throw new Error(
-      `CLI exited ${result.exitCode}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
-    );
-  }
-
-  const parseResult = schema.safeParse(JSON.parse(result.stdout));
-
-  if (!parseResult.success) {
-    throw new Error(
-      `CLI output did not match expected. stdout: ${result.stdout}\nstderr: ${result.stderr}\n` +
-        `error: ${z.prettifyError(parseResult.error)}`,
-    );
-  }
-
-  return parseResult.data;
-}
-
-function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
-  const data = body
-    .split(/\r?\n/)
-    .find((line) => line.startsWith("data: "))
-    ?.slice("data: ".length);
-
-  // convert parsed text back into a result to that we can parse it.
-  const result: RunResult = {
-    stdout: data ?? body,
-    stderr: "",
-    exitCode: 0,
-  };
-
-  if (runtime.protocol === "MCP") {
-    const response = parse(McpResponseSchema, result);
-    expect(response.id).toBe(runtime.payload.id);
-    return;
-  }
-
-  if (runtime.protocol === "A2A") {
-    const response = parse(A2aResponseSchema, result);
-    expect(response.id).toBe(runtime.payload.id);
-  }
-}
-
-function getSessionId(prefix: string): string {
-  return `${prefix}${Date.now().toString(36)}`
-    .replace(/[^a-z0-9]/gi, "")
-    .padEnd(40, "x")
-    .slice(0, 60);
-}
-
 describe.serial("add, dev, deploy, invoke for runtime templates", () => {
   const cli = new CliRunner();
-  const projectName = `e2ert${Date.now().toString(36)}`;
+  const projectName = `${E2E_PREFIX}rt${Date.now().toString(36)}`;
   let projectDir: string;
 
   beforeAll(async () => {
     const projectRoot = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
-    const created = parse(
+    const created = parseResult(
       ProjectCreatedSchema,
       await cli.run(
         ["project", "create", "--name", projectName, "--template", "empty", "--skip-git", "--json"],
@@ -218,7 +168,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
   test.serial.each(RUNTIMES)(
     "$name can be added to a project",
     async (runtime) => {
-      const added = parse(
+      const added = parseResult(
         OperationSchema,
         await cli.run(
           [
@@ -246,6 +196,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
     let dev: ReturnType<CliRunner["start"]> | undefined;
     let pendingOutput = "";
 
+    /** Given dev-process output, records the ports announced by running runtimes. */
     const captureDevOutput = (chunk: Buffer) => {
       pendingOutput += chunk.toString();
       const lines = pendingOutput.split(/\r?\n/);
@@ -286,7 +237,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
           const port = runtimePorts.get(runtime.name);
           if (!port) throw new Error(`Runtime '${runtime.name}' is not ready.`);
 
-          return parse(
+          return parseResult(
             LocalRuntimeInvokeResponseSchema,
             await cli.run(
               [
@@ -316,7 +267,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
   test.serial(
     "deploys all runtimes",
     async () => {
-      const deployment = parse(
+      const deployment = parseResult(
         DeployResponseSchema,
         await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
       );
@@ -329,7 +280,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
     "$name can be invoked after deployed",
     async (runtime) => {
       const sessionId = getSessionId(runtime.name);
-      const response = parse(
+      const response = parseResult(
         RuntimeInvokeResponseSchema,
         await cli.run(
           [
@@ -360,7 +311,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
   test.serial.each(RUNTIMES)(
     "$name can be removed from the project",
     async (runtime) => {
-      const removed = parse(
+      const removed = parseResult(
         OperationSchema,
         await cli.run(
           ["project", "remove", "runtime", "--name", runtime.name, "--json"],
@@ -375,13 +326,50 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
   test.serial(
     "deploys the empty project",
     async () => {
-      parse(
+      parseResult(
         JsonObjectSchema,
         await cli.run(["project", "remove", "all", "--yes", "--json"], projectDir),
       );
 
-      parse(JsonObjectSchema, await cli.run(["project", "deploy", "--yes", "--json"], projectDir));
+      parseResult(
+        JsonObjectSchema,
+        await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
+      );
     },
     TIMEOUT_MS.PROJECT_DEPLOY,
   );
 });
+
+/** Given a runtime and response body, validates the protocol response and request identifier. */
+function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
+  const data = body
+    .split(/\r?\n/)
+    .find((line) => line.startsWith("data: "))
+    ?.slice("data: ".length);
+
+  // convert parsed text back into a result to that we can parse it.
+  const result: RunResult = {
+    stdout: data ?? body,
+    stderr: "",
+    exitCode: 0,
+  };
+
+  if (runtime.protocol === "MCP") {
+    const response = parseResult(McpResponseSchema, result);
+    expect(response.id).toBe(runtime.payload.id);
+    return;
+  }
+
+  if (runtime.protocol === "A2A") {
+    const response = parseResult(A2aResponseSchema, result);
+    expect(response.id).toBe(runtime.payload.id);
+  }
+}
+
+/** Given a prefix, returns a sanitized AgentCore-compatible session identifier. */
+function getSessionId(prefix: string): string {
+  return `${prefix}${Date.now().toString(36)}`
+    .replace(/[^a-z0-9]/gi, "")
+    .padEnd(40, "x")
+    .slice(0, 60);
+}

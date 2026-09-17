@@ -1,3 +1,4 @@
+/** Given an async operation, retries it until success or the timeout expires. */
 export async function retry<T>(
   operation: () => Promise<T>,
   timeoutMs = 10_000,

@@ -8,11 +8,6 @@ on:
         description: git reference (commit, branch, or tag) to build and test
         type: string
         default: refactor
-  workflow_call:
-    inputs:
-      ref:
-        required: true
-        type: string
 
 concurrency:
   group: e2e-test-${{ inputs.ref || github.ref }}
@@ -23,18 +18,37 @@ env:
 
 jobs:
   authorize:
-    if: github.repository_owner == 'Hweinstock'
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     outputs:
-      is-authorized: ${{ steps.gate.outputs.is-authorized }}
+      is-authorized: ${{ steps.check.outputs.is_authorized }}
     steps:
-      - id: gate
-        uses: aws/agentcore-devx-devtools/.github/actions/check-collaborator@31aa3b031a86664e29861d68956e44b07cf21a74
+      - name: Fetch secrets from Secrets Manager
+        uses: aws/agentcore-devx-devtools/.github/actions/fetch-secrets@31aa3b031a86664e29861d68956e44b07cf21a74
+        with:
+          role-arn: ${{ secrets.WORKFLOW_SECRETS_READER_ROLE_ARN }}
+          repo: AUTHORIZED_USERS
+      - name: Check authorization
+        id: authz
+        uses: aws/agentcore-devx-devtools/.github/actions/check-authorized-user@31aa3b031a86664e29861d68956e44b07cf21a74
         with:
           subject: ${{ github.actor }}
-          required-permission: write
+          authorized-users: ${{ env.AUTHORIZED_USERS }}
+      - name: Determine authorization
+        id: check
+        env:
+          IS_AUTHORIZED: ${{ steps.authz.outputs.is-authorized }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [[ "$IS_AUTHORIZED" == "true" ]]; then
+            echo "Actor ${ACTOR} is authorized"
+            echo "is_authorized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Actor ${ACTOR} is not in AUTHORIZED_USERS, skipping"
+            echo "is_authorized=false" >> "$GITHUB_OUTPUT"
+          fi
 
   e2e:
     needs: authorize
