@@ -276,7 +276,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
     TIMEOUT_MS.PROJECT_DEPLOY,
   );
 
-  test.serial.each(RUNTIMES)(
+  test.concurrent.each(RUNTIMES)(
     "$name can be invoked after deployed",
     async (runtime) => {
       const sessionId = getSessionId(runtime.name);
