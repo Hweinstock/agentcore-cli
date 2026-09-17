@@ -5,12 +5,7 @@ import type {
 } from "@aws-sdk/client-bedrock-agentcore";
 import type { GetHarnessResponse } from "@aws-sdk/client-bedrock-agentcore-control";
 import { createRootHandler } from "../../index";
-import {
-  createSilentLogger,
-  expectInputValidationError,
-  TestCoreClient,
-  testIO,
-} from "../../../testing";
+import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
 
 // Command-flow tests for `harness exec`, driven through the real root handler.
@@ -121,9 +116,9 @@ describe("harness exec", () => {
   });
 
   test("errors when --id is omitted", async () => {
-    await expectInputValidationError(
+    await expectError(
       run(["harness", "exec", "--command", "ls"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 

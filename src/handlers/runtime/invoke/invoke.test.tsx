@@ -408,7 +408,7 @@ describe("runtime invoke", () => {
     );
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect(error).toHaveProperty("message", "required option '--id <id>' not specified");
+    expect(error).toHaveProperty("message", "required option '--id' not specified");
     expect(error).toHaveProperty("exitCode", ExitCode.FAILURE);
     expect(core.runtime.calls).toEqual([]);
   });

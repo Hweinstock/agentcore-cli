@@ -5,12 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   createSilentLogger,
+  expectError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
   waitFor,
 } from "../../../testing";
-import { InputValidationError, UserCancellationError } from "../../../errors";
+import { UserCancellationError } from "../../../errors";
 import { createRootHandler } from "../../index";
 import type { CreateDatasetInput } from "../types";
 
@@ -54,12 +55,6 @@ function testDatasetCommand(stdin?: string) {
     stderr: io.stderr,
     route: (args: string[]) => root.route(["node", "agentcore", ...args, "--region", REGION]),
   };
-}
-
-async function expectInputValidation(promise: Promise<unknown>, message: string): Promise<void> {
-  const error = await promise.catch((caught) => caught);
-  expect(error).toBeInstanceOf(InputValidationError);
-  expect(error).toHaveProperty("message", message);
 }
 
 // createDatasetInput returns the input the handler passed to Core, failing the
@@ -116,10 +111,7 @@ describe("eval dataset command hierarchy", () => {
   test("runs normal validation for a bare CLI-only dataset command", async () => {
     const { route } = testDatasetCommand();
 
-    await expectInputValidation(
-      route(["eval", "dataset", "update"]),
-      "required option '--id <id>' not specified",
-    );
+    await expectError(route(["eval", "dataset", "update"]), "required option '--id' not specified");
   });
 });
 
@@ -269,7 +261,7 @@ describe("dataset create", () => {
         "predefined",
       ]);
 
-      await expectInputValidation(promise, "required option '--name <name>' not specified");
+      await expectError(promise, "required option '--name' not specified");
       expect(core.eval.calls).toHaveLength(0);
     });
 
@@ -288,7 +280,7 @@ describe("dataset create", () => {
         "predefined",
       ]);
 
-      await expectInputValidation(promise, "required option '--source <source>' not specified");
+      await expectError(promise, "required option '--source' not specified");
       expect(core.eval.calls).toHaveLength(0);
     });
 
@@ -307,10 +299,7 @@ describe("dataset create", () => {
         `file://${path()}`,
       ]);
 
-      await expectInputValidation(
-        promise,
-        "required option '--schema-type <schema-type>' not specified",
-      );
+      await expectError(promise, "required option '--schema-type' not specified");
       expect(core.eval.calls).toHaveLength(0);
     });
 
@@ -492,9 +481,9 @@ describe("dataset get", () => {
   test("requires --id", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectInputValidation(
+    await expectError(
       route(["eval", "dataset", "get", "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -577,9 +566,9 @@ describe("dataset delete", () => {
   test("requires --id", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectInputValidation(
+    await expectError(
       route(["eval", "dataset", "delete", "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -629,9 +618,9 @@ describe("dataset publish", () => {
   test("requires --id", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectInputValidation(
+    await expectError(
       route(["eval", "dataset", "publish", "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -734,9 +723,9 @@ describe("dataset update", () => {
     const path = writeTempJsonl(EXAMPLE_A);
     const { core, route } = testDatasetCommand();
 
-    await expectInputValidation(
+    await expectError(
       route(["eval", "dataset", "update", "--file-path", path]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -744,9 +733,9 @@ describe("dataset update", () => {
   test("requires --file-path", async () => {
     const { core, route } = testDatasetCommand();
 
-    await expectInputValidation(
+    await expectError(
       route(["eval", "dataset", "update", "--id", "dataset-orders-abc123"]),
-      "required option '--file-path <file-path>' not specified",
+      "required option '--file-path' not specified",
     );
     expect(core.eval.calls).toHaveLength(0);
   });

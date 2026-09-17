@@ -45,7 +45,7 @@ export const createStartRecommendationHandler = (core: Core, io: AppIO) =>
       );
       if (!recommendationConfig) {
         throw new InputValidationError(
-          "Option '--recommendation-config' must resolve to a nonempty JSON value",
+          "required option '--recommendation-config <recommendation-config>' not specified",
         );
       }
 

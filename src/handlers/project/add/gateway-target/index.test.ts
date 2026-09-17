@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expectInputValidationError } from "../../../../testing";
+import { ProjectStateError } from "../../../../errors";
+import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const DISCOVERY_URL = "https://idp.example.com/.well-known/openid-configuration";
@@ -245,57 +246,72 @@ describe("project add gateway-target", () => {
     });
   });
 
-  test.each([
+  test.each<[string, string[], string, typeof ProjectStateError | undefined]>([
     [
       "missing parent Gateway",
       ["--name", "target", "--endpoint", ENDPOINT],
-      "required option '--gateway <gateway>' not specified",
+      "required option '--gateway' not specified",
+      undefined,
     ],
-    ["no Target mode", ["--gateway", "tools", "--name", "target"], "specify exactly one"],
+    [
+      "no Target mode",
+      ["--gateway", "tools", "--name", "target"],
+      "specify exactly one",
+      undefined,
+    ],
     [
       "multiple Target modes",
       [...endpointFlags(), "--runtime", "agent_python_minimal"],
       "specify exactly one",
+      undefined,
     ],
     [
       "runtime endpoint without Runtime mode",
       [...endpointFlags(), "--runtime-endpoint", "DEFAULT"],
       "--runtime-endpoint requires --runtime",
+      undefined,
     ],
     [
       "shortcut without name",
       ["--gateway", "tools", "--endpoint", ENDPOINT],
       "required option '--name <name>' not specified",
+      undefined,
     ],
     [
       "non-HTTPS endpoint",
       ["--gateway", "tools", "--name", "target", "--endpoint", "http://mcp.example.com"],
       "must use HTTPS",
+      undefined,
     ],
     [
       "invalid endpoint",
       ["--gateway", "tools", "--name", "target", "--endpoint", "not-a-url"],
       "must be a valid HTTPS URL",
+      undefined,
     ],
     [
       "credential without auth type",
       endpointFlags("--credential-name", "oauth"),
       "--credential-name requires --outbound-auth",
+      undefined,
     ],
     [
       "scope without auth type",
       endpointFlags("--scope", "read"),
       "--scope requires --outbound-auth oauth",
+      undefined,
     ],
     [
       "none auth with credential",
       endpointFlags("--outbound-auth", "none", "--credential-name", "oauth"),
       "cannot be combined",
+      undefined,
     ],
     [
       "OAuth without credential",
       endpointFlags("--outbound-auth", "oauth"),
       "requires --credential-name",
+      undefined,
     ],
     [
       "API key with OAuth scope",
@@ -308,34 +324,35 @@ describe("project add gateway-target", () => {
         "read",
       ),
       "--scope is valid only with --outbound-auth oauth",
+      undefined,
     ],
     [
       "API-key endpoint shortcut unsupported by the project schema",
       endpointFlags("--outbound-auth", "api-key", "--credential-name", "api-key"),
       "mcpServer targets do not support API_KEY outbound auth",
+      ProjectStateError,
     ],
     [
       "unknown credential",
       endpointFlags("--outbound-auth", "oauth", "--credential-name", "missing"),
       "no credential named 'missing' exists in this project",
+      undefined,
     ],
     [
       "credential with wrong type",
       endpointFlags("--outbound-auth", "oauth", "--credential-name", "api-key"),
       "not a OAuthCredentialProvider",
+      undefined,
     ],
     [
       "unknown Gateway",
       ["--gateway", "missing", "--name", "target", "--endpoint", ENDPOINT],
       "no gateway named 'missing' exists in this project",
+      undefined,
     ],
-  ])("rejects %s", async (_label, flags, message) => {
+  ])("rejects %s", async (_label, flags, message, errorType) => {
     await projectWithCredentials();
-    if (message.startsWith("required option")) {
-      await expectInputValidationError(run(["add", "gateway-target", ...flags]), message);
-    } else {
-      await expect(run(["add", "gateway-target", ...flags])).rejects.toThrow(message);
-    }
+    await expectError(run(["add", "gateway-target", ...flags]), message, errorType);
   });
 
   test("rejects a direct API-key reference to an OAuth credential", async () => {

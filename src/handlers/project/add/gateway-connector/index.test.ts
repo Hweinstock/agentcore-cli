@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expectInputValidationError } from "../../../../testing";
+import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const COMPLETE_CONNECTOR = JSON.stringify({
@@ -131,7 +131,7 @@ describe("project add gateway-connector", () => {
     [
       "missing parent Gateway",
       ["--name", "web", "--connector", "web-search"],
-      "required option '--gateway <gateway>' not specified",
+      "required option '--gateway' not specified",
     ],
     ["no connector mode", ["--gateway", "tools", "--name", "web"], "specify exactly one"],
     [
@@ -192,10 +192,6 @@ describe("project add gateway-connector", () => {
   ])("rejects %s", async (_label, flags, message) => {
     await inProject();
     await addGateway();
-    if (message.startsWith("required option")) {
-      await expectInputValidationError(run(["add", "gateway-connector", ...flags]), message);
-    } else {
-      await expect(run(["add", "gateway-connector", ...flags])).rejects.toThrow(message);
-    }
+    await expectError(run(["add", "gateway-connector", ...flags]), message);
   });
 });

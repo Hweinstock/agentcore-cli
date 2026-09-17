@@ -19,7 +19,7 @@ import type { Logger } from "../../../logging";
 import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   TestCoreClient,
   testIO,
   TestGlobalConfigAccessor,
@@ -212,9 +212,9 @@ describe("eval ondemand simulate", () => {
       ["--runtime-id", "r-1", "--payload-template", "{}", "--dataset", "/tmp/ds.jsonl"],
     ],
   ])("rejects when required --%s is missing", async (name, args) => {
-    await expectInputValidationError(
+    await expectError(
       run(["eval", "ondemand", "simulate", ...args]),
-      `required option '--${name} <${name}>' not specified`,
+      `required option '--${name}' not specified`,
     );
   });
 
@@ -290,15 +290,15 @@ describe("eval ondemand evaluate validation", () => {
         "--session-ids",
         "s1",
       ],
-      "required option '--agent <agent>' not specified",
+      "required option '--agent' not specified",
     ],
     [
       "requires --evaluators",
       ["eval", "ondemand", "evaluate", "--agent", "a-1", "--session-ids", "s1"],
-      "required option '--evaluators <evaluators>' not specified",
+      "required option '--evaluators' not specified",
     ],
   ])("%s", async (_name, args, expectedError) => {
-    await expectInputValidationError(run(args), expectedError);
+    await expectError(run(args), expectedError);
   });
 
   test.each<[string, string[], RegExp]>([

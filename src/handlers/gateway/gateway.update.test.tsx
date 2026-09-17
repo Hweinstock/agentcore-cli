@@ -22,7 +22,7 @@ import { CoreClient } from "../../core";
 import { createControlClient, createIamClient } from "../../core/factories";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -71,7 +71,7 @@ describe("Gateway update validation", () => {
     [
       "Gateway selector",
       ["gateway", "update", "--description", "after"],
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     ],
     ["Gateway mutation", ["gateway", "update", "--id", "gateway-1"], /at least one/],
     [
@@ -95,7 +95,7 @@ describe("Gateway update validation", () => {
     [
       "Target selector",
       ["gateway", "target", "update", "--name", "after"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Target mutation",
@@ -122,7 +122,7 @@ describe("Gateway update validation", () => {
     [
       "Connector selector",
       ["gateway", "connector", "update", "--connector", "web-search"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Connector mutation",
@@ -132,7 +132,7 @@ describe("Gateway update validation", () => {
     [
       "Rule selector",
       ["gateway", "rule", "update", "--priority", "20"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Rule mutation",
@@ -140,11 +140,7 @@ describe("Gateway update validation", () => {
       /at least one/,
     ],
   ] as const)("rejects invalid %s input", async (_name, args, error) => {
-    if (typeof error === "string" && error.startsWith("required option")) {
-      await expectInputValidationError(runWithTestCore([...args]), error);
-    } else {
-      await expect(runWithTestCore([...args])).rejects.toThrow(error);
-    }
+    await expectError(runWithTestCore([...args]), error);
   });
 });
 

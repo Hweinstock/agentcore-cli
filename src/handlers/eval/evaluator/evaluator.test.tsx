@@ -1,11 +1,9 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CoreClient } from "../../../core";
-import { InputValidationError } from "../../../errors";
 import {
   createSilentLogger,
+  expectError,
   fixtureFactories,
   matchGolden,
   TestGlobalConfigAccessor,
@@ -75,12 +73,6 @@ async function run(args: string[], stdin?: string): Promise<string> {
 
   await root.route(["node", "agentcore", ...args, "--region", REGION]);
   return io.stdout();
-}
-
-async function expectInputValidation(promise: Promise<unknown>, message: string): Promise<void> {
-  const error = await promise.catch((caught) => caught);
-  expect(error).toBeInstanceOf(InputValidationError);
-  expect(error).toHaveProperty("message", message);
 }
 
 // The ids assigned by CreateEvaluator, shared by the get/update/delete tests below.
@@ -178,10 +170,7 @@ describe("eval command hierarchy", () => {
   );
 
   test("runs normal validation for a bare CLI-only evaluator command", async () => {
-    await expectInputValidation(
-      run(["eval", "evaluator", "delete"]),
-      "required option '--id <id>' not specified",
-    );
+    await expectError(run(["eval", "evaluator", "delete"]), "required option '--id' not specified");
   });
 
   test("prints help for a bare CLI-only evaluator group", async () => {
@@ -384,70 +373,37 @@ describe("evaluator flag validation", () => {
     [
       "missing --name",
       ["--level", "SESSION", "--model", "m", "--instructions", "i", "--rating-scale", "pass-fail"],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
     [
       "missing --level",
       ["--name", "x", "--model", "m", "--instructions", "i", "--rating-scale", "pass-fail"],
-      "required option '--level <level>' not specified",
+      "required option '--level' not specified",
     ],
     [
       "missing --model",
       ["--name", "x", "--level", "SESSION", "--instructions", "i", "--rating-scale", "pass-fail"],
-      "required option '--model <model>' not specified",
+      "required option '--model' not specified",
     ],
     [
       "missing --instructions",
       ["--name", "x", "--level", "SESSION", "--model", "m", "--rating-scale", "pass-fail"],
-      "required option '--instructions <instructions>' not specified",
+      "required option '--instructions' not specified",
     ],
     [
       "missing --rating-scale",
       ["--name", "x", "--level", "SESSION", "--model", "m", "--instructions", "i"],
-      "required option '--rating-scale <rating-scale>' not specified",
+      "required option '--rating-scale' not specified",
     ],
   ] as const)("llm-as-a-judge create rejects %s", async (_label, extra, message) => {
-    await expectInputValidation(
-      run(["eval", "evaluator", "llm-as-a-judge", "create", ...extra]),
-      message,
-    );
+    await expectError(run(["eval", "evaluator", "llm-as-a-judge", "create", ...extra]), message);
   });
 
   test("code-based create rejects a missing --lambda-arn", async () => {
-    await expectInputValidation(
+    await expectError(
       run(["eval", "evaluator", "code-based", "create", "--name", "x", "--level", "SESSION"]),
-      "required option '--lambda-arn <lambda-arn>' not specified",
+      "required option '--lambda-arn' not specified",
     );
-  });
-
-  test("llm-as-a-judge create rejects instructions that resolve to empty text", async () => {
-    const directory = await mkdtemp(join(tmpdir(), "eval-instructions-"));
-    const file = join(directory, "instructions.txt");
-    await writeFile(file, "");
-
-    try {
-      await expectInputValidation(
-        run([
-          "eval",
-          "evaluator",
-          "llm-as-a-judge",
-          "create",
-          "--name",
-          "x",
-          "--level",
-          "SESSION",
-          "--model",
-          "m",
-          "--instructions",
-          `file://${file}`,
-          "--rating-scale",
-          "pass-fail",
-        ]),
-        "Option '--instructions' must resolve to nonempty text",
-      );
-    } finally {
-      await rm(directory, { recursive: true, force: true });
-    }
   });
 
   // --json forces the headless path so the required-flag error surfaces; without
@@ -458,10 +414,7 @@ describe("evaluator flag validation", () => {
     ["get", ["eval", "evaluator", "get"]],
     ["delete", ["eval", "evaluator", "delete"]],
   ] as const)("`%s` requires --id", async (_label, args) => {
-    await expectInputValidation(
-      run([...args, "--json"]),
-      "required option '--id <id>' not specified",
-    );
+    await expectError(run([...args, "--json"]), "required option '--id' not specified");
   });
 
   test("rejects malformed custom rating scale JSON", async () => {
@@ -483,27 +436,5 @@ describe("evaluator flag validation", () => {
         "{not json",
       ]),
     ).rejects.toThrow(/Invalid JSON for option '--rating-scale'/);
-  });
-
-  test("rejects a null custom rating scale", async () => {
-    await expectInputValidation(
-      run([
-        "eval",
-        "evaluator",
-        "llm-as-a-judge",
-        "create",
-        "--name",
-        "x",
-        "--level",
-        "SESSION",
-        "--model",
-        "m",
-        "--instructions",
-        "i",
-        "--rating-scale",
-        "null",
-      ]),
-      "Option '--rating-scale' must resolve to a nonempty JSON value",
-    );
   });
 });

@@ -4,12 +4,7 @@ import type {
   ListBatchEvaluationsResponse,
 } from "@aws-sdk/client-bedrock-agentcore";
 import { createRootHandler } from "../../index";
-import {
-  createSilentLogger,
-  expectInputValidationError,
-  TestCoreClient,
-  testIO,
-} from "../../../testing";
+import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
 import type { BatchEvaluationResultEntry } from "../types";
 
@@ -89,9 +84,9 @@ describe("eval batch-evaluation command hierarchy", () => {
 
 describe("eval batch-evaluation get", () => {
   test("requires --id", async () => {
-    await expectInputValidationError(
+    await expectError(
       run(["eval", "batch-evaluation", "get", "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 
@@ -245,9 +240,9 @@ describe("eval batch-evaluation simulate", () => {
       ],
     ],
   ])("rejects when required --%s is missing", async (name, args) => {
-    await expectInputValidationError(
+    await expectError(
       run(["eval", "batch-evaluation", "simulate", ...args]),
-      `required option '--${name} <${name}>' not specified`,
+      `required option '--${name}' not specified`,
     );
   });
 

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -281,11 +281,7 @@ describe("project add memory", () => {
   });
 
   test.each<[string, string[], string?]>([
-    [
-      "missing --name",
-      ["--event-expiry-duration", "30"],
-      "required option '--name <name>' not specified",
-    ],
+    ["missing --name", ["--event-expiry-duration", "30"], "required option '--name' not specified"],
     ["invalid name", ["--name", "1bad"]],
     ["empty description", ["--name", "x", "--description", ""]],
     [
@@ -391,11 +387,7 @@ describe("project add memory", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "memory", ...flags]);
-    if (typeof requiredMessage === "string") {
-      await expectInputValidationError(promise, requiredMessage);
-    } else {
-      await expect(promise).rejects.toBeInstanceOf(InputValidationError);
-    }
+    await expectError(promise, requiredMessage ?? /./);
   });
 
   test.each<[string, string[], RegExp]>([

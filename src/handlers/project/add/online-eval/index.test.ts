@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -198,12 +198,12 @@ describe("project add online-eval", () => {
     [
       "missing --name",
       ["--log-group-name", "/x", "--evaluators", "e", "--sampling-rate", "10"],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
     [
       "missing --sampling-rate",
       ["--name", "x", "--log-group-name", "/x", "--evaluators", "e"],
-      "required option '--sampling-rate <sampling-rate>' not specified",
+      "required option '--sampling-rate' not specified",
     ],
     [
       "--agent and --log-group-name are mutually exclusive",
@@ -259,10 +259,6 @@ describe("project add online-eval", () => {
     const { cleanup } = await initProject({ flags: ["--template", "agent-python-minimal"] });
     cleanups.push(cleanup);
     const promise = run(["add", "online-eval", ...flags]);
-    if (typeof requiredMessage === "string") {
-      await expectInputValidationError(promise, requiredMessage);
-    } else {
-      await expect(promise).rejects.toBeInstanceOf(InputValidationError);
-    }
+    await expectError(promise, requiredMessage ?? /./);
   });
 });

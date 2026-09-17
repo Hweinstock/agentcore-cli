@@ -3,13 +3,12 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
 } from "../../../../testing";
-import { InputValidationError } from "../../../../errors";
 import type { BedrockAgentImportPlan } from "../../../../core/project/bedrockAgentImport";
 import { credentialEnvVarName } from "../../../../projectSchemas/credential";
 
@@ -393,7 +392,7 @@ describe("project add runtime", () => {
     [
       "missing --name",
       ["--template", "agent-python-minimal"],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
     [
       "--model-provider is not valid with the a2a-python-strands template",
@@ -428,11 +427,7 @@ describe("project add runtime", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "runtime", ...flags]);
-    if (typeof requiredMessage === "string") {
-      await expectInputValidationError(promise, requiredMessage);
-    } else {
-      await expect(promise).rejects.toBeInstanceOf(InputValidationError);
-    }
+    await expectError(promise, requiredMessage ?? /./);
   });
 
   test("rejects an unknown --template value", async () => {

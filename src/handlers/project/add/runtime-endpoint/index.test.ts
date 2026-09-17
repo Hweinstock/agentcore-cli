@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -116,19 +116,15 @@ describe("project add runtime-endpoint", () => {
   });
 
   test.each<[string, string[], string]>([
-    ["missing runtime", ["--name", "prod"], "required option '--runtime <runtime>' not specified"],
-    ["missing name", ["--runtime", "agent"], "required option '--name <name>' not specified"],
+    ["missing runtime", ["--name", "prod"], "required option '--runtime' not specified"],
+    ["missing name", ["--runtime", "agent"], "required option '--name' not specified"],
     ["unknown runtime", ["--runtime", "ghost", "--name", "prod"], "no runtime named 'ghost'"],
   ])("rejects %s", async (_label, extra, message) => {
     const { projectRoot, cleanup } = await initProject();
     cleanups.push(cleanup);
     await seedRuntime(projectRoot);
 
-    if (message.startsWith("required option")) {
-      await expectInputValidationError(run(["add", "runtime-endpoint", ...extra]), message);
-    } else {
-      await expect(run(["add", "runtime-endpoint", ...extra])).rejects.toThrow(message);
-    }
+    await expectError(run(["add", "runtime-endpoint", ...extra]), message);
   });
 
   test("rejects a duplicate endpoint name on the same runtime", async () => {

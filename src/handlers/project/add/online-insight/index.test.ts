@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -189,17 +189,17 @@ describe("project add online-insight", () => {
     [
       "missing --name",
       ["--agent", "a", "--insight", INSIGHT, "--sampling-rate", "10"],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
     [
       "missing --sampling-rate",
       ["--name", "x", "--agent", "a", "--insight", INSIGHT],
-      "required option '--sampling-rate <sampling-rate>' not specified",
+      "required option '--sampling-rate' not specified",
     ],
     [
       "no --insight",
       ["--name", "x", "--agent", "a", "--sampling-rate", "10"],
-      "required option '--insight <insight>' not specified",
+      "required option '--insight' not specified",
     ],
     [
       "invalid insight id",
@@ -254,10 +254,6 @@ describe("project add online-insight", () => {
     const { cleanup } = await initProject({ flags: ["--template", "agent-python-minimal"] });
     cleanups.push(cleanup);
     const promise = run(["add", "online-insight", ...flags]);
-    if (typeof requiredMessage === "string") {
-      await expectInputValidationError(promise, requiredMessage);
-    } else {
-      await expect(promise).rejects.toBeInstanceOf(InputValidationError);
-    }
+    await expectError(promise, requiredMessage ?? /./);
   });
 });

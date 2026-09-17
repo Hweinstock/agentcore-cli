@@ -5,7 +5,7 @@ import type {
 } from "@aws-sdk/client-bedrock-agentcore";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -53,9 +53,9 @@ describe("eval batch-insights command hierarchy", () => {
 
 describe("eval batch-insights run", () => {
   test("requires --name and exactly one session source", async () => {
-    await expectInputValidationError(
+    await expectError(
       run(["eval", "batch-insights", "run", "--agent", "agent-1"]),
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     );
     await expect(run(["eval", "batch-insights", "run", "--name", "insights_run"])).rejects.toThrow(
       /specify exactly one of --agent, --online-eval, --data-source-config/,

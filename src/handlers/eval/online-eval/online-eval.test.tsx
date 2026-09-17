@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { CoreClient } from "../../../core";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   fixtureFactories,
   matchGolden,
   settle,
@@ -116,9 +116,9 @@ describe("eval online-eval command hierarchy", () => {
   );
 
   test("runs normal validation for a bare CLI-only command", async () => {
-    await expectInputValidationError(
+    await expectError(
       run(["eval", "online-eval", "create"]),
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     );
   });
 });
@@ -426,9 +426,9 @@ describe("flag validation", () => {
   // --json forces the headless path so the required-flag error surfaces; without
   // it a bare invocation opens the TUI under the empty-invocation middleware.
   test.each(["get", "update", "pause", "resume", "delete"])("%s requires --id", async (command) => {
-    await expectInputValidationError(
+    await expectError(
       run(["eval", "online-eval", command, "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 });

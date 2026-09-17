@@ -7,7 +7,7 @@ import type { GetHarnessResponse } from "@aws-sdk/client-bedrock-agentcore-contr
 import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -151,9 +151,9 @@ describe("harness invoke", () => {
   });
 
   test("errors when --id is omitted", async () => {
-    await expectInputValidationError(
+    await expectError(
       run(["harness", "invoke", "--prompt", "hi"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 

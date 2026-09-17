@@ -12,10 +12,22 @@ import type { SourceResolver } from "../../../../io";
 export const instructionsFlag = flag(
   "instructions",
   "evaluation instructions (inline, file://<path>, or - for stdin)",
+  z.string().min(1),
+);
+
+export const optionalInstructionsFlag = flag(
+  "instructions",
+  "evaluation instructions (inline, file://<path>, or - for stdin)",
   z.string().optional(),
 );
 
 export const ratingScaleFlag = flag(
+  "rating-scale",
+  `rating scale: a preset (${RATING_SCALE_PRESET_IDS.join(" | ")}) or a custom RatingScale (JSON inline, file://<path>, or - for stdin)`,
+  z.string().min(1),
+);
+
+export const optionalRatingScaleFlag = flag(
   "rating-scale",
   `rating scale: a preset (${RATING_SCALE_PRESET_IDS.join(" | ")}) or a custom RatingScale (JSON inline, file://<path>, or - for stdin)`,
   z.string().optional(),

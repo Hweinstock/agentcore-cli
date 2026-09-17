@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../index";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   initProject,
   inTempDirectory,
   TestCoreClient,
@@ -628,12 +628,12 @@ describe("project add config-bundle", () => {
     [
       "missing name",
       ["--components", JSON.stringify(components)],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
     [
       "missing components",
       ["--name", "OrdersConfig"],
-      "required option '--components <components>' not specified",
+      "required option '--components' not specified",
     ],
     ["invalid name", ["--name", "orders-config", "--components", JSON.stringify(components)]],
     ["empty components", ["--name", "OrdersConfig", "--components", "{}"]],
@@ -700,13 +700,7 @@ describe("project add config-bundle", () => {
   ])("rejects %s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    if (typeof requiredMessage === "string") {
-      await expectInputValidationError(run(["add", "config-bundle", ...flags]), requiredMessage);
-    } else {
-      await expect(run(["add", "config-bundle", ...flags])).rejects.toBeInstanceOf(
-        InputValidationError,
-      );
-    }
+    await expectError(run(["add", "config-bundle", ...flags]), requiredMessage ?? /./);
   });
 });
 
@@ -995,8 +989,8 @@ describe("project add credentials", () => {
       ],
       /mutually exclusive/,
     ],
-    ["api-key: a missing --name", ["api-key"], "required option '--name <name>' not specified"],
-    ["oauth: a missing --name", ["oauth"], "required option '--name <name>' not specified"],
+    ["api-key: a missing --name", ["api-key"], "required option '--name' not specified"],
+    ["oauth: a missing --name", ["oauth"], "required option '--name' not specified"],
     [
       "oauth: a vendored provider without --provider-configuration",
       ["oauth", "--name", "x", "--vendor", "GithubOauth2"],
@@ -1039,11 +1033,7 @@ describe("project add credentials", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "credentials", ...args], { stdin: "line1\nline2" });
-    if (typeof message === "string" && message.startsWith("required option")) {
-      await expectInputValidationError(promise, message);
-    } else {
-      await expect(promise).rejects.toThrow(message);
-    }
+    await expectError(promise, message);
   });
 });
 

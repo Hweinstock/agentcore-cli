@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { CoreClient } from "../../core";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   fixtureFactories,
   matchGolden,
   TestCoreClient,
@@ -314,10 +314,7 @@ describe("runtime read-only commands", () => {
   ] as const)(
     "rejects a missing required selector for headless `%s`",
     async (_label, args, flagName) => {
-      await expectInputValidationError(
-        run([...args, "--json"]),
-        `required option '--${flagName} <${flagName}>' not specified`,
-      );
+      await expectError(run([...args, "--json"]), `required option '--${flagName}' not specified`);
     },
   );
 

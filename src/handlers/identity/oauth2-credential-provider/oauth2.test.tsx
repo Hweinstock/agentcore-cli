@@ -7,7 +7,7 @@ import type {
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -125,9 +125,9 @@ describe("oauth2-credential-provider TUI dispatch", () => {
   test.each(["create", "update", "delete"] as const)(
     "runs normal validation for bare CLI-only `%s`",
     async (command) => {
-      await expectInputValidationError(
+      await expectError(
         run(["identity", "oauth2-credential-provider", command]),
-        "required option '--name <name>' not specified",
+        "required option '--name' not specified",
       );
     },
   );
@@ -138,7 +138,7 @@ describe("oauth2-credential-provider flag validation", () => {
     [
       "create --name only",
       ["identity", "oauth2-credential-provider", "create", "--name", "x"],
-      "required option '--vendor <vendor>' not specified",
+      "required option '--vendor' not specified",
     ],
     [
       "create --name + --vendor only",
@@ -156,19 +156,15 @@ describe("oauth2-credential-provider flag validation", () => {
     [
       "get --json (no name)",
       ["identity", "oauth2-credential-provider", "get", "--json"],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
     [
       "delete --json (no name)",
       ["identity", "oauth2-credential-provider", "delete", "--json"],
-      "required option '--name <name>' not specified",
+      "required option '--name' not specified",
     ],
   ] as const)("rejects missing required flags for `%s`", async (_label, args, message) => {
-    if (typeof message === "string" && message.startsWith("required option")) {
-      await expectInputValidationError(run([...args]), message);
-    } else {
-      await expect(run([...args])).rejects.toThrow(message);
-    }
+    await expectError(run([...args]), message);
   });
 
   test.each([

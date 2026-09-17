@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { expectInputValidationError } from "../../../../testing";
+import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const { cleanup, inProject, projectSpec, run, writeProjectSpec } =
@@ -152,7 +152,7 @@ describe("project add gateway", () => {
   });
 
   test.each([
-    ["missing --name", ["add", "gateway"], "required option '--name <name>' not specified"],
+    ["missing --name", ["add", "gateway"], "required option '--name' not specified"],
     [
       "a deployed name over the 100-character service limit",
       ["add", "gateway", "--name", `g${"x".repeat(80)}`],
@@ -206,10 +206,6 @@ describe("project add gateway", () => {
     ],
   ])("rejects %s", async (_label, args, message) => {
     await inProject();
-    if (message.startsWith("required option")) {
-      await expectInputValidationError(run(args), message);
-    } else {
-      await expect(run(args)).rejects.toThrow(message);
-    }
+    await expectError(run(args), message);
   });
 });

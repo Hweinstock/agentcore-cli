@@ -26,7 +26,7 @@ import { CoreClient } from "../../core";
 import { createControlClient, createIamClient } from "../../core/factories";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   fixtureFactories,
   isRecording,
   matchGolden,
@@ -174,10 +174,7 @@ describe("gateway delete validation", () => {
   ] as const)("rejects a missing %s before calling Core", async (_name, args, flagName) => {
     const core = new TestCoreClient();
 
-    await expectInputValidationError(
-      run([...args], core),
-      `required option '--${flagName} <${flagName}>' not specified`,
-    );
+    await expectError(run([...args], core), `required option '--${flagName}' not specified`);
     expect(core.gateway.calls).toEqual([]);
   });
 });

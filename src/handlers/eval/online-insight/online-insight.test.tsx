@@ -1,9 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import { CoreClient } from "../../../core";
-import { InputValidationError } from "../../../errors";
 import {
   createSilentLogger,
+  expectError,
   fixtureFactories,
   matchGolden,
   settle,
@@ -68,12 +68,6 @@ async function run(args: string[]): Promise<string> {
 
   await root.route(["node", "agentcore", ...args, "--region", REGION]);
   return io.stdout();
-}
-
-async function expectInputValidation(promise: Promise<unknown>, message: string): Promise<void> {
-  const error = await promise.catch((caught) => caught);
-  expect(error).toBeInstanceOf(InputValidationError);
-  expect(error).toHaveProperty("message", message);
 }
 
 // The id assigned by CreateOnlineEvaluationConfig, shared by the tests below.
@@ -236,7 +230,7 @@ describe("online-insight CRUDL", () => {
 // Flag parsing never reaches the SDK, so these need no fixtures.
 describe("flag validation", () => {
   test("create requires --role-arn", async () => {
-    await expectInputValidation(
+    await expectError(
       run([
         "eval",
         "online-insight",
@@ -250,12 +244,12 @@ describe("flag validation", () => {
         "--sampling-rate",
         "10",
       ]),
-      "required option '--role-arn <role-arn>' not specified",
+      "required option '--role-arn' not specified",
     );
   });
 
   test("create requires --insight", async () => {
-    await expectInputValidation(
+    await expectError(
       run([
         "eval",
         "online-insight",
@@ -269,7 +263,7 @@ describe("flag validation", () => {
         "--sampling-rate",
         "10",
       ]),
-      "required option '--insight <insight>' not specified",
+      "required option '--insight' not specified",
     );
   });
 
@@ -378,9 +372,9 @@ describe("flag validation", () => {
   // --json forces the headless path so the required-flag error surfaces; without
   // it a bare invocation opens the TUI under the empty-invocation middleware.
   test.each(["get", "pause", "resume", "delete"])("%s requires --id", async (command) => {
-    await expectInputValidation(
+    await expectError(
       run(["eval", "online-insight", command, "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 });

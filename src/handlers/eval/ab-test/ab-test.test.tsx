@@ -1,8 +1,7 @@
 import { test, expect, describe } from "bun:test";
 import type { GetABTestResponse, ListABTestsResponse } from "@aws-sdk/client-bedrock-agentcore";
-import { InputValidationError } from "../../../errors";
 import { createRootHandler } from "../../index";
-import { createSilentLogger, TestCoreClient, testIO } from "../../../testing";
+import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
 
 async function run(args: string[], configure?: (core: TestCoreClient) => void) {
@@ -16,12 +15,6 @@ async function run(args: string[], configure?: (core: TestCoreClient) => void) {
   });
   await root.route(["node", "agentcore", ...args, "--region", "us-west-2"]);
   return { core, stdout: io.stdout() };
-}
-
-async function expectInputValidation(promise: Promise<unknown>, message: string): Promise<void> {
-  const error = await promise.catch((caught) => caught);
-  expect(error).toBeInstanceOf(InputValidationError);
-  expect(error).toHaveProperty("message", message);
 }
 
 const ARN = "arn:aws:bedrock-agentcore:us-west-2:123456789012:ab-test/ab-test-1";
@@ -108,9 +101,9 @@ describe("eval ab-test get", () => {
   });
 
   test("requires --id", async () => {
-    await expectInputValidation(
+    await expectError(
       run(["eval", "ab-test", "get", "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 
@@ -161,9 +154,9 @@ describe("eval ab-test transitions", () => {
   });
 
   test.each(["pause", "resume", "stop"] as const)("%s requires --id", async (command) => {
-    await expectInputValidation(
+    await expectError(
       run(["eval", "ab-test", command, "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 
@@ -194,9 +187,9 @@ describe("eval ab-test delete", () => {
   });
 
   test("requires --id", async () => {
-    await expectInputValidation(
+    await expectError(
       run(["eval", "ab-test", "delete", "--json"]),
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     );
   });
 
@@ -216,10 +209,7 @@ describe("eval ab-test config-based run validation", () => {
       const args = RUN_BASE.filter(
         (a, i) => a !== `--${missing}` && RUN_BASE[i - 1] !== `--${missing}`,
       );
-      await expectInputValidation(
-        run(args),
-        `required option '--${missing} <${missing}>' not specified`,
-      );
+      await expectError(run(args), `required option '--${missing}' not specified`);
     },
   );
 
@@ -310,10 +300,7 @@ describe("eval ab-test target-based run validation", () => {
       const args = TB_BASE.filter(
         (a, i) => a !== `--${missing}` && TB_BASE[i - 1] !== `--${missing}`,
       );
-      await expectInputValidation(
-        run(args),
-        `required option '--${missing} <${missing}>' not specified`,
-      );
+      await expectError(run(args), `required option '--${missing}' not specified`);
     },
   );
 

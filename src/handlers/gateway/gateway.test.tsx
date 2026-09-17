@@ -9,7 +9,7 @@ import type { AwsClients } from "../../core/types";
 import { NetworkingError, UserCancellationError } from "../../errors";
 import {
   createSilentLogger,
-  expectInputValidationError,
+  expectError,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -133,65 +133,62 @@ describe("gateway command hierarchy", () => {
     ["Rule create", ["gateway", "rule", "create"], "gateway-id"],
   ] as const)("keeps bare CLI-only %s out of the TUI", async (_label, args, flagName) => {
     expect(supportsTui(args)).toBe(false);
-    await expectInputValidationError(
-      run([...args]),
-      `required option '--${flagName} <${flagName}>' not specified`,
-    );
+    await expectError(run([...args]), `required option '--${flagName}' not specified`);
   });
 });
 
 describe("gateway validation", () => {
   test.each([
-    ["Gateway get", ["gateway", "get", "--json"], "required option '--id <id>' not specified"],
+    ["Gateway get", ["gateway", "get", "--json"], "required option '--id' not specified"],
     [
       "Target get parent",
       ["gateway", "target", "get", "--target-id", TARGET_ID],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Target get child",
       ["gateway", "target", "get", "--gateway-id", GATEWAY_ID],
-      "required option '--target-id <target-id>' not specified",
+      "required option '--target-id' not specified",
     ],
     [
       "Target list",
       ["gateway", "target", "list", "--max-results", "1"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Connector get parent",
       ["gateway", "connector", "get", "--id", TARGET_ID],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Connector get child",
       ["gateway", "connector", "get", "--gateway-id", GATEWAY_ID],
-      "required option '--id <id>' not specified",
+      "required option '--id' not specified",
     ],
     [
       "Connector list",
       ["gateway", "connector", "list", "--max-results", "1"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Rule get parent",
       ["gateway", "rule", "get", "--rule-id", RULE_ID],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Rule get child",
       ["gateway", "rule", "get", "--gateway-id", GATEWAY_ID],
-      "required option '--rule-id <rule-id>' not specified",
+      "required option '--rule-id' not specified",
     ],
     [
       "Rule list",
       ["gateway", "rule", "list", "--max-results", "1"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Policy generate gateway",
       ["gateway", "policy", "generate", "--prompt", "x"],
-      "required option '--gateway-id <gateway-id>' not specified",
+      "required option '--gateway-id' not specified",
     ],
     [
       "Policy generate prompt",
@@ -203,11 +200,7 @@ describe("gateway validation", () => {
     async (_name, args, error) => {
       const core = new TestCoreClient();
 
-      if (typeof error === "string" && error.startsWith("required option")) {
-        await expectInputValidationError(run([...args], core), error);
-      } else {
-        await expect(run([...args], core)).rejects.toThrow(error);
-      }
+      await expectError(run([...args], core), error);
       expect(core.gateway.calls).toEqual([]);
       expect(core.policy.calls).toEqual([]);
     },
