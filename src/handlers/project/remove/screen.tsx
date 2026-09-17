@@ -183,7 +183,7 @@ const EXTRA_REMOVE_ALL_COLLECTIONS: { field: keyof ProjectSpec; label: string }[
   { field: "knowledgeBases", label: "knowledge base" },
   { field: "abTests", label: "AB test" },
   { field: "datasets", label: "dataset" },
-  { field: "mcpRuntimeTools", label: "MCP runtime tool" },
+  { field: "toolRuntimes", label: "MCP runtime tool" },
   { field: "unassignedTargets", label: "unassigned target" },
 ];
 
