@@ -213,7 +213,8 @@ describe("agentcore project (no subcommand)", () => {
 
     const outcome = root.route(["node", "agentcore", "project"]);
     await waitFor(() => streams.stdout().includes("manage an AgentCore project"), 5000);
-    stdin.write("\x03");
+    // press ctrl+c to exit
+    stdin.write(String.fromCharCode(3));
 
     await expect(outcome).resolves.toBeUndefined();
     expect(streams.stderr()).not.toContain("No AgentCore project found");
