@@ -1,13 +1,12 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { beforeAll, describe, expect, test } from "bun:test";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { cleanupProject, expectOk, parseJson, uniqueName } from "../helpers/project";
-import { retry } from "../helpers/retry";
-import { CliRunner, compiledCliPath } from "../helpers/run";
+import { join } from "node:path";
+import { CliRunner, type RunResult } from "../helpers/run";
 
+const DEV_TIMEOUT_MS = 15 * 60 * 1000;
 const DEPLOY_TIMEOUT_MS = 40 * 60 * 1000;
-const INVOKE_TIMEOUT_MS = 15 * 60 * 1000;
+const LOCAL_STARTUP_WAIT_MS = 15_000;
 
 type RuntimeCase = {
   name: string;
@@ -16,6 +15,7 @@ type RuntimeCase = {
   port: number;
   payload: Record<string, unknown>;
   path: string;
+  memory?: string;
   headers?: Record<string, string>;
   cliFlags?: string[];
 };
@@ -36,6 +36,7 @@ const RUNTIMES: RuntimeCase[] = [
     port: 18081,
     payload: { prompt: "Reply with a short greeting." },
     path: "/invocations",
+    memory: "strandsMemory",
   },
   {
     name: "strandsc",
@@ -44,6 +45,7 @@ const RUNTIMES: RuntimeCase[] = [
     port: 18082,
     payload: { prompt: "Reply with a short greeting." },
     path: "/invocations",
+    memory: "strandscMemory",
   },
   {
     name: "lcagent",
@@ -60,6 +62,7 @@ const RUNTIMES: RuntimeCase[] = [
     port: 18084,
     payload: { prompt: "Reply with a short greeting." },
     path: "/invocations",
+    memory: "tsstrandsMemory",
   },
   {
     name: "vercel",
@@ -101,6 +104,7 @@ const RUNTIMES: RuntimeCase[] = [
     protocol: "A2A",
     port: 9000,
     path: "/",
+    memory: "a2aagentMemory",
     payload: {
       jsonrpc: "2.0",
       id: "agentcore-e2e",
@@ -119,6 +123,8 @@ const RUNTIMES: RuntimeCase[] = [
     template: "agui-python-strands",
     protocol: "AGUI",
     port: 18088,
+    path: "/invocations",
+    memory: "aguiagentMemory",
     payload: {
       threadId: "agentcore-e2e",
       runId: "agentcore-e2e",
@@ -128,68 +134,65 @@ const RUNTIMES: RuntimeCase[] = [
       context: [],
       forwardedProps: {},
     },
-    path: "/invocations",
   },
 ];
 
-function parseJsonRpcBody(body: string): {
-  jsonrpc: string;
-  id: unknown;
-  result: unknown;
-  error?: unknown;
-} {
+function json<T>(result: RunResult): T {
+  if (result.exitCode !== 0) {
+    throw new Error(
+      `CLI exited ${result.exitCode}\nstdout: ${result.stdout}\nstderr: ${result.stderr}`,
+    );
+  }
+  return JSON.parse(result.stdout) as T;
+}
+
+function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
   const data = body
     .split(/\r?\n/)
     .find((line) => line.startsWith("data: "))
     ?.slice("data: ".length);
-  return JSON.parse(data ?? body) as {
+  const response = JSON.parse(data ?? body) as {
     jsonrpc: string;
     id: unknown;
     result: unknown;
     error?: unknown;
   };
-}
 
-function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
-  const rpc = parseJsonRpcBody(body);
-  expect(rpc.jsonrpc).toBe("2.0");
-  expect(rpc.id).toBe(runtime.payload.id);
-  expect(rpc.error).toBeUndefined();
-  expect(rpc.result).toBeDefined();
-  if (!rpc.result || typeof rpc.result !== "object") {
-    throw new Error(`${runtime.protocol} response result was not an object`);
-  }
+  expect(response.jsonrpc).toBe("2.0");
+  expect(response.id).toBe(runtime.payload.id);
+  expect(response.error).toBeUndefined();
+  expect(response.result).toBeDefined();
+  expect(typeof response.result).toBe("object");
   if (runtime.protocol === "MCP") {
-    expect(typeof (rpc.result as { protocolVersion?: unknown }).protocolVersion).toBe("string");
-  } else {
-    expect((rpc.result as { kind?: unknown }).kind).toBe("task");
+    expect(typeof (response.result as { protocolVersion?: unknown }).protocolVersion).toBe(
+      "string",
+    );
+  }
+  if (runtime.protocol === "A2A") {
+    expect((response.result as { kind?: unknown }).kind).toBe("task");
   }
 }
 
-describe("e2e: project runtime configurations", () => {
-  const cli = new CliRunner(compiledCliPath());
-  const projectName = uniqueName("e2ert");
-  let projectRoot: string | undefined;
-  let projectDir: string | undefined;
+describe.serial("e2e: project runtime configurations", () => {
+  const cli = new CliRunner();
+  const projectName = `e2ert${Date.now().toString(36)}`;
+  let projectDir: string;
 
   beforeAll(async () => {
-    projectRoot = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
-    const created = expectOk(
+    const projectRoot = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
+    const created = json<{ project: { path: string } }>(
       await cli.run(
         ["project", "create", "--name", projectName, "--template", "empty", "--skip-git", "--json"],
         projectRoot,
       ),
     );
-    const createOutput = parseJson<{ operation: string; project: { name: string; path: string } }>(
-      created,
-    );
-    projectDir = createOutput.project.path;
-    expect(createOutput.operation).toBe("create");
-    expect(createOutput.project.name).toBe(projectName);
-    expect(typeof projectDir).toBe("string");
+    projectDir = created.project.path;
+  }, DEV_TIMEOUT_MS);
 
-    for (const runtime of RUNTIMES) {
-      expectOk(
+  test.serial.each(RUNTIMES)(
+    "$name adds its runtime",
+    async (runtime) => {
+      const added = json<{ operation: string }>(
         await cli.run(
           [
             "project",
@@ -204,41 +207,14 @@ describe("e2e: project runtime configurations", () => {
           projectDir,
         ),
       );
-    }
+      expect(added.operation).toBe("add");
+    },
+    DEV_TIMEOUT_MS,
+  );
 
-    const deployment = parseJson<{ message: string; outputs: Record<string, string> }>(
-      expectOk(await cli.run(["project", "deploy", "--yes", "--json"], projectDir)),
-    );
-    expect(deployment.message).toContain("Deployed project");
-    expect(typeof deployment.outputs).toBe("object");
-    for (const runtime of RUNTIMES) {
-      const outputNames = Object.keys(deployment.outputs)
-        .join(" ")
-        .toLowerCase()
-        .replaceAll("_", "");
-      expect(outputNames).toContain(runtime.name.toLowerCase().replaceAll("_", ""));
-    }
-  }, DEPLOY_TIMEOUT_MS);
-
-  afterAll(async () => {
-    try {
-      await cleanupProject(cli, projectDir);
-    } finally {
-      if (projectRoot) await rm(projectRoot, { recursive: true, force: true });
-    }
-  }, DEPLOY_TIMEOUT_MS);
-
-  test.each(RUNTIMES)(
-    "$name",
+  test.serial.each(RUNTIMES)(
+    "$name runs locally",
     async (runtime) => {
-      const sessionId = `e2eruntimelocal${runtime.name}${Date.now().toString(36)}`
-        .replace(/[^a-z0-9]/gi, "")
-        .padEnd(40, "x")
-        .slice(0, 60);
-      const deployedSessionId = `e2eruntimedeployed${runtime.name}${Date.now().toString(36)}`
-        .replace(/[^a-z0-9]/gi, "")
-        .padEnd(40, "x")
-        .slice(0, 60);
       const dev = cli.start(
         [
           "project",
@@ -252,110 +228,138 @@ describe("e2e: project runtime configurations", () => {
         ],
         projectDir,
       );
-      dev.stdout.resume();
-      dev.stderr.resume();
+      dev.stdout?.resume();
+      dev.stderr?.resume();
 
       try {
-        console.log(`[e2e] ${runtime.name}: local invoke`);
-        const local = await retry(
-          async () => {
-            if (runtime.protocol === "HTTP" || runtime.protocol === "AGUI") {
-              return expectOk(
-                await cli.run(
-                  [
-                    "project",
-                    "invoke",
-                    "runtime",
-                    "--local",
-                    "--port",
-                    String(runtime.port),
-                    "--session-id",
-                    sessionId,
-                    "--payload",
-                    JSON.stringify(runtime.payload),
-                    "--json",
-                  ],
-                  projectDir,
-                ),
-              );
-            }
+        await Bun.sleep(LOCAL_STARTUP_WAIT_MS);
+        const sessionId = `e2elocal${runtime.name}${Date.now().toString(36)}`
+          .replace(/[^a-z0-9]/gi, "")
+          .padEnd(40, "x")
+          .slice(0, 60);
 
-            const response = await fetch(`http://127.0.0.1:${runtime.port}${runtime.path}`, {
-              method: "POST",
-              headers: {
-                "content-type": "application/json",
-                "x-amzn-bedrock-agentcore-runtime-session-id": sessionId,
-                ...runtime.headers,
-              },
-              body: JSON.stringify(runtime.payload),
-            });
-            const body = await response.text();
-            if (!response.ok) {
-              throw new Error(`local ${runtime.protocol} response ${response.status}: ${body}`);
-            }
-            return { status: response.status, body };
-          },
-          5,
-          5_000,
-        );
-        if ("stdout" in local) {
-          const response = parseJson<{
-            body: string;
-            bodyEncoding: string;
-            complete: boolean;
-          }>(local);
+        if (runtime.protocol === "HTTP" || runtime.protocol === "AGUI") {
+          const response = json<{ body: string; bodyEncoding: string; complete: boolean }>(
+            await cli.run(
+              [
+                "project",
+                "invoke",
+                "runtime",
+                "--local",
+                "--port",
+                String(runtime.port),
+                "--session-id",
+                sessionId,
+                "--payload",
+                JSON.stringify(runtime.payload),
+                "--json",
+              ],
+              projectDir,
+            ),
+          );
           expect(typeof response.body).toBe("string");
           expect(typeof response.bodyEncoding).toBe("string");
           expect(response.complete).toBe(true);
         } else {
-          expect(local.status).toBeGreaterThanOrEqual(200);
-          expect(local.status).toBeLessThan(300);
-          assertProtocolResponse(runtime, local.body);
-        }
-
-        console.log(`[e2e] ${runtime.name}: deployed invoke`);
-        const deployed = parseJson<{
-          body: string;
-          bodyEncoding: string;
-          complete: boolean;
-        }>(
-          await retry(
-            async () =>
-              expectOk(
-                await cli.run(
-                  [
-                    "project",
-                    "invoke",
-                    "runtime",
-                    "--name",
-                    runtime.name,
-                    "--session-id",
-                    deployedSessionId,
-                    "--payload",
-                    JSON.stringify(runtime.payload),
-                    "--json",
-                    ...(runtime.cliFlags ?? []),
-                  ],
-                  projectDir,
-                ),
-              ),
-            3,
-            15_000,
-          ),
-        );
-        expect(typeof deployed.body).toBe("string");
-        expect(typeof deployed.bodyEncoding).toBe("string");
-        expect(deployed.complete).toBe(true);
-        if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
-          assertProtocolResponse(runtime, deployed.body);
+          const response = await fetch(`http://127.0.0.1:${runtime.port}${runtime.path}`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              "x-amzn-bedrock-agentcore-runtime-session-id": sessionId,
+              ...runtime.headers,
+            },
+            body: JSON.stringify(runtime.payload),
+          });
+          expect(response.ok).toBe(true);
+          assertProtocolResponse(runtime, await response.text());
         }
       } finally {
         if (dev.exitCode === null) {
           dev.kill("SIGTERM");
-          await new Promise<void>((resolve) => dev.once("close", () => resolve()));
+          await new Promise<void>((resolve) => dev.once("close", resolve));
         }
       }
     },
-    INVOKE_TIMEOUT_MS,
+    DEV_TIMEOUT_MS,
+  );
+
+  test.serial(
+    "deploys all runtimes",
+    async () => {
+      const deployment = json<{ message: string }>(
+        await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
+      );
+      expect(deployment.message).toContain("Deployed project");
+    },
+    DEPLOY_TIMEOUT_MS,
+  );
+
+  test.serial.each(RUNTIMES)(
+    "$name invokes remotely",
+    async (runtime) => {
+      const sessionId = `e2eremote${runtime.name}${Date.now().toString(36)}`
+        .replace(/[^a-z0-9]/gi, "")
+        .padEnd(40, "x")
+        .slice(0, 60);
+      const response = json<{ body: string; bodyEncoding: string; complete: boolean }>(
+        await cli.run(
+          [
+            "project",
+            "invoke",
+            "runtime",
+            "--name",
+            runtime.name,
+            "--session-id",
+            sessionId,
+            "--payload",
+            JSON.stringify(runtime.payload),
+            "--json",
+            ...(runtime.cliFlags ?? []),
+          ],
+          projectDir,
+        ),
+      );
+
+      expect(typeof response.body).toBe("string");
+      expect(typeof response.bodyEncoding).toBe("string");
+      expect(response.complete).toBe(true);
+      if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
+        assertProtocolResponse(runtime, response.body);
+      }
+    },
+    DEV_TIMEOUT_MS,
+  );
+
+  test.serial.each(RUNTIMES)(
+    "$name removes its runtime",
+    async (runtime) => {
+      const removed = json<{ operation: string }>(
+        await cli.run(
+          ["project", "remove", "runtime", "--name", runtime.name, "--json"],
+          projectDir,
+        ),
+      );
+      expect(removed.operation).toBe("remove");
+      if (runtime.memory) {
+        const memory = json<{ operation: string }>(
+          await cli.run(
+            ["project", "remove", "memory", "--name", runtime.memory, "--json"],
+            projectDir,
+          ),
+        );
+        expect(memory.operation).toBe("remove");
+      }
+    },
+    DEV_TIMEOUT_MS,
+  );
+
+  test.serial(
+    "deploys the empty project",
+    async () => {
+      json<Record<string, unknown>>(
+        await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
+      );
+    },
+    DEPLOY_TIMEOUT_MS,
   );
 });

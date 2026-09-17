@@ -8,25 +8,11 @@ on:
         description: git reference (commit, branch, or tag) to build and test
         type: string
         default: refactor
-      test_pattern:
-        description: filepath pattern selecting which e2e tests to run
-        type: string
-        default: ""
-      test_path:
-        description: deprecated alias for test_pattern
-        type: string
-        default: ""
   workflow_call:
     inputs:
       ref:
         required: true
         type: string
-      test_pattern:
-        type: string
-        default: ""
-      test_path:
-        type: string
-        default: ""
 
 concurrency:
   group: e2e-test-${{ inputs.ref || github.ref }}
@@ -76,5 +62,4 @@ jobs:
       - name: Run e2e suite
         env:
           AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
-          E2E_TEST_PATH: ${{ inputs.test_pattern || inputs.test_path || 'test/project' }}
         run: bun run test:e2e
