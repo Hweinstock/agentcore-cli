@@ -21,10 +21,10 @@ export async function resolveConfigurationBundleComponents(
   value: string,
   source: SourceResolver,
 ): Promise<ConfigurationBundleComponents> {
-  const text = (await source.resolveText("components", value))!;
+  const text = await source.resolveText("components", value);
   return parseJsonFlagWithSchema(
     "components",
     text,
     componentMapSchema,
-  )! as ConfigurationBundleComponents;
+  ) as ConfigurationBundleComponents;
 }

@@ -41,7 +41,7 @@ export const createStartRecommendationHandler = (core: Core, io: AppIO) =>
       const recommendationConfig = parseJsonObjectFlag<RecommendationConfig>(
         "recommendation-config",
         await source.resolveText("recommendation-config", flags["recommendation-config"]),
-      )!;
+      );
 
       const response = await core.eval.startRecommendation(
         {

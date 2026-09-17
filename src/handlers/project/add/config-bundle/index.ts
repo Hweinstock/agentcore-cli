@@ -55,7 +55,7 @@ export const createAddConfigBundleHandler = (config: AddProjectResourceConfig) =
     handle: async (ctx, flags) => {
       const source = new SourceResolver({ stdin: config.io.stdin });
       const componentsText = await source.resolveText("components", flags.components);
-      const components = parseJsonFlagWithSchema("components", componentsText, ComponentsSchema)!;
+      const components = parseJsonFlagWithSchema("components", componentsText, ComponentsSchema);
 
       const project = ctx.require(ProjectKey);
       await addProjectResource(
