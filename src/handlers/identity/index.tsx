@@ -1,3 +1,4 @@
+import { withTuiOnEmptyFlagsAndArgs } from "../../middleware";
 import { Router } from "../../router";
 import { renderTui } from "../../tui";
 import type { AppIO } from "../../io";
@@ -8,6 +9,7 @@ import { createPaymentCredentialProviderHandler } from "./payment-credential-pro
 
 export function createIdentityHandler(core: Core, io: AppIO): Router {
   return new Router("identity", "manage AgentCore Identity resources")
+    .use(withTuiOnEmptyFlagsAndArgs(core, io))
     .default(renderTui(core, io))
     .handler(createApiKeyCredentialProviderHandler(core, io))
     .handler(createOauth2CredentialProviderHandler(core, io))

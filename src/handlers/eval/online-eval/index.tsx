@@ -1,5 +1,6 @@
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
+import { withTuiOnEmptyFlagsAndArgs } from "../../../middleware";
 import type { AppIO } from "../../../io";
 import type { Core } from "../../types";
 import { createCreateOnlineEvalHandler } from "./create";
@@ -12,6 +13,7 @@ import { createDeleteOnlineEvalHandler } from "./delete";
 
 export function createOnlineEvalHandler(core: Core, io: AppIO): Router {
   return new Router("online-eval", "manage AgentCore online evaluation configs")
+    .use(withTuiOnEmptyFlagsAndArgs(core, io))
     .default(renderTui(core, io))
     .supportedTuiCommands("get", "list")
     .handler(createCreateOnlineEvalHandler(core, io))

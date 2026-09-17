@@ -1,4 +1,5 @@
 import { renderTui } from "../../tui";
+import { withTuiOnEmptyFlagsAndArgs } from "../../middleware";
 import { Router } from "../../router";
 import type { AppIO } from "../../io";
 import type { Core } from "../types";
@@ -17,6 +18,8 @@ import { createHarnessTracesHandler } from "./traces";
 export function createHarnessHandler(core: Core, io: AppIO): Router {
   const harness = new Router("harness", "manage AgentCore harnesses");
 
+  // Open the TUI by default if no flags or arguments are passed
+  harness.use(withTuiOnEmptyFlagsAndArgs(core, io));
   // Open the TUI at this root, i.e., `agentcore harness`
   harness.default(renderTui(core, io));
   harness.supportedTuiCommands(

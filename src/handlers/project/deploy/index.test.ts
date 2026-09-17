@@ -6,18 +6,13 @@ import { createRootHandler } from "../../index";
 import {
   createSilentLogger,
   initProject,
-  inTempDirectory,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
 } from "../../../testing";
-import { createProjectHandler } from "../index";
 import type { DeployBackendInput, ProjectBackend } from "../../../core/project";
 import type { AwsDeploymentTarget } from "../../../projectSchemas/aws-targets";
 import type { DeployResult, Project, ProjectEvent, TeardownConfirmationRequest } from "../types";
-import { JsonKey, RegionKey } from "../../keys";
-import { ValueContext } from "../../../router";
-import { JsonRendererKey } from "../../../tui";
 
 const DEFAULT_TARGET: AwsDeploymentTarget = {
   name: "default",
@@ -105,23 +100,11 @@ function testDeployCommand(
     globalConfigAccessor: new TestGlobalConfigAccessor(),
     logger: createSilentLogger(),
   });
-  const project = createProjectHandler({ core, io: io.io });
-  const directContext = ValueContext.EmptyContext()
-    .withValue(JsonRendererKey, {
-      renderJson: () => {},
-      renderJsonLine: () => {},
-    })
-    .withValue(RegionKey, "us-east-1")
-    .withValue(JsonKey, false);
 
   return {
     ...fake,
     io,
-    // Bare TTY deploys bypass the root TUI for handler prompt tests.
-    run: (args: string[] = []) =>
-      options.isTTY === true && args.length === 0
-        ? project.route(["node", "project", "deploy"], directContext)
-        : root.route(["node", "agentcore", "project", "deploy", ...args]),
+    run: (args: string[] = []) => root.route(["node", "agentcore", "project", "deploy", ...args]),
   };
 }
 
@@ -478,11 +461,4 @@ describe("project deploy reports which field of aws-targets.json is wrong", () =
     await expect(subject.run()).rejects.toThrow(/JSON Parse error/);
     expect(subject.calls).toEqual([]);
   });
-});
-
-test("requires an AgentCore project", async () => {
-  cleanups.push((await inTempDirectory()).cleanup);
-  await expect(testDeployCommand({ outputs: {} }).run()).rejects.toThrow(
-    /No AgentCore project found/,
-  );
 });

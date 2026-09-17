@@ -1,5 +1,6 @@
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
+import { withTuiOnEmptyFlagsAndArgs } from "../../../middleware";
 import type { AppIO } from "../../../io";
 import type { Core } from "../../types";
 import { createGetBatchEvaluationHandler } from "./get";
@@ -12,6 +13,7 @@ import { createSimulateBatchEvaluationHandler } from "./simulate";
 // online-eval; evaluate/simulate appear below the command-line-only divider.
 export function createBatchEvaluationHandler(core: Core, io: AppIO): Router {
   return new Router("batch-evaluation", "run and inspect AgentCore batch evaluations")
+    .use(withTuiOnEmptyFlagsAndArgs(core, io))
     .default(renderTui(core, io))
     .supportedTuiCommands("get", "list")
     .handler(createEvaluateBatchEvaluationHandler(core, io))

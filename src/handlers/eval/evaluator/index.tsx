@@ -1,5 +1,6 @@
 import { Router } from "../../../router";
 import { renderTui } from "../../../tui";
+import { withTuiOnEmptyFlagsAndArgs } from "../../../middleware";
 import type { AppIO } from "../../../io";
 import type { Core } from "../../types";
 import { createLlmAsAJudgeHandler } from "./llm-as-a-judge";
@@ -10,6 +11,7 @@ import { createDeleteEvaluatorHandler } from "./delete";
 
 export function createEvaluatorHandler(core: Core, io: AppIO): Router {
   return new Router("evaluator", "manage AgentCore evaluators")
+    .use(withTuiOnEmptyFlagsAndArgs(core, io))
     .default(renderTui(core, io))
     .supportedTuiCommands("get", "list")
     .handler(createLlmAsAJudgeHandler(core, io))
