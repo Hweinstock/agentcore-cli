@@ -89,7 +89,7 @@ type TestDeployOptions = {
   resolveAccount?: (region: string) => Promise<string>;
 };
 
-function setupDeployTest(
+function testDeployCommand(
   result: DeployResult,
   events: ProjectEvent[] = [],
   options: TestDeployOptions = {},
@@ -100,25 +100,12 @@ function setupDeployTest(
     backends: { CDK: fake.backend },
     resolveAccount: options.resolveAccount,
   });
-  return {
-    ...fake,
-    io,
-    core,
-  };
-}
-
-function testDeployCommand(
-  result: DeployResult,
-  events: ProjectEvent[] = [],
-  options: TestDeployOptions = {},
-) {
-  const subject = setupDeployTest(result, events, options);
-  const root = createRootHandler(subject.core, {
-    io: subject.io.io,
+  const root = createRootHandler(core, {
+    io: io.io,
     globalConfigAccessor: new TestGlobalConfigAccessor(),
     logger: createSilentLogger(),
   });
-  const project = createProjectHandler({ core: subject.core, io: subject.io.io });
+  const project = createProjectHandler({ core, io: io.io });
   const directContext = ValueContext.EmptyContext()
     .withValue(JsonRendererKey, {
       renderJson: () => {},
@@ -128,7 +115,9 @@ function testDeployCommand(
     .withValue(JsonKey, false);
 
   return {
-    ...subject,
+    ...fake,
+    io,
+    // Bare TTY deploys bypass the root TUI for handler prompt tests.
     run: (args: string[] = []) =>
       options.isTTY === true && args.length === 0
         ? project.route(["node", "project", "deploy"], directContext)
