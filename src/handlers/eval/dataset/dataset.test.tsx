@@ -96,19 +96,16 @@ describe("eval dataset command hierarchy", () => {
     expect(core.eval.calls).toHaveLength(0);
   });
 
-  test("keeps a bare dataset get headless without a TTY", async () => {
-    const { route } = testDatasetCommand();
+  test.each([["get"], ["list"]] as const)(
+    "opens the TUI for a bare `eval dataset %s` leaf",
+    async (command) => {
+      const { route } = testDatasetCommand();
 
-    await expect(route(["eval", "dataset", "get"])).rejects.toThrow(
-      "required option '--id <id>' not specified",
-    );
-  });
-
-  test("runs a bare dataset list headlessly without a TTY", async () => {
-    const { route } = testDatasetCommand();
-
-    await route(["eval", "dataset", "list"]);
-  });
+      await expect(route(["eval", "dataset", command])).rejects.toThrow(
+        "interactive mode requires a TTY on stdin and stdout",
+      );
+    },
+  );
 
   test("runs normal validation for a bare CLI-only dataset command", async () => {
     const { route } = testDatasetCommand();

@@ -144,20 +144,13 @@ describe("eval config-bundle command hierarchy", () => {
     expect(core.eval.calls).toHaveLength(0);
   });
 
-  for (const [command, expectedError] of [
-    [["get"], "required option '--id <id>' not specified"],
-    [["list"], undefined],
-    [["version", "list"], "required option '--id <id>' not specified"],
-  ] as const) {
-    test(`keeps a bare ${command.join(" ")} leaf headless without a TTY`, async () => {
+  for (const command of [["get"], ["list"], ["version", "list"]] as const) {
+    test(`opens the TUI for a bare ${command.join(" ")} leaf`, async () => {
       const { route } = testConfigBundleCommand();
 
-      const routed = route(["eval", "config-bundle", ...command]);
-      if (expectedError) {
-        await expect(routed).rejects.toThrow(expectedError);
-      } else {
-        await routed;
-      }
+      await expect(route(["eval", "config-bundle", ...command])).rejects.toThrow(
+        "interactive mode requires a TTY on stdin and stdout",
+      );
     });
   }
 

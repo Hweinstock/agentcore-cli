@@ -5,6 +5,9 @@ import { Router, createHandler, flag } from "../router";
 import { JsonKey } from "../handlers/keys";
 import { TestCoreClient, testIO } from "../testing";
 
+// route runs a command tree whose leaf flags all carry defaults. The branch the
+// middleware takes is observable: the TUI attempt throws (testIO is not a TTY),
+// the headless path runs the leaf handler.
 function route(
   args: string[],
   supportedTuiCommands?: string[],
@@ -34,11 +37,11 @@ function route(
 }
 
 describe("withTuiOnEmptyFlagsAndArgs", () => {
-  test("runs the handler for a bare non-TTY invocation", async () => {
+  test("opens the TUI on a bare invocation even when every flag has a default", async () => {
     const { ran, routed } = route([]);
 
-    await routed;
-    expect(ran()).toBe(true);
+    await expect(routed).rejects.toThrow("interactive mode requires a TTY on stdin and stdout");
+    expect(ran()).toBe(false);
   });
 
   test("runs an unsupported bare command through its normal handler", async () => {

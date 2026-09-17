@@ -35,8 +35,8 @@ export function createAddProjectResourceHandler(
   // withProject first, so it is the outermost wrapper: a resource added outside
   // a project gets the CLI's own not-found guidance, and the resolved project
   // seeds the wizard through ProjectKey. withTuiOnEmptyFlagsAndArgs then opens
-  // that wizard for a bare `add <resource>` on a TTY; it is inert for a resource
-  // declared command-line only above, and for flags, --json and non-TTY runs.
+  // that wizard for a bare `add <resource>`; it is inert for a resource
+  // declared command-line only above, and for flags and --json.
   projectAdd.use(
     withProject({ projectManager: config.projectManager, cwd: process.cwd() }),
     withTuiOnEmptyFlagsAndArgs(core, config.io),

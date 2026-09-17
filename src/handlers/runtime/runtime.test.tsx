@@ -141,10 +141,12 @@ describe("runtime TUI dispatch", () => {
   test.each([
     ["get", ["runtime", "get"]],
     ["endpoint list", ["runtime", "endpoint", "list"]],
-  ] as const)("keeps a bare Runtime %s leaf headless without a TTY", async (_label, args) => {
+  ] as const)("opens the TUI for a bare Runtime %s leaf", async (_label, args) => {
     const { core, route } = testRuntimeCommand();
 
-    await expect(route([...args])).rejects.toThrow("required option '--id <id>' not specified");
+    await expect(route([...args])).rejects.toThrow(
+      "interactive mode requires a TTY on stdin and stdout",
+    );
     expect(core.runtime.calls).toEqual([]);
   });
 });

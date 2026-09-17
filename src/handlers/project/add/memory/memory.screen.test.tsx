@@ -15,7 +15,7 @@ import {
   type RenderScreenResult,
 } from "../../../../testing";
 import { createRootHandler } from "../../../index";
-import { InputValidationError } from "../../../../errors";
+import { InputValidationError, InvalidEnvironmentError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 import { projectQueryKey } from "../../ProjectGate";
@@ -309,13 +309,13 @@ describe("project add memory dispatch", () => {
     expect(streams.stderr()).not.toContain("required option");
   }, 10000);
 
-  test("bare add memory without a TTY stays headless and reports the missing --name", async () => {
+  test("bare add memory without a TTY rejects when the TUI cannot start", async () => {
     await inProject();
 
     const error = await routeError(testIO().io, []);
 
-    expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain(MISSING_NAME);
+    expect(error).toBeInstanceOf(InvalidEnvironmentError);
+    expect((error as Error).message).toContain("interactive mode requires a TTY");
   });
 
   test("any user-supplied flag stays headless even in a TTY", async () => {

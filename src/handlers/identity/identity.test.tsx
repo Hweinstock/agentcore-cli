@@ -82,21 +82,12 @@ describe("api-key-credential-provider TUI dispatch", () => {
   test.each([
     ["identity", ["identity"]],
     ["api-key-credential-provider", ["identity", "api-key-credential-provider"]],
-  ] as const)("opens the TUI for a bare `%s` group", async (_label, args) => {
+    ["get", ["identity", "api-key-credential-provider", "get"]],
+    ["list", ["identity", "api-key-credential-provider", "list"]],
+  ] as const)("opens the TUI for a bare `%s`", async (_label, args) => {
     await expect(run([...args])).rejects.toThrow(
       "interactive mode requires a TTY on stdin and stdout",
     );
-  });
-
-  test("keeps a bare get headless without a TTY", async () => {
-    await expect(run(["identity", "api-key-credential-provider", "get"])).rejects.toThrow(
-      "required option '--name <name>' not specified",
-    );
-  });
-
-  test("runs a bare list headlessly without a TTY", async () => {
-    const stdout = await run(["identity", "api-key-credential-provider", "list"]);
-    expect(stdout).toBeString();
   });
 
   test.each(["create", "update", "delete"] as const)(

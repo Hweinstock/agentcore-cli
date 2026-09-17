@@ -1,14 +1,13 @@
 import { renderTui } from "../tui";
 import type { AppIO } from "../io";
 import type { Core } from "../handlers/types";
-import type { Middleware } from "../router";
+import { type Middleware } from "../router";
 import { CommandKey } from "../router/router";
 import { attributeName } from "../router/flags";
 import { JsonKey } from "../handlers/keys";
 
 export function withTuiOnEmptyFlagsAndArgs(core: Core, io: AppIO): Middleware {
   const boundRenderTui = renderTui(core, io);
-  const isInteractive = () => io.stdin.isTTY === true && io.stdout.isTTY === true;
 
   return (h) => ({
     name: () => h.name(),
@@ -23,13 +22,7 @@ export function withTuiOnEmptyFlagsAndArgs(core: Core, io: AppIO): Middleware {
         .flags()
         .every((f) => command.getOptionValueSource(attributeName(f.name)) !== "cli");
 
-      if (
-        isInteractive() &&
-        h.doesSupportTui() &&
-        !ctx.value(JsonKey) &&
-        noFlagsPassed &&
-        command.args.length === 0
-      ) {
+      if (h.doesSupportTui() && !ctx.value(JsonKey) && noFlagsPassed && command.args.length === 0) {
         await boundRenderTui(ctx, flags, args);
         return;
       }

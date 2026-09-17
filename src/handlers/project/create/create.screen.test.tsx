@@ -15,7 +15,7 @@ import {
   waitFor,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
-import { InputValidationError } from "../../../errors";
+import { InputValidationError, InvalidEnvironmentError } from "../../../errors";
 import type { AppIO } from "../../../io";
 import { resolveRuntimeTemplateShortcut } from "../shortcuts";
 import type { CreateProjectInput } from "../types";
@@ -679,7 +679,7 @@ describe("project create dispatch", () => {
     expect(streams.stderr()).not.toContain("required option");
   }, 10000);
 
-  test("bare create without a TTY stays headless and reports the missing --name", async () => {
+  test("bare create without a TTY rejects when the TUI cannot start", async () => {
     const io = testIO();
     const root = buildRoot(io.io);
 
@@ -688,8 +688,8 @@ describe("project create dispatch", () => {
       .then(() => undefined)
       .catch((caught: unknown) => caught);
 
-    expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain("required option '--name <name>' not specified");
+    expect(error).toBeInstanceOf(InvalidEnvironmentError);
+    expect((error as Error).message).toContain("interactive mode requires a TTY");
   });
 
   test("any user-supplied flag stays headless even in a TTY", async () => {

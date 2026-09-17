@@ -102,15 +102,17 @@ describe("eval online-eval command hierarchy", () => {
     expect(stdout).toContain("Commands:");
   });
 
-  test("keeps a bare online-eval get headless without a TTY", async () => {
-    await expect(run(["eval", "online-eval", "get"])).rejects.toThrow(
-      "required option '--id <id>' not specified",
-    );
-  });
-
-  test("runs a bare online-eval list headlessly without a TTY", async () => {
-    expect(await run(["eval", "online-eval", "list"])).toBeString();
-  });
+  // A bare read leaf (no flags, no --json) opens the interactive TUI, which the
+  // headless test IO cannot host — proving the empty-invocation middleware is
+  // wired onto the online-eval commands.
+  test.each([["get"], ["list"]] as const)(
+    "opens the TUI for a bare `eval online-eval %s` leaf",
+    async (command) => {
+      await expect(run(["eval", "online-eval", command])).rejects.toThrow(
+        "interactive mode requires a TTY on stdin and stdout",
+      );
+    },
+  );
 
   test("runs normal validation for a bare CLI-only command", async () => {
     await expect(run(["eval", "online-eval", "create"])).rejects.toThrow(
