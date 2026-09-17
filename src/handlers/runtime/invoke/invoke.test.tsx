@@ -13,7 +13,7 @@ import {
   waitFor,
 } from "../../../testing";
 import { ExitCode, runWithExitCode } from "../../../runnable";
-import { UserCancellationError } from "../../../errors";
+import { UserCancellationError, InputValidationError } from "../../../errors";
 import { createRootHandler } from "../../index";
 import * as tui from "../../../tui";
 import { RuntimeInvokeLaunchContextKey } from "./launchContext";
@@ -407,6 +407,7 @@ describe("runtime invoke", () => {
     await expectError(
       runCommand(core, output.io, ["runtime", "invoke", "--payload", "{}"]),
       /--id/,
+      InputValidationError,
     );
     expect(core.runtime.calls).toEqual([]);
   });

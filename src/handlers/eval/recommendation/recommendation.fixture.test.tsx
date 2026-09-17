@@ -23,6 +23,7 @@ import {
   WaitForTimeoutError,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
@@ -226,7 +227,11 @@ describe("eval recommendation against recorded responses", () => {
       ["--name", RECOMMENDATION_NAME, "--type", "SYSTEM_PROMPT_RECOMMENDATION"],
     ],
   ] as const)("requires --%s", async (name, args) => {
-    await expectError(run(["eval", "recommendation", "start", ...args]), new RegExp(`--${name}`));
+    await expectError(
+      run(["eval", "recommendation", "start", ...args]),
+      new RegExp(`--${name}`),
+      InputValidationError,
+    );
   });
 
   test("starts a recommendation", async () => {

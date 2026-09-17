@@ -6,7 +6,7 @@ import {
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import { PolicyClient } from "../../core/policy";
 import type { AwsClients } from "../../core/types";
-import { NetworkingError, UserCancellationError } from "../../errors";
+import { NetworkingError, UserCancellationError, InputValidationError } from "../../errors";
 import {
   createSilentLogger,
   expectError,
@@ -133,7 +133,7 @@ describe("gateway command hierarchy", () => {
     ["Rule create", ["gateway", "rule", "create"], /--gateway-id/],
   ] as const)("keeps bare CLI-only %s out of the TUI", async (_label, args, error) => {
     expect(supportsTui(args)).toBe(false);
-    await expectError(run([...args]), error);
+    await expectError(run([...args]), error, InputValidationError);
   });
 });
 
@@ -160,7 +160,7 @@ describe("gateway validation", () => {
     async (_name, args, error) => {
       const core = new TestCoreClient();
 
-      await expectError(run([...args], core), error);
+      await expectError(run([...args], core), error, InputValidationError);
       expect(core.gateway.calls).toEqual([]);
       expect(core.policy.calls).toEqual([]);
     },

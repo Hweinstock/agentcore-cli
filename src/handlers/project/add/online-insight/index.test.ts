@@ -254,6 +254,6 @@ describe("project add online-insight", () => {
     const { cleanup } = await initProject({ flags: ["--template", "agent-python-minimal"] });
     cleanups.push(cleanup);
     const promise = run(["add", "online-insight", ...flags]);
-    await expectError(promise, requiredMessage ?? /./);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 });

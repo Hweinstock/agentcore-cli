@@ -18,6 +18,7 @@ import {
   parseProviderConfigFlags,
   validateProviderConfigMode,
 } from "./config";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 const PROVIDER_NAME = "oauth2-provider";
@@ -128,6 +129,7 @@ describe("oauth2-credential-provider TUI dispatch", () => {
       await expectError(
         run(["identity", "oauth2-credential-provider", command]),
         "required option '--name' not specified",
+        InputValidationError,
       );
     },
   );
@@ -160,7 +162,7 @@ describe("oauth2-credential-provider flag validation", () => {
       /--name/,
     ],
   ] as const)("rejects missing required flags for `%s`", async (_label, args, message) => {
-    await expectError(run([...args]), message);
+    await expectError(run([...args]), message, InputValidationError);
   });
 
   test.each([

@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
+import { InputValidationError } from "../../../../errors";
 
 const { addGateway, cleanup, inProject, projectSpec, run } =
   createGatewayProjectTestHarness("policy-engine-add");
@@ -58,7 +59,7 @@ describe("project add policy-engine", () => {
     ],
   ])("rejects %s", async (_label, args, message) => {
     await inProject();
-    await expectError(run(args), message);
+    await expectError(run(args), message, InputValidationError);
   });
 
   test("checks the deployed name against the longest declared target", async () => {

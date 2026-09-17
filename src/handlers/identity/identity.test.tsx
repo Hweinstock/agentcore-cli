@@ -10,6 +10,7 @@ import {
   testIO,
 } from "../../testing";
 import { createRootHandler } from "../index";
+import { InputValidationError } from "../../errors";
 
 const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
@@ -97,6 +98,7 @@ describe("api-key-credential-provider TUI dispatch", () => {
       await expectError(
         run(["identity", "api-key-credential-provider", command]),
         "required option '--name' not specified",
+        InputValidationError,
       );
     },
   );
@@ -253,7 +255,7 @@ describe("api-key-credential-provider CRUDL", () => {
       /--name/,
     ],
   ] as const)("rejects missing required flags for `%s`", async (_label, args, message) => {
-    await expectError(run([...args]), message);
+    await expectError(run([...args]), message, InputValidationError);
   });
 
   test.each([

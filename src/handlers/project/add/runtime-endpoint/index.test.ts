@@ -10,6 +10,7 @@ import {
   TestGlobalConfigAccessor,
   testIO,
 } from "../../../../testing";
+import { InputValidationError } from "../../../../errors";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
@@ -124,7 +125,7 @@ describe("project add runtime-endpoint", () => {
     cleanups.push(cleanup);
     await seedRuntime(projectRoot);
 
-    await expectError(run(["add", "runtime-endpoint", ...extra]), message);
+    await expectError(run(["add", "runtime-endpoint", ...extra]), message, InputValidationError);
   });
 
   test("rejects a duplicate endpoint name on the same runtime", async () => {

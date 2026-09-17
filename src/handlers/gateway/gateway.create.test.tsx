@@ -26,6 +26,7 @@ import {
   testIO,
 } from "../../testing";
 import { createRootHandler } from "../index";
+import { InputValidationError } from "../../errors";
 
 const REGION = "us-east-1";
 const GATEWAY_NAME = "agentcore-cli-gateway-create-fixture";
@@ -413,7 +414,7 @@ describe("Gateway create validation", () => {
       /--actions/,
     ],
   ] as const)("rejects missing or inconsistent %s before Core", async (_name, args, error) => {
-    await expectError(run([...args]), error);
+    await expectError(run([...args]), error, InputValidationError);
   });
 
   test("rejects conflicting Target inputs", async () => {

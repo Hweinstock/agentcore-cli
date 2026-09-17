@@ -35,6 +35,7 @@ import {
   testIO,
 } from "../../testing";
 import { createRootHandler } from "../index";
+import { InputValidationError } from "../../errors";
 
 const REGION = "us-west-2";
 const GATEWAY_ID = "gateway-1";
@@ -174,7 +175,7 @@ describe("gateway delete validation", () => {
   ] as const)("rejects a missing %s before calling Core", async (_name, args, error) => {
     const core = new TestCoreClient();
 
-    await expectError(run([...args], core), error);
+    await expectError(run([...args], core), error, InputValidationError);
     expect(core.gateway.calls).toEqual([]);
   });
 });

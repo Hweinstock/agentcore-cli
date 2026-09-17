@@ -700,7 +700,11 @@ describe("project add config-bundle", () => {
   ])("rejects %s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    await expectError(run(["add", "config-bundle", ...flags]), requiredMessage ?? /./);
+    await expectError(
+      run(["add", "config-bundle", ...flags]),
+      requiredMessage ?? /./,
+      InputValidationError,
+    );
   });
 });
 
@@ -1033,7 +1037,7 @@ describe("project add credentials", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "credentials", ...args], { stdin: "line1\nline2" });
-    await expectError(promise, message);
+    await expectError(promise, message, InputValidationError);
   });
 });
 

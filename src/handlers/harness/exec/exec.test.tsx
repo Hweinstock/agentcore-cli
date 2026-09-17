@@ -7,6 +7,7 @@ import type { GetHarnessResponse } from "@aws-sdk/client-bedrock-agentcore-contr
 import { createRootHandler } from "../../index";
 import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
+import { InputValidationError } from "../../../errors";
 
 // Command-flow tests for `harness exec`, driven through the real root handler.
 // Like the invoke suite, these use a TestCoreClient because the command
@@ -116,7 +117,7 @@ describe("harness exec", () => {
   });
 
   test("errors when --id is omitted", async () => {
-    await expectError(run(["harness", "exec", "--command", "ls"]), /--id/);
+    await expectError(run(["harness", "exec", "--command", "ls"]), /--id/, InputValidationError);
   });
 
   // Without --command (and outside JSON mode) the handler opens the interactive

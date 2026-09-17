@@ -6,6 +6,7 @@ import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../.
 import { TestGlobalConfigAccessor } from "../../../testing/globalConfig";
 import { createRootHandler } from "../../index";
 import type { LogSource } from "../../../core/observability/index";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 
@@ -109,6 +110,7 @@ describe("runtime logs", () => {
       await expectError(
         route(["runtime", "logs", "--since", `${SINCE_MS}`]),
         "required option '--id' not specified",
+        InputValidationError,
       );
     } finally {
       process.chdir(previousCwd);

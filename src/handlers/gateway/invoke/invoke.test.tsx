@@ -6,7 +6,7 @@ import { PassThrough } from "node:stream";
 import type { GetGatewayResponse } from "@aws-sdk/client-bedrock-agentcore-control";
 import { CommanderError } from "commander";
 import type { AppIO } from "../../../io";
-import { UserCancellationError } from "../../../errors";
+import { UserCancellationError, InputValidationError } from "../../../errors";
 import { ExitCode, runWithExitCode } from "../../../runnable";
 import {
   createSilentLogger,
@@ -366,7 +366,7 @@ describe("gateway invoke", () => {
   ] as const)("rejects invalid input before invocation", async (args, message) => {
     const core = configuredCore();
     const output = captureIO();
-    await expectError(runCommand(core, output.io, [...args]), message);
+    await expectError(runCommand(core, output.io, [...args]), message, InputValidationError);
     expect(core.gateway.calls.some((call) => call.method === "invokeGateway")).toBe(false);
   });
 

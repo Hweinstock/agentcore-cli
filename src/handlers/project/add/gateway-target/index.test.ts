@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { ProjectStateError } from "../../../../errors";
+import { ProjectStateError, InputValidationError } from "../../../../errors";
 import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
@@ -327,7 +327,7 @@ describe("project add gateway-target", () => {
     ],
   ])("rejects %s", async (_label, flags, message) => {
     await projectWithCredentials();
-    await expectError(run(["add", "gateway-target", ...flags]), message);
+    await expectError(run(["add", "gateway-target", ...flags]), message, InputValidationError);
   });
 
   test("rejects an API-key endpoint shortcut unsupported by the project schema", async () => {

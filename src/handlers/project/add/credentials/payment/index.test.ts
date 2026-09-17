@@ -3,6 +3,7 @@ import { generateKeyPairSync } from "node:crypto";
 import { join } from "node:path";
 import { expectError } from "../../../../../testing";
 import { createPaymentProjectTestHarness } from "../../payment-test-support";
+import { InputValidationError } from "../../../../../errors";
 
 const { cleanup, inProject, projectSpec, run } =
   createPaymentProjectTestHarness("payment-credential");
@@ -199,7 +200,11 @@ describe("project add credentials payment", () => {
   ])("rejects %s", async (_label, flags, message) => {
     const projectRoot = await inProject();
 
-    await expectError(run(["add", "credentials", "payment", ...flags]), message);
+    await expectError(
+      run(["add", "credentials", "payment", ...flags]),
+      message,
+      InputValidationError,
+    );
     expect((await projectSpec(projectRoot)).credentials ?? []).toEqual([]);
   });
 

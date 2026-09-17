@@ -259,6 +259,6 @@ describe("project add online-eval", () => {
     const { cleanup } = await initProject({ flags: ["--template", "agent-python-minimal"] });
     cleanups.push(cleanup);
     const promise = run(["add", "online-eval", ...flags]);
-    await expectError(promise, requiredMessage ?? /./);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 });

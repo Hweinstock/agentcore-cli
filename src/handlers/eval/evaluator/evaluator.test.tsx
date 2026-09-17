@@ -11,6 +11,7 @@ import {
 } from "../../../testing";
 import { createRootHandler } from "../../index";
 import { ratingScaleFromPreset } from "../ratingScale";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
@@ -170,7 +171,11 @@ describe("eval command hierarchy", () => {
   );
 
   test("runs normal validation for a bare CLI-only evaluator command", async () => {
-    await expectError(run(["eval", "evaluator", "delete"]), "required option '--id' not specified");
+    await expectError(
+      run(["eval", "evaluator", "delete"]),
+      "required option '--id' not specified",
+      InputValidationError,
+    );
   });
 
   test("prints help for a bare CLI-only evaluator group", async () => {
@@ -396,13 +401,18 @@ describe("evaluator flag validation", () => {
       /rating-scale/,
     ],
   ] as const)("llm-as-a-judge create rejects %s", async (_label, extra, message) => {
-    await expectError(run(["eval", "evaluator", "llm-as-a-judge", "create", ...extra]), message);
+    await expectError(
+      run(["eval", "evaluator", "llm-as-a-judge", "create", ...extra]),
+      message,
+      InputValidationError,
+    );
   });
 
   test("code-based create rejects a missing --lambda-arn", async () => {
     await expectError(
       run(["eval", "evaluator", "code-based", "create", "--name", "x", "--level", "SESSION"]),
       /--lambda-arn/,
+      InputValidationError,
     );
   });
 
@@ -414,7 +424,7 @@ describe("evaluator flag validation", () => {
     ["get", ["eval", "evaluator", "get"]],
     ["delete", ["eval", "evaluator", "delete"]],
   ] as const)("`%s` requires --id", async (_label, args) => {
-    await expectError(run([...args, "--json"]), /--id/);
+    await expectError(run([...args, "--json"]), /--id/, InputValidationError);
   });
 
   test("rejects malformed custom rating scale JSON", async () => {

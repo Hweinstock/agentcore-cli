@@ -11,6 +11,7 @@ import {
   testIO,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
@@ -119,6 +120,7 @@ describe("eval online-eval command hierarchy", () => {
     await expectError(
       run(["eval", "online-eval", "create"]),
       "required option '--name' not specified",
+      InputValidationError,
     );
   });
 });
@@ -429,6 +431,7 @@ describe("flag validation", () => {
     await expectError(
       run(["eval", "online-eval", command, "--json"]),
       /required option '--id' not specified/,
+      InputValidationError,
     );
   });
 });

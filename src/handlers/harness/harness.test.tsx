@@ -11,6 +11,7 @@ import {
   TestGlobalConfigAccessor,
   testIO,
 } from "../../testing";
+import { InputValidationError } from "../../errors";
 
 // End-to-end command-flow tests for the `harness` subtree.
 //
@@ -77,7 +78,7 @@ describe("harness get", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expectError(run(["harness", "get", "--json"]), /--id/);
+    await expectError(run(["harness", "get", "--json"]), /--id/, InputValidationError);
   });
 });
 
@@ -107,7 +108,7 @@ describe("harness endpoint list", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expectError(run(["harness", "endpoint", "list", "--json"]), /--id/);
+    await expectError(run(["harness", "endpoint", "list", "--json"]), /--id/, InputValidationError);
   });
 });
 
@@ -126,13 +127,18 @@ describe("harness endpoint get", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expectError(run(["harness", "endpoint", "get", "--qualifier", "DEFAULT"]), /--id/);
+    await expectError(
+      run(["harness", "endpoint", "get", "--qualifier", "DEFAULT"]),
+      /--id/,
+      InputValidationError,
+    );
   });
 
   test("errors when --qualifier is omitted (leaf requires it)", async () => {
     await expectError(
       run(["harness", "endpoint", "get", "--id", "MyPDXHarness-rhkXkAE1IS"]),
       /--qualifier/,
+      InputValidationError,
     );
   });
 });
@@ -150,7 +156,7 @@ describe("harness version list", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expectError(run(["harness", "version", "list", "--json"]), /--id/);
+    await expectError(run(["harness", "version", "list", "--json"]), /--id/, InputValidationError);
   });
 });
 
@@ -169,43 +175,72 @@ describe("harness version get", () => {
   });
 
   test("errors when --id is omitted (leaf requires it)", async () => {
-    await expectError(run(["harness", "version", "get", "--version", "1"]), /--id/);
+    await expectError(
+      run(["harness", "version", "get", "--version", "1"]),
+      /--id/,
+      InputValidationError,
+    );
   });
 
   test("errors when --version is omitted (leaf requires it)", async () => {
     await expectError(
       run(["harness", "version", "get", "--id", "MyPDXHarness-rhkXkAE1IS"]),
       /--version/,
+      InputValidationError,
     );
   });
 });
 
 describe("write command validation", () => {
   test("`harness create` errors when --name is omitted", async () => {
-    await expectError(run(["harness", "create", "--json"]), /--name/);
+    await expectError(run(["harness", "create", "--json"]), /--name/, InputValidationError);
   });
 
   test("`harness update` errors when --id is omitted", async () => {
-    await expectError(run(["harness", "update", "--json"]), /--id/);
+    await expectError(run(["harness", "update", "--json"]), /--id/, InputValidationError);
   });
 
   test("`harness delete` errors when --id is omitted", async () => {
-    await expectError(run(["harness", "delete", "--json"]), /--id/);
+    await expectError(run(["harness", "delete", "--json"]), /--id/, InputValidationError);
   });
 
   test("`harness endpoint create` errors when --id or --name is omitted", async () => {
-    await expectError(run(["harness", "endpoint", "create", "--name", "prod"]), /--id/);
-    await expectError(run(["harness", "endpoint", "create", "--id", "h-1"]), /--name/);
+    await expectError(
+      run(["harness", "endpoint", "create", "--name", "prod"]),
+      /--id/,
+      InputValidationError,
+    );
+    await expectError(
+      run(["harness", "endpoint", "create", "--id", "h-1"]),
+      /--name/,
+      InputValidationError,
+    );
   });
 
   test("`harness endpoint update` errors when --id or --qualifier is omitted", async () => {
-    await expectError(run(["harness", "endpoint", "update", "--qualifier", "DEFAULT"]), /--id/);
-    await expectError(run(["harness", "endpoint", "update", "--id", "h-1"]), /--qualifier/);
+    await expectError(
+      run(["harness", "endpoint", "update", "--qualifier", "DEFAULT"]),
+      /--id/,
+      InputValidationError,
+    );
+    await expectError(
+      run(["harness", "endpoint", "update", "--id", "h-1"]),
+      /--qualifier/,
+      InputValidationError,
+    );
   });
 
   test("`harness endpoint delete` errors when --id or --qualifier is omitted", async () => {
-    await expectError(run(["harness", "endpoint", "delete", "--qualifier", "DEFAULT"]), /--id/);
-    await expectError(run(["harness", "endpoint", "delete", "--id", "h-1"]), /--qualifier/);
+    await expectError(
+      run(["harness", "endpoint", "delete", "--qualifier", "DEFAULT"]),
+      /--id/,
+      InputValidationError,
+    );
+    await expectError(
+      run(["harness", "endpoint", "delete", "--id", "h-1"]),
+      /--qualifier/,
+      InputValidationError,
+    );
   });
 
   test("`harness create` rejects malformed JSON flags", async () => {

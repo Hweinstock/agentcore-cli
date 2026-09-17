@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { expectError } from "../../../../testing";
 import { createPaymentProjectTestHarness } from "../payment-test-support";
+import { InputValidationError } from "../../../../errors";
 
 const DISCOVERY_URL = "https://idp.example.com/.well-known/openid-configuration";
 const { cleanup, inProject, projectSpec, run } = createPaymentProjectTestHarness("payment-manager");
@@ -126,7 +127,7 @@ describe("project add payment-manager", () => {
   ])("rejects %s", async (_label, flags, message) => {
     const projectRoot = await inProject();
 
-    await expectError(run(["add", "payment-manager", ...flags]), message);
+    await expectError(run(["add", "payment-manager", ...flags]), message, InputValidationError);
     expect((await projectSpec(projectRoot)).payments ?? []).toEqual([]);
   });
 

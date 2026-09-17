@@ -12,6 +12,7 @@ import {
 } from "../../../testing";
 import { createRootHandler } from "../../index";
 import type { CreateConfigurationBundleInput, UpdateConfigurationBundleInput } from "../types";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 const COMPONENT_ARN =
@@ -161,6 +162,7 @@ describe("eval config-bundle command hierarchy", () => {
     await expectError(
       route(["eval", "config-bundle", "create"]),
       "required option '--name' not specified",
+      InputValidationError,
     );
   });
 });
@@ -278,10 +280,12 @@ describe("config-bundle create", () => {
     await expectError(
       route(["eval", "config-bundle", "create", "--components", JSON.stringify(COMPONENTS)]),
       /--name/,
+      InputValidationError,
     );
     await expectError(
       route(["eval", "config-bundle", "create", "--name", "orders-prompt"]),
       /--components/,
+      InputValidationError,
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -396,6 +400,7 @@ describe("config-bundle update", () => {
         "arn:aws:kms:us-west-2:123456789012:key/replacement",
       ]),
       /required option '--components' not specified/,
+      InputValidationError,
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -407,6 +412,7 @@ describe("config-bundle update", () => {
     await expectError(
       route(["eval", "config-bundle", "update", "--id", "b-1", "--components", `file://${path}`]),
       /required option '--commit-message' not specified/,
+      InputValidationError,
     );
     expect(core.eval.calls).toHaveLength(0);
   });
@@ -426,6 +432,7 @@ describe("config-bundle update", () => {
         "Replace order support configuration",
       ]),
       /required option '--id' not specified/,
+      InputValidationError,
     );
     expect(core.eval.calls).toHaveLength(0);
   });

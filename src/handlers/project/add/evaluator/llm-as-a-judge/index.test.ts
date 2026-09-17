@@ -500,6 +500,6 @@ describe("project add evaluator llm-as-a-judge", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "evaluator", "llm-as-a-judge", ...flags]);
-    await expectError(promise, requiredMessage ?? /./);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 });

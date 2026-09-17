@@ -11,6 +11,7 @@ import {
 } from "../../testing";
 import { createRootHandler } from "../index";
 import { TestGlobalConfigAccessor } from "../../testing/globalConfig";
+import { InputValidationError } from "../../errors";
 
 const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
@@ -314,7 +315,7 @@ describe("runtime read-only commands", () => {
   ] as const)(
     "rejects a missing required selector for headless `%s`",
     async (_label, args, message) => {
-      await expectError(run([...args, "--json"]), message);
+      await expectError(run([...args, "--json"]), message, InputValidationError);
     },
   );
 

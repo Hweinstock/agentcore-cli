@@ -11,6 +11,7 @@ import {
   testIO,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 const FIXTURES = join(import.meta.dir, "__fixtures__");
@@ -245,6 +246,7 @@ describe("flag validation", () => {
         "10",
       ]),
       "required option '--role-arn' not specified",
+      InputValidationError,
     );
   });
 
@@ -264,6 +266,7 @@ describe("flag validation", () => {
         "10",
       ]),
       "required option '--insight' not specified",
+      InputValidationError,
     );
   });
 
@@ -375,6 +378,7 @@ describe("flag validation", () => {
     await expectError(
       run(["eval", "online-insight", command, "--json"]),
       /required option '--id' not specified/,
+      InputValidationError,
     );
   });
 });

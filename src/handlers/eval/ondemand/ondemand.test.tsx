@@ -14,7 +14,7 @@ import {
 } from "@aws-sdk/client-cloudwatch-logs";
 import type { IAMClient } from "@aws-sdk/client-iam";
 import { CoreClient } from "../../../core";
-import { CloudWatchQueryError, ResourceNotFoundError } from "../../../errors";
+import { CloudWatchQueryError, ResourceNotFoundError, InputValidationError } from "../../../errors";
 import type { Logger } from "../../../logging";
 import { createRootHandler } from "../../index";
 import {
@@ -215,7 +215,11 @@ describe("eval ondemand simulate", () => {
       ["--runtime-id", "r-1", "--payload-template", "{}", "--dataset", "/tmp/ds.jsonl"],
     ],
   ])("rejects when a required flag is missing (%s)", async (expected, args) => {
-    await expectError(run(["eval", "ondemand", "simulate", ...args]), expected);
+    await expectError(
+      run(["eval", "ondemand", "simulate", ...args]),
+      expected,
+      InputValidationError,
+    );
   });
 
   test("refuses to grade when nothing was invoked, naming the first failure", async () => {
@@ -322,7 +326,7 @@ describe("eval ondemand evaluate validation", () => {
       /before/,
     ],
   ])("%s", async (_name, args, expectedError) => {
-    await expectError(run(args), expectedError);
+    await expectError(run(args), expectedError, InputValidationError);
   });
 });
 

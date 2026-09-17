@@ -31,6 +31,7 @@ import {
   testIO,
 } from "../../testing";
 import { createRootHandler } from "../index";
+import { InputValidationError } from "../../errors";
 
 async function runWithTestCore(args: string[]): Promise<TestCoreClient> {
   const core = new TestCoreClient();
@@ -128,7 +129,7 @@ describe("Gateway update validation", () => {
       /at least one/,
     ],
   ] as const)("rejects invalid %s input", async (_name, args, error) => {
-    await expectError(runWithTestCore([...args]), error);
+    await expectError(runWithTestCore([...args]), error, InputValidationError);
   });
 });
 

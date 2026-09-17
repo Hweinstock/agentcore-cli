@@ -163,7 +163,7 @@ describe("project add evaluator code-based", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "evaluator", "code-based", ...flags]);
-    await expectError(promise, requiredMessage ?? /./);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 
   test.each([

@@ -387,7 +387,7 @@ describe("project add memory", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "memory", ...flags]);
-    await expectError(promise, requiredMessage ?? /./);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 
   test.each<[string, string[], RegExp]>([

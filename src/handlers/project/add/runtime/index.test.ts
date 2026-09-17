@@ -11,6 +11,7 @@ import {
 } from "../../../../testing";
 import type { BedrockAgentImportPlan } from "../../../../core/project/bedrockAgentImport";
 import { credentialEnvVarName } from "../../../../projectSchemas/credential";
+import { InputValidationError } from "../../../../errors";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
@@ -427,7 +428,7 @@ describe("project add runtime", () => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
     const promise = run(["add", "runtime", ...flags]);
-    await expectError(promise, requiredMessage ?? /./);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 
   test("rejects an unknown --template value", async () => {

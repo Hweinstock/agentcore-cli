@@ -1,12 +1,11 @@
 import { expect } from "bun:test";
-import { InputValidationError } from "../errors";
 
 type ErrorConstructor = abstract new (...args: never[]) => Error;
 
 export async function expectError(
   promise: Promise<unknown>,
   message: string | RegExp,
-  errorType: ErrorConstructor = InputValidationError,
+  errorType: ErrorConstructor,
 ): Promise<void> {
   const error = await promise.catch((caught: unknown) => caught);
   const expectedMessage =

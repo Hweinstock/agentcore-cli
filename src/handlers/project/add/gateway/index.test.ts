@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
+import { InputValidationError } from "../../../../errors";
 
 const { cleanup, inProject, projectSpec, run, writeProjectSpec } =
   createGatewayProjectTestHarness("gateway-add");
@@ -206,6 +207,6 @@ describe("project add gateway", () => {
     ],
   ])("rejects %s", async (_label, args, message) => {
     await inProject();
-    await expectError(run(args), message);
+    await expectError(run(args), message, InputValidationError);
   });
 });

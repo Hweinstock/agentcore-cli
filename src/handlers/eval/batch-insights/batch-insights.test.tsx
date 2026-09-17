@@ -11,6 +11,7 @@ import {
   testIO,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
+import { InputValidationError } from "../../../errors";
 
 const REGION = "us-west-2";
 
@@ -53,7 +54,11 @@ describe("eval batch-insights command hierarchy", () => {
 
 describe("eval batch-insights run", () => {
   test("requires --name and exactly one session source", async () => {
-    await expectError(run(["eval", "batch-insights", "run", "--agent", "agent-1"]), /--name/);
+    await expectError(
+      run(["eval", "batch-insights", "run", "--agent", "agent-1"]),
+      /--name/,
+      InputValidationError,
+    );
     await expect(run(["eval", "batch-insights", "run", "--name", "insights_run"])).rejects.toThrow(
       /specify exactly one of --agent, --online-eval, --data-source-config/,
     );

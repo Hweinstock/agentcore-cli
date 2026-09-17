@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from "bun:test";
 import { expectError } from "../../../../testing";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 import { inferAuthorizationPhase } from "./index";
+import { InputValidationError } from "../../../../errors";
 
 const { cleanup, inProject, projectSpec, run } = createGatewayProjectTestHarness("policy-add");
 
@@ -125,7 +126,7 @@ describe("project add policy", () => {
     ],
   ])("rejects %s", async (_label, args, message) => {
     await withEngine();
-    await expectError(run(args), message);
+    await expectError(run(args), message, InputValidationError);
   });
 
   test("rejects a duplicate policy name across engines", async () => {
