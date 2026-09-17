@@ -5,7 +5,7 @@ import { JsonRendererKey } from "../../../../../tui";
 import { SourceResolver, type AppIO } from "../../../../../io";
 import type { Core } from "../../../../types";
 import { coreOptsFromCtx, parseJsonFlag } from "../../../../utils";
-import { instructionsFlag, ratingScaleFlag, resolveRatingScale } from "../sharedFlags";
+import { ratingScaleFlag, resolveRatingScale } from "../sharedFlags";
 import { LEVELS } from "../../levels";
 
 export const createLlmAsAJudgeCreateHandler = (core: Core, io: AppIO) =>
@@ -16,7 +16,11 @@ export const createLlmAsAJudgeCreateHandler = (core: Core, io: AppIO) =>
       flag("name", "the name of the evaluator", z.string().min(1)),
       flag("level", `evaluation level (${LEVELS.join(" | ")})`, z.enum(LEVELS)),
       flag("model", "the Bedrock model ID used to judge", z.string().min(1)),
-      instructionsFlag,
+      flag(
+        "instructions",
+        "evaluation instructions (inline, file://<path>, or - for stdin)",
+        z.string().min(1),
+      ),
       ratingScaleFlag,
       flag("kms-key-arn", "customer managed KMS key ARN for evaluator data", z.string().optional()),
       flag(

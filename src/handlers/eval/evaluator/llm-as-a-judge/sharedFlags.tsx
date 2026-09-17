@@ -9,13 +9,7 @@ import {
 } from "../../ratingScale";
 import type { SourceResolver } from "../../../../io";
 
-const instructionsDescription = "evaluation instructions (inline, file://<path>, or - for stdin)";
 const ratingScaleDescription = `rating scale: a preset (${RATING_SCALE_PRESET_IDS.join(" | ")}) or a custom RatingScale (JSON inline, file://<path>, or - for stdin)`;
-
-export const instructionsFlag = {
-  ...flag("instructions", instructionsDescription, z.string().min(1)),
-  optional: () => flag("instructions", instructionsDescription, z.string().optional()),
-};
 
 export const ratingScaleFlag = {
   ...flag("rating-scale", ratingScaleDescription, z.string().min(1)),
