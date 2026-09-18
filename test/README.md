@@ -1,6 +1,6 @@
 # End-to-end tests
 
-The runtime suite deploys and invokes real AgentCore resources. Run it with credentials for an approved test environment:
+The e2e suite deploys and invokes real AgentCore resources. Run it with AWS credentials:
 
 ```sh
 bun run build
