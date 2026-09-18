@@ -8,6 +8,12 @@ export AGENTCORE_CLI_PATH="node $PWD/dist/index.js"
 bun run test:e2e
 ```
 
+To run tagged tests:
+
+```sh
+E2E_TAGS=runtime bun run test:e2e
+```
+
 Set `AGENTCORE_CLI_PATH` to use a different executable:
 
 ```sh

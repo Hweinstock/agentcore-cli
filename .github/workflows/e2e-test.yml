@@ -8,9 +8,13 @@ on:
         description: git reference (commit, branch, or tag) to build and test
         type: string
         default: refactor
+      tags:
+        description: comma-separated E2E test tags to run
+        type: string
+        default: ""
 
 concurrency:
-  group: e2e-test-${{ inputs.ref || github.ref }}
+  group: e2e-test-${{ inputs.ref || github.ref }}-${{ inputs.tags || 'all' }}
   cancel-in-progress: false
 
 env:
@@ -92,4 +96,5 @@ jobs:
         env:
           AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
           AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
+          E2E_TAGS: ${{ inputs.tags || '' }}
         run: bun run build && bun run test:e2e

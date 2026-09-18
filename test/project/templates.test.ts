@@ -1,13 +1,15 @@
-import { afterAll, beforeAll, describe, expect, test } from "bun:test";
+import { afterAll, beforeAll, describe, expect } from "bun:test";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
 import { E2E_PREFIX } from "../constants";
+import { test } from "../helpers/register";
+import { TAGS } from "../constants";
 import { CliRunner, parseResult, type RunResult } from "../helpers/run";
 import { retry } from "../helpers/retry";
 
-type RuntimeCase = {
+type RuntimeTemplateTestCase = {
   name: string;
   template: string;
   protocol: "HTTP" | "MCP" | "A2A" | "AGUI";
@@ -24,7 +26,7 @@ export const TIMEOUT_MS = {
   PROJECT_INVOKE: 3 * 60 * 1000,
 };
 
-const RUNTIMES: RuntimeCase[] = [
+const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
   {
     name: "agent_python_minimal",
     template: "agent-python-minimal",
@@ -165,7 +167,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
     projectDir = created.project.path;
   }, TIMEOUT_MS.PROJECT_CREATE);
 
-  test.serial.each(RUNTIMES)(
+  test.each(RUNTIME_TEMPLATES)(
     "$name can be added to a project",
     async (runtime) => {
       const added = parseResult(
@@ -186,12 +188,14 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
       );
       expect(added.operation).toBe("add");
     },
-    TIMEOUT_MS.PROJECT_CREATE,
+    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_CREATE },
   );
 
   describe.serial("local invocation", () => {
     // invoke --local does not yet support MCP or A2A invocations
-    const localRuntimes = RUNTIMES.filter((runtime) => ["HTTP", "AGUI"].includes(runtime.protocol));
+    const localRuntimes = RUNTIME_TEMPLATES.filter((runtime) =>
+      ["HTTP", "AGUI"].includes(runtime.protocol),
+    );
     const runtimePorts = new Map<string, number>();
     let dev: ReturnType<CliRunner["start"]> | undefined;
     let pendingOutput = "";
@@ -223,7 +227,7 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
       await new Promise<void>((resolve) => dev?.once("close", resolve));
     });
 
-    test.concurrent.each(localRuntimes)(
+    test.each(localRuntimes)(
       "$name runs locally",
       async (runtime) => {
         const sessionId = getSessionId(`${runtime.name}`);
@@ -260,11 +264,11 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
 
         expect(response.body.trim()).not.toBe("");
       },
-      TIMEOUT_MS.PROJECT_INVOKE,
+      { mode: "concurrent", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_INVOKE },
     );
   });
 
-  test.serial(
+  test(
     "deploys all runtimes",
     async () => {
       const deployment = parseResult(
@@ -273,10 +277,10 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
       );
       expect(deployment.message).toContain("Deployed project");
     },
-    TIMEOUT_MS.PROJECT_DEPLOY,
+    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_DEPLOY },
   );
 
-  test.concurrent.each(RUNTIMES)(
+  test.each(RUNTIME_TEMPLATES)(
     "$name can be invoked after deployed",
     async (runtime) => {
       const sessionId = getSessionId(runtime.name);
@@ -305,10 +309,10 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
         assertProtocolResponse(runtime, response.body);
       }
     },
-    TIMEOUT_MS.PROJECT_INVOKE,
+    { mode: "concurrent", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_INVOKE },
   );
 
-  test.serial.each(RUNTIMES)(
+  test.each(RUNTIME_TEMPLATES)(
     "$name can be removed from the project",
     async (runtime) => {
       const removed = parseResult(
@@ -320,10 +324,10 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
       );
       expect(removed.operation).toBe("remove");
     },
-    TIMEOUT_MS.PROJECT_REMOVE,
+    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_REMOVE },
   );
 
-  test.serial(
+  test(
     "deploys the empty project",
     async () => {
       parseResult(
@@ -336,12 +340,12 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
         await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
       );
     },
-    TIMEOUT_MS.PROJECT_DEPLOY,
+    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_DEPLOY },
   );
 });
 
 /** Given a runtime and response body, validates the protocol response and request identifier. */
-function assertProtocolResponse(runtime: RuntimeCase, body: string): void {
+function assertProtocolResponse(runtime: RuntimeTemplateTestCase, body: string): void {
   const data = body
     .split(/\r?\n/)
     .find((line) => line.startsWith("data: "))
