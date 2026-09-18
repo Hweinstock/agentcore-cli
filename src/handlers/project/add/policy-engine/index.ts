@@ -4,14 +4,7 @@ import type { PolicyEngineSchema } from "../../../../projectSchemas/policy";
 import { createHandler, flag, ProjectKey } from "../../../../router";
 import { parseTags } from "../../../utils";
 import type { AddProjectResourceConfig } from "../types";
-import { addProjectResource } from "../shared";
-
-/**
- The deployed service name of a policy engine; mirrors the L3 AgentCorePolicyEngine construct's rule.
-**/
-export function policyEngineResourceName(projectName: string, engineName: string): string {
-  return `${projectName}_${engineName}`;
-}
+import { addProjectResource, requireDeployedNameFits } from "../shared";
 
 export const createAddPolicyEngineHandler = (config: AddProjectResourceConfig) =>
   createHandler({
@@ -41,12 +34,14 @@ export const createAddPolicyEngineHandler = (config: AddProjectResourceConfig) =
         throw new InputValidationError("--attach-mode requires --attach-to-gateways");
       }
       const project = ctx.require(ProjectKey);
-      const resourceName = policyEngineResourceName(project.name, flags.name);
-      if (resourceName.length > 48) {
-        throw new InputValidationError(
-          `Policy Engine resource name '${resourceName}' exceeds the service limit of 48 characters`,
-        );
-      }
+      requireDeployedNameFits(
+        "Policy Engine",
+        project.name,
+        flags.name,
+        "_",
+        48,
+        await config.projectManager.listTargets(project),
+      );
 
       const engine: z.input<typeof PolicyEngineSchema> = {
         name: flags.name,
