@@ -1,7 +1,22 @@
 name: e2e-test
 on:
   push:
-    branches: [refactor]
+    branches: [main, refactor]
+  workflow_call:
+    inputs:
+      ref:
+        description: git reference (commit, branch, or tag) to build and test
+        required: false
+        type: string
+        default: ""
+      tags:
+        description: Vitest tag expression, for example runtime || canary
+        required: false
+        type: string
+        default: ""
+    secrets:
+      WORKFLOW_SECRETS_READER_ROLE_ARN:
+        required: true
   workflow_dispatch:
     inputs:
       ref:
