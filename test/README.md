@@ -3,7 +3,7 @@
 The runtime suite deploys and invokes real AgentCore resources. Run it with credentials for an approved test environment:
 
 ```sh
-export AWS_REGION=us-east-1
+bun run build
 export AGENTCORE_CLI_PATH="node $PWD/dist/index.js"
 bun run test:e2e
 ```

@@ -32,37 +32,37 @@ const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
     payload: { prompt: "Reply with a short greeting." },
   },
   {
-    name: "strands",
+    name: "agent_python_strands",
     template: "agent-python-strands",
     protocol: "HTTP",
     payload: { prompt: "Reply with a short greeting." },
   },
   {
-    name: "strandsc",
+    name: "agent_python_strands_container",
     template: "agent-python-strands-container",
     protocol: "HTTP",
     payload: { prompt: "Reply with a short greeting." },
   },
   {
-    name: "lcagent",
+    name: "agent_python_langchain",
     template: "agent-python-langchain",
     protocol: "HTTP",
     payload: { prompt: "Reply with a short greeting." },
   },
   {
-    name: "tsstrands",
+    name: "agent_typescript_strands",
     template: "agent-typescript-strands",
     protocol: "HTTP",
     payload: { prompt: "Reply with a short greeting." },
   },
   {
-    name: "vercel",
+    name: "agent_typescript_vercel",
     template: "agent-typescript-vercel",
     protocol: "HTTP",
     payload: { prompt: "Reply with a short greeting." },
   },
   {
-    name: "mcpfast",
+    name: "mcp_python_fastmcp",
     template: "mcp-python-fastmcp",
     protocol: "MCP",
     payload: {
@@ -85,7 +85,7 @@ const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
     ],
   },
   {
-    name: "a2aagent",
+    name: "a2a_python_strands",
     template: "a2a-python-strands",
     protocol: "A2A",
     payload: {
@@ -102,7 +102,7 @@ const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
     },
   },
   {
-    name: "aguiagent",
+    name: "agui_python_strands",
     template: "agui-python-strands",
     protocol: "AGUI",
     payload: {
@@ -333,17 +333,21 @@ describe(
       },
     );
 
-    test("deploys the empty project", { timeout: TIMEOUT_MS.PROJECT_DEPLOY }, async () => {
-      parseResult(
-        JsonObjectSchema,
-        await cli.run(["project", "remove", "all", "--yes", "--json"], projectDir),
-      );
+    test(
+      "deploys the empty project",
+      { timeout: TIMEOUT_MS.PROJECT_REMOVE + TIMEOUT_MS.PROJECT_DEPLOY },
+      async () => {
+        parseResult(
+          JsonObjectSchema,
+          await cli.run(["project", "remove", "all", "--yes", "--json"], projectDir),
+        );
 
-      parseResult(
-        JsonObjectSchema,
-        await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
-      );
-    });
+        parseResult(
+          JsonObjectSchema,
+          await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
+        );
+      },
+    );
   },
 );
 
