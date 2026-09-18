@@ -4,9 +4,10 @@ import type {
   ListBatchEvaluationsResponse,
 } from "@aws-sdk/client-bedrock-agentcore";
 import { createRootHandler } from "../../index";
-import { createSilentLogger, TestCoreClient, testIO } from "../../../testing";
+import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
 import type { BatchEvaluationResultEntry } from "../types";
+import { InputValidationError } from "../../../errors";
 
 // Command-flow tests for `eval batch-evaluation`, driven through the real root
 // handler against a TestCoreClient (no network). These cover the edges that the
@@ -84,7 +85,11 @@ describe("eval batch-evaluation command hierarchy", () => {
 
 describe("eval batch-evaluation get", () => {
   test("requires --id", async () => {
-    await expect(run(["eval", "batch-evaluation", "get", "--json"])).rejects.toThrow(/--id/);
+    await expectError(
+      run(["eval", "batch-evaluation", "get", "--json"]),
+      /--id/,
+      InputValidationError,
+    );
   });
 
   test("includes CloudWatch results for a terminal job by default", async () => {
@@ -237,7 +242,11 @@ describe("eval batch-evaluation simulate", () => {
       ],
     ],
   ])("rejects when a required flag is missing (%s)", async (expected, args) => {
-    await expect(run(["eval", "batch-evaluation", "simulate", ...args])).rejects.toThrow(expected);
+    await expectError(
+      run(["eval", "batch-evaluation", "simulate", ...args]),
+      expected,
+      InputValidationError,
+    );
   });
 
   test("refuses to grade when nothing was invoked, naming the first failure", async () => {

@@ -15,7 +15,7 @@ export const createAddGatewayHandler = (config: AddProjectResourceConfig) =>
     name: "gateway",
     description: "add a Gateway to the current project",
     flags: [
-      flag("name", "the Gateway name", z.string().optional()),
+      flag("name", "the Gateway name", z.string().min(1)),
       flag(
         "role-arn",
         "IAM role the Gateway assumes; a default role is created when omitted",
@@ -52,9 +52,6 @@ export const createAddGatewayHandler = (config: AddProjectResourceConfig) =>
       flag("tags", "tags as repeated key=value or a JSON object", z.array(z.string()).optional()),
     ],
     handle: async (ctx, flags) => {
-      if (!flags.name) {
-        throw new InputValidationError("required option '--name <name>' not specified");
-      }
       const project = ctx.require(ProjectKey);
       requireDeployedNameFits(
         "Gateway",

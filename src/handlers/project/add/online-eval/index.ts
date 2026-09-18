@@ -11,7 +11,7 @@ export const createAddOnlineEvalHandler = (config: AddProjectResourceConfig) =>
     name: "online-eval",
     description: "add an online evaluation config to the current project",
     flags: [
-      flag("name", "the name of the online evaluation config", z.string().optional()),
+      flag("name", "the name of the online evaluation config", z.string().min(1)),
       flag(
         "agent",
         "Runtime name whose traffic to sample (mutually exclusive with --log-group-name)",
@@ -40,7 +40,7 @@ export const createAddOnlineEvalHandler = (config: AddProjectResourceConfig) =>
       flag(
         "sampling-rate",
         "percentage of sessions to sample (0.01-100)",
-        z.number().min(0.01).max(100).optional(),
+        z.number().min(0.01).max(100),
       ),
       flag(
         "description",
@@ -55,13 +55,6 @@ export const createAddOnlineEvalHandler = (config: AddProjectResourceConfig) =>
       flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
     ],
     handle: async (ctx, flags) => {
-      if (!flags["name"])
-        throw new InputValidationError("required option '--name <name>' not specified");
-      if (flags["sampling-rate"] === undefined)
-        throw new InputValidationError(
-          "required option '--sampling-rate <sampling-rate>' not specified",
-        );
-
       const candidate = {
         name: flags["name"],
         agent: flags["agent"],

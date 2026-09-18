@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../index";
 import {
   createSilentLogger,
+  expectError,
   initProject,
   inTempDirectory,
   TestCoreClient,
@@ -623,9 +624,17 @@ describe("project add config-bundle", () => {
     await expect(run(args)).rejects.toBeInstanceOf(InputValidationError);
   });
 
-  test.each([
-    ["missing name", ["--components", JSON.stringify(components)]],
-    ["missing components", ["--name", "OrdersConfig"]],
+  test.each<[string, string[], string?]>([
+    [
+      "missing name",
+      ["--components", JSON.stringify(components)],
+      "required option '--name' not specified",
+    ],
+    [
+      "missing components",
+      ["--name", "OrdersConfig"],
+      "required option '--components' not specified",
+    ],
     ["invalid name", ["--name", "orders-config", "--components", JSON.stringify(components)]],
     ["empty components", ["--name", "OrdersConfig", "--components", "{}"]],
     [
@@ -688,10 +697,12 @@ describe("project add config-bundle", () => {
         "not-an-arn",
       ],
     ],
-  ])("rejects %s", async (_label, flags) => {
+  ])("rejects %s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    await expect(run(["add", "config-bundle", ...flags])).rejects.toBeInstanceOf(
+    await expectError(
+      run(["add", "config-bundle", ...flags]),
+      requiredMessage ?? /./,
       InputValidationError,
     );
   });
@@ -1025,9 +1036,8 @@ describe("project add credentials", () => {
   ])("rejects %s", async (_label, args, message) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    await expect(run(["add", "credentials", ...args], { stdin: "line1\nline2" })).rejects.toThrow(
-      message,
-    );
+    const promise = run(["add", "credentials", ...args], { stdin: "line1\nline2" });
+    await expectError(promise, message, InputValidationError);
   });
 });
 

@@ -1,5 +1,4 @@
 import z from "zod";
-import { InputValidationError } from "../../../../errors";
 import { SourceResolver, type AppIO } from "../../../../io";
 import { createHandler, flag } from "../../../../router";
 import { JsonRendererKey } from "../../../../tui";
@@ -17,7 +16,7 @@ export const createRunBatchInsightsHandler = (core: Core, io: AppIO) =>
     name: "run",
     description: "start an asynchronous batch insights run over existing sessions",
     flags: [
-      flag("name", "batch insights name (must be unique in the account)", z.string().optional(), {
+      flag("name", "batch insights name (must be unique in the account)", z.string().min(1), {
         group: CONFIGURATION,
       }),
       flag("description", "optional description", z.string().optional(), {
@@ -38,10 +37,6 @@ export const createRunBatchInsightsHandler = (core: Core, io: AppIO) =>
       ),
     ],
     handle: async (ctx, flags) => {
-      if (!flags["name"]) {
-        throw new InputValidationError("required option '--name <name>' not specified");
-      }
-
       const resolver = new SourceResolver({ stdin: io.stdin });
       const source = await SessionSource.resolve(flags, resolver);
       const response = await core.eval.startBatchInsights(

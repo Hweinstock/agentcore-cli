@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../../index";
 import {
   createSilentLogger,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -140,9 +141,9 @@ describe("project add evaluator code-based", () => {
     });
   });
 
-  test.each<[string, string[]]>([
-    ["missing --name", ["--level", "SESSION"]],
-    ["missing --level", ["--name", "x"]],
+  test.each<[string, string[], string?]>([
+    ["missing --name", ["--level", "SESSION"], "required option '--name' not specified"],
+    ["missing --level", ["--name", "x"], "required option '--level' not specified"],
     [
       "--timeout-seconds with --lambda-arn",
       [
@@ -158,12 +159,11 @@ describe("project add evaluator code-based", () => {
     ],
     ["invalid --level", ["--name", "x", "--level", "NOPE"]],
     ["invalid --lambda-arn", ["--name", "x", "--level", "SESSION", "--lambda-arn", "not-an-arn"]],
-  ])("%s", async (_label, flags) => {
+  ])("%s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    await expect(run(["add", "evaluator", "code-based", ...flags])).rejects.toBeInstanceOf(
-      InputValidationError,
-    );
+    const promise = run(["add", "evaluator", "code-based", ...flags]);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 
   test.each([

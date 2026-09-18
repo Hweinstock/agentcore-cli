@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -279,8 +280,8 @@ describe("project add memory", () => {
     );
   });
 
-  test.each([
-    ["missing --name", ["--event-expiry-duration", "30"]],
+  test.each<[string, string[], string?]>([
+    ["missing --name", ["--event-expiry-duration", "30"], "required option '--name' not specified"],
     ["invalid name", ["--name", "1bad"]],
     ["empty description", ["--name", "x", "--description", ""]],
     [
@@ -382,10 +383,11 @@ describe("project add memory", () => {
       ],
     ],
     ["malformed --strategies JSON", ["--name", "x", "--strategies", "[{"]],
-  ])("%s", async (_label, flags) => {
+  ])("%s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject();
     cleanups.push(cleanup);
-    await expect(run(["add", "memory", ...flags])).rejects.toBeInstanceOf(InputValidationError);
+    const promise = run(["add", "memory", ...flags]);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 
   test.each<[string, string[], RegExp]>([

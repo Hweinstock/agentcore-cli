@@ -689,7 +689,7 @@ describe("project create dispatch", () => {
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain("required option '--name <name>' not specified");
+    expect((error as Error).message).toContain("required option '--name' not specified");
   });
 
   test("any user-supplied flag stays headless even in a TTY", async () => {
@@ -702,7 +702,7 @@ describe("project create dispatch", () => {
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain("required option '--name <name>' not specified");
+    expect((error as Error).message).toContain("required option '--name' not specified");
   });
 
   test("--json stays headless even in a TTY", async () => {
@@ -715,7 +715,7 @@ describe("project create dispatch", () => {
       .catch((caught: unknown) => caught);
 
     expect(error).toBeInstanceOf(InputValidationError);
-    expect((error as Error).message).toContain("required option '--name <name>' not specified");
+    expect((error as Error).message).toContain("required option '--name' not specified");
   });
 
   test("flag-driven create still runs headless in a TTY session", async () => {
