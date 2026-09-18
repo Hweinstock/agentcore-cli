@@ -19,7 +19,7 @@ import {
 } from "./index";
 import { AgentCoreCLIError, InputValidationError } from "../errors";
 import { DefaultTelemetryClient } from "../telemetry";
-import { createSilentLogger, TestGlobalConfigAccessor } from "../testing";
+import { createSilentLogger, expectError, TestGlobalConfigAccessor } from "../testing";
 
 // --- helpers ---------------------------------------------------------------
 
@@ -374,8 +374,10 @@ test("a required (non-optional) flag is mandatory", async () => {
 
   const cmd = exitOverrideAll(compile(root, ValueContext.EmptyContext()));
 
-  await expect(cmd.parseAsync(["node", "app", "get"])).rejects.toThrow(
-    "required option '--harness-id <harness-id>' not specified",
+  await expectError(
+    cmd.parseAsync(["node", "app", "get"]),
+    "required option '--harness-id' not specified",
+    InputValidationError,
   );
 });
 

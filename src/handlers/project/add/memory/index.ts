@@ -130,7 +130,7 @@ export const createAddMemoryHandler = (config: AddProjectResourceConfig) =>
     name: "memory",
     description: "add a Memory to the current project",
     flags: [
-      flag("name", "the name of the Memory", z.string().optional()),
+      flag("name", "the name of the Memory", z.string().min(1)),
       flag("description", "a description of what the Memory stores", z.string().optional()),
       flag(
         "event-expiry-duration",
@@ -166,9 +166,6 @@ export const createAddMemoryHandler = (config: AddProjectResourceConfig) =>
       flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
     ],
     handle: async (ctx, flags) => {
-      if (!flags.name)
-        throw new InputValidationError("required option '--name <name>' not specified");
-
       const inputIndexedKeys = parseJsonFlagWithSchema(
         "indexed-keys",
         flags["indexed-keys"],

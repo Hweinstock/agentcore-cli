@@ -11,7 +11,7 @@ export const createAddPolicyEngineHandler = (config: AddProjectResourceConfig) =
     name: "policy-engine",
     description: "add a Policy Engine to the current project",
     flags: [
-      flag("name", "the Policy Engine name", z.string().optional()),
+      flag("name", "the Policy Engine name", z.string().min(1)),
       flag("description", "Policy Engine description", z.string().optional()),
       flag("encryption-key-arn", "KMS encryption key ARN", z.string().optional()),
       flag("tags", "tags as repeated key=value or a JSON object", z.array(z.string()).optional()),
@@ -27,9 +27,6 @@ export const createAddPolicyEngineHandler = (config: AddProjectResourceConfig) =
       ),
     ],
     handle: async (ctx, flags) => {
-      if (!flags.name) {
-        throw new InputValidationError("required option '--name <name>' not specified");
-      }
       if (flags["attach-mode"] !== undefined && flags["attach-to-gateways"] === undefined) {
         throw new InputValidationError("--attach-mode requires --attach-to-gateways");
       }

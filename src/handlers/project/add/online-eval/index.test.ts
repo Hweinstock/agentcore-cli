@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
   createSilentLogger,
+  expectError,
   initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -193,9 +194,17 @@ describe("project add online-eval", () => {
     ).rejects.toBeInstanceOf(DeserializationError);
   });
 
-  test.each<[string, string[]]>([
-    ["missing --name", ["--log-group-name", "/x", "--evaluators", "e", "--sampling-rate", "10"]],
-    ["missing --sampling-rate", ["--name", "x", "--log-group-name", "/x", "--evaluators", "e"]],
+  test.each<[string, string[], string?]>([
+    [
+      "missing --name",
+      ["--log-group-name", "/x", "--evaluators", "e", "--sampling-rate", "10"],
+      "required option '--name' not specified",
+    ],
+    [
+      "missing --sampling-rate",
+      ["--name", "x", "--log-group-name", "/x", "--evaluators", "e"],
+      "required option '--sampling-rate' not specified",
+    ],
     [
       "--agent and --log-group-name are mutually exclusive",
       [
@@ -246,11 +255,10 @@ describe("project add online-eval", () => {
         "10",
       ],
     ],
-  ])("%s", async (_label, flags) => {
+  ])("%s", async (...[_label, flags, requiredMessage]) => {
     const { cleanup } = await initProject({ flags: ["--template", "agent-python-minimal"] });
     cleanups.push(cleanup);
-    await expect(run(["add", "online-eval", ...flags])).rejects.toBeInstanceOf(
-      InputValidationError,
-    );
+    const promise = run(["add", "online-eval", ...flags]);
+    await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 });

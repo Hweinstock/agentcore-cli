@@ -52,6 +52,12 @@ export function parseJsonFlag<T>(name: string, raw: string | undefined): T | und
   }
 }
 
+export function parseJsonFlagWithSchema<T>(name: string, raw: string, schema: z.ZodType<T>): T;
+export function parseJsonFlagWithSchema<T>(
+  name: string,
+  raw: string | undefined,
+  schema: z.ZodType<T>,
+): T | undefined;
 export function parseJsonFlagWithSchema<T>(
   name: string,
   raw: string | undefined,
@@ -70,6 +76,11 @@ export function parseJsonFlagWithSchema<T>(
   return result.data;
 }
 
+export function parseJsonObjectFlag<T extends object>(name: string, raw: string): T;
+export function parseJsonObjectFlag<T extends object>(
+  name: string,
+  raw: string | undefined,
+): T | undefined;
 export function parseJsonObjectFlag<T extends object>(
   name: string,
   raw: string | undefined,
