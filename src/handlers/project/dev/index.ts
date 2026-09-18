@@ -197,7 +197,6 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
           return;
         }
 
-        const reservedPorts = new Set<number>();
         const supervisor = new DevSupervisor({
           runtimes,
           projectRoot: project.rootPath,
@@ -205,19 +204,15 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
           getDevEnvVarsForRuntime,
           // The --port guard above rejects an explicit port with more than one
           // runtime, so passing flags.port here only ever applies to a lone one.
-          resolvePort: async (runtime) => {
-            const port = await resolveDevPort(
-              runtime.protocol,
-              flags.port,
-              async (candidate, signal) => {
-                if (reservedPorts.has(candidate)) return false;
-                return config.checkPort(candidate, signal);
-              },
-              controller.signal,
-            );
-            reservedPorts.add(port.port);
-            return port.port;
-          },
+          resolvePort: async (runtime) =>
+            (
+              await resolveDevPort(
+                runtime.protocol,
+                flags.port,
+                config.checkPort,
+                controller.signal,
+              )
+            ).port,
           waitReady: config.waitReady,
           signal: controller.signal,
         });
