@@ -1,11 +1,9 @@
-import { afterAll, beforeAll, describe, expect } from "bun:test";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
-import { E2E_PREFIX } from "../constants";
-import { test } from "../helpers/register";
-import { TAGS } from "../constants";
+import { E2E_PREFIX, TAGS } from "../constants";
 import { CliRunner, parseResult, type RunResult } from "../helpers/run";
 import { retry } from "../helpers/retry";
 
@@ -150,186 +148,192 @@ const A2aResponseSchema = z.object({
   error: z.undefined().optional(),
 });
 
-describe.serial("add, dev, deploy, invoke for runtime templates", () => {
-  const cli = new CliRunner();
-  const projectName = `${E2E_PREFIX}rt${Date.now().toString(36)}`;
-  let projectDir: string;
+describe(
+  "add, dev, deploy, invoke for runtime templates",
+  { sequential: true, tags: [TAGS.RUNTIME] },
+  () => {
+    const cli = new CliRunner();
+    const projectName = `${E2E_PREFIX}rt${Date.now().toString(36)}`;
+    let projectDir: string;
 
-  beforeAll(async () => {
-    const projectRoot = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
-    const created = parseResult(
-      ProjectCreatedSchema,
-      await cli.run(
-        ["project", "create", "--name", projectName, "--template", "empty", "--skip-git", "--json"],
-        projectRoot,
-      ),
-    );
-    projectDir = created.project.path;
-  }, TIMEOUT_MS.PROJECT_CREATE);
-
-  test.each(RUNTIME_TEMPLATES)(
-    "$name can be added to a project",
-    async (runtime) => {
-      const added = parseResult(
-        OperationSchema,
+    beforeAll(async () => {
+      const projectRoot = await mkdtemp(join(tmpdir(), "agentcore-e2e-"));
+      const created = parseResult(
+        ProjectCreatedSchema,
         await cli.run(
           [
             "project",
-            "add",
-            "runtime",
+            "create",
             "--name",
-            runtime.name,
+            projectName,
             "--template",
-            runtime.template,
+            "empty",
+            "--skip-git",
             "--json",
           ],
-          projectDir,
+          projectRoot,
         ),
       );
-      expect(added.operation).toBe("add");
-    },
-    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_CREATE },
-  );
+      projectDir = created.project.path;
+    }, TIMEOUT_MS.PROJECT_CREATE);
 
-  describe.serial("local invocation", () => {
-    // invoke --local does not yet support MCP or A2A invocations
-    const localRuntimes = RUNTIME_TEMPLATES.filter((runtime) =>
-      ["HTTP", "AGUI"].includes(runtime.protocol),
+    test.each(RUNTIME_TEMPLATES)(
+      "$name can be added to a project",
+      { timeout: TIMEOUT_MS.PROJECT_CREATE },
+      async (runtime) => {
+        const added = parseResult(
+          OperationSchema,
+          await cli.run(
+            [
+              "project",
+              "add",
+              "runtime",
+              "--name",
+              runtime.name,
+              "--template",
+              runtime.template,
+              "--json",
+            ],
+            projectDir,
+          ),
+        );
+        expect(added.operation).toBe("add");
+      },
     );
-    const runtimePorts = new Map<string, number>();
-    let dev: ReturnType<CliRunner["start"]> | undefined;
-    let pendingOutput = "";
 
-    /** Given dev-process output, records the ports announced by running runtimes. */
-    const captureDevOutput = (chunk: Buffer) => {
-      pendingOutput += chunk.toString();
-      const lines = pendingOutput.split(/\r?\n/);
-      pendingOutput = lines.pop() ?? "";
+    describe("local invocation", { sequential: true }, () => {
+      // invoke --local does not yet support MCP or A2A invocations
+      const localRuntimes = RUNTIME_TEMPLATES.filter((runtime) =>
+        ["HTTP", "AGUI"].includes(runtime.protocol),
+      );
+      const runtimePorts = new Map<string, number>();
+      let dev: ReturnType<CliRunner["start"]> | undefined;
+      let pendingOutput = "";
 
-      // parse the out for the ports each agent is running on
-      for (const line of lines) {
-        const match = line.match(/Agent '([^']+)' is running on port (\d+)\./);
-        if (match?.[1] && match[2]) runtimePorts.set(match[1], Number(match[2]));
-      }
-    };
+      /** Given dev-process output, records the ports announced by running runtimes. */
+      const captureDevOutput = (chunk: Buffer) => {
+        pendingOutput += chunk.toString();
+        const lines = pendingOutput.split(/\r?\n/);
+        pendingOutput = lines.pop() ?? "";
 
-    beforeAll(() => {
-      dev = cli.start(["project", "dev", "--mode", "headless"], projectDir);
-      dev.stdout?.on("data", captureDevOutput);
-      dev.stderr?.on("data", captureDevOutput);
-      dev.stdout?.resume();
-      dev.stderr?.resume();
-    }, TIMEOUT_MS.PROJECT_DEV);
+        // parse the out for the ports each agent is running on
+        for (const line of lines) {
+          const match = line.match(/Agent '([^']+)' is running on port (\d+)\./);
+          if (match?.[1] && match[2]) runtimePorts.set(match[1], Number(match[2]));
+        }
+      };
 
-    afterAll(async () => {
-      if (!dev || dev.exitCode !== null) return;
-      dev.kill("SIGTERM");
-      await new Promise<void>((resolve) => dev?.once("close", resolve));
+      beforeAll(() => {
+        dev = cli.start(["project", "dev", "--mode", "headless"], projectDir);
+        dev.stdout?.on("data", captureDevOutput);
+        dev.stderr?.on("data", captureDevOutput);
+        dev.stdout?.resume();
+        dev.stderr?.resume();
+      }, TIMEOUT_MS.PROJECT_DEV);
+
+      afterAll(async () => {
+        if (!dev || dev.exitCode !== null) return;
+        dev.kill("SIGTERM");
+        await new Promise<void>((resolve) => dev?.once("close", resolve));
+      });
+
+      test.each(localRuntimes)(
+        "$name runs locally",
+        { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
+        async (runtime) => {
+          const sessionId = getSessionId(`${runtime.name}`);
+
+          // the server may take a bit to get ready, so we retry on a timeout.
+          const response = await retry(async () => {
+            if (!dev) throw new Error("project dev did not start.");
+            if (dev.exitCode !== null)
+              throw new Error(`project dev exited with code ${dev.exitCode ?? "unknown"}.`);
+
+            const port = runtimePorts.get(runtime.name);
+            if (!port) throw new Error(`Runtime '${runtime.name}' is not ready.`);
+
+            return parseResult(
+              LocalRuntimeInvokeResponseSchema,
+              await cli.run(
+                [
+                  "project",
+                  "invoke",
+                  "runtime",
+                  "--local",
+                  "--port",
+                  String(port),
+                  "--session-id",
+                  sessionId,
+                  "--payload",
+                  JSON.stringify(runtime.payload),
+                  "--json",
+                ],
+                projectDir,
+              ),
+            );
+          });
+
+          expect(response.body.trim()).not.toBe("");
+        },
+      );
     });
 
-    test.each(localRuntimes)(
-      "$name runs locally",
-      async (runtime) => {
-        const sessionId = getSessionId(`${runtime.name}`);
-
-        // the server may take a bit to get ready, so we retry on a timeout.
-        const response = await retry(async () => {
-          if (!dev) throw new Error("project dev did not start.");
-          if (dev.exitCode !== null)
-            throw new Error(`project dev exited with code ${dev.exitCode ?? "unknown"}.`);
-
-          const port = runtimePorts.get(runtime.name);
-          if (!port) throw new Error(`Runtime '${runtime.name}' is not ready.`);
-
-          return parseResult(
-            LocalRuntimeInvokeResponseSchema,
-            await cli.run(
-              [
-                "project",
-                "invoke",
-                "runtime",
-                "--local",
-                "--port",
-                String(port),
-                "--session-id",
-                sessionId,
-                "--payload",
-                JSON.stringify(runtime.payload),
-                "--json",
-              ],
-              projectDir,
-            ),
-          );
-        });
-
-        expect(response.body.trim()).not.toBe("");
-      },
-      { mode: "concurrent", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_INVOKE },
-    );
-  });
-
-  test(
-    "deploys all runtimes",
-    async () => {
+    test("deploys all runtimes", { timeout: TIMEOUT_MS.PROJECT_DEPLOY }, async () => {
       const deployment = parseResult(
         DeployResponseSchema,
         await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
       );
       expect(deployment.message).toContain("Deployed project");
-    },
-    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_DEPLOY },
-  );
+    });
 
-  test.each(RUNTIME_TEMPLATES)(
-    "$name can be invoked after deployed",
-    async (runtime) => {
-      const sessionId = getSessionId(runtime.name);
-      const response = parseResult(
-        RuntimeInvokeResponseSchema,
-        await cli.run(
-          [
-            "project",
-            "invoke",
-            "runtime",
-            "--name",
-            runtime.name,
-            "--session-id",
-            sessionId,
-            "--payload",
-            JSON.stringify(runtime.payload),
-            "--json",
-            ...(runtime.invokeFlags ?? []),
-          ],
-          projectDir,
-        ),
-      );
+    test.each(RUNTIME_TEMPLATES)(
+      "$name can be invoked after deployed",
+      { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
+      async (runtime) => {
+        const sessionId = getSessionId(runtime.name);
+        const response = parseResult(
+          RuntimeInvokeResponseSchema,
+          await cli.run(
+            [
+              "project",
+              "invoke",
+              "runtime",
+              "--name",
+              runtime.name,
+              "--session-id",
+              sessionId,
+              "--payload",
+              JSON.stringify(runtime.payload),
+              "--json",
+              ...(runtime.invokeFlags ?? []),
+            ],
+            projectDir,
+          ),
+        );
 
-      expect(response.complete).toBe(true);
-      if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
-        assertProtocolResponse(runtime, response.body);
-      }
-    },
-    { mode: "concurrent", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_INVOKE },
-  );
+        expect(response.complete).toBe(true);
+        if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
+          assertProtocolResponse(runtime, response.body);
+        }
+      },
+    );
 
-  test.each(RUNTIME_TEMPLATES)(
-    "$name can be removed from the project",
-    async (runtime) => {
-      const removed = parseResult(
-        OperationSchema,
-        await cli.run(
-          ["project", "remove", "runtime", "--name", runtime.name, "--json"],
-          projectDir,
-        ),
-      );
-      expect(removed.operation).toBe("remove");
-    },
-    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_REMOVE },
-  );
+    test.each(RUNTIME_TEMPLATES)(
+      "$name can be removed from the project",
+      { timeout: TIMEOUT_MS.PROJECT_REMOVE },
+      async (runtime) => {
+        const removed = parseResult(
+          OperationSchema,
+          await cli.run(
+            ["project", "remove", "runtime", "--name", runtime.name, "--json"],
+            projectDir,
+          ),
+        );
+        expect(removed.operation).toBe("remove");
+      },
+    );
 
-  test(
-    "deploys the empty project",
-    async () => {
+    test("deploys the empty project", { timeout: TIMEOUT_MS.PROJECT_DEPLOY }, async () => {
       parseResult(
         JsonObjectSchema,
         await cli.run(["project", "remove", "all", "--yes", "--json"], projectDir),
@@ -339,10 +343,9 @@ describe.serial("add, dev, deploy, invoke for runtime templates", () => {
         JsonObjectSchema,
         await cli.run(["project", "deploy", "--yes", "--json"], projectDir),
       );
-    },
-    { mode: "serial", tags: [TAGS.RUNTIME], timeout: TIMEOUT_MS.PROJECT_DEPLOY },
-  );
-});
+    });
+  },
+);
 
 /** Given a runtime and response body, validates the protocol response and request identifier. */
 function assertProtocolResponse(runtime: RuntimeTemplateTestCase, body: string): void {

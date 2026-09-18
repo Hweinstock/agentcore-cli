@@ -11,7 +11,7 @@ bun run test:e2e
 To run tagged tests:
 
 ```sh
-E2E_TAGS=runtime bun run test:e2e
+bun run test:e2e -- --tagsFilter='runtime || canary'
 ```
 
 Set `AGENTCORE_CLI_PATH` to use a different executable:

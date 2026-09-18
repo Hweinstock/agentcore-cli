@@ -9,7 +9,7 @@ on:
         type: string
         default: refactor
       tags:
-        description: comma-separated E2E test tags to run
+        description: Vitest tag expression, for example runtime || canary
         type: string
         default: ""
 
@@ -84,7 +84,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "24"
       - uses: astral-sh/setup-uv@v6
       - run: bun install --frozen-lockfile
       - name: Configure AWS credentials
@@ -92,9 +92,17 @@ jobs:
         with:
           role-to-assume: ${{ vars.E2E_ROLE_ARN }}
           aws-region: ${{ vars.E2E_REGION || 'us-east-1' }}
-      - name: Run e2e suite
+      - name: Build CLI
+        run: bun run build
+      - name: Run all E2E tests
+        if: inputs.tags == ''
         env:
           AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
           AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
-          E2E_TAGS: ${{ inputs.tags || '' }}
-        run: bun run build && bun run test:e2e
+        run: bun run test:e2e
+      - name: Run tagged E2E tests
+        if: inputs.tags != ''
+        env:
+          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
+          AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
+        run: bun run test:e2e -- --tagsFilter="${{ inputs.tags }}"
