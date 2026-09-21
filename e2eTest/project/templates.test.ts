@@ -265,13 +265,17 @@ describe(
                   "--payload",
                   JSON.stringify(runtime.payload),
                   "--json",
+                  ...(runtime.invokeFlags ?? []),
                 ],
                 projectDir,
               ),
             );
           });
 
-          expect(response.body.trim()).not.toBe("");
+          expect(response.complete).toBe(true);
+          if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
+            assertProtocolResponse(runtime, response.body);
+          }
         },
       );
     });
