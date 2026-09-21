@@ -70,10 +70,7 @@ export function handleResources(deps: InspectorDeps): HttpResponse {
         description: policy.description,
       })),
     })),
-    unassignedTargets: (spec.unassignedTargets ?? []).map((target) => ({
-      name: target.name,
-      targetType: target.targetType,
-    })),
+    unassignedTargets: [],
     // Project schema has no aws-targets or deployed-state equivalent yet, so neutral defaults.
     deploymentTargets: [],
   };

@@ -15,7 +15,7 @@ function project(): Project {
     rootPath: "/workspace/demo",
     spec: ProjectSpecSchema.parse({
       name: "Demo",
-      version: 1,
+      version: 2,
       managedBy: "CDK",
       runtimes: [
         {
@@ -90,13 +90,6 @@ function project(): Project {
           bindings: [{ runtimeName: "orders", envVarName: "SEARCH_URL" }],
         },
       ],
-      unassignedTargets: [
-        {
-          name: "catalog",
-          targetType: "smithyModel",
-          schemaSource: { inline: { path: "schema.smithy" } },
-        },
-      ],
       policyEngines: [
         {
           name: "guardrails",
@@ -164,7 +157,7 @@ describe("GET /api/resources", () => {
           policies: [{ name: "allow_read", description: "Allow reads" }],
         },
       ],
-      unassignedTargets: [{ name: "catalog", targetType: "smithyModel" }],
+      unassignedTargets: [],
       deploymentTargets: [],
     });
   });

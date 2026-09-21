@@ -92,7 +92,7 @@ async function project(withDependencies = true): Promise<Project> {
   return {
     name: "example",
     rootPath,
-    spec: ProjectSpecSchema.parse({ name: "example", version: 1 }),
+    spec: ProjectSpecSchema.parse({ name: "example", version: 2 }),
   };
 }
 
@@ -311,7 +311,10 @@ describe("CdkBackend.build", () => {
     const input = await project();
     const packageDirectory = join(cdkDirectory(input), "node_modules", "@aws", "agentcore-cdk");
     await mkdir(packageDirectory, { recursive: true });
-    await writeFile(join(packageDirectory, "package.json"), JSON.stringify({ version: "0.0.0-0" }));
+    await writeFile(
+      join(packageDirectory, "package.json"),
+      JSON.stringify({ version: "1.0.0-rc.1" }),
+    );
     const subject = harness();
 
     expect(await collect(subject.backend.build(input))).toEqual([
@@ -719,7 +722,7 @@ describe("CdkBackend.deploy", () => {
     const input = await project();
     input.spec = ProjectSpecSchema.parse({
       name: "example",
-      version: 1,
+      version: 2,
       credentials: [{ authorizerType: "ApiKeyCredentialProvider", name: "openai-key" }],
     });
     await writeAssembly(input, [TARGET.name]);

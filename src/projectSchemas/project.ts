@@ -1,15 +1,8 @@
 import { isReservedProjectName } from "./constants";
 import { ProjectRuntimeSchema } from "./runtime";
-import {
-  AgentCoreGatewaySchema,
-  AgentCoreGatewayTargetSchema,
-  REAL_KB_ID_PATTERN,
-  ToolRuntimeSchema,
-} from "./gateway";
-import { ABTestSchema } from "./ab-test";
+import { AgentCoreGatewaySchema, REAL_KB_ID_PATTERN, ToolRuntimeSchema } from "./gateway";
 import { ConfigBundleSchema } from "./config-bundle";
 import { CredentialSchema, credentialEnvironmentVariableNames } from "./credential";
-import { DatasetSchema } from "./dataset";
 import { EvaluatorSchema } from "./evaluator";
 import { HarnessRegistryEntrySchema } from "./harness";
 import { KnowledgeBaseSchema } from "./knowledge-base";
@@ -46,7 +39,7 @@ export const ProjectSpecSchema = z
   .object({
     $schema: z.string().optional(),
     name: ProjectNameSchema,
-    version: z.number().int().min(1),
+    version: z.literal(2),
     managedBy: ManagedBySchema,
     tags: TagsSchema.optional(),
     runtimes: z.array(ProjectRuntimeSchema).default([]).superRefine(uniqueNames("agent")),
@@ -66,10 +59,6 @@ export const ProjectSpecSchema = z
       .default([])
       .superRefine(uniqueNames("gateway")),
     toolRuntimes: z.array(ToolRuntimeSchema).optional().superRefine(uniqueNames("tool runtime")),
-    unassignedTargets: z
-      .array(AgentCoreGatewayTargetSchema)
-      .optional()
-      .superRefine(uniqueNames("unassigned target")),
     policyEngines: z
       .array(PolicyEngineSchema)
       .default([])
@@ -78,16 +67,7 @@ export const ProjectSpecSchema = z
       .array(ConfigBundleSchema)
       .default([])
       .superRefine(uniqueNames("config bundle")),
-    abTests: z.array(ABTestSchema).default([]).superRefine(uniqueNames("AB test")),
     harnesses: z.array(HarnessRegistryEntrySchema).default([]).superRefine(uniqueNames("harness")),
-    datasets: z.array(DatasetSchema).optional().superRefine(uniqueNames("dataset")),
-    httpGateways: z
-      .array(z.unknown())
-      .max(
-        0,
-        '"httpGateways" is deprecated. Migrate to agentCoreGateways with protocolType: "None", or use "agentcore import gateway".',
-      )
-      .optional(),
     payments: z.array(PaymentManagerSchema).optional().superRefine(uniqueNames("payment manager")),
   })
   .strict()
@@ -140,37 +120,6 @@ export const ProjectSpecSchema = z
                   code: "custom",
                   message: `Gateway "${gw.name}" target "${target.name}" references endpoint "${target.httpRuntime.runtimeEndpoint}" which does not exist on runtime "${target.httpRuntime.runtime}".`,
                 });
-              }
-            }
-          }
-        }
-      }
-    }
-    for (const test of spec.abTests ?? []) {
-      const gwField = test.gatewayRef;
-      if (gwField && typeof gwField === "string") {
-        const match = /^\{\{gateway:(.+)\}\}$/.exec(gwField);
-        if (match) {
-          const gwName = match[1];
-          const gwExists = (spec.agentCoreGateways ?? []).some((gw) => gw.name === gwName);
-          if (!gwExists) {
-            ctx.addIssue({
-              code: "custom",
-              message: `AB test "${test.name}" references gateway "${gwName}" which does not exist in agentCoreGateways`,
-            });
-          }
-          if (test.mode === "target-based") {
-            const gw = (spec.agentCoreGateways ?? []).find((g) => g.name === gwName);
-            if (gw) {
-              const gwTargetNames = new Set((gw.targets ?? []).map((t) => t.name));
-              for (const variant of test.variants) {
-                const targetName = variant.variantConfiguration.target?.targetName;
-                if (targetName && !gwTargetNames.has(targetName)) {
-                  ctx.addIssue({
-                    code: "custom",
-                    message: `AB test "${test.name}" variant "${variant.name}" references target "${targetName}" which does not exist in gateway "${gwName}" targets`,
-                  });
-                }
               }
             }
           }

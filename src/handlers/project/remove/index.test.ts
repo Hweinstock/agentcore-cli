@@ -525,8 +525,6 @@ describe("project remove", () => {
 });
 
 describe("project remove all", () => {
-  // Fills a project with one of everything the CLI can add, plus an
-  // unassignedTargets entry only reachable by editing the spec.
   async function populatedProject(): Promise<string> {
     const { projectRoot, cleanup } = await initProject({
       flags: ["--template", "agent-python-minimal"],
@@ -569,8 +567,23 @@ describe("project remove all", () => {
       '{"arn:aws:bedrock-agentcore:us-east-1:123456789012:runtime/orders-agent":{"configuration":{"temperature":0.2}}}',
     ]);
     const spec = await projectSpec(projectRoot);
-    spec.unassignedTargets = [structuredClone(spec.agentCoreGateways[0].targets[0])];
-    spec.unassignedTargets[0].name = "orphan";
+    spec.knowledgeBases = [
+      { name: "catalog", dataSources: [{ type: "S3", uri: "s3://example-documents/catalog" }] },
+    ];
+    spec.toolRuntimes = [
+      {
+        name: "lookup",
+        toolDefinition: {
+          name: "lookup",
+          description: "Look up a product",
+          inputSchema: { type: "object" },
+        },
+        compute: {
+          host: "AgentCoreRuntime",
+          implementation: { language: "Python", path: "tools", handler: "handler.main" },
+        },
+      },
+    ];
     await writeProjectSpec(projectRoot, spec);
     return projectRoot;
   }
@@ -594,19 +607,21 @@ describe("project remove all", () => {
       "agentCoreGateways",
       "policyEngines",
       "configBundles",
-      "abTests",
       "harnesses",
     ]) {
       expect(spec[collection]).toEqual([]);
     }
-    for (const collection of [
-      "toolRuntimes",
-      "unassignedTargets",
-      "datasets",
-      "httpGateways",
-      "payments",
-    ]) {
+    for (const collection of ["toolRuntimes", "payments"]) {
       expect(spec[collection]).toBeUndefined();
+    }
+    for (const field of [
+      "datasets",
+      "abTests",
+      "unassignedTargets",
+      "httpGateways",
+      "capacityProviders",
+    ]) {
+      expect(spec).not.toHaveProperty(field);
     }
     expect(spec.name).toBe(before.name);
     expect(spec.version).toBe(before.version);
