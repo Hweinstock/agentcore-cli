@@ -8,6 +8,7 @@ import { projectSpecPath } from "../../../core/project/fsUtils";
 import { DevSupervisor, type SupervisorConfig } from "../../../core/dev/supervisor";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
 import {
+  AgentCoreCLIError,
   InputValidationError,
   ResourceNotFoundError,
   SilentCLIError,
@@ -212,7 +213,7 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
             if (assignedPorts) {
               const assignedPort = assignedPorts.get(runtime.name);
               if (assignedPort === undefined) {
-                throw new Error(`No port was assigned to runtime '${runtime.name}'.`);
+                throw new AgentCoreCLIError(`No port was assigned to runtime '${runtime.name}'.`);
               }
               return assignedPort;
             }

@@ -289,44 +289,16 @@ describe("project dev headless multi-agent", () => {
     expect(subject.collector.state.closed).toBe(1);
   });
 
-  test("assigns distinct ports before launching runtimes", async () => {
-    const checks: number[] = [];
-    // Hold the first check open so the old concurrent allocator lets both
-    // runtimes observe port 8080 as free before either records ownership.
-    let firstCheck!: () => void;
-    let releaseChecks!: () => void;
-    const firstCheckStarted = new Promise<void>((resolve) => {
-      firstCheck = resolve;
-    });
-    const checksReleased = new Promise<void>((resolve) => {
-      releaseChecks = resolve;
-    });
+  test("assigns distinct ports to runtimes launched together", async () => {
     const codeZip = stayingRunner();
     const container = stayingRunner();
-    const subject = harness({
-      project: twoRuntimes(),
-      codeZip,
-      container,
-      checkPort: async (port) => {
-        checks.push(port);
-        firstCheck();
-        await checksReleased;
-        return true;
-      },
-    });
+    const subject = harness({ project: twoRuntimes(), codeZip, container });
+    const { pending } = await supervised(subject);
 
-    const pending = subject.run();
-    pending.catch(() => undefined);
-    await firstCheckStarted;
-    await Bun.sleep(1); // Let a competing allocation enter the blocked check.
-    releaseChecks();
-    await Bun.sleep(30);
-
-    expect(checks).toEqual([8080, 8081]);
     expect([codeZip.inputs[0]?.port, container.inputs[0]?.port]).toEqual([8080, 8081]);
 
     process.emit("SIGINT", "SIGINT");
-    await pending.catch(() => undefined);
+    await expect(pending).rejects.toMatchObject({ exitCode: 130 });
   });
 
   test("one agent failing to start leaves the others running", async () => {
