@@ -68,7 +68,7 @@ jobs:
           fi
 
   e2e:
-    name: e2e (${{ matrix.name }})
+    name: test (${{ matrix.name }})
     needs: authorize
     if: needs.authorize.outputs.is-authorized == 'true'
     runs-on: ${{ fromJSON(matrix.runner) }}
