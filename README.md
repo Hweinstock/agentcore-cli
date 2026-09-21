@@ -839,6 +839,10 @@ branches and their `get`/`list` leaves open command menus and scoped selection
 flows. Connector is presented as a separate resource experience while using
 Gateway Target operations internally.
 
+Create and deploy Gateways through an AgentCore project. The Gateway menu's
+TUI-only `create` entry provides `project create`,
+`project add gateway --name MyGateway`, and `project deploy` guidance.
+
 ```bash
 agentcore gateway
 agentcore gateway list

@@ -11,6 +11,7 @@ import { testIO } from "./testIO";
 import { tick, waitFor } from "./timing";
 import { createSilentLogger } from "./logging";
 import { TestGlobalConfigAccessor } from "./globalConfig";
+import { DEFAULT_GLOBAL_CONFIG, type GlobalConfig } from "../globalConfig";
 
 // TUI test harness.
 //
@@ -26,12 +27,16 @@ import { TestGlobalConfigAccessor } from "./globalConfig";
 // compiledRootCommand compiles the real handler tree into the Commander command
 // the app pins as CommandKey. Tests also walk it to enumerate every command, so
 // a command added later is covered without a new test.
-export function compiledRootCommand(core: TestCoreClient = new TestCoreClient()): Command {
+export function compiledRootCommand(
+  core: TestCoreClient = new TestCoreClient(),
+  globalConfig: GlobalConfig = DEFAULT_GLOBAL_CONFIG,
+): Command {
   return compile(
     createRootHandler(core, {
       io: testIO().io,
       logger: createSilentLogger(),
-      globalConfigAccessor: new TestGlobalConfigAccessor(),
+      globalConfigAccessor: new TestGlobalConfigAccessor({ initialConfigData: globalConfig }),
+      globalConfig,
     }),
     ValueContext.EmptyContext(),
   );
@@ -46,9 +51,10 @@ function baseContext(
   core: TestCoreClient,
   endpointUrl?: string,
   platform: NodeJS.Platform = process.platform,
+  globalConfig: GlobalConfig = DEFAULT_GLOBAL_CONFIG,
 ): Context {
   return ValueContext.EmptyContext()
-    .withValue(CommandKey, compiledRootCommand(core))
+    .withValue(CommandKey, compiledRootCommand(core, globalConfig))
     .withValue(RegionKey, "us-east-1")
     .withValue(PlatformKey, platform)
     .withValue(EndpointKey, endpointUrl)
@@ -68,6 +74,7 @@ function testQueryClient(): QueryClient {
 }
 
 export interface RenderScreenOptions {
+  globalConfig?: GlobalConfig;
   // core is the injected Core; defaults to an empty TestCoreClient.
   core?: TestCoreClient;
   // ctx overrides the base context (rarely needed).
@@ -137,7 +144,8 @@ export function cleanupScreens(): void {
 // and returns handles to read frames and send input.
 export function renderScreen(path: string, options: RenderScreenOptions = {}): RenderScreenResult {
   const core = options.core ?? new TestCoreClient();
-  const base = options.ctx ?? baseContext(core, options.endpointUrl, options.platform);
+  const base =
+    options.ctx ?? baseContext(core, options.endpointUrl, options.platform, options.globalConfig);
   const ctx = options.withContext?.(base) ?? base;
   const queryClient = options.queryClient ?? testQueryClient();
 

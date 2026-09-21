@@ -22,19 +22,25 @@ import {
 import type { AppIO } from "../io";
 import type { Core } from "./types.tsx";
 import type { Logger } from "../logging";
-import type { GlobalConfigAccessor } from "../globalConfig";
+import {
+  DEFAULT_GLOBAL_CONFIG,
+  type GlobalConfig,
+  type GlobalConfigAccessor,
+} from "../globalConfig";
 import { PACKAGE_VERSION } from "../constants";
 
 export interface RootHandlerConfig {
   io: AppIO;
   logger: Logger;
   globalConfigAccessor: GlobalConfigAccessor;
+  /** Resolved startup settings used when constructing command trees. */
+  globalConfig?: GlobalConfig;
   /** Host platform, defaults to `process.platform`. Tests pass "win32" to exercise Windows paths. */
   platform?: NodeJS.Platform;
 }
 
 export function createRootHandler(core: Core, config: RootHandlerConfig): Router {
-  const { io, logger } = config;
+  const { io, logger, globalConfig = DEFAULT_GLOBAL_CONFIG } = config;
   // The subcommands with screens of their own; the rest (feedback, config,
   // update) are listed in the menu as command line only and open their help.
   const root = new Router(
@@ -75,7 +81,7 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
   root.handler(createIdentityHandler(core, io));
   root.handler(createRuntimeHandler(core, io));
   root.handler(createMemoryHandler(core, io));
-  root.handler(createGatewayHandler(core, io));
+  root.handler(createGatewayHandler(core, io, globalConfig));
   root.handler(createPaymentHandler(core, io));
   root.handler(createEvalHandler(core, io));
   root.handler(createFeedbackHandler(core, io));
