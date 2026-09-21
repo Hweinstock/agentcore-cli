@@ -180,7 +180,7 @@ afterEach(async () => {
 });
 
 describe("project invoke", () => {
-  test("invokes a local Runtime directly without resolving project resources", async () => {
+  test("auto-selects the sole local Runtime without resolving deployed resources", async () => {
     let request:
       | {
           method: string;
@@ -212,16 +212,7 @@ describe("project invoke", () => {
     const payload = '{"prompt":"hi"}';
 
     const { core, io, resolved } = await run(
-      [
-        "runtime",
-        "--local",
-        "--name",
-        RUNTIME.name,
-        "--port",
-        String(server.port),
-        "--payload",
-        payload,
-      ],
+      ["runtime", "--local", "--port", String(server.port), "--payload", payload],
       { runtimes: [RUNTIME] },
       { writeTargets: false },
     );
@@ -465,11 +456,6 @@ describe("project invoke", () => {
       message: "--target cannot be used with --local",
     },
     {
-      name: "requires a local Runtime name",
-      args: ["runtime", "--local", "--payload", "{}"],
-      message: "required option '--name <name>' not specified",
-    },
-    {
       name: "requires a local payload",
       args: ["runtime", "--local", "--name", RUNTIME.name],
       message: "required option '--payload <payload>' not specified",
@@ -492,6 +478,18 @@ describe("project invoke", () => {
     await expect(run([...args], { runtimes: [RUNTIME] }, { writeTargets: false })).rejects.toThrow(
       message,
     );
+  });
+
+  test("requires --name when invoking one of multiple local Runtimes", async () => {
+    await expect(
+      run(
+        ["runtime", "--local", "--payload", "{}"],
+        {
+          runtimes: [RUNTIME, { ...RUNTIME, name: "inventory" }],
+        },
+        { writeTargets: false },
+      ),
+    ).rejects.toThrow("Project has multiple Runtimes. Specify --name: checkout, inventory.");
   });
 
   test("invokes the sole Runtime with its existing payload contract in the target region", async () => {
