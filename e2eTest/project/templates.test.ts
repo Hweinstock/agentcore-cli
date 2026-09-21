@@ -180,7 +180,7 @@ describe(
     test.each(RUNTIME_TEMPLATES)(
       "$name can be added to a project",
       { timeout: TIMEOUT_MS.PROJECT_CREATE },
-      async (runtime) => {
+      async (runtime: RuntimeTemplateTestCase) => {
         const added = parseResult(
           OperationSchema,
           await cli.run(
@@ -202,10 +202,6 @@ describe(
     );
 
     describe("local invocation", { sequential: true }, () => {
-      // invoke --local does not yet support MCP or A2A invocations
-      const localRuntimes = RUNTIME_TEMPLATES.filter((runtime) =>
-        ["HTTP", "AGUI"].includes(runtime.protocol),
-      );
       const runtimePorts = new Map<string, number>();
       let dev: ReturnType<CliRunner["start"]> | undefined;
       let pendingOutput = "";
@@ -237,10 +233,10 @@ describe(
         await new Promise<void>((resolve) => dev?.once("close", resolve));
       });
 
-      test.each(localRuntimes)(
+      test.each(RUNTIME_TEMPLATES)(
         "$name runs locally",
         { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
-        async (runtime) => {
+        async (runtime: RuntimeTemplateTestCase) => {
           const sessionId = getSessionId(`${runtime.name}`);
 
           // the server may take a bit to get ready, so we retry on a timeout.
@@ -260,6 +256,8 @@ describe(
                   "invoke",
                   "runtime",
                   "--local",
+                  "--name",
+                  runtime.name,
                   "--port",
                   String(port),
                   "--session-id",
@@ -289,7 +287,7 @@ describe(
     test.each(RUNTIME_TEMPLATES)(
       "$name can be invoked after deployed",
       { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
-      async (runtime) => {
+      async (runtime: RuntimeTemplateTestCase) => {
         const sessionId = getSessionId(runtime.name);
         const response = parseResult(
           RuntimeInvokeResponseSchema,
@@ -321,7 +319,7 @@ describe(
     test.each(RUNTIME_TEMPLATES)(
       "$name can be removed from the project",
       { timeout: TIMEOUT_MS.PROJECT_REMOVE },
-      async (runtime) => {
+      async (runtime: RuntimeTemplateTestCase) => {
         const removed = parseResult(
           OperationSchema,
           await cli.run(
