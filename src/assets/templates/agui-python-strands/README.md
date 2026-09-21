@@ -32,7 +32,7 @@ health at `http://127.0.0.1:8080/ping`.
 runtime with an AG-UI `RunAgentInput` payload:
 
 ```bash
-agentcore project invoke runtime --name agui_python_strands \
+agentcore project invoke runtime --name {{ name }} \
   --payload '{"threadId":"t1","runId":"r1","state":{},"messages":[{"id":"m1","role":"user","content":"Hello!"}],"tools":[],"context":[],"forwardedProps":{}}'
 ```
 

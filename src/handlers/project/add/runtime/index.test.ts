@@ -269,6 +269,7 @@ describe("project add runtime", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     const runtime = spec.runtimes.find((candidate: { name: string }) => candidate.name === name);
     expect(runtime).toMatchObject({ entrypoint: "main.py", ...expectedSpecByLabel[label] });
+    expect(runtime.name).not.toBe("agent");
     expect(await Bun.file(join(projectRoot, "app", name, "main.py")).exists()).toBe(true);
     const isContainer = flags.some((flag) => flag.endsWith("-container"));
     expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
@@ -276,6 +277,10 @@ describe("project add runtime", () => {
     expect(await Bun.file(join(projectRoot, "app", name, ".dockerignore")).exists()).toBe(
       isContainer,
     );
+    if (flags.includes("agui-python-strands")) {
+      const readme = await Bun.file(join(projectRoot, "app", name, "README.md")).text();
+      expect(readme).toContain(`agentcore project invoke runtime --name ${name}`);
+    }
   });
 
   test.each<[string, string[]]>([

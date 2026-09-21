@@ -215,7 +215,7 @@ describe("project create", () => {
         command: ["npm", "install", "--loglevel=http"],
         cwd: join(projectRoot, "agentcore", "cdk"),
       },
-      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent_python_minimal") },
+      { command: ["uv", "sync"], cwd: join(projectRoot, "app", "agent") },
       { command: ["git", "init"], cwd: projectRoot },
     ]);
     expect(io.stderr()).toContain("Creating project tree");
@@ -249,22 +249,20 @@ describe("project create", () => {
     const projectRoot = join(directory, "MyProject");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "agent_python_strands",
+      name: "agent",
       build: "CodeZip",
-      codeLocation: "app/agent_python_strands",
+      codeLocation: "app/agent",
       runtimeVersion: "PYTHON_3_14",
     });
     const memory = (spec.memories ?? [])[0];
-    expect(memory).toMatchObject({ name: "agent_python_strandsMemory", eventExpiryDuration: 30 });
+    expect(memory).toMatchObject({ name: "agentMemory", eventExpiryDuration: 30 });
     expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual([
       "SEMANTIC",
       "USER_PREFERENCE",
       "SUMMARIZATION",
       "EPISODIC",
     ]);
-    expect(
-      await Bun.file(join(projectRoot, "app", "agent_python_strands", "main.py")).exists(),
-    ).toBe(true);
+    expect(await Bun.file(join(projectRoot, "app", "agent", "main.py")).exists()).toBe(true);
   });
 
   test("scaffolds a keyless LiteLLM runtime with no credential", async () => {
@@ -289,10 +287,10 @@ describe("project create", () => {
   });
 
   test.each<[string, string]>([
-    ["anthropic", "agent_python_strandsAnthropicApiKey"],
-    ["open_ai", "agent_python_strandsOpenAIApiKey"],
-    ["gemini", "agent_python_strandsGeminiApiKey"],
-    ["lite_llm", "agent_python_strandsLiteLLMApiKey"],
+    ["anthropic", "agentAnthropicApiKey"],
+    ["open_ai", "agentOpenAIApiKey"],
+    ["gemini", "agentGeminiApiKey"],
+    ["lite_llm", "agentLiteLLMApiKey"],
   ])("scaffolds a runtime with a %s API-key credential", async (provider, credentialName) => {
     const { path: directory, cleanup } = await inTempDirectory();
     cleanups.push(cleanup);
@@ -321,9 +319,7 @@ describe("project create", () => {
     });
     const envLocal = await Bun.file(join(projectRoot, "agentcore", ".env.local")).text();
     expect(envLocal).toContain("test-api-key");
-    const loadModel = await Bun.file(
-      join(projectRoot, "app", "agent_python_strands", "model", "load.py"),
-    ).text();
+    const loadModel = await Bun.file(join(projectRoot, "app", "agent", "model", "load.py")).text();
     expect(loadModel).toContain(
       `os.environ.get("${credentialEnvVarName(credentialName, "_NAME")}", "${credentialName}")`,
     );
@@ -345,13 +341,13 @@ describe("project create", () => {
     const projectRoot = join(directory, "MyProject");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "agent_python_strands_container",
+      name: "agent",
       build: "Container",
-      codeLocation: "app/agent_python_strands_container",
+      codeLocation: "app/agent",
       dockerfile: "Dockerfile",
     });
     expect(spec.runtimes[0].runtimeVersion).toBeUndefined();
-    const runtimeRoot = join(projectRoot, "app", "agent_python_strands_container");
+    const runtimeRoot = join(projectRoot, "app", "agent");
     expect(await Bun.file(join(runtimeRoot, "Dockerfile")).exists()).toBe(true);
     expect(await Bun.file(join(runtimeRoot, ".dockerignore")).exists()).toBe(true);
   });
@@ -369,7 +365,7 @@ describe("project create", () => {
       "--skip-git",
     ]);
 
-    const runtimeRoot = join(directory, "MyProject", "app", "agent_python_strands");
+    const runtimeRoot = join(directory, "MyProject", "app", "agent");
     expect(await Bun.file(join(runtimeRoot, "Dockerfile")).exists()).toBe(false);
     expect(await Bun.file(join(runtimeRoot, ".dockerignore")).exists()).toBe(false);
   });
@@ -389,7 +385,7 @@ describe("project create", () => {
 
     expect(core.projectCommands).toContainEqual({
       command: ["uv", "lock"],
-      cwd: join(directory, "MyProject", "app", "agent_python_strands_container"),
+      cwd: join(directory, "MyProject", "app", "agent"),
     });
   });
 
@@ -409,13 +405,13 @@ describe("project create", () => {
     const projectRoot = join(directory, "MyProject");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes[0]).toMatchObject({
-      name: "mcp_python_fastmcp",
+      name: "agent",
       build: "CodeZip",
       protocol: "MCP",
-      codeLocation: "app/mcp_python_fastmcp",
+      codeLocation: "app/agent",
       runtimeVersion: "PYTHON_3_14",
     });
-    const runtimeRoot = join(projectRoot, "app", "mcp_python_fastmcp");
+    const runtimeRoot = join(projectRoot, "app", "agent");
     const mainPy = await Bun.file(join(runtimeRoot, "main.py")).text();
     expect(mainPy).toContain("FastMCP");
     expect(mainPy).toContain('mcp.run(transport="streamable-http")');
@@ -440,10 +436,10 @@ describe("project create", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes).toEqual([
       {
-        name: "agent_python_minimal",
+        name: "agent",
         build: "CodeZip",
         entrypoint: "main.py",
-        codeLocation: "app/agent_python_minimal",
+        codeLocation: "app/agent",
         runtimeVersion: "PYTHON_3_14",
       },
     ]);
@@ -466,10 +462,8 @@ describe("project create", () => {
     const projectRoot = join(directory, "MyAgent");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.credentials ?? []).toEqual([]);
-    const pyproject = await Bun.file(
-      join(projectRoot, "app", "agent_python_langchain", "pyproject.toml"),
-    ).text();
-    expect(pyproject).toContain('name = "agent_python_langchain"');
+    const pyproject = await Bun.file(join(projectRoot, "app", "agent", "pyproject.toml")).text();
+    expect(pyproject).toContain('name = "agent"');
   });
 
   test("scaffolds a TypeScript strands runtime with memory pre-configured", async () => {
@@ -490,17 +484,15 @@ describe("project create", () => {
     // NODE_22 runtimes deploy a compiled main.js, so the spec entrypoint is main.js
     // even though the scaffolded source is main.ts.
     expect(spec.runtimes[0]).toMatchObject({
-      name: "agent_typescript_strands",
+      name: "agent",
       build: "CodeZip",
       entrypoint: "main.js",
-      codeLocation: "app/agent_typescript_strands",
+      codeLocation: "app/agent",
       runtimeVersion: "NODE_22",
       protocol: "HTTP",
     });
     expect(spec.memories ?? []).toHaveLength(1);
-    expect(
-      await Bun.file(join(projectRoot, "app", "agent_typescript_strands", "main.ts")).exists(),
-    ).toBe(true);
+    expect(await Bun.file(join(projectRoot, "app", "agent", "main.ts")).exists()).toBe(true);
   });
 
   test("rejects an invalid --name", async () => {

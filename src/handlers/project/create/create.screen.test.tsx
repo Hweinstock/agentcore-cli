@@ -327,16 +327,16 @@ describe("project create wizard", () => {
         name: "StrandsApp",
         skipInstall: false,
         skipGit: false,
-        scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-strands"),
+        scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-strands", {
+          runtimeName: "agent",
+        }),
       },
     ]);
 
     const spec = await Bun.file(
       join(directory, "StrandsApp", "agentcore", "agentcore.json"),
     ).json();
-    expect(spec.runtimes.map((runtime: { name: string }) => runtime.name)).toEqual([
-      "agent_python_strands",
-    ]);
+    expect(spec.runtimes.map((runtime: { name: string }) => runtime.name)).toEqual(["agent"]);
     // The strands template ships with longAndShortTerm memory pre-configured.
     expect(spec.memories).toHaveLength(1);
     r.unmount();
@@ -370,10 +370,13 @@ describe("project create wizard", () => {
       name: "HelloApp",
       skipInstall: false,
       skipGit: false,
-      scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-minimal"),
+      scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-minimal", {
+        runtimeName: "agent",
+      }),
     });
 
     const spec = await Bun.file(join(directory, "HelloApp", "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes.map((runtime: { name: string }) => runtime.name)).toEqual(["agent"]);
     expect(spec.memories ?? []).toHaveLength(0);
     r.unmount();
   }, 10000);
@@ -407,7 +410,9 @@ describe("project create wizard", () => {
         name: "LangChainApp",
         skipInstall: false,
         skipGit: false,
-        scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-langchain"),
+        scaffoldRuntimeInput: resolveRuntimeTemplateShortcut("agent-python-langchain", {
+          runtimeName: "agent",
+        }),
       },
     ]);
     r.unmount();
