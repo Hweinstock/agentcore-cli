@@ -46,6 +46,8 @@ export const HARNESS_DEFAULT_MODEL_IDS: Record<HarnessModelProvider, string> = {
   lite_llm: `bedrock/${DEFAULT_HARNESS_MODEL.modelId}`,
 };
 
+export const DEFAULT_CREATE_RUNTIME_NAME = "agent";
+
 export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =>
   createHandler({
     name: "create",
@@ -122,6 +124,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         createInput = {
           ...base,
           scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(template, {
+            runtimeName: DEFAULT_CREATE_RUNTIME_NAME,
             modelProvider: resolveRuntimeModelProvider(modelProviderFlag),
             apiKey,
           }),

@@ -15,7 +15,11 @@ import {
   resolveRuntimeTemplateShortcut,
   type TemplateName,
 } from "../shortcuts";
-import { HARNESS_DEFAULT_MODEL_IDS, resolveScaffoldHarnessInput } from "./index";
+import {
+  DEFAULT_CREATE_RUNTIME_NAME,
+  HARNESS_DEFAULT_MODEL_IDS,
+  resolveScaffoldHarnessInput,
+} from "./index";
 import { FormTextInput } from "../../../components/FormTextInput";
 import { FormRadioGroup, type FormRadioOption } from "../../../components/FormRadioGroup";
 import {
@@ -164,7 +168,9 @@ export function buildCreateInput(values: CreateProjectFormValues): CreateProject
     name: values.name,
     skipInstall: false,
     skipGit: false,
-    scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(values.template),
+    scaffoldRuntimeInput: resolveRuntimeTemplateShortcut(values.template, {
+      runtimeName: DEFAULT_CREATE_RUNTIME_NAME,
+    }),
   };
 }
 
