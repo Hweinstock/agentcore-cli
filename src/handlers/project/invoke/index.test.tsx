@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { PassThrough } from "node:stream";
 import type { InvokeHarnessRequest } from "@aws-sdk/client-bedrock-agentcore";
 import type {
   GetAgentRuntimeResponse,
@@ -18,6 +19,9 @@ import {
   TestGlobalConfigAccessor,
   testIO,
   inTempDirectory,
+  StreamController,
+  tick,
+  waitFor,
 } from "../../../testing";
 import { createRootHandler } from "../../index";
 import { AwsCredentialProviderKey, JsonKey, RegionKey } from "../../keys";
@@ -152,13 +156,13 @@ async function run(
 async function routedCommand(
   args: string[],
   resources: { runtimes?: unknown[]; harnesses?: unknown[] },
-  options: { writeTargets?: boolean } = {},
+  options: { writeTargets?: boolean; isTTY?: boolean } = {},
 ) {
   await inProject(resources, options);
   const resolved = backend();
   const core = new TestCoreClient({ backends: { CDK: resolved.value } });
   configureCore(core);
-  const io = testIO();
+  const io = testIO({ isTTY: options.isTTY });
   const root = createRootHandler(core, {
     io: io.io,
     logger: createSilentLogger(),
@@ -181,6 +185,71 @@ afterEach(async () => {
 });
 
 describe("project invoke", () => {
+  test.each([false, true])(
+    "reads stdin before progress, then hands off to the first Runtime chunk (local=%s)",
+    async (local) => {
+      const stream = new StreamController<Uint8Array>();
+      const server = local
+        ? await startHttpServer(() => ({
+            status: 200,
+            headers: { "Content-Type": "text/plain" },
+            body: stream,
+          }))
+        : undefined;
+      if (server) servers.push(server);
+      const subject = await routedCommand(
+        [
+          "runtime",
+          "--payload",
+          "-",
+          ...(server ? ["--local", "--port", String(server.port)] : []),
+        ],
+        { runtimes: [RUNTIME] },
+        { isTTY: true },
+      );
+      subject.core.runtime.setInvokeResponse({
+        statusCode: 200,
+        contentType: "text/plain",
+        body: stream,
+      });
+      const stdin = subject.io.io.stdin as unknown as PassThrough;
+      const pending = subject.route();
+      try {
+        await waitFor(() => stdin.listenerCount("readable") > 0);
+        stdin.write("{}");
+        await tick(120);
+        expect(subject.io.stderr()).toBe("");
+        stdin.end();
+        await waitFor(() => subject.io.stderr().includes("Invoking runtime..."));
+        expect(subject.io.stdout()).toBe("");
+        stream.emit(Buffer.from("first"));
+        await waitFor(() => subject.io.stdout() === "first");
+        const afterFirstChunk = subject.io.stderr();
+        await tick(120);
+        expect(subject.io.stderr()).toBe(afterFirstChunk);
+      } finally {
+        stdin.end();
+        stream.emit(Buffer.from("second"));
+        stream.end();
+        await pending;
+      }
+      expect(subject.io.stdout()).toBe("firstsecond");
+    },
+  );
+
+  test.each([false, true])("keeps machine output free of progress (json=%s)", async (json) => {
+    const subject = await routedCommand(
+      ["runtime", "--payload", "{}", ...(json ? ["--json"] : [])],
+      { runtimes: [RUNTIME] },
+      { isTTY: json },
+    );
+    await subject.route();
+    expect(subject.io.stderr()).not.toContain("Invoking");
+    expect(subject.io.stderr()).not.toContain("\u001b");
+    if (json) expect(JSON.parse(subject.io.stdout()).body).toBe("runtime response");
+    else expect(subject.io.stdout()).toBe("runtime response");
+  });
+
   test("auto-selects the sole local Runtime without resolving deployed resources", async () => {
     let request:
       | {

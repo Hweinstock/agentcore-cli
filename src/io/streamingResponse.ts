@@ -13,6 +13,7 @@ export type StreamingResponseOutput = {
   outputFile?: string;
   json?: boolean;
   signal?: AbortSignal;
+  beforeOutput?: () => void | Promise<void>;
 };
 
 export type StreamingResponseWriter<T extends StreamingResponse> = {
@@ -43,9 +44,14 @@ export function classifyStreamingResponse(contentType: string): "json" | "text" 
 async function* countBytes(
   body: AsyncIterable<Uint8Array>,
   add: (size: number) => void,
+  beforeFirstChunk?: () => void | Promise<void>,
 ): AsyncGenerator<Uint8Array> {
   for await (const chunk of body) {
     const snapshot = Uint8Array.from(chunk);
+    if (snapshot.byteLength > 0 && beforeFirstChunk) {
+      await beforeFirstChunk();
+      beforeFirstChunk = undefined;
+    }
     add(snapshot.byteLength);
     yield snapshot;
   }
@@ -116,6 +122,7 @@ async function writeJsonResponse<T extends StreamingResponse>(
     body,
     complete: true,
   });
+  await output.beforeOutput?.();
   await writeChunk(output.stdout, envelope, output.signal, writer.fail);
 }
 
@@ -132,6 +139,7 @@ export async function writeStreamingResponse<T extends StreamingResponse>(
     response.statusCode !== 205 &&
     classifyStreamingResponse(response.contentType) === "binary"
   ) {
+    await output.beforeOutput?.();
     await writeChunk(output.stderr, writer.summary(response, 0, false), output.signal, writer.fail);
     throw new TypeError(writer.binaryTtyError);
   }
@@ -149,14 +157,19 @@ export async function writeStreamingResponse<T extends StreamingResponse>(
       await writeJsonResponse(response, bytes, output, writer);
     } else {
       await pipeline(
-        countBytes(response.body, (size) => {
-          byteCount += size;
-        }),
+        countBytes(
+          response.body,
+          (size) => {
+            byteCount += size;
+          },
+          output.beforeOutput,
+        ),
         output.stdout,
         { end: false, signal: output.signal },
       );
     }
   } catch (error) {
+    await output.beforeOutput?.();
     await writeChunk(
       output.stderr,
       writer.summary(
@@ -174,6 +187,7 @@ export async function writeStreamingResponse<T extends StreamingResponse>(
   }
 
   if (!output.json) {
+    await output.beforeOutput?.();
     await writeChunk(
       output.stderr,
       writer.summary(response, byteCount, true),

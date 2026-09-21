@@ -6,6 +6,7 @@ import type { AppIO } from "../../../io";
 import { withUserCancellation } from "../../../runnable";
 import { createHandler, flag, ProjectKey } from "../../../router";
 import { renderTuiAt } from "../../../tui";
+import { runWithProgress } from "../../../tui/progress";
 import { AwsCredentialProviderKey, JsonKey, RegionKey } from "../../keys";
 import { RuntimeInvokeLaunchContextKey } from "../../runtime/invoke/launchContext";
 import { invokeRuntimeTarget } from "../../runtime/invoke/operation";
@@ -101,13 +102,12 @@ export const createProjectInvokeRuntimeHandler = (
           });
         }
 
-        await withUserCancellation(async (signal) => {
-          const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
-          const sources = await resolveRuntimeInvokeSources(
-            { payload: flags.payload! },
-            io.stdin,
-            signal,
-          );
+        const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
+        const invoke = async (
+          signal: AbortSignal,
+          beforeOutput: () => Promise<void>,
+          sources: Awaited<ReturnType<typeof resolveRuntimeInvokeSources>>,
+        ) => {
           const response = await invokeLocalRuntime(
             {
               port: flags.port ?? DEV_PORTS[protocol],
@@ -136,10 +136,23 @@ export const createProjectInvokeRuntimeHandler = (
             outputFile: flags["output-file"],
             json: jsonOutput,
             signal,
+            beforeOutput,
           });
           if (response.statusCode < 200 || response.statusCode >= 300) {
             throw new RuntimeInvokeResponseError(`HTTP ${response.statusCode}`);
           }
+        };
+        await withUserCancellation(async (signal) => {
+          const sources = await resolveRuntimeInvokeSources(
+            { payload: flags.payload! },
+            io.stdin,
+            signal,
+          );
+          return runWithProgress((stop) => invoke(signal, stop, sources), {
+            io,
+            label: "Invoking runtime...",
+            interactive: !jsonOutput,
+          });
         });
         return;
       }
@@ -199,13 +212,12 @@ export const createProjectInvokeRuntimeHandler = (
       if (jsonOutput && flags["output-file"] !== undefined) {
         throw new InputValidationError("--json cannot be used with --output-file");
       }
-      await withUserCancellation(async (signal) => {
-        const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
-        const sources = await resolveRuntimeInvokeSources(
-          { payload: flags.payload!, bearerToken: flags["bearer-token"] },
-          io.stdin,
-          signal,
-        );
+      const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
+      const invoke = async (
+        signal: AbortSignal,
+        beforeOutput: () => Promise<void>,
+        sources: Awaited<ReturnType<typeof resolveRuntimeInvokeSources>>,
+      ) => {
         const response = await invokeRuntimeTarget(
           core.runtime,
           {
@@ -236,6 +248,19 @@ export const createProjectInvokeRuntimeHandler = (
           outputFile: flags["output-file"],
           json: jsonOutput,
           signal,
+          beforeOutput,
+        });
+      };
+      await withUserCancellation(async (signal) => {
+        const sources = await resolveRuntimeInvokeSources(
+          { payload: flags.payload!, bearerToken: flags["bearer-token"] },
+          io.stdin,
+          signal,
+        );
+        return runWithProgress((stop) => invoke(signal, stop, sources), {
+          io,
+          label: "Invoking runtime...",
+          interactive: !jsonOutput,
         });
       });
     },

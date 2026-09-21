@@ -4,6 +4,7 @@ import { SourceResolver, type AppIO } from "../../../io";
 import { withUserCancellation } from "../../../runnable";
 import { createHandler, flag, PathKey } from "../../../router";
 import { renderTuiAt } from "../../../tui";
+import { runWithProgress } from "../../../tui/progress";
 import { JsonKey } from "../../keys";
 import type { Core } from "../../types";
 import { coreOptsFromCtx } from "../../utils";
@@ -99,14 +100,13 @@ export const createInvokeGatewayHandler = (
       }
       const gatewayId = flags.id;
       const payload = flags.payload;
+      const applicationHeaders = parseGatewayInvokeHeaders(flags.header);
 
-      await withUserCancellation(async (signal) => {
-        const applicationHeaders = parseGatewayInvokeHeaders(flags.header);
-        const sources = await resolveGatewayInvokeSources(
-          { payload, bearerToken: flags["bearer-token"] },
-          io.stdin,
-          signal,
-        );
+      const invoke = async (
+        signal: AbortSignal,
+        beforeOutput: () => Promise<void>,
+        sources: Awaited<ReturnType<typeof resolveGatewayInvokeSources>>,
+      ) => {
         const options = coreOptsFromCtx(ctx);
         const gateway = await core.gateway.getGateway(gatewayId, options, signal);
         const request = normalizeGatewayInvokeRequest(gateway, {
@@ -129,10 +129,23 @@ export const createInvokeGatewayHandler = (
           outputFile: flags["output-file"],
           json: jsonOutput,
           signal,
+          beforeOutput,
         });
         if (response.statusCode < 200 || response.statusCode >= 300) {
           throw new GatewayInvokeResponseError(`HTTP ${response.statusCode}`);
         }
+      };
+      await withUserCancellation(async (signal) => {
+        const sources = await resolveGatewayInvokeSources(
+          { payload, bearerToken: flags["bearer-token"] },
+          io.stdin,
+          signal,
+        );
+        return runWithProgress((stop) => invoke(signal, stop, sources), {
+          io,
+          label: "Invoking gateway...",
+          interactive: !jsonOutput,
+        });
       });
     },
   });

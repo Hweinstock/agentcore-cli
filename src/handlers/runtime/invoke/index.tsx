@@ -7,6 +7,7 @@ import { coreOptsFromCtx } from "../../utils";
 import { JsonKey } from "../../keys";
 import { withUserCancellation } from "../../../runnable";
 import { renderTuiAt } from "../../../tui";
+import { runWithProgress } from "../../../tui/progress";
 import {
   parseRuntimeInvokeHeaders,
   resolveRuntimeInvokeSources,
@@ -101,13 +102,12 @@ export const createInvokeRuntimeHandler = (core: Core, io: AppIO) =>
       }
       const runtimeId = flags.id;
       const payload = flags.payload;
-      await withUserCancellation(async (signal) => {
-        const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
-        const sources = await resolveRuntimeInvokeSources(
-          { payload, bearerToken: flags["bearer-token"] },
-          io.stdin,
-          signal,
-        );
+      const applicationHeaders = parseRuntimeInvokeHeaders(flags.header);
+      const invoke = async (
+        signal: AbortSignal,
+        beforeOutput: () => Promise<void>,
+        sources: Awaited<ReturnType<typeof resolveRuntimeInvokeSources>>,
+      ) => {
         const options = coreOptsFromCtx(ctx);
         const response = await invokeRuntimeTarget(
           core.runtime,
@@ -139,6 +139,19 @@ export const createInvokeRuntimeHandler = (core: Core, io: AppIO) =>
           outputFile: flags["output-file"],
           json: jsonOutput,
           signal,
+          beforeOutput,
+        });
+      };
+      await withUserCancellation(async (signal) => {
+        const sources = await resolveRuntimeInvokeSources(
+          { payload, bearerToken: flags["bearer-token"] },
+          io.stdin,
+          signal,
+        );
+        return runWithProgress((stop) => invoke(signal, stop, sources), {
+          io,
+          label: "Invoking runtime...",
+          interactive: !jsonOutput,
         });
       });
     },

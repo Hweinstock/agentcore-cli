@@ -3,6 +3,7 @@ import { InputValidationError } from "../../../errors";
 import type { AppIO } from "../../../io";
 import { createHandler, flag, ProjectKey } from "../../../router";
 import { JsonRendererKey, renderTuiAt } from "../../../tui";
+import { runWithProgress } from "../../../tui/progress";
 import { AwsCredentialProviderKey, JsonKey, RegionKey } from "../../keys";
 import { invokeHarnessTurn } from "../../harness/invoke/operation";
 import type { Core } from "../../types";
@@ -55,16 +56,23 @@ export const createProjectInvokeHarnessHandler = (
         return;
       }
 
-      const result = await invokeHarnessTurn(
-        core.harness,
-        {
-          harnessId: deployed.id,
-          prompt: flags.prompt,
-          qualifier: flags.qualifier,
-          sessionId: flags["session-id"],
-        },
-        coreOptsFromCtx(invokeCtx),
-      );
+      const prompt = flags.prompt;
+      const invoke = () =>
+        invokeHarnessTurn(
+          core.harness,
+          {
+            harnessId: deployed.id,
+            prompt,
+            qualifier: flags.qualifier,
+            sessionId: flags["session-id"],
+          },
+          coreOptsFromCtx(invokeCtx),
+        );
+      const result = await runWithProgress(invoke, {
+        io,
+        label: "Invoking harness...",
+        interactive: !ctx.require(JsonKey),
+      });
       invokeCtx.require(JsonRendererKey).renderJson(result);
     },
   });
