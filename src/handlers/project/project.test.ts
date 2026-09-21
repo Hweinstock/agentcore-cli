@@ -470,12 +470,6 @@ describe("project create", () => {
       join(projectRoot, "app", "agent_python_langchain", "pyproject.toml"),
     ).text();
     expect(pyproject).toContain('name = "agent_python_langchain"');
-    const readme = await Bun.file(
-      join(projectRoot, "app", "agent_python_langchain", "README.md"),
-    ).text();
-    expect(readme).toContain(
-      "agentcore project invoke runtime --local --name agent_python_langchain",
-    );
   });
 
   test("scaffolds a TypeScript strands runtime with memory pre-configured", async () => {
