@@ -1047,7 +1047,10 @@ export class EvalClient implements CoreEvalClient {
           await evaluatorKmsKeys(input.evaluatorIds ?? [], control),
           // Read only to widen the write scope to the chosen destination; the
           // request object below still gets the caller's object untouched.
-          { outputConfig: input.outputConfig },
+          {
+            outputConfig: input.outputConfig,
+            logGroupNamePrefixes: logGroupNamePrefixesOf(dataSourceConfig),
+          },
         )
       ).roleArn;
 
@@ -2157,6 +2160,12 @@ async function evaluatorKmsKeys(
 function logGroupNamesOf(dataSourceConfig: DataSourceConfig): string[] {
   return "cloudWatchLogs" in dataSourceConfig
     ? (dataSourceConfig.cloudWatchLogs?.logGroupNames ?? [])
+    : [];
+}
+
+function logGroupNamePrefixesOf(dataSourceConfig: DataSourceConfig): string[] {
+  return "cloudWatchLogs" in dataSourceConfig
+    ? (dataSourceConfig.cloudWatchLogs?.logGroupNamePrefixes ?? [])
     : [];
 }
 
