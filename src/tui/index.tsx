@@ -12,8 +12,7 @@ import {
 import type { AppIO } from "../io";
 import type { Core } from "../handlers/types";
 import { JsonKey } from "../handlers/keys";
-import { InvalidEnvironmentError } from "../errors";
-import { ExitCode } from "../runnable";
+import { ExitCode, InvalidEnvironmentError } from "../errors";
 
 // renderJson pretty-prints a value as indented JSON. It is the output
 // counterpart to renderTui: handlers call it to emit machine-readable results
