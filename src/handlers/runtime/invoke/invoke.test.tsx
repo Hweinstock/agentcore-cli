@@ -12,8 +12,8 @@ import {
   TestGlobalConfigAccessor,
   waitFor,
 } from "../../../testing";
-import { ExitCode, runWithExitCode } from "../../../runnable";
-import { UserCancellationError, InputValidationError } from "../../../errors";
+import { runWithExitCode } from "../../../runnable";
+import { ExitCode, InputValidationError, UserCancellationError } from "../../../errors";
 import { createRootHandler } from "../../index";
 import * as tui from "../../../tui";
 import { RuntimeInvokeLaunchContextKey } from "./launchContext";
@@ -396,7 +396,7 @@ describe("runtime invoke", () => {
       runCommand(core, output.io, ["runtime", "invoke", "--id", RUNTIME_ARN, "--payload", "{}"]),
     );
 
-    expect(code).toBe(ExitCode.FAILURE);
+    expect(code).toBe(ExitCode.USAGE);
     expect(core.runtime.calls).toEqual([]);
   });
 
@@ -608,7 +608,7 @@ describe("runtime invoke", () => {
 
       const code = await runWithExitCode(async () => runCommand(core, output.io, args));
 
-      expect(code).toBe(ExitCode.FAILURE);
+      expect(code).toBe(ExitCode.USAGE);
       expect(core.runtime.calls).toEqual([]);
     },
   );
@@ -630,7 +630,7 @@ describe("runtime invoke", () => {
     ).rejects.toMatchObject({
       name: "InputValidationError",
       message: `could not read '--payload' from file '${missing}'`,
-      exitCode: ExitCode.FAILURE,
+      exitCode: ExitCode.USAGE,
     });
     expect(core.runtime.calls).toEqual([]);
   });
