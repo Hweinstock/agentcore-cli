@@ -291,6 +291,8 @@ describe("project dev headless multi-agent", () => {
 
   test("assigns distinct ports before launching runtimes", async () => {
     const checks: number[] = [];
+    // Hold the first check open so the old concurrent allocator lets both
+    // runtimes observe port 8080 as free before either records ownership.
     let firstCheck!: () => void;
     let releaseChecks!: () => void;
     const firstCheckStarted = new Promise<void>((resolve) => {
@@ -316,7 +318,7 @@ describe("project dev headless multi-agent", () => {
     const pending = subject.run();
     pending.catch(() => undefined);
     await firstCheckStarted;
-    await Bun.sleep(1);
+    await Bun.sleep(1); // Let a competing allocation enter the blocked check.
     releaseChecks();
     await Bun.sleep(30);
 
@@ -337,24 +339,6 @@ describe("project dev headless multi-agent", () => {
 
     expect(subject.io.stderr()).toContain("[orders] Agent 'orders' failed to start");
     expect(subject.io.stderr()).toContain("Agent 'support' is running on port");
-
-    process.emit("SIGINT", "SIGINT");
-    await pending.catch(() => undefined);
-  });
-
-  test("one agent failing port allocation leaves the others running", async () => {
-    let checks = 0;
-    const container = stayingRunner();
-    const subject = harness({
-      project: twoRuntimes(),
-      container,
-      checkPort: async () => ++checks > 100,
-    });
-    const { pending } = await supervised(subject);
-
-    expect(subject.io.stderr()).toContain("[orders] Agent 'orders' failed to start");
-    expect(subject.io.stderr()).toContain("Agent 'support' is running on port 8080");
-    expect(container.inputs[0]?.port).toBe(8080);
 
     process.emit("SIGINT", "SIGINT");
     await pending.catch(() => undefined);

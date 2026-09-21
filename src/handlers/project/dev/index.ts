@@ -209,10 +209,12 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
           // The --port guard above rejects an explicit port with more than one
           // runtime, so passing flags.port here only ever applies to a lone one.
           resolvePort: async (runtime) => {
-            const assignment = assignedPorts?.get(runtime.name);
-            if (assignment) {
-              if ("error" in assignment) throw assignment.error;
-              return assignment.port;
+            if (assignedPorts) {
+              const assignedPort = assignedPorts.get(runtime.name);
+              if (assignedPort === undefined) {
+                throw new Error(`No port was assigned to runtime '${runtime.name}'.`);
+              }
+              return assignedPort;
             }
             return (
               await resolveDevPort(
