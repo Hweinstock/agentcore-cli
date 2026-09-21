@@ -10,6 +10,8 @@ export type DevPort = {
   requestedPort: number;
 };
 
+export type DevPortAssignment = { port: number } | { error: unknown };
+
 export class PortInUseError extends InputValidationError {
   constructor(port: number) {
     super(
@@ -27,6 +29,36 @@ export async function resolveDevPort(
   signal: AbortSignal,
 ): Promise<DevPort> {
   return findFreePort(DEV_PORTS[protocol ?? "HTTP"], explicitPort, checkPort, signal);
+}
+
+/** Resolve a distinct port or allocation error for every runtime before launching any of them. */
+export async function resolveDevPorts(
+  runtimes: ProjectRuntime[],
+  explicitPort: number | undefined,
+  checkPort: PortChecker,
+  signal: AbortSignal,
+): Promise<Map<string, DevPortAssignment>> {
+  const assignments = new Map<string, DevPortAssignment>();
+  const reservedPorts = new Set<number>();
+
+  for (const runtime of runtimes) {
+    try {
+      const { port } = await resolveDevPort(
+        runtime.protocol,
+        explicitPort,
+        async (candidate, checkSignal) =>
+          !reservedPorts.has(candidate) && checkPort(candidate, checkSignal),
+        signal,
+      );
+      assignments.set(runtime.name, { port });
+      reservedPorts.add(port);
+    } catch (error) {
+      signal.throwIfAborted();
+      assignments.set(runtime.name, { error });
+    }
+  }
+
+  return assignments;
 }
 
 /**

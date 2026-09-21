@@ -289,6 +289,44 @@ describe("project dev headless multi-agent", () => {
     expect(subject.collector.state.closed).toBe(1);
   });
 
+  test("assigns distinct ports before launching runtimes", async () => {
+    const checks: number[] = [];
+    let firstCheck!: () => void;
+    let releaseChecks!: () => void;
+    const firstCheckStarted = new Promise<void>((resolve) => {
+      firstCheck = resolve;
+    });
+    const checksReleased = new Promise<void>((resolve) => {
+      releaseChecks = resolve;
+    });
+    const codeZip = stayingRunner();
+    const container = stayingRunner();
+    const subject = harness({
+      project: twoRuntimes(),
+      codeZip,
+      container,
+      checkPort: async (port) => {
+        checks.push(port);
+        firstCheck();
+        await checksReleased;
+        return true;
+      },
+    });
+
+    const pending = subject.run();
+    pending.catch(() => undefined);
+    await firstCheckStarted;
+    await Bun.sleep(1);
+    releaseChecks();
+    await Bun.sleep(30);
+
+    expect(checks).toEqual([8080, 8081]);
+    expect([codeZip.inputs[0]?.port, container.inputs[0]?.port]).toEqual([8080, 8081]);
+
+    process.emit("SIGINT", "SIGINT");
+    await pending.catch(() => undefined);
+  });
+
   test("one agent failing to start leaves the others running", async () => {
     const subject = harness({
       project: twoRuntimes(),
@@ -299,6 +337,24 @@ describe("project dev headless multi-agent", () => {
 
     expect(subject.io.stderr()).toContain("[orders] Agent 'orders' failed to start");
     expect(subject.io.stderr()).toContain("Agent 'support' is running on port");
+
+    process.emit("SIGINT", "SIGINT");
+    await pending.catch(() => undefined);
+  });
+
+  test("one agent failing port allocation leaves the others running", async () => {
+    let checks = 0;
+    const container = stayingRunner();
+    const subject = harness({
+      project: twoRuntimes(),
+      container,
+      checkPort: async () => ++checks > 100,
+    });
+    const { pending } = await supervised(subject);
+
+    expect(subject.io.stderr()).toContain("[orders] Agent 'orders' failed to start");
+    expect(subject.io.stderr()).toContain("Agent 'support' is running on port 8080");
+    expect(container.inputs[0]?.port).toBe(8080);
 
     process.emit("SIGINT", "SIGINT");
     await pending.catch(() => undefined);
