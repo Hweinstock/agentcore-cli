@@ -180,7 +180,7 @@ describe(
     test.each(RUNTIME_TEMPLATES)(
       "$name can be added to a project",
       { timeout: TIMEOUT_MS.PROJECT_CREATE },
-      async (runtime: RuntimeTemplateTestCase) => {
+      async (runtime) => {
         const added = parseResult(
           OperationSchema,
           await cli.run(
@@ -236,7 +236,7 @@ describe(
       test.each(RUNTIME_TEMPLATES)(
         "$name runs locally",
         { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
-        async (runtime: RuntimeTemplateTestCase) => {
+        async (runtime) => {
           const sessionId = getSessionId(`${runtime.name}`);
 
           // the server may take a bit to get ready, so we retry on a timeout.
@@ -287,7 +287,7 @@ describe(
     test.each(RUNTIME_TEMPLATES)(
       "$name can be invoked after deployed",
       { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
-      async (runtime: RuntimeTemplateTestCase) => {
+      async (runtime) => {
         const sessionId = getSessionId(runtime.name);
         const response = parseResult(
           RuntimeInvokeResponseSchema,
@@ -319,7 +319,7 @@ describe(
     test.each(RUNTIME_TEMPLATES)(
       "$name can be removed from the project",
       { timeout: TIMEOUT_MS.PROJECT_REMOVE },
-      async (runtime: RuntimeTemplateTestCase) => {
+      async (runtime) => {
         const removed = parseResult(
           OperationSchema,
           await cli.run(
