@@ -74,9 +74,7 @@ export const createProjectInvokeRuntimeHandler = (
           throw new InputValidationError("--json cannot be used with --output-file");
         }
         if (flags.name === undefined) {
-          throw new InputValidationError("required option '--name <name>' not specified", {
-            exitCode: ExitCode.USAGE,
-          });
+          throw new InputValidationError("required option '--name <name>' not specified");
         }
         const name = selectProjectResource(project, "runtime", flags.name, "invoke");
         const runtime = project.spec.runtimes.find((candidate) => candidate.name === name)!;
