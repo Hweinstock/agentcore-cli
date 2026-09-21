@@ -29,6 +29,31 @@ export async function resolveDevPort(
   return findFreePort(DEV_PORTS[protocol ?? "HTTP"], explicitPort, checkPort, signal);
 }
 
+/** Resolve distinct ports for runtimes before launching any of them. */
+export async function resolveDevPorts(
+  runtimes: ProjectRuntime[],
+  explicitPort: number | undefined,
+  checkPort: PortChecker,
+  signal: AbortSignal,
+): Promise<Map<string, number>> {
+  const ports = new Map<string, number>();
+  const reservedPorts = new Set<number>();
+
+  for (const runtime of runtimes) {
+    const { port } = await resolveDevPort(
+      runtime.protocol,
+      explicitPort,
+      async (candidate, checkSignal) =>
+        !reservedPorts.has(candidate) && checkPort(candidate, checkSignal),
+      signal,
+    );
+    ports.set(runtime.name, port);
+    reservedPorts.add(port);
+  }
+
+  return ports;
+}
+
 /**
  * Resolve a free port from `defaultPort`. An explicit port must be free or the
  * call fails; otherwise the next free port from the default up is taken.
