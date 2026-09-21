@@ -56,5 +56,5 @@ After providing credentials, `agentcore project deploy` will deploy your project
 Invoke the deployed Runtime with its native payload:
 
 ```bash
-agentcore project invoke runtime --name {{name}} --payload '{"prompt":"Hello!"}'
+agentcore project invoke runtime --payload '{"prompt":"Hello!"}'
 ```

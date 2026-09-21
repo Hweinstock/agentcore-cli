@@ -456,7 +456,7 @@ describe("project invoke", () => {
   test.each([
     {
       name: "requires --local with --port",
-      args: ["runtime", "--name", RUNTIME.name, "--port", "8081", "--payload", "{}"],
+      args: ["runtime", "--port", "8081", "--payload", "{}"],
       message: "--port requires --local",
     },
     {
@@ -467,7 +467,7 @@ describe("project invoke", () => {
     {
       name: "requires a local Runtime name",
       args: ["runtime", "--local", "--payload", "{}"],
-      message: "required option '--name' not specified",
+      message: "required option '--name <name>' not specified",
     },
     {
       name: "requires a local payload",
@@ -494,18 +494,10 @@ describe("project invoke", () => {
     );
   });
 
-  test("invokes a named Runtime with its existing payload contract in the target region", async () => {
+  test("invokes the sole Runtime with its existing payload contract in the target region", async () => {
     const payload = '{"custom":"wire shape"}';
     const { core, io, resolved } = await run(
-      [
-        "runtime",
-        "--name",
-        RUNTIME.name,
-        "--payload",
-        payload,
-        "--content-type",
-        "application/custom+json",
-      ],
+      ["runtime", "--payload", payload, "--content-type", "application/custom+json"],
       { runtimes: [RUNTIME] },
     );
 
@@ -545,13 +537,15 @@ describe("project invoke", () => {
     });
   });
 
-  test("requires --name for remote Runtime invocation", async () => {
-    await expect(run(["runtime", "--payload", "{}"], { runtimes: [RUNTIME] })).rejects.toThrow(
-      "required option '--name' not specified",
-    );
+  test("requires --name when the project has multiple Runtimes", async () => {
+    await expect(
+      run(["runtime", "--payload", "{}"], {
+        runtimes: [RUNTIME, { ...RUNTIME, name: "inventory" }],
+      }),
+    ).rejects.toThrow(/multiple Runtimes.*--name.*checkout, inventory/s);
   });
 
-  test("opens the existing Runtime TUI for named TUI-compatible invokes", async () => {
+  test("opens the existing Runtime TUI for bare and TUI-compatible Runtime invokes", async () => {
     await inProject({ runtimes: [RUNTIME] });
     const resolved = backend();
     const core = new TestCoreClient({ backends: { CDK: resolved.value } });
@@ -562,7 +556,7 @@ describe("project invoke", () => {
     });
 
     const bareFlags = {
-      name: RUNTIME.name,
+      name: undefined,
       local: false,
       port: undefined,
       target: undefined,

@@ -28,7 +28,7 @@ export const createProjectInvokeRuntimeHandler = (
     name: "runtime",
     description: "invoke a Runtime from the current project",
     flags: [
-      flag("name", "the logical project Runtime name", z.string()),
+      flag("name", "the logical project Runtime name", z.string().optional()),
       flag("local", "invoke a local Runtime development server", z.boolean()),
       flag(
         "port",
@@ -72,6 +72,11 @@ export const createProjectInvokeRuntimeHandler = (
       if (flags.local) {
         if (jsonOutput && flags["output-file"] !== undefined) {
           throw new InputValidationError("--json cannot be used with --output-file");
+        }
+        if (flags.name === undefined) {
+          throw new InputValidationError("required option '--name <name>' not specified", {
+            exitCode: ExitCode.USAGE,
+          });
         }
         const name = selectProjectResource(project, "runtime", flags.name, "invoke");
         const runtime = project.spec.runtimes.find((candidate) => candidate.name === name)!;

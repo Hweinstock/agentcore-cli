@@ -260,9 +260,8 @@ agentcore project invoke harness \
   --prompt "Help with my account."
 ```
 
-Use `--target` to select a deployment target. Runtime invocation requires
-`--name`; Harness invocation may omit it when the project declares exactly one
-Harness.
+Use `--target` to select a deployment target. When a project declares exactly
+one resource of the requested type, `--name` may be omitted.
 
 ### Inspect project logs
 
