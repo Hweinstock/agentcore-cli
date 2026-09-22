@@ -68,7 +68,7 @@ jobs:
           fi
 
   e2e:
-    name: e2e (${{ matrix.name }})
+    name: test (${{ matrix.name }})
     needs: authorize
     if: needs.authorize.outputs.is-authorized == 'true'
     runs-on: ${{ fromJSON(matrix.runner) }}
@@ -83,8 +83,10 @@ jobs:
           # https://docs.aws.amazon.com/codebuild/latest/userguide/sample-github-action-runners-update-labels.html
           - name: Linux
             runner: '["codebuild-agentcore-e2e-${{ github.run_id }}-${{ github.run_attempt }}", "e2e-linux"]'
-          - name: Windows
-            runner: '["codebuild-agentcore-e2e-${{ github.run_id }}-${{ github.run_attempt }}", "image:windows-1.0", "e2e-windows"]'
+          # TODO: re-enable these once secret fetching (https://github.com/aws/agentcore-devx-devtools/blob/main/.github/actions/fetch-secrets/action.yml) is windows compatible.
+          # - name: Windows
+          #   runner: '["codebuild-agentcore-e2e-${{ github.run_id }}-${{ github.run_attempt }}", "image:windows-1.0", "e2e-windows"]'
+
           # CodeBuild does not support macOS.
           # https://docs.aws.amazon.com/codebuild/latest/userguide/action-runner-questions.html#action-runner-platform
           - name: macOS

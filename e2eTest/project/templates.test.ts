@@ -202,10 +202,6 @@ describe(
     );
 
     describe("local invocation", { sequential: true }, () => {
-      // invoke --local does not yet support MCP or A2A invocations
-      const localRuntimes = RUNTIME_TEMPLATES.filter((runtime) =>
-        ["HTTP", "AGUI"].includes(runtime.protocol),
-      );
       const runtimePorts = new Map<string, number>();
       let dev: ReturnType<CliRunner["start"]> | undefined;
       let pendingOutput = "";
@@ -237,7 +233,7 @@ describe(
         await new Promise<void>((resolve) => dev?.once("close", resolve));
       });
 
-      test.each(localRuntimes)(
+      test.each(RUNTIME_TEMPLATES)(
         "$name runs locally",
         { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
         async (runtime) => {
@@ -260,6 +256,8 @@ describe(
                   "invoke",
                   "runtime",
                   "--local",
+                  "--name",
+                  runtime.name,
                   "--port",
                   String(port),
                   "--session-id",
@@ -267,13 +265,17 @@ describe(
                   "--payload",
                   JSON.stringify(runtime.payload),
                   "--json",
+                  ...(runtime.invokeFlags ?? []),
                 ],
                 projectDir,
               ),
             );
           });
 
-          expect(response.body.trim()).not.toBe("");
+          expect(response.complete).toBe(true);
+          if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
+            assertProtocolResponse(runtime, response.body);
+          }
         },
       );
     });
