@@ -10,7 +10,22 @@ import { getHarnessTemplateResolver } from "./harness";
 import { HandlebarsTemplateRenderer } from "./renderer";
 
 const roots: string[] = [];
-const model = { provider: "bedrock", modelId: "example" } as const;
+const model = {
+  provider: "bedrock",
+  modelId: "global.anthropic.claude-sonnet-4-6",
+} as const;
+const defaultSettings = {
+  memory: { mode: "managed" },
+  allowedTools: ["*"],
+  skills: [],
+  truncation: { strategy: "sliding_window" },
+  environmentVariables: {},
+  networkMode: "PUBLIC",
+  authorizerType: "AWS_IAM",
+  efsAccessPoints: [],
+  s3AccessPoints: [],
+  tags: {},
+};
 const config = {
   assetSource: new FsAssetSource(),
   templateRenderer: new HandlebarsTemplateRenderer(),
@@ -40,7 +55,7 @@ test("scaffolds valid YAML with inactive examples and a resolvable prompt", asyn
   expect(data).toEqual({
     name: "assistant",
     model,
-    memory: { mode: "managed" },
+    ...defaultSettings,
   });
   expect(yaml).toMatchSnapshot();
   expect(await readFile(join(directory, "system-prompt.md"), "utf8")).toBe(
@@ -62,8 +77,13 @@ test.each([
   },
   { mode: "managed", strategies: ["EPISODIC"], eventExpiryDuration: 365 },
 ] as const)("preserves explicit memory: %j", async (memory) => {
-  const { data } = await scaffold({ memory });
+  const { data, yaml } = await scaffold({ memory });
   expect(data.memory).toEqual(memory);
+  if (memory.mode !== "managed") {
+    expect(yaml).not.toContain("# Managed memory is created for this harness.");
+    expect(yaml).not.toContain("# strategies:");
+    expect(yaml).not.toContain("# eventExpiryDuration:");
+  }
 });
 
 test("serializes supplied nested strings, arrays, maps, and zero values without example substitution", async () => {
@@ -121,13 +141,93 @@ test("serializes supplied nested strings, arrays, maps, and zero values without 
   };
   const { data, directory } = await scaffold(overrides);
   const { systemPrompt, ...expected } = HarnessSpecSchema.parse({
+    ...defaultSettings,
     name: "assistant",
     model,
     ...overrides,
-    memory: { mode: "managed" },
   });
   expect(data).toEqual(expected);
   expect(await readFile(join(directory, "system-prompt.md"), "utf8")).toBe(systemPrompt!);
+});
+
+test("renders supplied deployment settings once in their sections", async () => {
+  const overrides: Partial<z.input<typeof HarnessSpecSchema>> = {
+    networkMode: "VPC",
+    networkConfig: {
+      vpcId: "vpc-0123456789abcdef0",
+      subnets: ["subnet-0123456789abcdef0"],
+      securityGroups: ["sg-0123456789abcdef0"],
+    },
+    authorizerType: "CUSTOM_JWT",
+    authorizerConfiguration: {
+      customJwtAuthorizer: {
+        discoveryUrl: "https://example.com/.well-known/openid-configuration",
+        allowedAudience: ["assistant"],
+      },
+    },
+    lifecycleConfig: { idleRuntimeSessionTimeout: 300, maxLifetime: 3600 },
+    sessionStoragePath: "/mnt/session",
+    efsAccessPoints: [
+      {
+        accessPointArn:
+          "arn:aws:elasticfilesystem:us-east-1:123456789012:access-point/fsap-0123456789abcdef0",
+        mountPath: "/mnt/efs",
+      },
+    ],
+    s3AccessPoints: [
+      {
+        accessPointArn:
+          "arn:aws:s3files:us-east-1:123456789012:file-system/fs-0123456789abcdef0/access-point/fsap-0123456789abcdef0",
+        mountPath: "/mnt/s3",
+      },
+    ],
+    connections: [
+      {
+        to: {
+          type: "memory",
+          arn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:memory/existing-1234567890",
+        },
+        access: "read",
+      },
+    ],
+  };
+  const { data } = await scaffold(overrides);
+  expect(data).toEqual({ name: "assistant", model, ...defaultSettings, ...overrides });
+});
+
+test("preserves explicit empty settings and disabled truncation", async () => {
+  const { data, yaml } = await scaffold({
+    allowedTools: [],
+    truncation: { strategy: "none" },
+    model: { ...model, temperature: 0, topP: 0, maxTokens: 123, apiFormat: "responses" },
+  });
+  expect(data.allowedTools).toEqual([]);
+  expect(data.truncation).toEqual({ strategy: "none" });
+  expect(yaml).not.toContain("#     messagesCount: 40");
+  expect(yaml).not.toContain("# temperature:");
+  expect(yaml).not.toContain("# topP:");
+  expect(yaml).not.toContain("# maxTokens: 4096");
+  expect(yaml).not.toContain("# apiFormat:");
+});
+
+test.each([
+  ["bedrock", "converse_stream", "open_ai, gemini, lite_llm"],
+  ["open_ai", "responses", "bedrock, gemini, lite_llm"],
+  ["gemini", undefined, "bedrock, open_ai, lite_llm"],
+  ["lite_llm", undefined, "bedrock, open_ai, gemini"],
+] as const)("shows compatible model examples for %s", async (provider, apiFormat, alternatives) => {
+  const { yaml } = await scaffold({
+    model: { provider, modelId: "example", apiKeyArn: "arn:example" },
+  });
+  if (apiFormat) expect(yaml).toContain(`# apiFormat: ${apiFormat}`);
+  else expect(yaml).not.toContain("# apiFormat:");
+  expect(yaml).toContain(`provider: ${provider} # ${alternatives}`);
+});
+
+test("keeps the sliding-window size optional", async () => {
+  const { data, yaml } = await scaffold({ truncation: { strategy: "sliding_window" } });
+  expect(data.truncation).toEqual({ strategy: "sliding_window" });
+  expect(yaml).toContain("  #     messagesCount: 40");
 });
 
 test("writes supplied instructions to the conventional prompt file", async () => {
