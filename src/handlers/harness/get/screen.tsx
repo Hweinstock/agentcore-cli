@@ -305,6 +305,7 @@ export function HarnessGetScreen(props: ScreenProps) {
       items={{
         id: harness?.harnessId ?? "",
         status: harness?.status ?? "",
+        ...(harness?.failureReason ? { failureReason: harness.failureReason } : {}),
         version: harness?.harnessVersion?.toString() ?? "0",
         arn: harness?.arn ?? "",
       }}
