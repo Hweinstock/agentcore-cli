@@ -279,7 +279,7 @@ describe(
                 projectDir,
               ),
             );
-          }, TIMEOUT_MS.PROJECT_INVOKE);
+          }, TIMEOUT_MS.PROJECT_INVOKE * 0.9);
 
           expect(response.complete).toBe(true);
           if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
