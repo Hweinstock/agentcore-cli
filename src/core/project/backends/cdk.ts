@@ -30,7 +30,7 @@ import type {
   ResolveProjectResourcesBackendInput,
 } from "./types";
 import { createCloudFormationClient } from "../../factories";
-import type { CreateCloudFormationClient } from "../../types";
+import type { AwsCredentials, CreateCloudFormationClient } from "../../types";
 import {
   createCredentialProvisioner,
   createCredentialRemover,
@@ -115,6 +115,11 @@ function findDeployedResourceId(
   return stack.Outputs?.find((output) => output.ExportName === exportName)?.OutputValue;
 }
 
+export type TransactionSearchEnabler = (
+  target: AwsDeploymentTarget,
+  credentials: AwsCredentials,
+) => Promise<void>;
+
 export type CdkBackendConfig = {
   logger: Logger;
   runner?: ProcessRunner;
@@ -126,6 +131,7 @@ export type CdkBackendConfig = {
   cdk?: CdkRunner;
   resolveCredentials?: CdkCredentialResolver;
   bootstrap?: BootstrapProbe;
+  enableTransactionSearch: TransactionSearchEnabler;
   resolveAccount?: AccountResolver;
   loadBootstrapTemplate?: BootstrapTemplateLoader;
   provisionCredentials?: CredentialProvisioner;
@@ -143,6 +149,7 @@ export class CdkBackend implements ProjectBackend {
   private readonly cdk: CdkRunner;
   private readonly resolveCredentials: CdkCredentialResolver;
   private readonly bootstrap: BootstrapProbe;
+  private readonly enableTransactionSearch: TransactionSearchEnabler;
   private readonly resolveAccount: AccountResolver;
   private readonly loadBootstrapTemplate: BootstrapTemplateLoader;
   private readonly provisionCredentials: CredentialProvisioner;
@@ -165,6 +172,7 @@ export class CdkBackend implements ProjectBackend {
     this.bootstrap =
       config.bootstrap ??
       ((region, credentials) => probeBootstrap(region, credentials, readBootstrapStack));
+    this.enableTransactionSearch = config.enableTransactionSearch;
     this.resolveAccount = config.resolveAccount ?? resolveAwsAccount;
     this.loadBootstrapTemplate = config.loadBootstrapTemplate ?? loadBootstrapTemplate;
     this.provisionCredentials =
@@ -262,6 +270,7 @@ export class CdkBackend implements ProjectBackend {
     // before any AWS mutation, so a local problem never leaves credentials
     // provisioned or the stack ARN unrecorded.
     await this.ensureCdkDependencies(project);
+
     // Read before provisioning rewrites the credentials map: it is the only record
     // of what this target provisioned, so it is the only way to find a provider whose
     // credential has since left the spec.
@@ -293,6 +302,20 @@ export class CdkBackend implements ProjectBackend {
     // as an ordinary successful deploy.
     if ((await countDeployableResources(this.json, assemblyDirectory, artifact)) === 0) {
       return yield* this.teardown({ project, artifact, input, options, orphaned });
+    }
+
+    // Only after a real deploy is confirmed: a teardown (empty assembly) returns
+    // above, so a destroy is never blocked by Transaction Search. Never fail the
+    // deploy on it either — spans are best-effort, so any setup error just skips.
+    // Opt out entirely via the spec.
+    if (input.transactionSearch !== false) {
+      yield { type: "step", message: "Enabling CloudWatch Transaction Search" };
+      try {
+        await this.enableTransactionSearch(target, credentials);
+      } catch (error) {
+        const detail = error instanceof Error ? error.message : String(error);
+        yield { type: "step", message: `Skipping Transaction Search: ${detail}` };
+      }
     }
 
     const bootstrap = await this.bootstrap(target.region, credentials);

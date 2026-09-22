@@ -11,6 +11,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
     endpoint: "https://telemetry.agentcore.aws.dev",
   },
   installationId: crypto.randomUUID(),
+  transactionSearch: true,
 };
 
 /**
@@ -29,5 +30,6 @@ export function applyOverrides(
       endpoint: overrides.telemetry?.endpoint ?? defaults.telemetry.endpoint,
     },
     installationId: overrides.installationId ?? defaults.installationId,
+    transactionSearch: overrides.transactionSearch ?? defaults.transactionSearch,
   };
 }

@@ -215,6 +215,36 @@ export class CloudWatchQueryError extends AgentCoreCLIError {
   }
 }
 
+/**
+ * Enabling CloudWatch Transaction Search during deploy failed. USER source: the
+ * usual cause is the deploying principal lacking the setup permissions, and the
+ * message names the failed step so the user can grant them. Deploy hard-fails on
+ * this — evaluations read spans from `aws/spans`, which only Transaction Search
+ * populates.
+ */
+export class TransactionSearchSetupError extends AgentCoreCLIError {
+  constructor(message: string, options?: Omit<AgentCoreCLIErrorOptions, "source">) {
+    super(message, { ...options, source: ERROR_SOURCE.USER });
+  }
+}
+
+/**
+ * An A/B test run was requested while CloudWatch Transaction Search is off, so no
+ * agent spans reach `aws/spans` for the online evaluation to score. Thrown up
+ * front (USER source) with a link to the enablement docs.
+ */
+export class TransactionSearchNotEnabledError extends AgentCoreCLIError {
+  constructor(options?: Omit<AgentCoreCLIErrorOptions, "source">) {
+    super(
+      "CloudWatch Transaction Search is not enabled in this account and region, so agent " +
+        "traces are not delivered to the 'aws/spans' log group that evaluation reads. " +
+        "Enable Transaction Search, then retry: " +
+        "https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability-configure.html",
+      { ...options, source: ERROR_SOURCE.USER },
+    );
+  }
+}
+
 /** Service data was returned successfully, but did not match the expected contract. */
 export class MalformedServiceResponseError extends AgentCoreCLIError {
   constructor(message: string, options?: Omit<AgentCoreCLIErrorOptions, "source">) {

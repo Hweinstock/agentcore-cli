@@ -1,6 +1,6 @@
 import z from "zod";
 import { createHandler, flag } from "../../../../../router";
-import { InputValidationError } from "../../../../../errors";
+import { InputValidationError, TransactionSearchNotEnabledError } from "../../../../../errors";
 import { JsonRendererKey } from "../../../../../tui";
 import { SourceResolver, type AppIO } from "../../../../../io";
 import type { Core } from "../../../../types";
@@ -83,6 +83,10 @@ export const createTargetBasedRunHandler = (core: Core, io: AppIO) =>
       const treatmentWeight = flags["treatment-weight"];
       if (treatmentWeight !== undefined && (treatmentWeight < 1 || treatmentWeight > 99)) {
         throw new InputValidationError("--treatment-weight must be between 1 and 99");
+      }
+
+      if (!(await core.observability.isTransactionSearchEnabled(coreOptsFromCtx(ctx)))) {
+        throw new TransactionSearchNotEnabledError();
       }
 
       const result = await core.eval.createTargetBasedABTest(

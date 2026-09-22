@@ -3,7 +3,9 @@ import type { GetABTestResponse, ListABTestsResponse } from "@aws-sdk/client-bed
 import { createRootHandler } from "../../index";
 import { createSilentLogger, expectError, TestCoreClient, testIO } from "../../../testing";
 import { TestGlobalConfigAccessor } from "../../../testing/";
-import { InputValidationError } from "../../../errors";
+import { InputValidationError, TransactionSearchNotEnabledError } from "../../../errors";
+import { ObservabilityClient } from "../../../core/observability/client";
+import type { AwsClients } from "../../../core/types";
 
 async function run(args: string[], configure?: (core: TestCoreClient) => void) {
   const core = new TestCoreClient();
@@ -349,5 +351,60 @@ describe("eval ab-test target-based run validation", () => {
       roleArn: undefined,
       enableOnCreate: undefined,
     });
+  });
+});
+
+describe("eval ab-test run requires Transaction Search", () => {
+  const disableTransactionSearch = (c: TestCoreClient) => {
+    c.observability.transactionSearchEnabled = false;
+  };
+
+  const TB_RUN = [
+    "eval",
+    "ab-test",
+    "target-based",
+    "run",
+    "--name",
+    "orders-v2-canary",
+    "--gateway",
+    "orders-gateway-abc123",
+    "--control",
+    '{"gateway-target":"orders-prod-target","online-eval":"prod-quality"}',
+    "--treatment",
+    '{"gateway-target":"orders-v2-target","online-eval":"v2-quality"}',
+    "--json",
+  ];
+
+  test("config-based fails fast when Transaction Search is off", async () => {
+    await expect(run(RUN_BASE, disableTransactionSearch)).rejects.toBeInstanceOf(
+      TransactionSearchNotEnabledError,
+    );
+  });
+
+  test("target-based fails fast when Transaction Search is off", async () => {
+    await expect(run(TB_RUN, disableTransactionSearch)).rejects.toBeInstanceOf(
+      TransactionSearchNotEnabledError,
+    );
+  });
+});
+
+describe("ObservabilityClient.isTransactionSearchEnabled", () => {
+  const withDestination = (response: unknown): ObservabilityClient => {
+    const factory = () => ({ send: async () => response });
+    return new ObservabilityClient({
+      xray: factory,
+      logs: factory,
+      applicationSignals: factory,
+    } as unknown as AwsClients);
+  };
+
+  test("false when the X-Ray destination is still X-Ray", async () => {
+    const obs = withDestination({ Destination: "XRay", Status: "ACTIVE" });
+    expect(await obs.isTransactionSearchEnabled({ region: "us-west-2" })).toBe(false);
+  });
+
+  test("false while the destination change is pending", async () => {
+    const obs = withDestination({ Destination: "CloudWatchLogs", Status: "PENDING" });
+    expect(await obs.isTransactionSearchEnabled({ region: "us-west-2" })).toBe(false);
   });
 });

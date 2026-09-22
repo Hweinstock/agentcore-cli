@@ -7,6 +7,7 @@ import type { DeployResult, Project, ProjectEvent } from "../../../handlers/proj
 import { FsReadWriteJson, ProcessFailedError } from "../../../io";
 import { ProjectSpecSchema } from "../../../projectSchemas/project";
 import { createSilentLogger } from "../../../testing";
+import { TransactionSearchSetupError } from "../../../errors";
 import { CdkBackend } from "./cdk";
 import type {
   CredentialProviderCalls,
@@ -157,6 +158,8 @@ type HarnessOptions = {
   template?: boolean;
   failOperation?: CdkOperation["kind"];
   bootstrapError?: Error;
+  /** When set, the injected Transaction Search enabler throws it. */
+  transactionSearchError?: Error;
   provisionCredentials?: CredentialProvisioner;
   removeCredentials?: CredentialRemover;
   /** Stack returned by CloudFormation. Defaults to a present stack; null means absent. */
@@ -177,6 +180,7 @@ function harness(options: HarnessOptions = {}) {
   const bootstrapCredentials: CdkCredentialProvider[] = [];
   const accountRegions: string[] = [];
   const bootstrapRegions: string[] = [];
+  const transactionSearchRegions: string[] = [];
   const stackReads: { stackName: string; region: string; credentials: CdkCredentialProvider }[] =
     [];
   let templateLoads = 0;
@@ -209,6 +213,10 @@ function harness(options: HarnessOptions = {}) {
       bootstrapCredentials.push(provider);
       if (options.bootstrapError) throw options.bootstrapError;
       return options.bootstrap ?? { kind: "current", version: 30 };
+    },
+    enableTransactionSearch: async (target) => {
+      transactionSearchRegions.push(target.region);
+      if (options.transactionSearchError) throw options.transactionSearchError;
     },
     cdk: async (operation, runOptions) => {
       runs.push({ operation, options: runOptions });
@@ -268,6 +276,7 @@ function harness(options: HarnessOptions = {}) {
     credentials,
     runs,
     stackReads,
+    transactionSearchRegions,
     templateLoads: () => templateLoads,
     templateCleanups: () => templateCleanups,
   };
@@ -357,6 +366,7 @@ describe("CdkBackend.build", () => {
     const subject = new CdkBackend({
       logger: createSilentLogger(),
       identity: unusedIdentity(),
+      enableTransactionSearch: async () => {},
       runner: async () => {
         throw new Error("cdk synth exploded");
       },
@@ -403,8 +413,10 @@ describe("CdkBackend.deploy", () => {
     expect(deployed.events).toEqual([
       { type: "step", message: `Verifying AWS account ${TARGET.account}` },
       { type: "step", message: "Synthesizing CloudFormation templates" },
+      { type: "step", message: "Enabling CloudWatch Transaction Search" },
       { type: "step", message: "Deploying AgentCore-example-default-0" },
     ]);
+    expect(subject.transactionSearchRegions).toEqual([TARGET.region]);
     expect(deployed.result).toEqual({ outputs: { RuntimeArn: "arn:runtime" } });
     expect(subject.commands).toEqual([{ command: synthCommand(input), cwd: cdkDirectory(input) }]);
     expect(subject.runs).toEqual([
@@ -429,6 +441,22 @@ describe("CdkBackend.deploy", () => {
     expect(subject.accountRegions).toEqual([TARGET.region]);
     expect(subject.bootstrapRegions).toEqual([TARGET.region]);
     expect(subject.templateLoads()).toBe(0);
+  });
+
+  test("skips Transaction Search when the config disables it", async () => {
+    const input = await project();
+    await writeAssembly(input, [TARGET.name]);
+    const subject = harness({ outputs: { RuntimeArn: "arn:runtime" } });
+
+    const deployed = await collectDeploy(
+      subject.backend.deploy(input, deployInput({ transactionSearch: false })),
+    );
+
+    expect(deployed.events).not.toContainEqual({
+      type: "step",
+      message: "Enabling CloudWatch Transaction Search",
+    });
+    expect(subject.transactionSearchRegions).toEqual([]);
   });
 
   test("streams Toolkit lines as output events under the deploy step", async () => {
@@ -561,6 +589,24 @@ describe("CdkBackend.deploy", () => {
     expect(provisioned).toBe(false);
   });
 
+  test("skips Transaction Search (does not fail the deploy) when setup errors", async () => {
+    const input = await project();
+    await writeAssembly(input, [TARGET.name]);
+    const subject = harness({
+      outputs: { RuntimeArn: "arn:runtime" },
+      transactionSearchError: new TransactionSearchSetupError("denied: logs:PutResourcePolicy"),
+    });
+
+    const deployed = await collectDeploy(subject.backend.deploy(input, deployInput()));
+
+    expect(deployed.events).toContainEqual({
+      type: "step",
+      message: "Skipping Transaction Search: denied: logs:PutResourcePolicy",
+    });
+    // The stack still deploys — Transaction Search never blocks it.
+    expect(deployed.result).toEqual({ outputs: { RuntimeArn: "arn:runtime" } });
+  });
+
   test("fails before touching AWS when the existing state file is malformed", async () => {
     const input = await project();
     const statePath = join(input.rootPath, DEPLOYED_STATE_RELATIVE_PATH);
@@ -630,6 +676,19 @@ describe("CdkBackend.deploy", () => {
       /--yes/,
     );
     expect(subject.runs).toEqual([]);
+  });
+
+  test("does not enable Transaction Search when the deploy is a teardown", async () => {
+    const input = await project();
+    await writeAssembly(input, [TARGET.name], { resources: METADATA_ONLY });
+    const subject = harness();
+
+    await collectDeploy(
+      subject.backend.deploy(input, deployInput({ confirmTeardown: async () => true })),
+    );
+
+    // A destroy must not be blocked by (or trigger) Transaction Search setup.
+    expect(subject.transactionSearchRegions).toEqual([]);
   });
 
   test("removes the stack when the teardown is confirmed", async () => {
