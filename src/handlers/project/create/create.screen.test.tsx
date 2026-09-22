@@ -697,7 +697,7 @@ describe("project create dispatch", () => {
         return {
           name: input.name,
           rootPath: join(process.cwd(), input.name),
-          spec: ProjectSpecSchema.parse({ name: input.name, version: 1 }),
+          spec: ProjectSpecSchema.parse({ name: input.name, version: 2 }),
         };
       })();
     const root = buildRoot(streams.io, core);
