@@ -146,7 +146,7 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         },
         () => {
           config.io.stderr.write(`Created project '${name}' in ./${name}\n`);
-          config.io.stderr.write(`Next steps:\n  cd ${name}\n  agentcore project deploy\n`);
+          config.io.stderr.write(`Next steps:\n  cd ${name}\n  agentcore deploy\n`);
         },
       );
     },

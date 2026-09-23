@@ -255,7 +255,7 @@ function ProjectStatusView({
       <Box flexDirection="column" paddingX={1}>
         {nodes.length === 0 ? (
           <Text color={theme.colors.muted}>
-            No resources are declared in this project. Run `agentcore project add` to declare one.
+            No resources are declared in this project. Run `agentcore add` to declare one.
           </Text>
         ) : (
           <LinkedResourcesTree nodes={nodes} title="resources" focus onOpen={navigate} />

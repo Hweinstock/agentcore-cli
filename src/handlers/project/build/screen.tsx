@@ -44,7 +44,7 @@ function BuildConfirm({ project, core }: { project: Project; core: ScreenProps["
       }}
       successTitle={builtMessage(project)}
       runningLabel="building…"
-      nextSteps={["agentcore project deploy"]}
+      nextSteps={["agentcore deploy"]}
       onDone={() => navigate(PROJECT_MENU)}
       doneLabel="go back"
       onCancel={() => navigate(PROJECT_MENU)}

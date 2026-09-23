@@ -34,13 +34,11 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
   const projectBoundHandlers = [
     createAddProjectResourceHandler(config, core),
     createExportProjectResourceHandler({ projectManager, core, io }),
-    withProjectMiddleware(
-      createRemoveProjectHandler({
-        projectManager,
-        io,
-        middlewares: [withTuiWhenInteractive(core, io)],
-      }),
-    ),
+    createRemoveProjectHandler({
+      projectManager,
+      io,
+      middlewares: [withProjectMiddleware, withTuiWhenInteractive(core, io)],
+    }),
     withProjectMiddleware(
       createDevProjectHandler({
         projectManager,
@@ -63,12 +61,10 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
     createProjectInvokeHandler(core, io),
     createProjectLogHandler(core, io),
     createProjectTracesHandler(core, io),
-    withProjectMiddleware(
-      createStatusProjectHandler({
-        projectManager,
-        middlewares: [withTuiWhenInteractive(core, io)],
-      }),
-    ),
+    createStatusProjectHandler({
+      projectManager,
+      middlewares: [withProjectMiddleware, withTuiWhenInteractive(core, io)],
+    }),
     withProjectMiddleware(createBuildProjectHandler({ projectManager, io })),
   ];
 
