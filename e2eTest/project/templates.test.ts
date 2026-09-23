@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, test } from "vitest";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
@@ -24,6 +24,13 @@ export const TIMEOUT_MS = {
   PROJECT_INVOKE: 3 * 60 * 1000,
 };
 
+const CONTAINER_RUNTIME: RuntimeTemplateTestCase = {
+  name: "py_strands_container",
+  template: "agent-python-strands-container",
+  protocol: "HTTP",
+  payload: { prompt: "Reply with a short greeting." },
+};
+
 const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
   {
     name: "agent_python_minimal",
@@ -37,12 +44,7 @@ const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
     protocol: "HTTP",
     payload: { prompt: "Reply with a short greeting." },
   },
-  {
-    name: "py_strands_container",
-    template: "agent-python-strands-container",
-    protocol: "HTTP",
-    payload: { prompt: "Reply with a short greeting." },
-  },
+  CONTAINER_RUNTIME,
   {
     name: "agent_python_langchain",
     template: "agent-python-langchain",
@@ -117,9 +119,18 @@ const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
   },
 ] as const;
 
+const LOCAL_RUNTIME_TEMPLATES = RUNTIME_TEMPLATES.filter(
+  (runtime) => process.platform !== "win32" || runtime !== CONTAINER_RUNTIME,
+);
+
 const ProjectCreatedSchema = z.object({
   project: z.object({ path: z.string() }),
 });
+const ProjectSpecSchema = z
+  .object({
+    runtimes: z.array(z.object({ name: z.string() }).loose()),
+  })
+  .loose();
 const OperationSchema = z.object({ operation: z.string() });
 const RuntimeInvokeResponseSchema = z.object({
   statusCode: z.number().int(),
@@ -205,6 +216,7 @@ describe(
       const runtimePorts = new Map<string, number>();
       let dev: ReturnType<CliRunner["start"]> | undefined;
       let pendingOutput = "";
+      let originalProjectSpec: string | undefined;
 
       /** Given dev-process output, records the ports announced by running runtimes. */
       const captureDevOutput = (chunk: Buffer) => {
@@ -219,7 +231,15 @@ describe(
         }
       };
 
-      beforeAll(() => {
+      beforeAll(async () => {
+        if (process.platform === "win32") {
+          const specPath = join(projectDir, "agentcore", "agentcore.json");
+          originalProjectSpec = await readFile(specPath, "utf8");
+          const spec = ProjectSpecSchema.parse(JSON.parse(originalProjectSpec));
+          spec.runtimes = spec.runtimes.filter(({ name }) => name !== CONTAINER_RUNTIME.name);
+          await writeFile(specPath, `${JSON.stringify(spec, null, 2)}\n`);
+        }
+
         dev = cli.start(["project", "dev", "--mode", "headless"], projectDir);
         dev.stdout?.on("data", captureDevOutput);
         dev.stderr?.on("data", captureDevOutput);
@@ -228,12 +248,16 @@ describe(
       }, TIMEOUT_MS.PROJECT_DEV);
 
       afterAll(async () => {
-        if (!dev || dev.exitCode !== null) return;
-        dev.kill("SIGTERM");
-        await new Promise<void>((resolve) => dev?.once("close", resolve));
-      });
+        try {
+          if (dev) await cli.stop(dev);
+        } finally {
+          if (originalProjectSpec !== undefined) {
+            await writeFile(join(projectDir, "agentcore", "agentcore.json"), originalProjectSpec);
+          }
+        }
+      }, TIMEOUT_MS.PROJECT_DEV);
 
-      test.each(RUNTIME_TEMPLATES)(
+      test.each(LOCAL_RUNTIME_TEMPLATES)(
         "$name runs locally",
         { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
         async (runtime) => {
