@@ -241,12 +241,21 @@ describe(
 
           // the server may take a bit to get ready, so we retry on a timeout.
           const response = await retry(async () => {
-            if (!dev) throw new Error("project dev did not start.");
-            if (dev.exitCode !== null)
-              throw new Error(`project dev exited with code ${dev.exitCode ?? "unknown"}.`);
+            if (!dev) {
+              throw new Error(`project dev did not start. \nstdout/stdout = ${pendingOutput}`);
+            }
+            if (dev.exitCode !== null) {
+              throw new Error(
+                `project dev exited with code ${dev.exitCode ?? "unknown"}.  \nstdout/stdout = ${pendingOutput}`,
+              );
+            }
 
             const port = runtimePorts.get(runtime.name);
-            if (!port) throw new Error(`Runtime '${runtime.name}' is not ready.`);
+            if (!port) {
+              throw new Error(
+                `Runtime '${runtime.name}' is not ready. \nstdout/stdout = ${pendingOutput}`,
+              );
+            }
 
             return parseResult(
               LocalRuntimeInvokeResponseSchema,
@@ -270,7 +279,7 @@ describe(
                 projectDir,
               ),
             );
-          }, TIMEOUT_MS.PROJECT_INVOKE);
+          }, TIMEOUT_MS.PROJECT_INVOKE * 0.9);
 
           expect(response.complete).toBe(true);
           if (runtime.protocol === "MCP" || runtime.protocol === "A2A") {
