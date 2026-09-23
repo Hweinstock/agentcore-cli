@@ -39,25 +39,28 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
       io,
       middlewares: [withProjectMiddleware, withTuiWhenInteractive(core, io)],
     }),
-    withProjectMiddleware(
-      createDevProjectHandler({
-        projectManager,
-        io,
-        runners: {
-          CodeZip: new CodeZipDevRunner(),
-          Container: new ContainerDevRunner(),
-        },
-        loadDevEnvironment,
-        checkPort,
-        startTraceCollector: startOtelCollector,
-        startServer: startHttpServer,
-        openBrowser,
-        inspectorAssets: new InspectorAssets(),
-        isInteractive: () => process.stdout.isTTY === true,
-        watchFile,
-      }),
-    ),
-    withProjectMiddleware(createDeployProjectHandler({ projectManager, io })),
+    createDevProjectHandler({
+      projectManager,
+      io,
+      middlewares: [withProjectMiddleware],
+      runners: {
+        CodeZip: new CodeZipDevRunner(),
+        Container: new ContainerDevRunner(),
+      },
+      loadDevEnvironment,
+      checkPort,
+      startTraceCollector: startOtelCollector,
+      startServer: startHttpServer,
+      openBrowser,
+      inspectorAssets: new InspectorAssets(),
+      isInteractive: () => process.stdout.isTTY === true,
+      watchFile,
+    }),
+    createDeployProjectHandler({
+      projectManager,
+      io,
+      middlewares: [withProjectMiddleware],
+    }),
     createProjectInvokeHandler(core, io),
     createProjectLogHandler(core, io),
     createProjectTracesHandler(core, io),
@@ -65,7 +68,11 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
       projectManager,
       middlewares: [withProjectMiddleware, withTuiWhenInteractive(core, io)],
     }),
-    withProjectMiddleware(createBuildProjectHandler({ projectManager, io })),
+    createBuildProjectHandler({
+      projectManager,
+      io,
+      middlewares: [withProjectMiddleware],
+    }),
   ];
 
   return [createHandler, ...projectBoundHandlers];
