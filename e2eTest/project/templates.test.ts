@@ -205,10 +205,13 @@ describe(
       const runtimePorts = new Map<string, number>();
       let dev: ReturnType<CliRunner["start"]> | undefined;
       let pendingOutput = "";
+      let devOutput = "";
 
       /** Given dev-process output, records the ports announced by running runtimes. */
       const captureDevOutput = (chunk: Buffer) => {
-        pendingOutput += chunk.toString();
+        const text = chunk.toString();
+        devOutput += text;
+        pendingOutput += text;
         const lines = pendingOutput.split(/\r?\n/);
         pendingOutput = lines.pop() ?? "";
 
@@ -239,21 +242,21 @@ describe(
         async (runtime) => {
           const sessionId = getSessionId(`${runtime.name}`);
 
-          // the server may take a bit to get ready, so we retry on a timeout.
+          // The server may take a bit to get ready, so we retry on a timeout.
           const response = await retry(async () => {
             if (!dev) {
-              throw new Error(`project dev did not start. \nstdout/stdout = ${pendingOutput}`);
+              throw new Error(`project dev did not start. \nproject dev output = ${devOutput}`);
             }
             if (dev.exitCode !== null) {
               throw new Error(
-                `project dev exited with code ${dev.exitCode ?? "unknown"}.  \nstdout/stdout = ${pendingOutput}`,
+                `project dev exited with code ${dev.exitCode ?? "unknown"}.  \nproject dev output = ${devOutput}`,
               );
             }
 
             const port = runtimePorts.get(runtime.name);
             if (!port) {
               throw new Error(
-                `Runtime '${runtime.name}' is not ready. \nstdout/stdout = ${pendingOutput}`,
+                `Runtime '${runtime.name}' is not ready. \nproject dev output = ${devOutput}`,
               );
             }
 
