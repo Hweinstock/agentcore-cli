@@ -217,11 +217,11 @@ export function ProjectCreateScreen({ ctx, core }: ScreenProps) {
 
   return (
     <Wizard
-      breadcrumb={["agentcore", "project", "create"]}
+      breadcrumb={["agentcore", "create"]}
       description="create a new AgentCore project"
       // Esc from the first step leaves the wizard for the project menu, the
       // same place RouterScreen's esc goes.
-      onCancel={() => navigate("/agentcore/project")}
+      onCancel={() => navigate("/agentcore")}
       onSubmit={() => {
         // Both of these throw before anything is written, so the wizard reports
         // them the way it reports a failed create — with the retry still on

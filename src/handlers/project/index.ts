@@ -10,6 +10,7 @@ import { createCreateProjectHandler } from "./create";
 import { createRemoveProjectHandler } from "./remove";
 import { createDevProjectHandler } from "./dev";
 import { loadDevEnvironment } from "./dev/environment";
+import { createDeployProjectHandler } from "./deploy";
 import { createStatusProjectHandler } from "./status";
 import { createBuildProjectHandler } from "./build";
 import type { ProjectManager } from "./types";
@@ -28,35 +29,48 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
     middlewares: [withTuiWhenInteractive(core, io)],
   });
 
+  const withProjectMiddleware = withProject({ projectManager });
+  const config = { projectManager, io, bedrockAgentImporter: core.bedrockAgentImporter };
   const projectBoundHandlers = [
-    createAddProjectResourceHandler({ core, io }),
+    createAddProjectResourceHandler(config, core),
     createExportProjectResourceHandler({ projectManager, core, io }),
-    createRemoveProjectHandler({ projectManager, io }),
-    createDevProjectHandler({
-      projectManager,
-      io,
-      runners: {
-        CodeZip: new CodeZipDevRunner(),
-        Container: new ContainerDevRunner(),
-      },
-      loadDevEnvironment,
-      checkPort,
-      startTraceCollector: startOtelCollector,
-      startServer: startHttpServer,
-      openBrowser,
-      inspectorAssets: new InspectorAssets(),
-      isInteractive: () => process.stdout.isTTY === true,
-      watchFile,
-    }),
+    withProjectMiddleware(
+      createRemoveProjectHandler({
+        projectManager,
+        io,
+        middlewares: [withTuiWhenInteractive(core, io)],
+      }),
+    ),
+    withProjectMiddleware(
+      createDevProjectHandler({
+        projectManager,
+        io,
+        runners: {
+          CodeZip: new CodeZipDevRunner(),
+          Container: new ContainerDevRunner(),
+        },
+        loadDevEnvironment,
+        checkPort,
+        startTraceCollector: startOtelCollector,
+        startServer: startHttpServer,
+        openBrowser,
+        inspectorAssets: new InspectorAssets(),
+        isInteractive: () => process.stdout.isTTY === true,
+        watchFile,
+      }),
+    ),
+    withProjectMiddleware(createDeployProjectHandler({ projectManager, io })),
     createProjectInvokeHandler(core, io),
     createProjectLogHandler(core, io),
     createProjectTracesHandler(core, io),
-    createStatusProjectHandler({
-      projectManager,
-      middlewares: [withTuiWhenInteractive(core, io)],
-    }),
-    createBuildProjectHandler({ projectManager, io }),
-  ].map((h) => withProject({ projectManager })(h));
+    withProjectMiddleware(
+      createStatusProjectHandler({
+        projectManager,
+        middlewares: [withTuiWhenInteractive(core, io)],
+      }),
+    ),
+    withProjectMiddleware(createBuildProjectHandler({ projectManager, io })),
+  ];
 
   return [createHandler, ...projectBoundHandlers];
 }

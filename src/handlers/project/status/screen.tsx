@@ -19,9 +19,9 @@ import { LoadingFrame, ProjectGate } from "../ProjectGate";
 
 const theme = darkTheme;
 
-const BREADCRUMB = ["agentcore", "project", "status"];
+const BREADCRUMB = ["agentcore", "status"];
 const DESCRIPTION = "the project's linked resources";
-const PROJECT_MENU = "/agentcore/project";
+const PROJECT_MENU = "/agentcore";
 
 // The detail routes a deployed resource can forward to. Types without a detail
 // screen are listed but not navigable.
