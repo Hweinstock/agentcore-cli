@@ -397,7 +397,7 @@ describe("CdkBackend.build", () => {
 
     await expect(collect(subject.backend.build(input))).rejects.toThrow(
       `Project build cannot resolve credential "${name}" before its first deployment. ` +
-        `Run 'agentcore project deploy' to provision the credential and build the project.`,
+        `Run 'agentcore deploy' to provision the credential and build the project.`,
     );
   });
 });
@@ -1099,7 +1099,7 @@ describe("CdkBackend.resolveDeployedResources", () => {
 
     await expect(
       subject.backend.resolveDeployedResources(input, { target: TARGET }),
-    ).rejects.toThrow(/not deployed.*project deploy --target default/s);
+    ).rejects.toThrow(/not deployed.*agentcore deploy --target default/s);
     expect(subject.stackReads).toEqual([]);
     expect(subject.accountCredentials).toEqual([]);
   });
@@ -1111,7 +1111,7 @@ describe("CdkBackend.resolveDeployedResources", () => {
 
     await expect(
       subject.backend.resolveDeployedResources(input, { target: TARGET }),
-    ).rejects.toThrow(/not deployed.*project deploy --target default/s);
+    ).rejects.toThrow(/not deployed.*agentcore deploy --target default/s);
     expect(subject.stackReads[0]?.stackName).toBe(STACK_ARN);
   });
 

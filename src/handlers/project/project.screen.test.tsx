@@ -22,43 +22,42 @@ import {
 
 afterEach(cleanupScreens);
 
-// projectSubcommands reads the project group's children off the compiled
-// Commander tree, so tests driven by it cover any subcommand added later.
-function projectSubcommands(): string[] {
+// topLevelSubcommands reads the root's children off the compiled Commander
+// tree, so tests driven by it cover any command added later.
+function topLevelSubcommands(): string[] {
   const root = compiledRootCommand();
-  const project = root.commands.find((command) => command.name() === "project")!;
-  return project.commands.map((command) => command.name());
+  return root.commands.map((command) => command.name());
 }
 
-describe("project menu", () => {
-  test("lists every project subcommand", async () => {
-    const r = renderScreen("/agentcore/project");
+describe("root menu", () => {
+  test("lists every top-level command", async () => {
+    const r = renderScreen("/agentcore");
 
-    await waitForText(r.lastFrame, "manage an AgentCore project");
+    await waitForText(r.lastFrame, "the platform for production AI agents");
     const frame = r.lastFrame()!;
-    for (const command of projectSubcommands()) {
+    for (const command of topLevelSubcommands()) {
       expect(frame).toContain(command);
     }
     r.unmount();
   });
 
-  test("is reachable from the root menu", async () => {
+  test("project commands are reachable from the root menu", async () => {
     const r = renderScreen("/agentcore");
 
-    await waitForText(r.lastFrame, "manage an AgentCore project");
-    await r.write("project");
-    await waitForText(r.lastFrame, "❯ project");
+    await waitForText(r.lastFrame, "the platform for production AI agents");
+    await r.write("add");
+    await waitForText(r.lastFrame, "❯ add");
     await r.press("return");
 
-    await waitForText(r.lastFrame, "agentcore → project");
-    expect(r.lastFrame()).toContain("create");
+    await waitForText(r.lastFrame, "agentcore → add");
+    expect(r.lastFrame()).toContain("runtime");
     r.unmount();
   });
 
   test("esc returns to the root menu", async () => {
-    const r = renderScreen("/agentcore/project");
+    const r = renderScreen("/agentcore/add");
 
-    await waitForText(r.lastFrame, "agentcore → project");
+    await waitForText(r.lastFrame, "agentcore → add");
     await r.press("escape");
 
     await waitForText(r.lastFrame, "the platform for production AI agents");
@@ -66,19 +65,19 @@ describe("project menu", () => {
   });
 });
 
-// projectCommand resolves a compiled project subcommand by path, for reading
+// command resolves a compiled command by path, for reading
 // the help the CLI-only screen must match.
-function projectCommand(...path: string[]) {
+function command(...path: string[]) {
   const root = compiledRootCommand();
-  let command = root.commands.find((c) => c.name() === "project")!;
-  for (const name of path) command = command.commands.find((c) => c.name() === name)!;
-  return command;
+  let current = root;
+  for (const name of path) current = current.commands.find((c) => c.name() === name)!;
+  return current;
 }
 
-describe("project menu: command-line-only subcommands", () => {
+describe("root menu: command-line-only subcommands", () => {
   test("create and add runtime expose the shared registry-backed template help", () => {
-    const createDetails = commandParameterDetails(projectCommand("create"))!;
-    const addRuntimeDetails = commandParameterDetails(projectCommand("add", "runtime"))!;
+    const createDetails = commandParameterDetails(command("create"))!;
+    const addRuntimeDetails = commandParameterDetails(command("add", "runtime"))!;
 
     for (const name of RUNTIME_TEMPLATE_SHORTCUT_NAMES) {
       const description = RUNTIME_TEMPLATE_SHORTCUTS[name].description;
@@ -92,14 +91,28 @@ describe("project menu: command-line-only subcommands", () => {
   });
 
   test("are listed below a divider, after the ones with a screen", async () => {
-    const r = renderScreen("/agentcore/project");
+    const r = renderScreen("/agentcore");
 
     await waitForText(r.lastFrame, "command line only");
-    const withScreens = ["create", "deploy", "invoke", "build", "status", "add", "remove"];
+    const withScreens = [
+      "create",
+      "add",
+      "remove",
+      "deploy",
+      "invoke",
+      "status",
+      "build",
+      "harness",
+      "identity",
+      "runtime",
+      "memory",
+      "gateway",
+      "eval",
+    ];
     const { screens, cliOnly } = menuEntries(r.lastFrame()!);
     expect(screens.toSorted()).toEqual(withScreens.toSorted());
     expect(cliOnly.toSorted()).toEqual(
-      projectSubcommands()
+      topLevelSubcommands()
         .filter((c) => !withScreens.includes(c))
         .toSorted(),
     );
@@ -107,21 +120,21 @@ describe("project menu: command-line-only subcommands", () => {
   });
 
   test("a group drills down to its leaves' help and back", async () => {
-    const r = renderScreen("/agentcore/project/add");
+    const r = renderScreen("/agentcore/add");
 
-    await waitForText(r.lastFrame, "agentcore → project → add");
+    await waitForText(r.lastFrame, "agentcore → add");
     await r.write("gateway");
     await waitForText(r.lastFrame, "❯ gateway");
     await r.press("return");
 
-    await waitForText(r.lastFrame, "agentcore → project → add → gateway");
+    await waitForText(r.lastFrame, "agentcore → add → gateway");
     const frame = r.lastFrame()!.replace(/\s+/g, " ");
     expect(frame).toContain("this command runs from the command line");
-    expect(frame).toContain("agentcore project add gateway [options]");
+    expect(frame).toContain("agentcore add gateway [options]");
     expect(frame).toContain("--authorizer-type");
 
     await r.press("escape");
-    await waitForText(r.lastFrame, "agentcore → project → add");
+    await waitForText(r.lastFrame, "agentcore → add");
     r.unmount();
   });
 
@@ -129,7 +142,7 @@ describe("project menu: command-line-only subcommands", () => {
     // `add gateway-target` has ten options plus a long --target-configuration
     // write-up, which `--help` appends as "Parameter details"; at 80×24 most of
     // it is below the fold.
-    const r = renderScreen("/agentcore/project/add/gateway-target");
+    const r = renderScreen("/agentcore/add/gateway-target");
     await r.resize(80, 24);
     await waitForText(r.lastFrame, "this command runs from the command line");
     expect(r.lastFrame()).not.toContain("curated Connector shortcuts");
@@ -137,7 +150,9 @@ describe("project menu: command-line-only subcommands", () => {
     // Scroll to the end: the write-up's last line is the last thing on the page.
     for (let i = 0; i < 80; i++) await r.press("down");
     const bottom = r.lastFrame()!.replace(/\s+/g, " ");
-    expect(bottom).toContain("Use project add gateway-connector for curated Connector shortcuts.");
+    expect(bottom).toContain(
+      "Use agentcore add gateway-connector for curated Connector shortcuts.",
+    );
     // …and the heading was on the way.
     expect(r.frames.some((frame) => frame.includes("Parameter details:"))).toBe(true);
 
@@ -149,7 +164,7 @@ describe("project menu: command-line-only subcommands", () => {
   // These three exercise the help viewport, so they need a command-line-only
   // resource whose help is longer than the terminal: `add payment-manager`.
   test("growing the terminal after scrolling to the bottom pulls the content back into view", async () => {
-    const r = renderScreen("/agentcore/project/add/payment-manager");
+    const r = renderScreen("/agentcore/add/payment-manager");
     await r.resize(80, 24);
     await waitForText(r.lastFrame, "this command runs from the command line");
     for (let i = 0; i < 80; i++) await r.press("down");
@@ -165,7 +180,7 @@ describe("project menu: command-line-only subcommands", () => {
   });
 
   test("a key that fills its column still stands clear of its value", async () => {
-    const r = renderScreen("/agentcore/project/add/payment-manager");
+    const r = renderScreen("/agentcore/add/payment-manager");
     await r.resize(40, 60);
     // Narrow enough that the intro wraps and the key column hits its cap.
     await waitForFlatText(r.lastFrame, "this command runs from the command line");
@@ -179,7 +194,7 @@ describe("project menu: command-line-only subcommands", () => {
   });
 
   test("every option is reachable on a small terminal", async () => {
-    const r = renderScreen("/agentcore/project/add/payment-manager");
+    const r = renderScreen("/agentcore/add/payment-manager");
     await r.resize(80, 24);
     await waitForText(r.lastFrame, "this command runs from the command line");
 
@@ -192,22 +207,22 @@ describe("project menu: command-line-only subcommands", () => {
       await r.press("down");
       collect();
     }
-    const compiled = projectCommand("add", "payment-manager");
+    const compiled = command("add", "payment-manager");
     for (const option of compiled.options) {
       if (option.long && option.long !== "--help") expect(seen).toContain(option.long);
     }
     r.unmount();
   });
 
-  test("an unknown project path retains the standard help fallback", async () => {
-    const r = renderScreen("/agentcore/project/no-such-command");
+  test("an unknown top-level path retains the standard help fallback", async () => {
+    const r = renderScreen("/agentcore/no-such-command");
     await waitForText(() => r.frames.join("\n"), "Usage:");
     expect(r.frames.join("\n")).not.toContain("command line only");
     r.unmount();
   });
 });
 
-describe("agentcore project (no subcommand)", () => {
+describe("agentcore (no subcommand)", () => {
   // Exercises the real CLI entrypoint; the screen tests mount a path directly
   // and so never caught the missing default handler.
   //
@@ -224,7 +239,7 @@ describe("agentcore project (no subcommand)", () => {
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
 
-    const caught: unknown = await root.route(["node", "agentcore", "project"]).then(
+    const caught: unknown = await root.route(["node", "agentcore"]).then(
       () => undefined,
       (error: unknown) => error,
     );
@@ -242,7 +257,7 @@ describe("agentcore project (no subcommand)", () => {
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
 
-    await root.route(["node", "agentcore", "project", "--json"]);
+    await root.route(["node", "agentcore", "--json"]);
 
     expect(io.stdout()).toContain("Usage:");
     expect(io.stdout()).toContain("create");

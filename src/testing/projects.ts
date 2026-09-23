@@ -45,7 +45,6 @@ export async function initProject(options: InitProjectOptions = {}): Promise<Ini
     await root.route([
       "node",
       "agentcore",
-      "project",
       "create",
       "--name",
       name,
