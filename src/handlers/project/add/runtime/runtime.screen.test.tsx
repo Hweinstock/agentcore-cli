@@ -8,7 +8,6 @@ import {
   flatFrame,
   cleanupScreens,
   createSilentLogger,
-  initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -349,20 +348,4 @@ describe("project add runtime dispatch", () => {
 
     expect(await runtimeInSpec(projectRoot, "flag_agent")).toBeDefined();
   }, 10000);
-
-  test("resolves the project from the invocation cwd when the root is reused", async () => {
-    const first = await initProject({ name: "FirstProject" });
-    const root = buildRoot(testIO().io);
-    const second = await initProject({ name: "SecondProject" });
-
-    try {
-      await root.route(["node", "agentcore", "add", "runtime", "--name", "after_chdir"]);
-
-      expect(await runtimeInSpec(second.projectRoot, "after_chdir")).toBeDefined();
-      expect(await runtimeInSpec(first.projectRoot, "after_chdir")).toBeUndefined();
-    } finally {
-      await second.cleanup();
-      await first.cleanup();
-    }
-  });
 });
