@@ -256,7 +256,7 @@ describe("project add memory wizard", () => {
 });
 
 // These drive the real CLI entrypoint rather than mounting the screen, because
-// what they cover is the routing in front of it: a bare `project add memory` has
+// what they cover is the routing in front of it: a bare `agentcore add memory` has
 // to reach the wizard, and everything else has to stay headless.
 describe("project add memory dispatch", () => {
   function buildRoot(io: AppIO) {

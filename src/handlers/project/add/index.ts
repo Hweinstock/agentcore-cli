@@ -38,7 +38,7 @@ export function createAddProjectResourceHandler(
   // wizard for a bare `add <resource>` on a TTY; it is inert for a resource
   // declared command-line only above, and for flags, --json and non-TTY runs.
   projectAdd.use(
-    withProject({ projectManager: config.projectManager, cwd: process.cwd() }),
+    withProject({ projectManager: config.projectManager }),
     withTuiWhenInteractive(core, config.io),
   );
   projectAdd.handler(createAddConfigBundleHandler(config));

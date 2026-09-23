@@ -160,7 +160,7 @@ type HarnessPathFlagValues = {
   "api-base"?: string;
 };
 
-// The harness input validates against the same schema `project add harness`
+// The harness input validates against the same schema `agentcore add harness`
 // uses, before any file is written; the manager then scaffolds it through the
 // same addResource path. Exported so the TUI create wizard builds its harness
 // input through the exact same translation as the flag-driven path.

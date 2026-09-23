@@ -436,7 +436,7 @@ export class CdkBackend implements ProjectBackend {
     yield { type: "step", message: `Removing stack ${artifact.stackName}` };
     yield* this.runCdk({ kind: "destroy", stackArtifactId: artifact.id }, options);
     // After the stack, since a resource in it may still be using the provider. The
-    // declared credentials are included because `project remove all` empties the spec
+    // declared credentials are included because `agentcore remove all` empties the spec
     // before the deploy that gets here, so what it recorded is all that names them.
     yield* this.removeCredentials(project, {
       credentials: options.credentials,

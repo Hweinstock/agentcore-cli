@@ -227,7 +227,7 @@ export class FsProjectManager implements ProjectManager {
     }
 
     // A harness project scaffolds through the same addResource flow that
-    // `project add harness` uses, so a create-time harness and an added one can
+    // `agentcore add harness` uses, so a create-time harness and an added one can
     // never drift apart.
     if (input.scaffoldHarnessInput) {
       const scaffolded = await this.resolve({ filePath: destination });

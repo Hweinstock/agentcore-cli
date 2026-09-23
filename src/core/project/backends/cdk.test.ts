@@ -760,7 +760,7 @@ describe("CdkBackend.deploy", () => {
   });
 
   test("hands teardown the target and the providers recorded before the deploy overwrote them", async () => {
-    // The `project remove all` shape: the spec declares nothing, so provisioning
+    // The `agentcore remove all` shape: the spec declares nothing, so provisioning
     // returns nothing and rewrites the credentials map to empty before teardown runs.
     // The recorded providers are the only remaining record of what to delete, and
     // the target name is what scopes their provider names.

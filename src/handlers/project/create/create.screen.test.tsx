@@ -95,7 +95,7 @@ describe("project create wizard", () => {
     expect(r.lastFrame()).toContain("agentcore deploy");
 
     // The manager received exactly the input the flag-driven handler builds
-    // for `project create --name DemoApp`.
+    // for `agentcore create --name DemoApp`.
     expect(inputs).toEqual([
       {
         name: "DemoApp",

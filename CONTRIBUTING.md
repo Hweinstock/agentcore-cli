@@ -85,7 +85,7 @@ npm i -g "./$TARBALL"
 - **The CLI looks frozen in a PowerShell window**: legacy conhost pauses all
   output while text is selected (the title bar shows `Select`). Press `Esc`.
   Windows Terminal does not do this.
-- **`project create` refuses a long path**: Windows caps paths at 260 characters
+- **`agentcore create` refuses a long path**: Windows caps paths at 260 characters
   unless `LongPathsEnabled` is set, and the CDK app's `node_modules` puts its
   deepest file 155 characters below the project root (aws-cdk-lib's own shipped
   fixtures), so the project root must be at most 104 characters. Create the

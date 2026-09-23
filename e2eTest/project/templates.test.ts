@@ -224,11 +224,11 @@ describe(
           // the server may take a bit to get ready, so we retry on a timeout.
           const response = await retry(async () => {
             if (!dev) {
-              throw new Error(`project dev did not start. \nstdout/stdout = ${pendingOutput}`);
+              throw new Error(`agentcore dev did not start. \nstdout/stdout = ${pendingOutput}`);
             }
             if (dev.exitCode !== null) {
               throw new Error(
-                `project dev exited with code ${dev.exitCode ?? "unknown"}.  \nstdout/stdout = ${pendingOutput}`,
+                `agentcore dev exited with code ${dev.exitCode ?? "unknown"}.  \nstdout/stdout = ${pendingOutput}`,
               );
             }
 

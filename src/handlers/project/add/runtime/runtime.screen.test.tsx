@@ -8,6 +8,7 @@ import {
   flatFrame,
   cleanupScreens,
   createSilentLogger,
+  initProject,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -236,7 +237,7 @@ describe("project add runtime wizard", () => {
 });
 
 // These drive the real CLI entrypoint rather than mounting the screen, because
-// what they cover is the routing in front of it: a bare `project add runtime`
+// what they cover is the routing in front of it: a bare `agentcore add runtime`
 // has to reach the wizard, and everything else has to stay headless.
 describe("project add runtime dispatch", () => {
   function buildRoot(io: AppIO) {
@@ -348,4 +349,20 @@ describe("project add runtime dispatch", () => {
 
     expect(await runtimeInSpec(projectRoot, "flag_agent")).toBeDefined();
   }, 10000);
+
+  test("resolves the project from the invocation cwd when the root is reused", async () => {
+    const first = await initProject({ name: "FirstProject" });
+    const root = buildRoot(testIO().io);
+    const second = await initProject({ name: "SecondProject" });
+
+    try {
+      await root.route(["node", "agentcore", "add", "runtime", "--name", "after_chdir"]);
+
+      expect(await runtimeInSpec(second.projectRoot, "after_chdir")).toBeDefined();
+      expect(await runtimeInSpec(first.projectRoot, "after_chdir")).toBeUndefined();
+    } finally {
+      await second.cleanup();
+      await first.cleanup();
+    }
+  });
 });
