@@ -2,23 +2,23 @@ name: Prerelease Refactor
 
 on:
   push:
-    branches: [refactor]
+    branches: [main, refactor]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: prerelease-refactor
+  group: prerelease-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   prerelease:
-    if: github.ref == 'refs/heads/refactor'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
-      RELEASE_TAG: prerelease-refactor
+      RELEASE_TAG: ${{ github.ref_name == 'main' && 'prerelease' || format('prerelease-{0}', github.ref_name) }}
+      RELEASE_TITLE: ${{ github.ref_name == 'main' && 'Prerelease' || format('Prerelease ({0})', github.ref_name) }}
       TARBALL_NAME: agentcore-cli-prerelease.tgz
     steps:
       - uses: actions/checkout@v7
@@ -86,7 +86,7 @@ jobs:
           gh release create "$RELEASE_TAG" \
             "$RUNNER_TEMP/$TARBALL_NAME" \
             dist/bin/* \
-            --title "Prerelease (refactor)" \
+            --title "$RELEASE_TITLE" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
             --prerelease \
             --target "$GITHUB_SHA"
