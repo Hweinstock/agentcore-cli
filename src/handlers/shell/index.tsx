@@ -2,10 +2,10 @@ import z from "zod";
 import { InputValidationError, ResourceNotFoundError } from "../../errors";
 import type { AppIO } from "../../io";
 import { createHandler, flag } from "../../router";
-import { JsonKey } from "../keys";
+import { JsonKey, RegionKey } from "../keys";
 import type { Core } from "../types";
-import { toResourceArn } from "../utils";
-import { serviceIdFromArn } from "../../core/arn";
+import { contextForResource, toResourceArn } from "../utils";
+import { regionFromArn, serviceIdFromArn } from "../../core/arn";
 import { runRuntimeShell } from "../runtime/shell/operation";
 
 export const createShellHandler = (core: Core, io: AppIO) =>
@@ -25,9 +25,15 @@ export const createShellHandler = (core: Core, io: AppIO) =>
         throw new InputValidationError("--json cannot be used with runtime shell");
       }
 
-      const resourceArn = await toResourceArn({
+      const resourceCtx = await contextForResource({
         core,
         context: ctx,
+        resourceType: "runtime",
+        identifier: flags.runtime,
+      });
+      const resourceArn = await toResourceArn({
+        core,
+        context: resourceCtx,
         resourceType: "runtime",
         identifier: flags.runtime,
       });
@@ -35,6 +41,10 @@ export const createShellHandler = (core: Core, io: AppIO) =>
         throw new ResourceNotFoundError(`Runtime '${flags.runtime}' was not found`);
       }
 
+      const resourceRegion = regionFromArn(resourceArn);
+      const resolvedCtx = resourceRegion
+        ? resourceCtx.withValue(RegionKey, resourceRegion)
+        : resourceCtx;
       const runtimeId = serviceIdFromArn(resourceArn);
       const bearerToken = flags["bearer-token"];
       const launchContext = {
@@ -44,7 +54,7 @@ export const createShellHandler = (core: Core, io: AppIO) =>
       };
 
       await runRuntimeShell({
-        ctx,
+        ctx: resolvedCtx,
         core,
         io,
         runtimeId,

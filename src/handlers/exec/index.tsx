@@ -4,10 +4,15 @@ import { createHandler, flag } from "../../router";
 import { JsonKey } from "../keys";
 import type { AppIO } from "../../io";
 import type { Core } from "../types";
-import { assertMutuallyExclusiveFlags, coreOptsFromCtx, toResourceArn } from "../utils";
+import {
+  assertMutuallyExclusiveFlags,
+  contextForResource,
+  coreOptsFromCtx,
+  toResourceArn,
+} from "../utils";
 import { JsonRendererKey, renderTuiAt } from "../../tui";
-import { serviceIdFromArn } from "../../core/arn";
-import { RuntimeShellLaunchContextKey } from "../runtime/shell/launchContext";
+import { regionFromArn, serviceIdFromArn } from "../../core/arn";
+import { RegionKey } from "../keys";
 import { invokeExecCommand } from "./operation";
 
 export const createExecHandler = (core: Core, io: AppIO) =>
@@ -56,9 +61,15 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         throw new InputValidationError("specify one of --runtime or --harness");
       }
 
-      const resourceArn = await toResourceArn({
+      const resourceCtx = await contextForResource({
         core,
         context: ctx,
+        resourceType,
+        identifier,
+      });
+      const resourceArn = await toResourceArn({
+        core,
+        context: resourceCtx,
         resourceType,
         identifier,
       });
@@ -68,6 +79,10 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         );
       }
 
+      const resourceRegion = regionFromArn(resourceArn);
+      const resolvedCtx = resourceRegion
+        ? resourceCtx.withValue(RegionKey, resourceRegion)
+        : resourceCtx;
       const resourceId = serviceIdFromArn(resourceArn);
       if (flags.command === undefined) {
         if (ctx.require(JsonKey)) {
@@ -75,18 +90,11 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         }
         let path = `/agentcore/exec/${resourceType}/${encodeURIComponent(resourceId)}`;
         if (flags["session-id"]) path += `/${encodeURIComponent(flags["session-id"])}`;
-        if (flags.qualifier) path += `?qualifier=${encodeURIComponent(flags.qualifier)}`;
-        await renderTuiAt(
-          path,
-          resourceType === "runtime"
-            ? ctx.withValue(RuntimeShellLaunchContextKey, {
-                runtimeId: resourceId,
-                runtimeSessionId: flags["session-id"],
-              })
-            : ctx,
-          core,
-          io,
-        );
+        const params = new URLSearchParams();
+        if (flags.qualifier) params.set("qualifier", flags.qualifier);
+        if (flags.timeout !== undefined) params.set("timeout", String(flags.timeout));
+        if (params.size > 0) path += `?${params}`;
+        await renderTuiAt(path, resolvedCtx, core, io);
         return;
       }
 
@@ -99,7 +107,7 @@ export const createExecHandler = (core: Core, io: AppIO) =>
           qualifier: flags.qualifier ?? "DEFAULT",
           timeout: flags.timeout,
         },
-        options: coreOptsFromCtx(ctx),
+        options: coreOptsFromCtx(resolvedCtx),
       });
       ctx.require(JsonRendererKey).renderJson(result);
     },

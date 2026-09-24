@@ -8,6 +8,7 @@ import { formatZodError } from "../router/schema";
 import { AwsCredentialProviderKey, EndpointKey, JsonKey, RegionKey } from "./keys";
 import { JsonRendererKey } from "../tui";
 import type { Core } from "./types";
+import { regionFromArn } from "../core/arn";
 
 // coreOptsFromCtx builds the standard CoreOptions handed to Core operations from
 // the values pinned on the context: the resolved region (always present, see the
@@ -34,6 +35,7 @@ function isNotFound(error: unknown): boolean {
  * @param context handler context containing region and project information
  * @param resourceType resource kind to resolve
  * @param identifier project name, account ID, or full ARN
+ * @param target project deployment target
  * @returns the full ARN, or undefined when the resource does not exist
  */
 export async function toResourceArn({
@@ -41,21 +43,23 @@ export async function toResourceArn({
   context,
   resourceType,
   identifier,
+  target = "default",
 }: {
   core: Core;
   context: Context;
   resourceType: "runtime" | "gateway" | "harness";
   identifier: string;
+  target?: string;
 }): Promise<string | undefined> {
   if (identifier.startsWith("arn:")) return identifier;
 
   const project =
     context.value(ProjectKey) ?? (await core.projectManager.resolve({ filePath: process.cwd() }));
   if (project) {
-    const target = await core.projectManager.resolveTarget(project, { target: "default" });
-    if (target) {
+    const deploymentTarget = await core.projectManager.resolveTarget(project, { target });
+    if (deploymentTarget) {
       const resolved = await core.projectManager.resolveProjectResources(project, {
-        target: target.name,
+        target: deploymentTarget.name,
       });
       const resource = resolved.resources.find(
         (candidate) => candidate.resourceType === resourceType && candidate.name === identifier,
@@ -80,6 +84,47 @@ export async function toResourceArn({
     if (isNotFound(error)) return undefined;
     throw error;
   }
+}
+
+/**
+ * Pin the context used for a project resource to its deployment target.
+ *
+ * @param core injected AgentCore client
+ * @param context handler context
+ * @param resourceType resource kind to resolve
+ * @param identifier project name, account ID, or full ARN
+ * @param target project deployment target
+ * @returns a context with the target's region and credentials when applicable
+ */
+export async function contextForResource({
+  core,
+  context,
+  resourceType,
+  identifier,
+  target = "default",
+}: {
+  core: Core;
+  context: Context;
+  resourceType: "runtime" | "harness";
+  identifier: string;
+  target?: string;
+}): Promise<Context> {
+  const region = regionFromArn(identifier);
+  if (region) return context.withValue(RegionKey, region);
+
+  const project =
+    context.value(ProjectKey) ?? (await core.projectManager.resolve({ filePath: process.cwd() }));
+  const resources = resourceType === "runtime" ? project?.spec.runtimes : project?.spec.harnesses;
+  if (!resources?.some(({ name }) => name === identifier)) return context;
+
+  const deployed = await core.projectManager.resolveDeployedResource(project!, {
+    target,
+    resourceType,
+    name: identifier,
+  });
+  return context
+    .withValue(RegionKey, deployed.target.region)
+    .withValue(AwsCredentialProviderKey, deployed.credentialProvider);
 }
 
 // A pinned region replaces RegionKey on every route's context, so a screen that

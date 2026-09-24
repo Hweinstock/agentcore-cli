@@ -2,23 +2,15 @@ import { useNavigate, useParams, useSearchParams } from "react-router";
 import type { ScreenProps } from "../types";
 import { HarnessPicker } from "../../components/HarnessPicker";
 import { HarnessChat } from "../harness/invoke/screen";
-import { RuntimeShellScreen } from "../runtime/shell/screen";
+import { RuntimeExecScreen } from "./runtime/screen";
 
-// ExecScreen dispatches to the existing Runtime shell or Harness exec screen
-// based on the resourceType query parameter.
+// ExecScreen dispatches to the Runtime exec or Harness exec screen based on
+// the resourceType route parameter.
 export function ExecScreen(props: ScreenProps) {
   const { resourceType, resourceId, sessionId } = useParams();
-  const [search] = useSearchParams();
 
   if (resourceType === "runtime") {
-    return (
-      <RuntimeShellScreen
-        {...props}
-        runtimeId={resourceId}
-        qualifier={search.get("qualifier") ?? undefined}
-        routePath="/agentcore/exec/runtime"
-      />
-    );
+    return <RuntimeExecScreen {...props} />;
   }
 
   return <HarnessExecScreen {...props} resourceId={resourceId} sessionId={sessionId} />;
