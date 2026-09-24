@@ -25,7 +25,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           repository: Hweinstock/agentcore-cli
-          ref: 19ab7aa9
+          ref: fix/project-dev-full-output
           path: source
 
       - uses: oven-sh/setup-bun@v2
