@@ -52,9 +52,6 @@ This reference was generated from `agentcore --help` for version `1.0.0-rc.4`.
       - [`agentcore traces harness get`](#agentcore-traces-harness-get)
   - [`agentcore status`](#agentcore-status)
   - [`agentcore build`](#agentcore-build)
-- [Runtime commands](#runtime-commands)
-  - [`agentcore exec`](#agentcore-exec)
-  - [`agentcore shell`](#agentcore-shell)
 - [Evaluation commands](#evaluation-commands)
   - [`agentcore eval`](#agentcore-eval)
     - [`agentcore eval evaluator`](#agentcore-eval-evaluator)
@@ -870,40 +867,6 @@ agentcore build [options]
 ```
 
 build the project's deployable artifacts
-
-## Runtime commands
-
-### `agentcore exec`
-
-```text
-agentcore exec [options]
-```
-
-run a shell command in a Runtime or harness
-
-**Options**
-
-- `--runtime <runtime>`: the name a Runtime in the project, or ID of a Runtime in the account
-- `--harness <harness>`: the name of a harness in the project, or ID of a harness in the account
-- `--command <command>`: the shell command to run
-- `--session-id <session-id>`: the session ID to run in (33-100 characters)
-- `--qualifier <qualifier>`: the endpoint qualifier to run in (default DEFAULT)
-- `--timeout <timeout>`: seconds to wait for the command (1-3600)
-
-### `agentcore shell`
-
-```text
-agentcore shell [options]
-```
-
-open an interactive shell in a Runtime
-
-**Options**
-
-- `--runtime <runtime>`: the ID of the Runtime (required)
-- `--qualifier <qualifier>`: the endpoint qualifier
-- `--session-id <session-id>`: the session ID to use
-- `--bearer-token <bearer-token>`: the CUSTOM\_JWT bearer token
 
 ## Evaluation commands
 

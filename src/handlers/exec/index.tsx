@@ -7,7 +7,6 @@ import type { Core } from "../types";
 import { assertMutuallyExclusiveFlags, coreOptsFromCtx, toResourceArn } from "../utils";
 import { JsonRendererKey, renderTuiAt } from "../../tui";
 import { serviceIdFromArn } from "../../core/arn";
-import { RuntimeShellLaunchContextKey } from "../runtime/shell/launchContext";
 import { invokeExecCommand } from "./operation";
 
 export const createExecHandler = (core: Core, io: AppIO) =>
@@ -53,11 +52,7 @@ export const createExecHandler = (core: Core, io: AppIO) =>
             : undefined;
       const identifier = flags.runtime ?? flags.harness;
       if (resourceType === undefined || identifier === undefined) {
-        if (flags.command !== undefined || ctx.require(JsonKey)) {
-          throw new InputValidationError("specify one of --runtime or --harness");
-        }
-        await renderTuiAt("/agentcore", ctx, core, io);
-        return;
+        throw new InputValidationError("specify one of --runtime or --harness");
       }
 
       const resourceArn = await toResourceArn({
@@ -77,20 +72,13 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         if (ctx.require(JsonKey)) {
           throw new InputValidationError("required option '--command <command>' not specified");
         }
-        const params = new URLSearchParams({ resourceType });
-        if (flags["session-id"]) params.set("sessionId", flags["session-id"]);
-        if (flags.qualifier) params.set("qualifier", flags.qualifier);
-        await renderTuiAt(
-          `/agentcore/shell/${encodeURIComponent(resourceId)}?${params}`,
-          resourceType === "runtime"
-            ? ctx.withValue(RuntimeShellLaunchContextKey, {
-                runtimeId: resourceId,
-                runtimeSessionId: flags["session-id"],
-              })
-            : ctx,
-          core,
-          io,
-        );
+        if (resourceType !== "harness") {
+          throw new InputValidationError("required option '--command <command>' not specified");
+        }
+        let path = `/agentcore/exec/${encodeURIComponent(resourceId)}`;
+        if (flags["session-id"]) path += `/${encodeURIComponent(flags["session-id"])}`;
+        if (flags.qualifier) path += `?qualifier=${encodeURIComponent(flags.qualifier)}`;
+        await renderTuiAt(path, ctx, core, io);
         return;
       }
 

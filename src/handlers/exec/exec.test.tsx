@@ -4,16 +4,16 @@ import type {
   InvokeAgentRuntimeCommandStreamOutput,
 } from "@aws-sdk/client-bedrock-agentcore";
 import type { GetHarnessResponse } from "@aws-sdk/client-bedrock-agentcore-control";
-import { createRootHandler } from "../../index";
+import { createRootHandler } from "../index";
 import {
   IMPERATIVE_GLOBAL_CONFIG,
   createSilentLogger,
   expectError,
   TestCoreClient,
   testIO,
-} from "../../../testing";
-import { TestGlobalConfigAccessor } from "../../../testing/";
-import { InputValidationError } from "../../../errors";
+} from "../../testing";
+import { TestGlobalConfigAccessor } from "../../testing/";
+import { InputValidationError } from "../../errors";
 
 // Command-flow tests for top-level `exec --harness`, driven through the real root handler.
 // Like the invoke suite, these use a TestCoreClient because the command

@@ -16,7 +16,7 @@ import { HarnessCreateScreen } from "../handlers/harness/create/screen.tsx";
 import { HarnessUpdateScreen } from "../handlers/harness/update/screen.tsx";
 import { HarnessDeleteScreen } from "../handlers/harness/delete/screen.tsx";
 import { HarnessInvokeScreen } from "../handlers/harness/invoke/screen.tsx";
-import { HarnessExecScreen } from "../handlers/harness/exec/screen.tsx";
+import { ExecScreen } from "../handlers/exec/screen.tsx";
 import { HarnessEndpointScreen } from "../handlers/harness/endpoint/screen.tsx";
 import { HarnessCreateEndpointScreen } from "../handlers/harness/endpoint/create/screen.tsx";
 import { HarnessGetEndpointScreen } from "../handlers/harness/endpoint/get/screen.tsx";
@@ -43,7 +43,6 @@ import { MemoryGetJsonScreen, MemoryGetScreen } from "../handlers/memory/get/scr
 import { MemoryListScreen } from "../handlers/memory/list/screen.tsx";
 import { RuntimeInvokeScreen } from "../handlers/runtime/invoke/screen.tsx";
 import { RuntimeShellScreen } from "../handlers/runtime/shell/screen.tsx";
-import { ShellScreen } from "../handlers/shell/screen.tsx";
 import { EvalScreen } from "../handlers/eval/screen.tsx";
 import { EvaluatorScreen } from "../handlers/eval/evaluator/screen.tsx";
 import { EvaluatorListScreen } from "../handlers/eval/evaluator/list/screen.tsx";
@@ -294,16 +293,12 @@ function RouteTable({ ctx, core }: ScreenProps) {
         path="agentcore/harness/invoke/:harnessId/:sessionId"
         element={<HarnessInvokeScreen ctx={ctx} core={core} />}
       />
-      <Route path="agentcore/harness/exec" element={<HarnessExecScreen ctx={ctx} core={core} />} />
+      <Route path="agentcore/exec" element={<ExecScreen ctx={ctx} core={core} />} />
+      <Route path="agentcore/exec/:harnessId" element={<ExecScreen ctx={ctx} core={core} />} />
       <Route
-        path="agentcore/harness/exec/:harnessId"
-        element={<HarnessExecScreen ctx={ctx} core={core} />}
+        path="agentcore/exec/:harnessId/:sessionId"
+        element={<ExecScreen ctx={ctx} core={core} />}
       />
-      <Route
-        path="agentcore/harness/exec/:harnessId/:sessionId"
-        element={<HarnessExecScreen ctx={ctx} core={core} />}
-      />
-      <Route path="agentcore/shell/:resourceId?" element={<ShellScreen ctx={ctx} core={core} />} />
       <Route
         path="agentcore/harness/endpoint"
         element={<HarnessEndpointScreen ctx={ctx} core={core} />}

@@ -2,12 +2,10 @@ import z from "zod";
 import { InputValidationError, ResourceNotFoundError } from "../../errors";
 import type { AppIO } from "../../io";
 import { createHandler, flag } from "../../router";
-import { renderTuiAt } from "../../tui";
 import { JsonKey } from "../keys";
 import type { Core } from "../types";
 import { toResourceArn } from "../utils";
 import { serviceIdFromArn } from "../../core/arn";
-import { RuntimeShellLaunchContextKey } from "../runtime/shell/launchContext";
 import { runRuntimeShell } from "../runtime/shell/operation";
 
 export const createShellHandler = (core: Core, io: AppIO) =>
@@ -45,23 +43,12 @@ export const createShellHandler = (core: Core, io: AppIO) =>
         bearerToken,
       };
 
-      if (flags.qualifier === undefined) {
-        const params = new URLSearchParams({ resourceType: "runtime" });
-        await renderTuiAt(
-          `/agentcore/shell/${encodeURIComponent(runtimeId)}?${params}`,
-          ctx.withValue(RuntimeShellLaunchContextKey, launchContext),
-          core,
-          io,
-        );
-        return;
-      }
-
       await runRuntimeShell({
         ctx,
         core,
         io,
         runtimeId,
-        qualifier: flags.qualifier,
+        qualifier: flags.qualifier ?? "DEFAULT",
         launchContext,
       });
     },
