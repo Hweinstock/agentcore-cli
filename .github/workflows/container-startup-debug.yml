@@ -48,8 +48,7 @@ jobs:
           set -uo pipefail
 
           debug_root="$RUNNER_TEMP/agentcore-container-debug"
-          project_root="$debug_root/project-root"
-          mkdir -p "$project_root"
+          mkdir -p "$debug_root"
           cli=(node "$GITHUB_WORKSPACE/source/dist/index.js")
 
           "${cli[@]}" project create \
@@ -66,24 +65,47 @@ jobs:
 
           project_dir="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).project.path)' "$debug_root/create.stdout")"
 
-          (
-            cd "$project_dir"
-            "${cli[@]}" project add runtime \
-              --name py_strands_container \
-              --template agent-python-strands-container \
-              --json
-          ) >"$debug_root/add.stdout" 2>"$debug_root/add.stderr"
-          add_status=$?
-          if [ "$add_status" -ne 0 ]; then
-            exit "$add_status"
-          fi
+          runtime_specs=(
+            "agent_python_minimal|agent-python-minimal"
+            "agent_python_strands|agent-python-strands"
+            "py_strands_container|agent-python-strands-container"
+            "agent_python_langchain|agent-python-langchain"
+            "agent_ts_strands|agent-typescript-strands"
+            "agent_ts_vercel|agent-typescript-vercel"
+            "mcp_python_fastmcp|mcp-python-fastmcp"
+            "a2a_python_strands|a2a-python-strands"
+            "agui_python_strands|agui-python-strands"
+          )
 
+          : >"$debug_root/timing"
+          for spec in "${runtime_specs[@]}"; do
+            IFS="|" read -r runtime_name runtime_template <<<"$spec"
+            echo "$(date --iso-8601=seconds) add $runtime_name" >>"$debug_root/timing"
+            (
+              cd "$project_dir"
+              "${cli[@]}" project add runtime \
+                --name "$runtime_name" \
+                --template "$runtime_template" \
+                --json
+            ) >"$debug_root/add-$runtime_name.stdout" 2>"$debug_root/add-$runtime_name.stderr"
+            add_status=$?
+            echo "$(date --iso-8601=seconds) add $runtime_name exit=$add_status" >>"$debug_root/timing"
+            if [ "$add_status" -ne 0 ]; then
+              exit "$add_status"
+            fi
+          done
+
+          echo "$(date --iso-8601=seconds) project-dev start" >>"$debug_root/timing"
+          set +e
           (
             cd "$project_dir"
-            timeout --signal=TERM --kill-after=15s 300s \
+            timeout --signal=TERM --kill-after=20s 360s \
               "${cli[@]}" project dev --mode headless
           ) >"$debug_root/dev.stdout" 2>"$debug_root/dev.stderr"
-          echo "$?" >"$debug_root/dev.exit"
+          dev_status=$?
+          echo "$(date --iso-8601=seconds) project-dev exit=$dev_status" >>"$debug_root/timing"
+          echo "$dev_status" >"$debug_root/dev.exit"
+          exit "$dev_status"
 
       - name: Collect container diagnostics
         if: always()
@@ -92,12 +114,19 @@ jobs:
           set +e
           debug_root="$RUNNER_TEMP/agentcore-container-debug"
 
-          for file in create.stdout create.stderr add.stdout add.stderr dev.stdout dev.stderr dev.exit; do
+          for file in timing create.stdout create.stderr dev.stdout dev.stderr dev.exit; do
             echo "===== $file ====="
             if [ -f "$debug_root/$file" ]; then
               sed -n '1,1200p' "$debug_root/$file"
             else
               echo "(missing)"
+            fi
+          done
+
+          for file in "$debug_root"/add-*.stdout "$debug_root"/add-*.stderr; do
+            echo "===== ${file##*/} ====="
+            if [ -f "$file" ]; then
+              sed -n '1,80p' "$file"
             fi
           done
 
