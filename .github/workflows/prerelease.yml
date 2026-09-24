@@ -28,6 +28,13 @@ jobs:
       - uses: oven-sh/setup-bun@v2
 
       - run: bun install --frozen-lockfile
+
+      - name: Set prerelease version
+        run: |
+          VERSION="1.0.0-${GITHUB_SHA: -6}"
+          bun pm pkg set "version=$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
       - run: bun run build
 
       - name: Pack CLI
@@ -44,6 +51,7 @@ jobs:
           release_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
           cat > "$RUNNER_TEMP/release-notes.md" <<EOF
           Auto-generated prerelease from commit \`$GITHUB_SHA\` on \`$GITHUB_REF_NAME\`.
+          Version: \`$VERSION\`
 
           ## Download
 
