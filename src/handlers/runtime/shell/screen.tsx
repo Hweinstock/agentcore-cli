@@ -21,14 +21,12 @@ type RuntimeShellScreenProps = ScreenProps & {
   runtimeId?: string;
   qualifier?: string;
   routePath?: string;
-  resourceType?: "runtime";
 };
 
 export function RuntimeShellScreen({
   runtimeId: routeRuntimeId,
   qualifier: routeQualifier,
   routePath = "/agentcore/runtime/shell",
-  resourceType,
   ...props
 }: RuntimeShellScreenProps) {
   const { runtimeId: paramRuntimeId, qualifier: paramQualifier } = useParams();
@@ -43,9 +41,8 @@ export function RuntimeShellScreen({
     if (routePath === "/agentcore/runtime/shell") {
       return id === undefined ? shellPath() : shellPath(id, ...(endpoint ? [endpoint] : []));
     }
-    const params = new URLSearchParams({ resourceType: resourceType ?? "runtime" });
-    if (endpoint) params.set("qualifier", endpoint);
-    return `${routePath}${id === undefined ? "" : `/${encodeURIComponent(id)}`}?${params}`;
+    const path = `${routePath}${id === undefined ? "" : `/${encodeURIComponent(id)}`}`;
+    return endpoint ? `${path}?qualifier=${encodeURIComponent(endpoint)}` : path;
   };
 
   if (!runtimeId) {

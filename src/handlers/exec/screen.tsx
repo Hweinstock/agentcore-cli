@@ -7,29 +7,31 @@ import { RuntimeShellScreen } from "../runtime/shell/screen";
 // ExecScreen dispatches to the existing Runtime shell or Harness exec screen
 // based on the resourceType query parameter.
 export function ExecScreen(props: ScreenProps) {
-  const { resourceId } = useParams();
+  const { resourceType, resourceId, sessionId } = useParams();
   const [search] = useSearchParams();
 
-  if (search.get("resourceType") === "runtime") {
+  if (resourceType === "runtime") {
     return (
       <RuntimeShellScreen
         {...props}
         runtimeId={resourceId}
         qualifier={search.get("qualifier") ?? undefined}
-        routePath="/agentcore/exec"
-        resourceType="runtime"
+        routePath="/agentcore/exec/runtime"
       />
     );
   }
 
-  return <HarnessExecScreen {...props} resourceId={resourceId} />;
+  return <HarnessExecScreen {...props} resourceId={resourceId} sessionId={sessionId} />;
 }
 
 // Harness exec uses the shared harness chat screen, starting in exec mode.
-function HarnessExecScreen({ resourceId, ...props }: ScreenProps & { resourceId?: string }) {
+function HarnessExecScreen({
+  resourceId,
+  sessionId,
+  ...props
+}: ScreenProps & { resourceId?: string; sessionId?: string }) {
   const [search] = useSearchParams();
   const navigate = useNavigate();
-  const sessionId = search.get("sessionId") ?? undefined;
 
   if (!resourceId) {
     return (
@@ -37,9 +39,7 @@ function HarnessExecScreen({ resourceId, ...props }: ScreenProps & { resourceId?
         {...props}
         breadcrumb={["agentcore", "exec"]}
         description="choose a harness to exec into"
-        onSelect={(id) =>
-          navigate(`/agentcore/exec/${encodeURIComponent(id)}?resourceType=harness`)
-        }
+        onSelect={(id) => navigate(`/agentcore/exec/harness/${encodeURIComponent(id)}`)}
       />
     );
   }

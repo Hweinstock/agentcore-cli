@@ -73,11 +73,11 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         if (ctx.require(JsonKey)) {
           throw new InputValidationError("required option '--command <command>' not specified");
         }
-        const params = new URLSearchParams({ resourceType });
-        if (flags["session-id"]) params.set("sessionId", flags["session-id"]);
-        if (flags.qualifier) params.set("qualifier", flags.qualifier);
+        let path = `/agentcore/exec/${resourceType}/${encodeURIComponent(resourceId)}`;
+        if (flags["session-id"]) path += `/${encodeURIComponent(flags["session-id"])}`;
+        if (flags.qualifier) path += `?qualifier=${encodeURIComponent(flags.qualifier)}`;
         await renderTuiAt(
-          `/agentcore/exec/${encodeURIComponent(resourceId)}?${params}`,
+          path,
           resourceType === "runtime"
             ? ctx.withValue(RuntimeShellLaunchContextKey, {
                 runtimeId: resourceId,

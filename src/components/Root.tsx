@@ -293,7 +293,15 @@ function RouteTable({ ctx, core }: ScreenProps) {
         path="agentcore/harness/invoke/:harnessId/:sessionId"
         element={<HarnessInvokeScreen ctx={ctx} core={core} />}
       />
-      <Route path="agentcore/exec/:resourceId?" element={<ExecScreen ctx={ctx} core={core} />} />
+      <Route path="agentcore/exec/:resourceType" element={<ExecScreen ctx={ctx} core={core} />} />
+      <Route
+        path="agentcore/exec/:resourceType/:resourceId"
+        element={<ExecScreen ctx={ctx} core={core} />}
+      />
+      <Route
+        path="agentcore/exec/:resourceType/:resourceId/:sessionId"
+        element={<ExecScreen ctx={ctx} core={core} />}
+      />
       <Route
         path="agentcore/harness/endpoint"
         element={<HarnessEndpointScreen ctx={ctx} core={core} />}
