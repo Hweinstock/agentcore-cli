@@ -11,13 +11,6 @@ import type { Core } from "./types";
 
 export type ResourceType = "runtime" | "gateway" | "harness";
 
-export interface ToResourceArnInput {
-  core: Core;
-  context: Context;
-  resourceType: ResourceType;
-  identifier: string;
-}
-
 // coreOptsFromCtx builds the standard CoreOptions handed to Core operations from
 // the values pinned on the context: the resolved region (always present, see the
 // withRegion middleware), the optional --endpoint-url override, and any explicit
@@ -37,21 +30,25 @@ function isNotFound(error: unknown): boolean {
 }
 
 /**
- * Given a resource type and identifier, resolve the resource's full ARN.
+ * Resolve a resource's full ARN from its project name, account ID, or ARN.
  *
- * An identifier may be a logical name in the current AgentCore project, a
- * service ID in the authenticated account, or an ARN. Project names are
- * resolved from the default deployment target; non-project identifiers are
- * looked up directly in the corresponding control-plane API.
- *
- * Returns undefined when the resource is not deployed or does not exist.
+ * @param core injected AgentCore client
+ * @param context handler context containing region and project information
+ * @param resourceType resource kind to resolve
+ * @param identifier project name, account ID, or full ARN
+ * @returns the full ARN, or undefined when the resource does not exist
  */
 export async function toResourceArn({
   core,
   context,
   resourceType,
   identifier,
-}: ToResourceArnInput): Promise<string | undefined> {
+}: {
+  core: Core;
+  context: Context;
+  resourceType: ResourceType;
+  identifier: string;
+}): Promise<string | undefined> {
   if (identifier.startsWith("arn:")) return identifier;
 
   const project =

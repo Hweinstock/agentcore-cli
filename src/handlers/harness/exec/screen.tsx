@@ -8,18 +8,39 @@ import { HarnessChat } from "../invoke/screen";
 // the session's container). Ctrl+E flips between exec and chat at any time.
 // Without a `:harnessId` route value it renders the harness picker. A
 // `:sessionId` route value resumes that runtime session.
-export function HarnessExecScreen(props: ScreenProps) {
-  const { harnessId, sessionId } = useParams();
+type HarnessExecScreenProps = ScreenProps & {
+  harnessId?: string;
+  sessionId?: string;
+  routePath?: string;
+  resourceType?: "harness";
+};
+
+export function HarnessExecScreen({
+  harnessId: routeHarnessId,
+  sessionId: routeSessionId,
+  routePath = "/agentcore/harness/exec",
+  resourceType,
+  ...props
+}: HarnessExecScreenProps) {
+  const params = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
+  const harnessId = routeHarnessId ?? params.harnessId;
+  const sessionId = routeSessionId ?? params.sessionId ?? search.get("sessionId") ?? undefined;
 
   if (!harnessId) {
     return (
       <HarnessPicker
         {...props}
-        breadcrumb={["agentcore", "harness", "exec"]}
+        breadcrumb={routePath.split("/").filter(Boolean)}
         description="choose a harness to exec into"
-        onSelect={(id) => navigate(`/agentcore/harness/exec/${id}`)}
+        onSelect={(id) =>
+          navigate(
+            resourceType
+              ? `${routePath}/${encodeURIComponent(id)}?resourceType=${resourceType}`
+              : `${routePath}/${encodeURIComponent(id)}`,
+          )
+        }
       />
     );
   }

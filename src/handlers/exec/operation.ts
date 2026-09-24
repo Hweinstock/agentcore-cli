@@ -19,12 +19,17 @@ export type ExecResult = {
   output: string;
 };
 
-export async function invokeExecCommand(
-  core: Core,
-  input: ExecInput,
-  options: CoreOptions,
-  signal?: AbortSignal,
-): Promise<ExecResult> {
+export async function invokeExecCommand({
+  core,
+  input,
+  options,
+  signal,
+}: {
+  core: Core;
+  input: ExecInput;
+  options: CoreOptions;
+  signal?: AbortSignal;
+}): Promise<ExecResult> {
   const request: InvokeAgentRuntimeCommandRequest = {
     agentRuntimeArn: input.resourceArn,
     qualifier: input.qualifier,

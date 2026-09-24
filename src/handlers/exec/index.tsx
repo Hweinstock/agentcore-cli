@@ -77,43 +77,34 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         if (ctx.require(JsonKey)) {
           throw new InputValidationError("required option '--command <command>' not specified");
         }
-        if (resourceType === "harness") {
-          let path = `/agentcore/harness/exec/${encodeURIComponent(resourceId)}`;
-          if (flags["session-id"]) path += `/${encodeURIComponent(flags["session-id"])}`;
-          if (flags.qualifier) path += `?qualifier=${encodeURIComponent(flags.qualifier)}`;
-          await renderTuiAt(path, ctx, core, io);
-        } else {
-          const path = [
-            "/agentcore/runtime/shell",
-            encodeURIComponent(resourceId),
-            flags.qualifier === undefined ? undefined : encodeURIComponent(flags.qualifier),
-          ]
-            .filter((part): part is string => part !== undefined)
-            .join("/");
-          await renderTuiAt(
-            path,
-            ctx.withValue(RuntimeShellLaunchContextKey, {
-              runtimeId: resourceId,
-              runtimeSessionId: flags["session-id"],
-            }),
-            core,
-            io,
-          );
-        }
+        const params = new URLSearchParams({ resourceType });
+        if (flags["session-id"]) params.set("sessionId", flags["session-id"]);
+        if (flags.qualifier) params.set("qualifier", flags.qualifier);
+        await renderTuiAt(
+          `/agentcore/shell/${encodeURIComponent(resourceId)}?${params}`,
+          resourceType === "runtime"
+            ? ctx.withValue(RuntimeShellLaunchContextKey, {
+                runtimeId: resourceId,
+                runtimeSessionId: flags["session-id"],
+              })
+            : ctx,
+          core,
+          io,
+        );
         return;
       }
 
-      const result = await invokeExecCommand(
+      const result = await invokeExecCommand({
         core,
-        {
+        input: {
           resourceArn,
           command: flags.command,
           runtimeSessionId: flags["session-id"],
           qualifier: flags.qualifier ?? "DEFAULT",
           timeout: flags.timeout,
         },
-        coreOptsFromCtx(ctx),
-      );
+        options: coreOptsFromCtx(ctx),
+      });
       ctx.require(JsonRendererKey).renderJson(result);
     },
   });

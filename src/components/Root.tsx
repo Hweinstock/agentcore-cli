@@ -43,6 +43,7 @@ import { MemoryGetJsonScreen, MemoryGetScreen } from "../handlers/memory/get/scr
 import { MemoryListScreen } from "../handlers/memory/list/screen.tsx";
 import { RuntimeInvokeScreen } from "../handlers/runtime/invoke/screen.tsx";
 import { RuntimeShellScreen } from "../handlers/runtime/shell/screen.tsx";
+import { ShellScreen } from "../handlers/shell/screen.tsx";
 import { EvalScreen } from "../handlers/eval/screen.tsx";
 import { EvaluatorScreen } from "../handlers/eval/evaluator/screen.tsx";
 import { EvaluatorListScreen } from "../handlers/eval/evaluator/list/screen.tsx";
@@ -302,6 +303,7 @@ function RouteTable({ ctx, core }: ScreenProps) {
         path="agentcore/harness/exec/:harnessId/:sessionId"
         element={<HarnessExecScreen ctx={ctx} core={core} />}
       />
+      <Route path="agentcore/shell/:resourceId?" element={<ShellScreen ctx={ctx} core={core} />} />
       <Route
         path="agentcore/harness/endpoint"
         element={<HarnessEndpointScreen ctx={ctx} core={core} />}

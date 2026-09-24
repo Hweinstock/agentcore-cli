@@ -46,8 +46,9 @@ export const createShellHandler = (core: Core, io: AppIO) =>
       };
 
       if (flags.qualifier === undefined) {
+        const params = new URLSearchParams({ resourceType: "runtime" });
         await renderTuiAt(
-          `/agentcore/runtime/shell/${encodeURIComponent(runtimeId)}`,
+          `/agentcore/shell/${encodeURIComponent(runtimeId)}?${params}`,
           ctx.withValue(RuntimeShellLaunchContextKey, launchContext),
           core,
           io,
