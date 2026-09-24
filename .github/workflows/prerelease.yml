@@ -1,0 +1,91 @@
+name: prerelease
+
+on:
+  push:
+    branches: [main, refactor]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prerelease-${{ github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  prerelease:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ github.ref_name == 'main' && 'prerelease' || format('prerelease-{0}', github.ref_name) }}
+      RELEASE_TITLE: ${{ github.ref_name == 'main' && 'Prerelease' || format('Prerelease ({0})', github.ref_name) }}
+      TARBALL_NAME: agentcore-cli-prerelease.tgz
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@v2
+
+      - run: bun install --frozen-lockfile
+
+      - name: Set prerelease version
+        run: |
+          VERSION="1.0.0-${GITHUB_SHA: -6}"
+          bun pm pkg set "version=$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - run: bun run build
+
+      - name: Pack CLI
+        run: |
+          bun pm pack --destination "$RUNNER_TEMP" --ignore-scripts
+          tarball="$(find "$RUNNER_TEMP" -maxdepth 1 -type f -name 'aws-agentcore-*.tgz' -print -quit)"
+          test -f "$tarball"
+          mv "$tarball" "$RUNNER_TEMP/$TARBALL_NAME"
+
+      - run: bun run compile
+
+      - name: Write release notes
+        run: |
+          release_url="https://github.com/$GITHUB_REPOSITORY/releases/download/$RELEASE_TAG"
+          cat > "$RUNNER_TEMP/release-notes.md" <<EOF
+          Auto-generated prerelease from commit \`$GITHUB_SHA\` on \`$GITHUB_REF_NAME\`.
+          Version: \`$VERSION\`
+
+          ## Download
+
+          ### CLI tarball
+
+          [\`$TARBALL_NAME\`]($release_url/$TARBALL_NAME)
+
+          \`\`\`bash
+          curl -L "$release_url/$TARBALL_NAME" -o "$TARBALL_NAME"
+          bun add --global "./$TARBALL_NAME"
+          \`\`\`
+
+          ### Standalone executables
+
+          | Platform | Download |
+          | --- | --- |
+          | macOS Intel | [agentcore-darwin-x64]($release_url/agentcore-darwin-x64) |
+          | macOS Apple Silicon | [agentcore-darwin-arm64]($release_url/agentcore-darwin-arm64) |
+          | Linux x64 | [agentcore-linux-x64]($release_url/agentcore-linux-x64) |
+          | Linux arm64 | [agentcore-linux-arm64]($release_url/agentcore-linux-arm64) |
+          | Windows x64 | [agentcore-windows-x64.exe]($release_url/agentcore-windows-x64.exe) |
+          | Windows arm64 | [agentcore-windows-arm64.exe]($release_url/agentcore-windows-arm64.exe) |
+
+          EOF
+
+      - name: Create or update prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "$RELEASE_TAG" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$RELEASE_TAG" \
+            "$RUNNER_TEMP/$TARBALL_NAME" \
+            dist/bin/* \
+            --title "$RELEASE_TITLE" \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
+            --prerelease \
+            --target "$GITHUB_SHA"
