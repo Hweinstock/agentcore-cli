@@ -15,7 +15,7 @@ It gives you two ways to work, from the same package:
 
 ```bash
 agentcore                      # launch the interactive TUI
-agentcore harness list --json  # scriptable, machine-readable output
+agentcore status --json         # scriptable, machine-readable output
 ```
 
 ## What problem does it solve?
@@ -44,34 +44,28 @@ agentcore create --name MyAgent --template agent-python-strands
 
 ## Command Surface
 
-Project commands manage local project specifications and their deployments. Resource commands
-operate on deployed resources without requiring a local project.
+Project commands manage local project specifications and their deployments.
+`eval` commands evaluate deployed resources without requiring a local project.
 
-| Command                                                                                            | Purpose                                                                       |
-| -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `create`, `add`, `export`, `remove`, `dev`, `deploy`, `invoke`, `log`, `traces`, `status`, `build` | Create, develop, build, deploy, invoke, and inspect a project                 |
-| `harness`                                                                                          | Manage Harnesses, versions, and endpoints; invoke and inspect them            |
-| `identity`                                                                                         | Manage credential providers                                                   |
-| `runtime`                                                                                          | Inspect, invoke, and open a shell in deployed Runtimes                        |
-| `memory`                                                                                           | Inspect Memories, actors, sessions, events, and records                       |
-| `gateway`                                                                                          | Inspect and invoke Gateways, inspect targets and rules, and generate policies |
-| `payment`                                                                                          | Inspect payment managers, connectors, sessions, instruments, and balances     |
-| `eval`                                                                                             | Evaluate agents, manage datasets and configurations, and run experiments      |
-| `feedback`                                                                                         | Submit feedback                                                               |
-| `config`                                                                                           | Read and write global CLI settings                                            |
-| `update`                                                                                           | Check for and install CLI updates                                             |
+| Command                                                                                            | Purpose                                                                  |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `create`, `add`, `export`, `remove`, `dev`, `deploy`, `invoke`, `log`, `traces`, `status`, `build` | Create, develop, build, deploy, invoke, and inspect a project            |
+| `eval`                                                                                             | Evaluate agents, manage datasets and configurations, and run experiments |
+| `feedback`                                                                                         | Submit feedback                                                          |
+| `config`                                                                                           | Read and write global CLI settings                                       |
+| `update`                                                                                           | Check for and install CLI updates                                        |
 
 Use `--help` for subcommands and flags, or browse the [command reference](command.md):
 
 ```bash
 agentcore --help
 agentcore add --help
-agentcore runtime invoke --help
+agentcore invoke --help
 ```
 
 Supported bare commands open their interactive flows in a terminal. Operation
-flags select headless behavior for most commands, but invoke commands can use
-selectors such as `--id` and `--session-id` to seed an interactive console.
+flags select headless behavior for most commands. Project invoke commands can
+use `--name` and `--target` to select a deployed agent for an interactive session.
 Run `agentcore create` for guided setup. To create a default project without
 the wizard, run `agentcore create --name MyAssistant`.
 

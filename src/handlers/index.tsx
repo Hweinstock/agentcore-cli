@@ -93,12 +93,14 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
   createProjectHandlers(core, io).forEach((handler) => {
     root.handler(handler);
   });
-  root.handler(createHarnessHandler(core, io));
-  root.handler(createIdentityHandler(core, io));
-  root.handler(createRuntimeHandler(core, io));
-  root.handler(createMemoryHandler(core, io));
-  root.handler(createGatewayHandler(core, io, globalConfig));
-  root.handler(createPaymentHandler(core, io));
+  if (globalConfig["imperative-commands"]) {
+    root.handler(createHarnessHandler(core, io));
+    root.handler(createIdentityHandler(core, io));
+    root.handler(createRuntimeHandler(core, io));
+    root.handler(createMemoryHandler(core, io));
+    root.handler(createGatewayHandler(core, io, globalConfig));
+    root.handler(createPaymentHandler(core, io));
+  }
   root.handler(createEvalHandler(core, io));
   root.handler(createFeedbackHandler(core, io));
   root.handler(createConfigHandler());

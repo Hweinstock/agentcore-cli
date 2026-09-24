@@ -4,7 +4,7 @@ import type {
   HarnessVersionSummary,
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import {
-  renderScreen,
+  renderImperativeScreen,
   waitForText,
   waitFor,
   cleanupScreens,
@@ -62,7 +62,7 @@ function coreForCreate(): TestCoreClient {
 describe("harness endpoint create wizard", () => {
   test("without a harness id, picking a harness opens the wizard", async () => {
     const core = coreForCreate();
-    const r = renderScreen("/agentcore/harness/endpoint/create", { core });
+    const r = renderImperativeScreen("/agentcore/harness/endpoint/create", { core });
 
     await waitForText(r.lastFrame, "MyHarness");
     expect(r.lastFrame()).toContain("choose a harness to create an endpoint for");
@@ -74,7 +74,9 @@ describe("harness endpoint create wizard", () => {
 
   test("walks name → version → review and creates", async () => {
     const core = coreForCreate();
-    const r = renderScreen("/agentcore/harness/endpoint/create/MyHarness-abc123", { core });
+    const r = renderImperativeScreen("/agentcore/harness/endpoint/create/MyHarness-abc123", {
+      core,
+    });
 
     await waitForText(r.lastFrame, "what should this endpoint be called?");
     await r.write("prod");
@@ -121,7 +123,9 @@ describe("harness endpoint create wizard", () => {
 
   test("keeping `latest` omits targetVersion from the request", async () => {
     const core = coreForCreate();
-    const r = renderScreen("/agentcore/harness/endpoint/create/MyHarness-abc123", { core });
+    const r = renderImperativeScreen("/agentcore/harness/endpoint/create/MyHarness-abc123", {
+      core,
+    });
 
     await waitForText(r.lastFrame, "what should this endpoint be called?");
     await r.write("prod");

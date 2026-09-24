@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import type { Event, SessionSummary } from "@aws-sdk/client-bedrock-agentcore";
-import { cleanupScreens, renderScreen, TestCoreClient, waitForText } from "../../../testing";
+import {
+  cleanupScreens,
+  renderImperativeScreen,
+  TestCoreClient,
+  waitForText,
+} from "../../../testing";
 
 afterEach(cleanupScreens);
 
@@ -37,7 +42,9 @@ describe("Memory session list flow", () => {
     core.memory.setListEventsResponse({
       events: [event({ memoryId, actorId, sessionId })],
     });
-    const screen = renderScreen(`/agentcore/memory/session/list/${memoryId}/${actorId}`, { core });
+    const screen = renderImperativeScreen(`/agentcore/memory/session/list/${memoryId}/${actorId}`, {
+      core,
+    });
 
     await waitForText(screen.lastFrame, sessionId);
     const frame = screen.lastFrame()!;
@@ -52,13 +59,15 @@ describe("Memory session list flow", () => {
   });
 
   test("shows empty and retry states for session lists", async () => {
-    const empty = renderScreen("/agentcore/memory/session/list/memory-1/actor-1");
+    const empty = renderImperativeScreen("/agentcore/memory/session/list/memory-1/actor-1");
     await waitForText(empty.lastFrame, "No sessions found for actor actor-1.");
     empty.unmount();
 
     const core = new TestCoreClient();
     core.memory.setError(new Error("sessions unavailable"));
-    const failed = renderScreen("/agentcore/memory/session/list/memory-1/actor-1", { core });
+    const failed = renderImperativeScreen("/agentcore/memory/session/list/memory-1/actor-1", {
+      core,
+    });
 
     await waitForText(failed.lastFrame, "sessions unavailable");
     core.memory.setError(undefined);

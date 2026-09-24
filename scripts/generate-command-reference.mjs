@@ -26,12 +26,6 @@ const DEFAULT_GROUPS = [
       "build",
     ],
   },
-  { id: "harness", title: "Harness commands", commands: ["harness"] },
-  { id: "identity", title: "Identity commands", commands: ["identity"] },
-  { id: "runtime", title: "Runtime commands", commands: ["runtime"] },
-  { id: "memory", title: "Memory commands", commands: ["memory"] },
-  { id: "gateway", title: "Gateway commands", commands: ["gateway"] },
-  { id: "payment", title: "Payment commands", commands: ["payment"] },
   { id: "evaluation", title: "Evaluation commands", commands: ["eval"] },
   {
     id: "settings",

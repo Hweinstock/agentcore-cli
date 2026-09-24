@@ -1,5 +1,12 @@
 import { test, expect, describe, afterEach } from "bun:test";
-import { cleanupScreens, renderScreen, tick, waitForText } from "../testing";
+import {
+  cleanupScreens,
+  menuEntries,
+  renderScreen,
+  renderImperativeScreen,
+  tick,
+  waitForText,
+} from "../testing";
 
 afterEach(cleanupScreens);
 
@@ -10,19 +17,29 @@ afterEach(cleanupScreens);
 describe("menu rendering", () => {
   test("lists the current command's subcommands with their descriptions", async () => {
     const r = renderScreen("/agentcore");
-    await waitForText(r.lastFrame, "harness");
+    await waitForText(r.lastFrame, "type to choose a command");
 
     const frame = r.lastFrame()!;
-    expect(frame).toContain("harness");
-    expect(frame).toContain("manage AgentCore harnesses");
-    expect(frame).toContain("runtime");
-    expect(frame).toContain("inspect AgentCore Runtimes");
-    expect(frame).toContain("memory");
-    expect(frame).toContain("inspect AgentCore Memories");
-    expect(frame).toContain("gateway");
-    expect(frame).toContain("manage AgentCore Gateways");
+    const entries = menuEntries(frame);
+    expect(entries.screens).toContain("create");
+    expect(frame).toContain("eval");
+    for (const family of ["harness", "identity", "runtime", "memory", "gateway", "payment"]) {
+      expect([...entries.screens, ...entries.cliOnly]).not.toContain(family);
+    }
     expect(frame).toContain("config");
     expect(frame).toContain("read/write global config values");
+    r.unmount();
+  });
+
+  test("lists standalone commands in the root menu when enabled", async () => {
+    const r = renderImperativeScreen("/agentcore");
+    await waitForText(r.lastFrame, "type to choose a command");
+
+    const entries = menuEntries(r.lastFrame()!);
+    expect(entries.screens).toEqual(
+      expect.arrayContaining(["harness", "identity", "runtime", "memory", "gateway"]),
+    );
+    expect(entries.cliOnly).toContain("payment");
     r.unmount();
   });
 
@@ -33,7 +50,7 @@ describe("menu rendering", () => {
   });
 
   test("renders the harness subcommands when mounted at the harness path", async () => {
-    const r = renderScreen("/agentcore/harness");
+    const r = renderImperativeScreen("/agentcore/harness");
     await waitForText(r.lastFrame, "list");
 
     const frame = r.lastFrame()!;
@@ -45,7 +62,7 @@ describe("menu rendering", () => {
 
   test("highlights the first option by default", async () => {
     const r = renderScreen("/agentcore");
-    await waitForText(r.lastFrame, "harness");
+    await waitForText(r.lastFrame, "type to choose a command");
     // The focus caret marks the highlighted row; the first option is create.
     expect(r.lastFrame()).toContain("❯ create");
     r.unmount();
@@ -54,7 +71,7 @@ describe("menu rendering", () => {
 
 describe("filtering", () => {
   test("typing narrows the options to matches", async () => {
-    const r = renderScreen("/agentcore/harness");
+    const r = renderImperativeScreen("/agentcore/harness");
     await waitForText(r.lastFrame, "list");
 
     await r.write("cr"); // matches "create" only
@@ -68,7 +85,7 @@ describe("filtering", () => {
   });
 
   test("filtering is case-insensitive", async () => {
-    const r = renderScreen("/agentcore/harness");
+    const r = renderImperativeScreen("/agentcore/harness");
     await waitForText(r.lastFrame, "list");
 
     await r.write("LIST");
@@ -77,7 +94,7 @@ describe("filtering", () => {
   });
 
   test("shows a no-matches message when nothing matches", async () => {
-    const r = renderScreen("/agentcore/harness");
+    const r = renderImperativeScreen("/agentcore/harness");
     await waitForText(r.lastFrame, "list");
 
     await r.write("zzz");
@@ -87,6 +104,20 @@ describe("filtering", () => {
 });
 
 describe("navigation", () => {
+  test.each(["harness", "runtime/endpoint"])(
+    "an unavailable %s menu redirects to a working root menu",
+    async (path) => {
+      const r = renderScreen(`/agentcore/${path}`);
+      await waitForText(r.lastFrame, "the platform for production AI agents");
+
+      await r.write("eval");
+      await r.press("return");
+      await waitForText(r.lastFrame, "agentcore → eval");
+      expect(r.lastFrame()).toContain("evaluator");
+      r.unmount();
+    },
+  );
+
   test("down arrow moves the highlight to the next option", async () => {
     const r = renderScreen("/agentcore");
     await waitForText(r.lastFrame, "❯ create");
@@ -120,7 +151,7 @@ describe("navigation", () => {
   });
 
   test("esc from a nested menu returns to the parent menu", async () => {
-    const r = renderScreen("/agentcore/harness");
+    const r = renderImperativeScreen("/agentcore/harness");
     await waitForText(r.lastFrame, "agentcore → harness");
 
     await r.press("escape");

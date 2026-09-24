@@ -5,14 +5,15 @@ import {
   compiledRootCommand,
   menuEntries,
   renderScreen,
+  renderImperativeScreen,
+  IMPERATIVE_GLOBAL_CONFIG,
   waitForText,
 } from "../testing";
 import { isTuiCommandSupported } from "../router";
-import { DEFAULT_GLOBAL_CONFIG } from "../globalConfig";
 
 afterEach(cleanupScreens);
 
-const MUTATION_CONFIG = { ...DEFAULT_GLOBAL_CONFIG, "imperative-mutation-commands": true };
+const MUTATION_CONFIG = { ...IMPERATIVE_GLOBAL_CONFIG, "imperative-mutation-commands": true };
 
 // cliOnlyCommands walks the compiled Commander tree for every command without
 // a screen, so a command added later is covered without a new test. `help` is
@@ -39,22 +40,8 @@ describe("menus list command-line-only subcommands below a divider", () => {
 
     await waitForText(r.lastFrame, "command line only");
     expect(menuEntries(r.lastFrame()!)).toEqual({
-      screens: [
-        "create",
-        "add",
-        "remove",
-        "deploy",
-        "invoke",
-        "status",
-        "build",
-        "harness",
-        "identity",
-        "runtime",
-        "memory",
-        "gateway",
-        "eval",
-      ],
-      cliOnly: ["export", "dev", "log", "traces", "payment", "feedback", "config", "update"],
+      screens: ["create", "add", "remove", "deploy", "invoke", "status", "build", "eval"],
+      cliOnly: ["export", "dev", "log", "traces", "feedback", "config", "update"],
     });
     r.unmount();
   });
@@ -79,7 +66,7 @@ describe("menus list command-line-only subcommands below a divider", () => {
   });
 
   test("the harness menu", async () => {
-    const r = renderScreen("/agentcore/harness");
+    const r = renderImperativeScreen("/agentcore/harness");
 
     await waitForText(r.lastFrame, "command line only");
     expect(menuEntries(r.lastFrame()!)).toEqual({
@@ -100,7 +87,7 @@ describe("menus list command-line-only subcommands below a divider", () => {
   });
 
   test("the divider is omitted when nothing is command line only", async () => {
-    const r = renderScreen("/agentcore/harness/endpoint");
+    const r = renderImperativeScreen("/agentcore/harness/endpoint");
 
     await waitForText(r.lastFrame, "manage harness endpoints");
     expect(r.lastFrame()).not.toContain("command line only");
@@ -150,15 +137,18 @@ describe("every command-line-only command opens on screen", () => {
 });
 
 describe("paths without a screen of their own", () => {
-  test("an unknown path retains the standard help fallback", async () => {
-    const r = renderScreen("/agentcore/gateway/no-such-command");
+  test.each(["/agentcore/gateway/no-such-command", "/agentcore/payment"])(
+    "%s retains the standard help fallback",
+    async (path) => {
+      const r = renderScreen(path);
 
-    await waitForText(() => r.frames.join("\n"), "Usage:");
-    const output = r.frames.join("\n");
-    expect(output).toContain("harness");
-    expect(output).not.toContain("command line only");
-    r.unmount();
-  });
+      await waitForText(() => r.frames.join("\n"), "Usage:");
+      const output = r.frames.join("\n");
+      expect(output).toMatch(/^\s+create\s+/m);
+      expect(output).not.toContain("command line only");
+      r.unmount();
+    },
+  );
 
   test("a group drills down to a leaf's help and back", async () => {
     const r = renderScreen("/agentcore/gateway", { globalConfig: MUTATION_CONFIG });
