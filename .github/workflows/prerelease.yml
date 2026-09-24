@@ -1,4 +1,4 @@
-name: Prerelease Refactor
+name: prerelease
 
 on:
   push:
@@ -67,15 +67,6 @@ jobs:
           | Windows x64 | [agentcore-windows-x64.exe]($release_url/agentcore-windows-x64.exe) |
           | Windows arm64 | [agentcore-windows-arm64.exe]($release_url/agentcore-windows-arm64.exe) |
 
-          To download an executable from a shell:
-
-          \`\`\`bash
-          curl -L "$release_url/agentcore-linux-x64" -o agentcore
-          chmod +x agentcore
-          sudo mv agentcore /usr/local/bin/agentcore
-          \`\`\`
-
-          Replace \`agentcore-linux-x64\` with the asset for your platform. Windows users should download the \`.exe\` asset and add its directory to \`PATH\`.
           EOF
 
       - name: Create or update prerelease
