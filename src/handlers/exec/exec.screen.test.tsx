@@ -22,7 +22,7 @@ afterEach(cleanupScreens);
 // shows their output inline in the same transcript as chat turns.
 
 const ARN = "arn:aws:bedrock-agentcore:us-east-1:123:harness/MyHarness-abc123";
-const EXEC_PATH = "/agentcore/exec/MyHarness-abc123";
+const EXEC_PATH = "/agentcore/exec/MyHarness-abc123?resourceType=harness";
 const CTRL_E = "\x05";
 
 function summary(): HarnessSummary {
@@ -66,7 +66,7 @@ describe("exec screen", () => {
   test("the exec route opens a picker, and selection lands in exec mode", async () => {
     const core = execCore();
     core.harness.setListResponse({ harnesses: [summary()] });
-    const r = renderImperativeScreen("/agentcore/exec", { core });
+    const r = renderImperativeScreen("/agentcore/exec?resourceType=harness", { core });
 
     await waitForText(r.lastFrame, "choose a harness to exec into");
     await waitForText(r.lastFrame, "MyHarness");
@@ -103,7 +103,7 @@ describe("exec screen", () => {
   test("a session id in the route resumes that session", async () => {
     const resumed = "resumed-session-0123456789abcdefghijklmn"; // 33+ chars
     const core = execCore();
-    const r = renderImperativeScreen(`${EXEC_PATH}/${resumed}`, { core });
+    const r = renderImperativeScreen(`${EXEC_PATH}&sessionId=${resumed}`, { core });
 
     await waitForText(r.lastFrame, `session: ${resumed}`);
     await type(r, "pwd");

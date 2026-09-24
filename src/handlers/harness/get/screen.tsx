@@ -46,7 +46,7 @@ const ACTIONS: { name: string; description: string; to: (id: string) => string }
   {
     name: "exec",
     description: "run shell commands in this harness",
-    to: (id) => `/agentcore/exec/${id}`,
+    to: (id) => `/agentcore/exec/${id}?resourceType=harness`,
   },
   {
     name: "update",

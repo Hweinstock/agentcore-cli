@@ -9,8 +9,6 @@ import { AwsCredentialProviderKey, EndpointKey, JsonKey, RegionKey } from "./key
 import { JsonRendererKey } from "../tui";
 import type { Core } from "./types";
 
-export type ResourceType = "runtime" | "gateway" | "harness";
-
 // coreOptsFromCtx builds the standard CoreOptions handed to Core operations from
 // the values pinned on the context: the resolved region (always present, see the
 // withRegion middleware), the optional --endpoint-url override, and any explicit
@@ -46,7 +44,7 @@ export async function toResourceArn({
 }: {
   core: Core;
   context: Context;
-  resourceType: ResourceType;
+  resourceType: "runtime" | "gateway" | "harness";
   identifier: string;
 }): Promise<string | undefined> {
   if (identifier.startsWith("arn:")) return identifier;

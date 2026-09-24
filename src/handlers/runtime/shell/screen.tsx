@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useApp, useStderr, useStdin, useStdout } from "ink";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 import { RuntimeEndpointPicker } from "../../../components/RuntimeEndpointPicker";
 import { RuntimePicker } from "../../../components/RuntimePicker";
 import { Spinner } from "../../../components/ui/spinner";
@@ -17,21 +17,45 @@ type RuntimeShellLocationState = {
 const shellPath = (...parts: string[]) =>
   ["/agentcore/runtime/shell", ...parts.map(encodeURIComponent)].join("/");
 
-export function RuntimeShellScreen(props: ScreenProps) {
-  const { runtimeId, qualifier } = useParams();
+type RuntimeShellScreenProps = ScreenProps & {
+  runtimeId?: string;
+  qualifier?: string;
+  routePath?: string;
+  resourceType?: "runtime";
+};
+
+export function RuntimeShellScreen({
+  runtimeId: routeRuntimeId,
+  qualifier: routeQualifier,
+  routePath = "/agentcore/runtime/shell",
+  resourceType,
+  ...props
+}: RuntimeShellScreenProps) {
+  const { runtimeId: paramRuntimeId, qualifier: paramQualifier } = useParams();
+  const [search] = useSearchParams();
+  const runtimeId = routeRuntimeId ?? paramRuntimeId;
+  const qualifier = paramQualifier ?? routeQualifier ?? search.get("qualifier") ?? undefined;
   const location = useLocation();
   const navigate = useNavigate();
   const locationState = location.state as RuntimeShellLocationState | null;
   const returnOnEscape = locationState?.returnOnEscape;
+  const route = (id?: string, endpoint?: string) => {
+    if (routePath === "/agentcore/runtime/shell") {
+      return id === undefined ? shellPath() : shellPath(id, ...(endpoint ? [endpoint] : []));
+    }
+    const params = new URLSearchParams({ resourceType: resourceType ?? "runtime" });
+    if (endpoint) params.set("qualifier", endpoint);
+    return `${routePath}${id === undefined ? "" : `/${encodeURIComponent(id)}`}?${params}`;
+  };
 
   if (!runtimeId) {
     return (
       <RuntimePicker
         {...props}
-        breadcrumb={["agentcore", "runtime", "shell"]}
+        breadcrumb={routePath.split("/").filter(Boolean)}
         description="choose a Runtime to open a shell"
         onSelect={(id) =>
-          navigate(shellPath(id), {
+          navigate(route(id), {
             state: { returnPath: locationState?.returnPath ?? location.pathname },
           })
         }
@@ -48,10 +72,10 @@ export function RuntimeShellScreen(props: ScreenProps) {
       <RuntimeEndpointPicker
         {...props}
         runtimeId={runtimeId}
-        breadcrumb={["agentcore", "runtime", "shell", runtimeId]}
+        breadcrumb={[...routePath.split("/").filter(Boolean), runtimeId]}
         description="choose an endpoint to open a shell"
         onSelect={(selected) =>
-          navigate(shellPath(runtimeId, selected), {
+          navigate(route(runtimeId, selected), {
             replace: returnOnEscape === true,
             state: {
               ...locationState,
@@ -59,7 +83,7 @@ export function RuntimeShellScreen(props: ScreenProps) {
             },
           })
         }
-        onEscape={() => (returnOnEscape ? navigate(-1) : navigate(shellPath()))}
+        onEscape={() => (returnOnEscape ? navigate(-1) : navigate(route()))}
       />
     );
   }

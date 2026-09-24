@@ -7,6 +7,7 @@ import type { Core } from "../types";
 import { assertMutuallyExclusiveFlags, coreOptsFromCtx, toResourceArn } from "../utils";
 import { JsonRendererKey, renderTuiAt } from "../../tui";
 import { serviceIdFromArn } from "../../core/arn";
+import { RuntimeShellLaunchContextKey } from "../runtime/shell/launchContext";
 import { invokeExecCommand } from "./operation";
 
 export const createExecHandler = (core: Core, io: AppIO) =>
@@ -72,13 +73,20 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         if (ctx.require(JsonKey)) {
           throw new InputValidationError("required option '--command <command>' not specified");
         }
-        if (resourceType !== "harness") {
-          throw new InputValidationError("required option '--command <command>' not specified");
-        }
-        let path = `/agentcore/exec/${encodeURIComponent(resourceId)}`;
-        if (flags["session-id"]) path += `/${encodeURIComponent(flags["session-id"])}`;
-        if (flags.qualifier) path += `?qualifier=${encodeURIComponent(flags.qualifier)}`;
-        await renderTuiAt(path, ctx, core, io);
+        const params = new URLSearchParams({ resourceType });
+        if (flags["session-id"]) params.set("sessionId", flags["session-id"]);
+        if (flags.qualifier) params.set("qualifier", flags.qualifier);
+        await renderTuiAt(
+          `/agentcore/exec/${encodeURIComponent(resourceId)}?${params}`,
+          resourceType === "runtime"
+            ? ctx.withValue(RuntimeShellLaunchContextKey, {
+                runtimeId: resourceId,
+                runtimeSessionId: flags["session-id"],
+              })
+            : ctx,
+          core,
+          io,
+        );
         return;
       }
 
