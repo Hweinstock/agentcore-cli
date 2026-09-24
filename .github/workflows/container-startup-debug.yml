@@ -1,0 +1,111 @@
+name: Container startup debug
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to test
+        required: false
+        default: debug/container-startup
+
+jobs:
+  debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    env:
+      AWS_ACCESS_KEY_ID: debug
+      AWS_SECRET_ACCESS_KEY: debug
+      AWS_SESSION_TOKEN: debug
+      AWS_REGION: us-east-1
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_EC2_METADATA_DISABLED: "true"
+      AGENTCORE_TELEMETRY_DISABLED: "1"
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: oven-sh/setup-bun@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - uses: astral-sh/setup-uv@v6
+
+      - run: bun install --frozen-lockfile
+
+      - run: bun run build
+
+      - name: Create one container project and start project dev
+        shell: bash
+        run: |
+          set -uo pipefail
+
+          debug_root="$RUNNER_TEMP/agentcore-container-debug"
+          project_root="$debug_root/project-root"
+          mkdir -p "$project_root"
+          cli=(node "$GITHUB_WORKSPACE/dist/index.js")
+
+          "${cli[@]}" project create \
+            --name "container-debug-${GITHUB_RUN_ID}" \
+            --template empty \
+            --skip-git \
+            --json \
+            >"$debug_root/create.stdout" \
+            2>"$debug_root/create.stderr"
+          create_status=$?
+          if [ "$create_status" -ne 0 ]; then
+            exit "$create_status"
+          fi
+
+          project_dir="$(node -e 'console.log(JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).project.path)' "$debug_root/create.stdout")"
+
+          (
+            cd "$project_dir"
+            "${cli[@]}" project add runtime \
+              --name py_strands_container \
+              --template agent-python-strands-container \
+              --json
+          ) >"$debug_root/add.stdout" 2>"$debug_root/add.stderr"
+          add_status=$?
+          if [ "$add_status" -ne 0 ]; then
+            exit "$add_status"
+          fi
+
+          timeout --signal=TERM --kill-after=15s 300s \
+            "${cli[@]}" project dev --mode headless \
+            >"$debug_root/dev.stdout" \
+            2>"$debug_root/dev.stderr"
+          echo "$?" >"$debug_root/dev.exit"
+
+      - name: Collect container diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          debug_root="$RUNNER_TEMP/agentcore-container-debug"
+
+          for file in create.stdout create.stderr add.stdout add.stderr dev.stdout dev.stderr dev.exit; do
+            echo "===== $file ====="
+            if [ -f "$debug_root/$file" ]; then
+              sed -n '1,1200p' "$debug_root/$file"
+            else
+              echo "(missing)"
+            fi
+          done
+
+          echo "===== project spec ====="
+          find "$debug_root" -path '*/agentcore/agentcore.json' -print -exec sed -n '1,240p' {} \;
+
+          echo "===== docker info ====="
+          docker info
+
+          echo "===== docker ps -a ====="
+          docker ps -a
+
+          echo "===== docker images ====="
+          docker images
