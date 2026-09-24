@@ -78,10 +78,11 @@ jobs:
             exit "$add_status"
           fi
 
-          timeout --signal=TERM --kill-after=15s 300s \
-            "${cli[@]}" project dev --mode headless \
-            >"$debug_root/dev.stdout" \
-            2>"$debug_root/dev.stderr"
+          (
+            cd "$project_dir"
+            timeout --signal=TERM --kill-after=15s 300s \
+              "${cli[@]}" project dev --mode headless
+          ) >"$debug_root/dev.stdout" 2>"$debug_root/dev.stderr"
           echo "$?" >"$debug_root/dev.exit"
 
       - name: Collect container diagnostics
