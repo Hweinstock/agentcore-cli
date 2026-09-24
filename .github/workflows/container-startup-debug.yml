@@ -53,7 +53,7 @@ jobs:
           cli=(node "$GITHUB_WORKSPACE/source/dist/index.js")
 
           "${cli[@]}" project create \
-            --name "container-debug-${GITHUB_RUN_ID}" \
+            --name "ctdbg${GITHUB_RUN_ID}" \
             --template empty \
             --skip-git \
             --json \
