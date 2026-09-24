@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect } from "react";
-import type { Context } from "../router";
+import { ProjectKey, type Context } from "../router";
 import type z from "zod";
 import type { CoreOptions } from "../core/types";
 import type { AppIO } from "../io";
@@ -7,6 +7,16 @@ import { AgentCoreCLIError, InputValidationError, SilentCLIError } from "../erro
 import { formatZodError } from "../router/schema";
 import { AwsCredentialProviderKey, EndpointKey, JsonKey, RegionKey } from "./keys";
 import { JsonRendererKey } from "../tui";
+import type { Core } from "./types";
+
+export type ResourceType = "runtime" | "gateway" | "harness";
+
+export interface ToResourceArnInput {
+  core: Core;
+  context: Context;
+  resourceType: ResourceType;
+  identifier: string;
+}
 
 // coreOptsFromCtx builds the standard CoreOptions handed to Core operations from
 // the values pinned on the context: the resolved region (always present, see the
@@ -20,6 +30,61 @@ export function coreOptsFromCtx(ctx: Context): CoreOptions {
     endpointUrl: ctx.value(EndpointKey),
     ...(credentialProvider ? { credentials: credentialProvider } : {}),
   };
+}
+
+function isNotFound(error: unknown): boolean {
+  return (error as { name?: string })?.name === "ResourceNotFoundException";
+}
+
+/**
+ * Given a resource type and identifier, resolve the resource's full ARN.
+ *
+ * An identifier may be a logical name in the current AgentCore project, a
+ * service ID in the authenticated account, or an ARN. Project names are
+ * resolved from the default deployment target; non-project identifiers are
+ * looked up directly in the corresponding control-plane API.
+ *
+ * Returns undefined when the resource is not deployed or does not exist.
+ */
+export async function toResourceArn({
+  core,
+  context,
+  resourceType,
+  identifier,
+}: ToResourceArnInput): Promise<string | undefined> {
+  if (identifier.startsWith("arn:")) return identifier;
+
+  const project =
+    context.value(ProjectKey) ?? (await core.projectManager.resolve({ filePath: process.cwd() }));
+  if (project) {
+    const target = await core.projectManager.resolveTarget(project, { target: "default" });
+    if (target) {
+      const resolved = await core.projectManager.resolveProjectResources(project, {
+        target: target.name,
+      });
+      const resource = resolved.resources.find(
+        (candidate) => candidate.resourceType === resourceType && candidate.name === identifier,
+      );
+      if (resource?.deploymentState === "deployed" && "arn" in resource) {
+        return resource.arn;
+      }
+    }
+  }
+
+  try {
+    const options = coreOptsFromCtx(context);
+    switch (resourceType) {
+      case "runtime":
+        return (await core.runtime.getRuntime(identifier, options)).agentRuntimeArn;
+      case "gateway":
+        return (await core.gateway.getGateway(identifier, options)).gatewayArn;
+      case "harness":
+        return (await core.harness.getHarness(identifier, options)).harness?.arn;
+    }
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  }
 }
 
 // A pinned region replaces RegionKey on every route's context, so a screen that

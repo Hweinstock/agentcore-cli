@@ -26,6 +26,7 @@ const DEFAULT_GROUPS = [
       "build",
     ],
   },
+  { id: "runtime", title: "Runtime commands", commands: ["exec", "shell"] },
   { id: "evaluation", title: "Evaluation commands", commands: ["eval"] },
   {
     id: "settings",

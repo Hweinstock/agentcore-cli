@@ -9,7 +9,6 @@ import { createCreateHarnessHandler } from "./create";
 import { createUpdateHarnessHandler } from "./update";
 import { createDeleteHarnessHandler } from "./delete";
 import { createInvokeHarnessHandler } from "./invoke";
-import { createExecHarnessHandler } from "./exec";
 import { createEndpointHandler } from "./endpoint";
 import { createVersionHandler } from "./version";
 import { createHarnessLogsHandler } from "./logs";
@@ -29,7 +28,6 @@ export function createHarnessHandler(core: Core, io: AppIO): Router {
     "update",
     "delete",
     "invoke",
-    "exec",
     "endpoint",
     "version",
   );
@@ -41,7 +39,6 @@ export function createHarnessHandler(core: Core, io: AppIO): Router {
   harness.handler(createUpdateHarnessHandler(core));
   harness.handler(createDeleteHarnessHandler(core));
   harness.handler(createInvokeHarnessHandler(core, io));
-  harness.handler(createExecHarnessHandler(core, io));
   harness.handler(createHarnessLogsHandler(core, io));
   harness.handler(createHarnessTracesHandler(core, io));
 

@@ -16,6 +16,7 @@ It gives you two ways to work, from the same package:
 ```bash
 agentcore                      # launch the interactive TUI
 agentcore status --json         # scriptable, machine-readable output
+agentcore exec --runtime <id> --command "uname -a"
 ```
 
 ## What problem does it solve?
@@ -50,6 +51,8 @@ Project commands manage local project specifications and their deployments.
 | Command                                                                                            | Purpose                                                                  |
 | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------ |
 | `create`, `add`, `export`, `remove`, `dev`, `deploy`, `invoke`, `log`, `traces`, `status`, `build` | Create, develop, build, deploy, invoke, and inspect a project            |
+| `exec`                                                                                             | Run a command in a Runtime or Harness                                    |
+| `shell`                                                                                            | Open an interactive shell in a Runtime                                   |
 | `eval`                                                                                             | Evaluate agents, manage datasets and configurations, and run experiments |
 | `feedback`                                                                                         | Submit feedback                                                          |
 | `config`                                                                                           | Read and write global CLI settings                                       |

@@ -329,7 +329,7 @@ tool from the tool entry named `research`. `@research` allows all tools from
 that entry, and patterns such as `@research/read_*` select matching tools.
 
 This is not an IAM policy and does not grant access to AWS resources. It also
-does not restrict direct command execution through `harness exec`.
+does not restrict direct command execution through `agentcore exec --harness`.
 Do not use an empty list as a deny-all policy: the current CDK mapper omits an
 empty list when creating the Harness.
 

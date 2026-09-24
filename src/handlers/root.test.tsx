@@ -22,6 +22,8 @@ const PUBLIC_COMMANDS = [
   "status",
   "build",
   "eval",
+  "exec",
+  "shell",
   "feedback",
   "config",
   "update",

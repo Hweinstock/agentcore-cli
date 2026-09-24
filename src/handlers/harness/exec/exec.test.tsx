@@ -15,7 +15,7 @@ import {
 import { TestGlobalConfigAccessor } from "../../../testing/";
 import { InputValidationError } from "../../../errors";
 
-// Command-flow tests for `harness exec`, driven through the real root handler.
+// Command-flow tests for top-level `exec --harness`, driven through the real root handler.
 // Like the invoke suite, these use a TestCoreClient because the command
 // response is an AsyncIterable stream that fixtures cannot capture.
 
@@ -51,16 +51,9 @@ async function run(args: string[], configure?: (core: TestCoreClient) => void) {
   return { core, stdout: io.stdout() };
 }
 
-describe("harness exec", () => {
+describe("exec --harness", () => {
   test("folds the command stream into JSON output", async () => {
-    const { stdout } = await run([
-      "harness",
-      "exec",
-      "--id",
-      "MyHarness-abc123",
-      "--command",
-      "ls",
-    ]);
+    const { stdout } = await run(["exec", "--harness", "MyHarness-abc123", "--command", "ls"]);
 
     expect(JSON.parse(stdout)).toEqual({
       command: "ls",
@@ -72,9 +65,8 @@ describe("harness exec", () => {
 
   test("addresses the command to the harness ARN with the given body", async () => {
     const { core } = await run([
-      "harness",
       "exec",
-      "--id",
+      "--harness",
       "MyHarness-abc123",
       "--command",
       "uname -a",
@@ -93,9 +85,8 @@ describe("harness exec", () => {
   test("--session-id and --qualifier pass through and the session id is echoed", async () => {
     const sessionId = "exec-session-id-that-is-long-enough!";
     const { core, stdout } = await run([
-      "harness",
       "exec",
-      "--id",
+      "--harness",
       "MyHarness-abc123",
       "--command",
       "ls",
@@ -114,7 +105,7 @@ describe("harness exec", () => {
 
   test("a failing command reports its exit code and error status", async () => {
     const { stdout } = await run(
-      ["harness", "exec", "--id", "MyHarness-abc123", "--command", "false"],
+      ["exec", "--harness", "MyHarness-abc123", "--command", "false"],
       (core) =>
         core.harness.setExecEvents(
           { chunk: { contentDelta: { stderr: "boom\n" } } },
@@ -125,15 +116,19 @@ describe("harness exec", () => {
     expect(JSON.parse(stdout)).toMatchObject({ exitCode: 1, status: "error", output: "boom\n" });
   });
 
-  test("errors when --id is omitted", async () => {
-    await expectError(run(["harness", "exec", "--command", "ls"]), /--id/, InputValidationError);
+  test("errors when --harness is omitted", async () => {
+    await expectError(
+      run(["exec", "--command", "ls"]),
+      /--runtime or --harness/,
+      InputValidationError,
+    );
   });
 
   // Without --command (and outside JSON mode) the handler opens the interactive
   // exec screen instead — that path is covered by the screen tests, since the
   // test IO streams cannot host an Ink render.
   test("errors when --command is omitted in JSON mode", async () => {
-    await expect(run(["harness", "exec", "--id", "MyHarness-abc123", "--json"])).rejects.toThrow(
+    await expect(run(["exec", "--harness", "MyHarness-abc123", "--json"])).rejects.toThrow(
       /--command/,
     );
   });
