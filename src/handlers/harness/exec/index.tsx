@@ -32,10 +32,6 @@ export const createExecHarnessHandler = (core: Core, io: AppIO) =>
       ),
     ],
     handle: async (ctx, flags) => {
-      // Without a command, open the interactive exec screen at this harness —
-      // resuming the given session and targeting the given qualifier when
-      // passed. The one-shot CLI run below needs --command (and is the only
-      // shape JSON mode supports).
       if (!flags["command"]) {
         if (ctx.require(JsonKey)) {
           throw new InputValidationError("required option '--command <command>' not specified");
@@ -49,11 +45,8 @@ export const createExecHarnessHandler = (core: Core, io: AppIO) =>
 
       const opts = coreOptsFromCtx(ctx);
       const detail = await core.harness.getHarness(flags["id"], opts);
-
       const response = await core.harness.invokeAgentRuntimeCommand(
         {
-          // A harness-managed runtime cannot be addressed by its own runtime
-          // ARN; the service expects the harness ARN here.
           agentRuntimeArn: detail.harness?.arn,
           qualifier: flags["qualifier"] ?? "DEFAULT",
           runtimeSessionId: flags["session-id"],
@@ -63,9 +56,7 @@ export const createExecHarnessHandler = (core: Core, io: AppIO) =>
       );
 
       const item = newExecItem(flags["command"]);
-      for await (const event of response.stream ?? []) {
-        applyExecEvent(item, event);
-      }
+      for await (const event of response.stream ?? []) applyExecEvent(item, event);
       finishExec(item);
 
       ctx.require(JsonRendererKey).renderJson({

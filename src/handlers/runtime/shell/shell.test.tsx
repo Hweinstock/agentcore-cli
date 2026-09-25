@@ -74,15 +74,15 @@ function harness(options: { isTTY?: boolean; runtime?: GetAgentRuntimeResponse }
     shell,
     io,
     run: (...args: string[]) =>
-      root.route(["node", "agentcore", "runtime", "shell", ...args, "--region", REGION]),
+      root.route(["node", "agentcore", "shell", ...args, "--region", REGION]),
   };
 }
 
-describe("runtime shell command", () => {
+describe("shell command", () => {
   test("opens a direct IAM shell and closes after the remote stream ends", async () => {
     const subject = harness();
 
-    await subject.run("--id", RUNTIME_ID, "--qualifier", "prod");
+    await subject.run("--runtime", RUNTIME_ID, "--qualifier", "prod");
 
     expect(subject.core.runtime.calls.find((call) => call.method === "getRuntime")?.args[0]).toBe(
       RUNTIME_ID,
@@ -114,7 +114,7 @@ describe("runtime shell command", () => {
       }),
     });
 
-    await subject.run("--id", RUNTIME_ID, "--qualifier", "DEFAULT", "--bearer-token", "token");
+    await subject.run("--runtime", RUNTIME_ID, "--qualifier", "DEFAULT", "--bearer-token", "token");
 
     expect(
       subject.core.runtime.calls.find((call) => call.method === "openRuntimeShell")?.args[0],
@@ -124,7 +124,7 @@ describe("runtime shell command", () => {
   test("reports whether reconnect preserved the existing shell", async () => {
     const subject = harness();
 
-    await subject.run("--id", RUNTIME_ID, "--qualifier", "prod");
+    await subject.run("--runtime", RUNTIME_ID, "--qualifier", "prod");
     const request = subject.core.runtime.calls.find((call) => call.method === "openRuntimeShell")
       ?.args[0] as RuntimeShellRequest;
     await request.onReconnect?.(true);
@@ -138,7 +138,7 @@ describe("runtime shell command", () => {
     const subject = harness();
 
     await expect(
-      subject.run("--id", RUNTIME_ID, "--qualifier", "DEFAULT", "--json"),
+      subject.run("--runtime", RUNTIME_ID, "--qualifier", "DEFAULT", "--json"),
     ).rejects.toThrow("--json cannot be used with runtime shell");
     expect(subject.core.runtime.calls.some((call) => call.method === "openRuntimeShell")).toBe(
       false,
@@ -148,7 +148,7 @@ describe("runtime shell command", () => {
   test("requires a TTY for direct shell", async () => {
     const subject = harness({ isTTY: false });
 
-    await expect(subject.run("--id", RUNTIME_ID, "--qualifier", "DEFAULT")).rejects.toThrow(
+    await expect(subject.run("--runtime", RUNTIME_ID, "--qualifier", "DEFAULT")).rejects.toThrow(
       "interactive mode requires a TTY",
     );
   });
@@ -161,7 +161,7 @@ describe("runtime shell command", () => {
     // shell SDK could not honor it anyway.
     await expect(
       subject.run(
-        "--id",
+        "--runtime",
         RUNTIME_ID,
         "--qualifier",
         "DEFAULT",

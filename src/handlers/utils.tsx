@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect } from "react";
-import type { Context } from "../router";
+import { ProjectKey, type Context } from "../router";
 import type z from "zod";
 import type { CoreOptions } from "../core/types";
 import type { AppIO } from "../io";
@@ -7,6 +7,8 @@ import { AgentCoreCLIError, InputValidationError, SilentCLIError } from "../erro
 import { formatZodError } from "../router/schema";
 import { AwsCredentialProviderKey, EndpointKey, JsonKey, RegionKey } from "./keys";
 import { JsonRendererKey } from "../tui";
+import type { Core } from "./types";
+import { regionFromArn } from "../core/arn";
 
 // coreOptsFromCtx builds the standard CoreOptions handed to Core operations from
 // the values pinned on the context: the resolved region (always present, see the
@@ -20,6 +22,109 @@ export function coreOptsFromCtx(ctx: Context): CoreOptions {
     endpointUrl: ctx.value(EndpointKey),
     ...(credentialProvider ? { credentials: credentialProvider } : {}),
   };
+}
+
+function isNotFound(error: unknown): boolean {
+  return (error as { name?: string })?.name === "ResourceNotFoundException";
+}
+
+/**
+ * Resolve a resource's full ARN from its project name, account ID, or ARN.
+ *
+ * @param core injected AgentCore client
+ * @param context handler context containing region and project information
+ * @param resourceType resource kind to resolve
+ * @param identifier project name, account ID, or full ARN
+ * @param target project deployment target
+ * @returns the full ARN, or undefined when the resource does not exist
+ */
+export async function toResourceArn({
+  core,
+  context,
+  resourceType,
+  identifier,
+  target = "default",
+}: {
+  core: Core;
+  context: Context;
+  resourceType: "runtime" | "gateway" | "harness";
+  identifier: string;
+  target?: string;
+}): Promise<string | undefined> {
+  if (identifier.startsWith("arn:")) return identifier;
+
+  const project =
+    context.value(ProjectKey) ?? (await core.projectManager.resolve({ filePath: process.cwd() }));
+  if (project) {
+    const deploymentTarget = await core.projectManager.resolveTarget(project, { target });
+    if (deploymentTarget) {
+      const resolved = await core.projectManager.resolveProjectResources(project, {
+        target: deploymentTarget.name,
+      });
+      const resource = resolved.resources.find(
+        (candidate) => candidate.resourceType === resourceType && candidate.name === identifier,
+      );
+      if (resource?.deploymentState === "deployed" && "arn" in resource) {
+        return resource.arn;
+      }
+    }
+  }
+
+  try {
+    const options = coreOptsFromCtx(context);
+    switch (resourceType) {
+      case "runtime":
+        return (await core.runtime.getRuntime(identifier, options)).agentRuntimeArn;
+      case "gateway":
+        return (await core.gateway.getGateway(identifier, options)).gatewayArn;
+      case "harness":
+        return (await core.harness.getHarness(identifier, options)).harness?.arn;
+    }
+  } catch (error) {
+    if (isNotFound(error)) return undefined;
+    throw error;
+  }
+}
+
+/**
+ * Pin the context used for a project resource to its deployment target.
+ *
+ * @param core injected AgentCore client
+ * @param context handler context
+ * @param resourceType resource kind to resolve
+ * @param identifier project name, account ID, or full ARN
+ * @param target project deployment target
+ * @returns a context with the target's region and credentials when applicable
+ */
+export async function contextForResource({
+  core,
+  context,
+  resourceType,
+  identifier,
+  target = "default",
+}: {
+  core: Core;
+  context: Context;
+  resourceType: "runtime" | "harness";
+  identifier: string;
+  target?: string;
+}): Promise<Context> {
+  const region = regionFromArn(identifier);
+  if (region) return context.withValue(RegionKey, region);
+
+  const project =
+    context.value(ProjectKey) ?? (await core.projectManager.resolve({ filePath: process.cwd() }));
+  const resources = resourceType === "runtime" ? project?.spec.runtimes : project?.spec.harnesses;
+  if (!resources?.some(({ name }) => name === identifier)) return context;
+
+  const deployed = await core.projectManager.resolveDeployedResource(project!, {
+    target,
+    resourceType,
+    name: identifier,
+  });
+  return context
+    .withValue(RegionKey, deployed.target.region)
+    .withValue(AwsCredentialProviderKey, deployed.credentialProvider);
 }
 
 // A pinned region replaces RegionKey on every route's context, so a screen that

@@ -11,6 +11,8 @@ import { DebugKey, JsonKey, RegionKey } from "./keys.tsx";
 import { createConfigHandler } from "./config/";
 import { createProjectHandlers } from "./project/index.ts";
 import { createUpdateHandler } from "./update/index.tsx";
+import { createExecHandler } from "./exec/index.tsx";
+import { createShellHandler } from "./shell/index.tsx";
 import { renderTui } from "../tui";
 import {
   withRegion,
@@ -60,6 +62,8 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
     "memory",
     "gateway",
     "eval",
+    "exec",
+    "shell",
   );
 
   // `agentcore --version` prints the build-time package version.
@@ -102,6 +106,8 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
     root.handler(createPaymentHandler(core, io));
   }
   root.handler(createEvalHandler(core, io));
+  root.handler(createExecHandler(core, io));
+  root.handler(createShellHandler(core, io));
   root.handler(createFeedbackHandler(core, io));
   root.handler(createConfigHandler());
   root.handler(createUpdateHandler(io));

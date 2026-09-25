@@ -12,7 +12,7 @@ import {
   StreamController,
   TestCoreClient,
   waitFor,
-} from "../../../testing";
+} from "../../testing";
 
 afterEach(cleanupScreens);
 
