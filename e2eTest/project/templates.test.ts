@@ -110,7 +110,7 @@ const RUNTIME_TEMPLATES: RuntimeTemplateTestCase[] = [
       forwardedProps: {},
     },
   },
-].filter((r) => r.skip !== undefined && !r.skip);
+].filter((r) => !r.skip);
 
 const ProjectCreatedSchema = z.object({
   project: z.object({ path: z.string() }),
