@@ -25,25 +25,25 @@ const theme = darkTheme;
 type RuntimeExecItem = ExecItem | Extract<TranscriptItem, { kind: "error" | "notice" }>;
 
 const execPath = (runtimeId?: string, sessionId?: string) => {
-  const parts = ["/agentcore/exec/runtime"];
+  const parts = ["/agentcore/runtime/exec"];
   if (runtimeId !== undefined) parts.push(encodeURIComponent(runtimeId));
   if (sessionId !== undefined) parts.push(encodeURIComponent(sessionId));
   return parts.join("/");
 };
 
 export function RuntimeExecScreen(props: ScreenProps) {
-  const { resourceId, sessionId } = useParams();
+  const { runtimeId, sessionId } = useParams();
   const [search] = useSearchParams();
   const navigate = useNavigate();
   const qualifier = search.get("qualifier") ?? "DEFAULT";
   const timeoutValue = search.get("timeout");
   const timeout = timeoutValue === null ? undefined : Number(timeoutValue);
 
-  if (!resourceId) {
+  if (!runtimeId) {
     return (
       <RuntimePicker
         {...props}
-        breadcrumb={["agentcore", "exec", "runtime"]}
+        breadcrumb={["agentcore", "runtime", "exec"]}
         description="choose a Runtime to exec into"
         onSelect={(id) => navigate(execPath(id, sessionId))}
       />
@@ -53,7 +53,7 @@ export function RuntimeExecScreen(props: ScreenProps) {
   return (
     <RuntimeExecConsole
       {...props}
-      runtimeId={resourceId}
+      runtimeId={runtimeId}
       sessionId={sessionId}
       qualifier={qualifier}
       timeout={Number.isFinite(timeout) ? timeout : undefined}
@@ -181,7 +181,7 @@ function RuntimeExecConsole({
 
   return (
     <Layout
-      breadcrumb={["agentcore", "exec", "runtime", runtimeId, qualifier]}
+      breadcrumb={["agentcore", "runtime", "exec", runtimeId, qualifier]}
       keyHints={
         streaming
           ? [

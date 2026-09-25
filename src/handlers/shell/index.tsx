@@ -4,9 +4,12 @@ import type { AppIO } from "../../io";
 import { createHandler, flag } from "../../router";
 import { JsonKey, RegionKey } from "../keys";
 import type { Core } from "../types";
+import { renderTuiAt } from "../../tui";
 import { contextForResource, toResourceArn } from "../utils";
 import { regionFromArn, serviceIdFromArn } from "../../core/arn";
+import { RuntimeShellLaunchContextKey } from "../runtime/shell/launchContext";
 import { runRuntimeShell } from "../runtime/shell/operation";
+import { resolveRuntimeShellBearerToken } from "../runtime/shell/request";
 
 export const createShellHandler = (core: Core, io: AppIO) =>
   createHandler({
@@ -46,12 +49,22 @@ export const createShellHandler = (core: Core, io: AppIO) =>
         ? resourceCtx.withValue(RegionKey, resourceRegion)
         : resourceCtx;
       const runtimeId = serviceIdFromArn(resourceArn);
-      const bearerToken = flags["bearer-token"];
+      const bearerToken = await resolveRuntimeShellBearerToken(flags["bearer-token"], io.stdin);
       const launchContext = {
         runtimeId,
         runtimeSessionId: flags["session-id"],
         bearerToken,
       };
+
+      if (flags.qualifier === undefined) {
+        await renderTuiAt(
+          `/agentcore/runtime/shell/${encodeURIComponent(runtimeId)}`,
+          resolvedCtx.withValue(RuntimeShellLaunchContextKey, launchContext),
+          core,
+          io,
+        );
+        return;
+      }
 
       await runRuntimeShell({
         ctx: resolvedCtx,

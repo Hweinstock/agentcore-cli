@@ -88,7 +88,7 @@ export const createExecHandler = (core: Core, io: AppIO) =>
         if (ctx.require(JsonKey)) {
           throw new InputValidationError("required option '--command <command>' not specified");
         }
-        let path = `/agentcore/exec/${resourceType}/${encodeURIComponent(resourceId)}`;
+        let path = `/agentcore/${resourceType === "runtime" ? "runtime/exec" : "harness/exec"}/${encodeURIComponent(resourceId)}`;
         if (flags["session-id"]) path += `/${encodeURIComponent(flags["session-id"])}`;
         const params = new URLSearchParams();
         if (flags.qualifier) params.set("qualifier", flags.qualifier);

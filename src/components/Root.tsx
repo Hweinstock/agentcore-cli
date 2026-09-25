@@ -16,7 +16,7 @@ import { HarnessCreateScreen } from "../handlers/harness/create/screen.tsx";
 import { HarnessUpdateScreen } from "../handlers/harness/update/screen.tsx";
 import { HarnessDeleteScreen } from "../handlers/harness/delete/screen.tsx";
 import { HarnessInvokeScreen } from "../handlers/harness/invoke/screen.tsx";
-import { ExecScreen } from "../handlers/exec/screen.tsx";
+import { HarnessExecScreen } from "../handlers/harness/exec/screen.tsx";
 import { HarnessEndpointScreen } from "../handlers/harness/endpoint/screen.tsx";
 import { HarnessCreateEndpointScreen } from "../handlers/harness/endpoint/create/screen.tsx";
 import { HarnessGetEndpointScreen } from "../handlers/harness/endpoint/get/screen.tsx";
@@ -43,6 +43,7 @@ import { MemoryGetJsonScreen, MemoryGetScreen } from "../handlers/memory/get/scr
 import { MemoryListScreen } from "../handlers/memory/list/screen.tsx";
 import { RuntimeInvokeScreen } from "../handlers/runtime/invoke/screen.tsx";
 import { RuntimeShellScreen } from "../handlers/runtime/shell/screen.tsx";
+import { RuntimeExecScreen } from "../handlers/runtime/exec/screen.tsx";
 import { EvalScreen } from "../handlers/eval/screen.tsx";
 import { EvaluatorScreen } from "../handlers/eval/evaluator/screen.tsx";
 import { EvaluatorListScreen } from "../handlers/eval/evaluator/list/screen.tsx";
@@ -293,14 +294,14 @@ function RouteTable({ ctx, core }: ScreenProps) {
         path="agentcore/harness/invoke/:harnessId/:sessionId"
         element={<HarnessInvokeScreen ctx={ctx} core={core} />}
       />
-      <Route path="agentcore/exec/:resourceType" element={<ExecScreen ctx={ctx} core={core} />} />
+      <Route path="agentcore/harness/exec" element={<HarnessExecScreen ctx={ctx} core={core} />} />
       <Route
-        path="agentcore/exec/:resourceType/:resourceId"
-        element={<ExecScreen ctx={ctx} core={core} />}
+        path="agentcore/harness/exec/:harnessId"
+        element={<HarnessExecScreen ctx={ctx} core={core} />}
       />
       <Route
-        path="agentcore/exec/:resourceType/:resourceId/:sessionId"
-        element={<ExecScreen ctx={ctx} core={core} />}
+        path="agentcore/harness/exec/:harnessId/:sessionId"
+        element={<HarnessExecScreen ctx={ctx} core={core} />}
       />
       <Route
         path="agentcore/harness/endpoint"
@@ -479,6 +480,15 @@ function RouteTable({ ctx, core }: ScreenProps) {
       <Route
         path="agentcore/runtime/shell/:runtimeId/:qualifier"
         element={<RuntimeShellScreen ctx={ctx} core={core} />}
+      />
+      <Route path="agentcore/runtime/exec" element={<RuntimeExecScreen ctx={ctx} core={core} />} />
+      <Route
+        path="agentcore/runtime/exec/:runtimeId"
+        element={<RuntimeExecScreen ctx={ctx} core={core} />}
+      />
+      <Route
+        path="agentcore/runtime/exec/:runtimeId/:sessionId"
+        element={<RuntimeExecScreen ctx={ctx} core={core} />}
       />
       <Route path="agentcore/gateway" element={<GatewayScreen ctx={ctx} core={core} />} />
       <Route
