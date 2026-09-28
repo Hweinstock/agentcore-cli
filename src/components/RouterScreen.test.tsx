@@ -109,21 +109,21 @@ describe("menu rendering", () => {
       { title: undefined, names: PROJECT_WORKFLOW.slice(1) },
       {
         title: "resources",
-        names: ["eval", "gateway", "harness", "identity", "memory", "payment", "runtime"],
+        names: ["eval", "gateway", "harness", "identity", "memory", "payment", "runtime", "update"],
       },
-      { title: "cli", names: ["feedback", "config", "update"] },
+      { title: "cli", names: ["feedback", "config"] },
     ]);
     r.unmount();
   });
 
-  test("selecting a command without a screen opens its help", async () => {
+  test("selecting update opens its screen", async () => {
     const r = renderScreen("/agentcore");
     await waitForText(r.lastFrame, "type to choose a command");
 
     await r.write("update");
     await waitForText(r.lastFrame, "❯ update");
     await r.press("return");
-    await waitForText(r.lastFrame, "agentcore update [options]");
+    await waitForText(r.lastFrame, `AgentCore ${PACKAGE_VERSION} is up to date.`);
     r.unmount();
   });
 
@@ -156,31 +156,31 @@ describe("menu rendering", () => {
   });
 
   test("shows the brand banner only on the root menu", async () => {
-    const version = `v${PACKAGE_VERSION}`;
+    const banner = "█▀█ █▀▀";
     const root = renderScreen("/agentcore");
-    await waitForText(root.lastFrame, version);
+    await waitForText(root.lastFrame, banner);
 
-    expect(root.lastFrame()).toContain(version);
+    expect(root.lastFrame()).toContain(banner);
     root.unmount();
 
     const nested = renderScreen("/agentcore/harness");
     await waitForText(nested.lastFrame, "agentcore → harness");
 
-    expect(nested.lastFrame()).not.toContain(version);
+    expect(nested.lastFrame()).not.toContain(banner);
     nested.unmount();
   });
 
   test("hides the brand banner when the terminal is short and restores it when enlarged", async () => {
-    const version = `v${PACKAGE_VERSION}`;
+    const banner = "█▀█ █▀▀";
     const r = renderScreen("/agentcore");
-    await waitForText(r.lastFrame, version);
+    await waitForText(r.lastFrame, banner);
 
     await r.resize(80, 24);
-    expect(r.lastFrame()).not.toContain(version);
+    expect(r.lastFrame()).not.toContain(banner);
     expect(r.lastFrame()).toContain("[enter] select");
 
     await r.resize(100, 40);
-    await waitForText(r.lastFrame, version);
+    await waitForText(r.lastFrame, banner);
     r.unmount();
   });
 
@@ -380,6 +380,7 @@ describe("short terminals", () => {
   async function fullMenu() {
     const r = renderScreen("/agentcore", { withContext: inProjectContext });
     await waitForText(r.lastFrame, "❯ add");
+    await r.resize(100, 40);
     const frame = r.lastFrame()!;
     r.unmount();
     const titles = new Map<string, string | undefined>();
@@ -490,9 +491,10 @@ describe("short terminals", () => {
   test("typing a filter returns the window to the top", async () => {
     const full = await fullMenu();
     const r = await shortMenu();
+    const last = full.names.at(-1)!;
 
     for (let i = 1; i < full.names.length; i++) await r.press("down");
-    await waitForText(r.lastFrame, "❯ update");
+    await waitForText(r.lastFrame, `❯ ${last}`);
     await r.write("e");
     const first = full.names.find((name) => name.includes("e"))!;
     await waitForText(r.lastFrame, `❯ ${first}`);
@@ -503,14 +505,15 @@ describe("short terminals", () => {
   test("resizing taller shows the whole list again", async () => {
     const full = await fullMenu();
     const r = await shortMenu();
+    const last = full.names.at(-1)!;
 
     for (let i = 1; i < full.names.length; i++) await r.press("down");
-    await waitForText(r.lastFrame, "❯ update");
+    await waitForText(r.lastFrame, `❯ ${last}`);
     await r.resize(100, 40);
     const frame = r.lastFrame()!;
     expect(menuGroups(frame).flatMap((group) => group.names)).toEqual(full.names);
     expect(frame).not.toContain(" more");
-    expect(frame).toContain("❯ update");
+    expect(frame).toContain(`❯ ${last}`);
     r.unmount();
   });
 

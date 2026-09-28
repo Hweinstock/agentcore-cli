@@ -23,6 +23,7 @@ import { darkTheme, glyphs } from "./ui/_core.js";
 import type { ScreenProps } from "../handlers/types";
 import { RegionPinContext } from "../handlers/utils";
 import { scrollWindow } from "./scrollWindow";
+import { useTuiUpdate } from "./TuiUpdateContext";
 
 const theme = darkTheme;
 const PLACEHOLDER = "type to choose a command";
@@ -61,6 +62,7 @@ interface Option {
   name: string;
   description: string;
   hint?: string;
+  updateNotice?: string;
   // cliOnly marks a subcommand without a screen; it is listed under a divider
   // and opens its help instead.
   cliOnly: boolean;
@@ -117,6 +119,7 @@ function CommandMenu({
   const navigate = useNavigate();
   const { isRawModeSupported } = useStdin();
   const { exit } = useApp();
+  const updateState = useTuiUpdate();
 
   // A menu is not about any one resource: whatever is opened from it fetches
   // in the launch region again.
@@ -143,6 +146,10 @@ function CommandMenu({
         name: c.name(),
         description: c.description(),
         hint: optionHints?.[c.name()],
+        updateNotice:
+          path.length === 1 && c.name() === "update" && updateState.updateAvailable
+            ? `· update to install ${updateState.latestVersion}`
+            : undefined,
         cliOnly,
         section: cliOnly ? CLI_ONLY_SECTION : sectionOf(index),
       };
@@ -156,7 +163,7 @@ function CommandMenu({
       ...actual.filter((option) => !option.cliOnly),
       ...actual.filter((option) => option.cliOnly),
     ].filter((option) => !hiddenOptions?.includes(option.name));
-  }, [command, optionHints, hiddenOptions, tuiOnlyCommands]);
+  }, [command, hiddenOptions, optionHints, path.length, tuiOnlyCommands, updateState]);
 
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -358,6 +365,9 @@ function CommandMenuBody({
                 </Box>
                 <Text color={theme.colors.muted}>{option.description}</Text>
                 {option.hint && <Text color={theme.colors.secondary}> {option.hint}</Text>}
+                {option.updateNotice && (
+                  <Text color={theme.colors.warning}> {option.updateNotice}</Text>
+                )}
               </Box>
             );
           })

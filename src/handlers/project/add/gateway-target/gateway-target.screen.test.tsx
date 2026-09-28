@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   cleanupScreens,
+  createTestCliVersionManager,
   createSilentLogger,
   flatFrame,
   renderScreen,
@@ -13,7 +14,9 @@ import {
   waitForText,
   type RenderScreenResult,
 } from "../../../../testing";
+import { ValueContext } from "../../../../router";
 import { createRootHandler } from "../../../index";
+import { CliVersionManagerKey } from "../../../keys";
 import { InputValidationError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
@@ -487,7 +490,10 @@ describe("project add gateway-target dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(["node", "agentcore", "add", "gateway-target"])
+      .route(
+        ["node", "agentcore", "add", "gateway-target"],
+        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+      )
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

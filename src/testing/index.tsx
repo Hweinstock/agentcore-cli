@@ -34,6 +34,7 @@ export {
   type RenderScreenResult,
 } from "./renderScreen";
 export { createSilentLogger, assertLogsMatch, type LogQuery } from "./logging";
+export { createTestCliVersionManager } from "./cliVersionManager";
 export { TestGlobalConfigAccessor } from "./globalConfig";
 export { inTempDirectory, type TempDirectory } from "./fs";
 export {

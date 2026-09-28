@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRootHandler } from "../../index";
 import {
+  createTestCliVersionManager,
   createSilentLogger,
   initProject,
   TestCoreClient,
@@ -15,6 +16,8 @@ import {
 import { CdkBackend, type ProjectBackend } from "../../../core/project";
 import type { AwsDeploymentTarget } from "../../../projectSchemas/aws-targets";
 import type { ResolvedProjectResource } from "../types";
+import { ValueContext } from "../../../router";
+import { CliVersionManagerKey } from "../../keys";
 
 const DEFAULT_TARGET: AwsDeploymentTarget = {
   name: "default",
@@ -58,7 +61,11 @@ function statusCommand(backend: ProjectBackend, io = testIO()) {
   return {
     io,
     json: () => JSON.parse(io.stdout()),
-    run: (args: string[] = []) => root.route(["node", "agentcore", "status", ...args]),
+    run: (args: string[] = []) =>
+      root.route(
+        ["node", "agentcore", "status", ...args],
+        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+      ),
   };
 }
 

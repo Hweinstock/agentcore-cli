@@ -3,6 +3,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   cleanupScreens,
+  createTestCliVersionManager,
   createSilentLogger,
   flatFrame,
   renderScreen,
@@ -13,9 +14,11 @@ import {
   waitFor,
   waitForText,
 } from "../../../../../testing";
+import { ValueContext } from "../../../../../router";
 import { InputValidationError, SourceResolutionError } from "../../../../../errors";
 import type { AppIO } from "../../../../../io";
 import { createRootHandler } from "../../../../index";
+import { CliVersionManagerKey } from "../../../../keys";
 import { createGatewayProjectTestHarness } from "../../gateway-test-support";
 
 const { cleanup, inProject, projectSpec, run } = createGatewayProjectTestHarness(
@@ -236,7 +239,10 @@ describe("project add credentials api-key dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(["node", "agentcore", "add", "credentials", "api-key"])
+      .route(
+        ["node", "agentcore", "add", "credentials", "api-key"],
+        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+      )
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

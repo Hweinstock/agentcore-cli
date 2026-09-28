@@ -7,6 +7,7 @@ import {
   renderScreen,
   waitForText,
   cleanupScreens,
+  createTestCliVersionManager,
   createSilentLogger,
   inTempDirectory,
   TestCoreClient,
@@ -21,6 +22,8 @@ import type { AppIO } from "../../../io";
 import { resolveRuntimeTemplateShortcut } from "../shortcuts";
 import type { CreateProjectInput } from "../types";
 import { ProjectSpecSchema } from "../../../projectSchemas/project";
+import { ValueContext } from "../../../router";
+import { CliVersionManagerKey } from "../../keys";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(cleanupScreens);
@@ -738,10 +741,15 @@ describe("project create dispatch", () => {
 
     // outcome never rejects, so a mid-pump failure cannot trip bun's
     // unhandled-rejection detection before the final assertion.
-    const outcome = root.route(["node", "agentcore", "create"]).then(
-      () => ({ ok: true as const }),
-      (error: unknown) => ({ ok: false as const, error }),
-    );
+    const outcome = root
+      .route(
+        ["node", "agentcore", "create"],
+        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+      )
+      .then(
+        () => ({ ok: true as const }),
+        (error: unknown) => ({ ok: false as const, error }),
+      );
     let settled = false;
     void outcome.finally(() => {
       settled = true;
@@ -777,7 +785,10 @@ describe("project create dispatch", () => {
       })();
     const root = buildRoot(streams.io, core);
 
-    const outcome = root.route(["node", "agentcore", "create"]);
+    const outcome = root.route(
+      ["node", "agentcore", "create"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
 
     await waitFor(() => streams.stdout().includes("name your project"));
     stdin.write("DemoApp");

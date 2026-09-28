@@ -6,6 +6,7 @@ import {
   waitForFlatText,
   flatFrame,
   cleanupScreens,
+  createTestCliVersionManager,
   createSilentLogger,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -20,6 +21,8 @@ import type { AppIO } from "../../../../io";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 import { projectQueryKey } from "../../ProjectGate";
 import type { Project } from "../../types";
+import { ValueContext } from "../../../../router";
+import { CliVersionManagerKey } from "../../../keys";
 
 const { cleanup, inProject, projectSpec, run } =
   createGatewayProjectTestHarness("add-memory-wizard");
@@ -283,7 +286,10 @@ describe("project add memory dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(["node", "agentcore", "add", "memory"])
+      .route(
+        ["node", "agentcore", "add", "memory"],
+        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+      )
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

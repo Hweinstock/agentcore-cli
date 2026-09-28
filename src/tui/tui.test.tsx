@@ -5,7 +5,10 @@ import { ExitCode, InputValidationError, InvalidEnvironmentError } from "../erro
 import { renderJson } from "./index";
 import { handoffArgs } from "./handoff";
 import type { Project } from "../handlers/project/types";
+import { CliVersionManagerKey } from "../handlers/keys";
+import { ValueContext } from "../router";
 import {
+  createTestCliVersionManager,
   createSilentLogger,
   inProjectCore,
   TestCoreClient,
@@ -101,7 +104,10 @@ describe("TUI stream boundary", () => {
       logger: createSilentLogger(),
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
-    const routePromise = root.route(["node", "agentcore", "runtime", "list"]);
+    const routePromise = root.route(
+      ["node", "agentcore", "runtime", "list"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
     const listCalls = () => core.runtime.calls.filter((call) => call.method === "listRuntimes");
 
     await waitFor(() => listCalls().length > 0);
@@ -133,7 +139,10 @@ describe("TUI handoff", () => {
       logger: createSilentLogger(),
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
-    const routePromise = root.route(["node", "agentcore", "--region", "us-west-2"]);
+    const routePromise = root.route(
+      ["node", "agentcore", "--region", "us-west-2"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
     await waitFor(() => streams.stdout().includes("type to choose a command"));
 
     stdin.write("dev");
@@ -175,7 +184,10 @@ describe("TUI resize", () => {
       logger: createSilentLogger(),
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
-    const routePromise = root.route(["node", "agentcore"]);
+    const routePromise = root.route(
+      ["node", "agentcore"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
     await waitFor(() => streams.stdout().includes("deploy"));
     await tick();
 
@@ -209,7 +221,10 @@ describe("TUI resize", () => {
       logger: createSilentLogger(),
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
-    const routePromise = root.route(["node", "agentcore"]);
+    const routePromise = root.route(
+      ["node", "agentcore"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
     await waitFor(() => streams.stdout().includes("deploy"));
     await tick();
 
@@ -247,7 +262,10 @@ describe("TUI launch", () => {
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
 
-    const routePromise = root.route(["node", "agentcore", "runtime"]);
+    const routePromise = root.route(
+      ["node", "agentcore", "runtime"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
     await waitFor(() => streams.stdout().includes("inspect AgentCore Runtimes"));
     expect(resolveCalls).toBe(0);
 
@@ -264,7 +282,10 @@ describe("TUI launch", () => {
       logger: createSilentLogger(),
       globalConfigAccessor: new TestGlobalConfigAccessor(),
     });
-    const routePromise = root.route(["node", "agentcore"]);
+    const routePromise = root.route(
+      ["node", "agentcore"],
+      ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
+    );
     await waitFor(() => streams.stdout().includes("read/write global config values"));
     stdin.write(String.fromCharCode(3));
     await routePromise;
