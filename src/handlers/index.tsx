@@ -54,6 +54,7 @@ export function createRootHandler(core: Core, config: RootHandlerConfig): Router
     "memory",
     "gateway",
     "eval",
+    "update",
   );
 
   // `agentcore --version` prints the build-time package version.
