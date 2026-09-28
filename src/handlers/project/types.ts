@@ -233,7 +233,7 @@ export type ResolveProjectResourcesInput = {
 /**
  * Every resource type a project can declare and deploy. Broader than
  * {@link ProjectInvokableResource}: status reports all of them, while invoke only
- * addresses the three that accept a request.
+ * addresses the two that accept a payload.
  */
 export type DeployableResource =
   | "runtime"
@@ -398,13 +398,7 @@ export type ExportHarnessResult = {
   notes: ExportNote[];
 };
 
-export type ProjectInvokableResource = Extract<ProjectResource, "harness" | "runtime" | "gateway">;
-
-export const RESOURCE_LABELS: Record<ProjectInvokableResource, string> = {
-  runtime: "Runtime",
-  harness: "Harness",
-  gateway: "Gateway",
-};
+export type ProjectInvokableResource = Extract<ProjectResource, "harness" | "runtime">;
 
 export type RemoveResourceInput =
   | {
@@ -493,7 +487,7 @@ export interface ProjectManager {
     input: ResolveDeployedResourceInput,
   ): Promise<ResolvedDeployedResource>;
 
-  /** Resolve every configured Runtime, Harness, and Gateway present in the deployed target stack. */
+  /** Resolve every configured Runtime and Harness present in the deployed target stack. */
   resolveDeployedResources(
     project: Project,
     input: ResolveDeployedResourcesInput,

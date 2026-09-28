@@ -161,16 +161,9 @@ export function GatewayInvokeScreen(props: ScreenProps) {
 type GatewayInvokeConsoleProps = ScreenProps & {
   gatewayId: string;
   initialContext?: GatewayInvokeLaunchContext;
-  onBack?: () => void;
 };
 
-export function GatewayInvokeConsole({
-  ctx,
-  core,
-  gatewayId,
-  initialContext,
-  onBack,
-}: GatewayInvokeConsoleProps) {
+function GatewayInvokeConsole({ ctx, core, gatewayId, initialContext }: GatewayInvokeConsoleProps) {
   const navigate = useNavigate();
   const opts = coreOptsFromCtx(ctx);
   const { columns, rows } = useWindowSize();
@@ -392,7 +385,6 @@ export function GatewayInvokeConsole({
       }
       if (key.escape) {
         if (abortRef.current) abortRef.current.abort();
-        else if (onBack) onBack();
         else navigate(invokePath());
         return;
       }

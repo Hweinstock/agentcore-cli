@@ -239,9 +239,10 @@ describe(
               await cli.run(
                 [
                   "invoke",
-                  "--runtime",
-                  runtime.name,
+                  "runtime",
                   "--local",
+                  "--name",
+                  runtime.name,
                   "--port",
                   String(port),
                   "--session-id",
@@ -282,7 +283,8 @@ describe(
           await cli.run(
             [
               "invoke",
-              "--runtime",
+              "runtime",
+              "--name",
               runtime.name,
               "--session-id",
               sessionId,

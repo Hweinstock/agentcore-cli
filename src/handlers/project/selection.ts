@@ -1,16 +1,13 @@
 import { InputValidationError, ResourceNotFoundError } from "../../errors";
-import { RESOURCE_LABELS, type Project, type ProjectInvokableResource } from "./types";
+import type { Project, ProjectInvokableResource } from "./types";
 
 export function projectResourceNames(
   project: Project,
   resourceType: ProjectInvokableResource,
 ): string[] {
-  const resources = {
-    runtime: project.spec.runtimes,
-    harness: project.spec.harnesses,
-    gateway: project.spec.agentCoreGateways,
-  }[resourceType];
-  return resources.map(({ name }) => name);
+  return (resourceType === "runtime" ? project.spec.runtimes : project.spec.harnesses).map(
+    ({ name }) => name,
+  );
 }
 
 export function selectProjectResource(
@@ -20,7 +17,7 @@ export function selectProjectResource(
   operation: string,
 ): string {
   const names = projectResourceNames(project, resourceType);
-  const label = RESOURCE_LABELS[resourceType];
+  const label = resourceType === "runtime" ? "Runtime" : "Harness";
 
   if (name !== undefined) {
     if (names.includes(name)) return name;

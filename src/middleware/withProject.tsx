@@ -6,7 +6,6 @@ interface WithProjectConfig {
   projectManager: ProjectManager;
   /** Directory to search upwards from. Defaults to the cwd at invocation time. */
   cwd?: string;
-  optional?: boolean;
 }
 
 /**
@@ -38,10 +37,10 @@ export function withProject(config: WithProjectConfig): Middleware {
       // actually ran in is the one searched.
       const from = config.cwd ?? process.cwd();
       const project = await config.projectManager.resolve({ filePath: from });
-      if (!project && !config.optional) {
+      if (!project) {
         throw new ProjectStateError(projectNotFoundMessage(from));
       }
-      await h.handle(project ? ctx.withValue<Project>(ProjectKey, project) : ctx, flags, args);
+      await h.handle(ctx.withValue<Project>(ProjectKey, project), flags, args);
     },
   });
 }
