@@ -105,7 +105,7 @@ describe("add, deploy, and invoke harnesses", { sequential: true, tags: [TAGS.HA
       const response = parseResult(
         HarnessInvokeResponseSchema,
         await cli.run(
-          ["invoke", "harness", "--name", harness.name, "--json", ...harness.invokeFlags],
+          ["invoke", "--harness", harness.name, "--json", ...harness.invokeFlags],
           projectDir,
         ),
       );
