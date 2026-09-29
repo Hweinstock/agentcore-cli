@@ -25,6 +25,7 @@ const WITH_SCREENS = [
   "memory",
   "gateway",
   "gateway-target",
+  "gateway-connector",
   "online-eval",
   "online-insight",
 ];

@@ -32,6 +32,7 @@ export function createAddProjectResourceHandler(
     "memory",
     "gateway",
     "gateway-target",
+    "gateway-connector",
     "online-eval",
     "online-insight",
   );
