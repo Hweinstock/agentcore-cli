@@ -142,6 +142,7 @@ function CommandMenu({
         .findLast((title) => title !== undefined);
     const actual: Option[] = command.commands.map((c, index) => {
       const cliOnly = !isTuiCommandSupported(c) && !isListedInMenu(c);
+      const belongsToCliSection = cliOnly || (path.length === 1 && c.name() === "update");
       return {
         name: c.name(),
         description: c.description(),
@@ -151,7 +152,7 @@ function CommandMenu({
             ? `· update to install ${updateState.latestVersion}`
             : undefined,
         cliOnly,
-        section: cliOnly ? CLI_ONLY_SECTION : sectionOf(index),
+        section: belongsToCliSection ? CLI_ONLY_SECTION : sectionOf(index),
       };
     });
     const actualNames = new Set(actual.map((option) => option.name));
@@ -160,8 +161,8 @@ function CommandMenu({
       .map((option): Option => ({ ...option, hint: optionHints?.[option.name], cliOnly: false }));
     return [
       ...tuiOnly,
-      ...actual.filter((option) => !option.cliOnly),
-      ...actual.filter((option) => option.cliOnly),
+      ...actual.filter((option) => option.section !== CLI_ONLY_SECTION),
+      ...actual.filter((option) => option.section === CLI_ONLY_SECTION),
     ].filter((option) => !hiddenOptions?.includes(option.name));
   }, [command, hiddenOptions, optionHints, path.length, tuiOnlyCommands, updateState]);
 

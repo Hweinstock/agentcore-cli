@@ -61,9 +61,8 @@ describe("menus list command-line-only subcommands below a divider", () => {
         "memory",
         "payment",
         "runtime",
-        "update",
       ],
-      cliOnly: ["feedback", "config"],
+      cliOnly: ["feedback", "config", "update"],
     });
     r.unmount();
   });

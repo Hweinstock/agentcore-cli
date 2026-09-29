@@ -109,9 +109,9 @@ describe("menu rendering", () => {
       { title: undefined, names: PROJECT_WORKFLOW.slice(1) },
       {
         title: "resources",
-        names: ["eval", "gateway", "harness", "identity", "memory", "payment", "runtime", "update"],
+        names: ["eval", "gateway", "harness", "identity", "memory", "payment", "runtime"],
       },
-      { title: "cli", names: ["feedback", "config"] },
+      { title: "cli", names: ["feedback", "config", "update"] },
     ]);
     r.unmount();
   });
