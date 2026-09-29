@@ -31,6 +31,7 @@ export function createAddProjectResourceHandler(
     "runtime",
     "memory",
     "gateway",
+    "gateway-target",
     "online-insight",
   );
   projectAdd.default(renderTui(core, config.io));

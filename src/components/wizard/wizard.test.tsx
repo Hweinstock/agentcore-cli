@@ -7,7 +7,15 @@ import { cleanupScreens, keys, tick, ttyTestIO, waitFor } from "../../testing";
 import { AgentCoreCLIError } from "../../errors";
 import { Wizard, type WizardSubmitResult } from "./Wizard";
 import { Step } from "./Step";
-import { ChoiceField, MultiChoiceField, Summary, TextField } from "./fields";
+import {
+  ChoiceField,
+  MultiChoiceField,
+  ResourceChoiceField,
+  RevealChoiceField,
+  Summary,
+  TextField,
+  type Choice,
+} from "./fields";
 
 afterEach(cleanupScreens);
 
@@ -519,6 +527,216 @@ describe("MultiChoiceField and numeric TextField", () => {
     instance.stdin.write(keys.return);
     await waitFor(() => (instance.lastFrame() ?? "").includes("Sampling rate must be a number"));
     instance.unmount();
+  });
+});
+
+// ResourceChoiceField is a ChoiceField over the project spec; what these cover
+// is the empty state a project without the resource lands on.
+describe("ResourceChoiceField", () => {
+  function driveResources(choices: Choice<string>[], onCancel: () => void) {
+    function Harness() {
+      const [gateway, setGateway] = useState(choices[0]?.value ?? "");
+      return (
+        <Wizard
+          breadcrumb={["agentcore", "test"]}
+          onCancel={onCancel}
+          onSubmit={async () => {}}
+          runningLabel="working…"
+          successLabel="all done"
+        >
+          <Step stepKey="gateway" prompt="which Gateway?">
+            <ResourceChoiceField
+              choices={choices}
+              value={gateway}
+              onChange={setGateway}
+              emptyMessage="no Gateways in this project"
+              emptyHint="add one with  agentcore add gateway"
+            />
+          </Step>
+          <Step stepKey="review" prompt="review">
+            <Summary items={{ picked: gateway }} />
+          </Step>
+        </Wizard>
+      );
+    }
+
+    const instance = render(<></>);
+    Object.defineProperties(instance.stdout, {
+      columns: { configurable: true, value: 100 },
+      rows: { configurable: true, value: 40 },
+    });
+    instance.rerender(<Harness />);
+    return {
+      lastFrame: instance.lastFrame,
+      press: async (key: keyof typeof keys) => {
+        await tick();
+        instance.stdin.write(keys[key]);
+        await tick();
+      },
+      unmount: instance.unmount,
+    };
+  }
+
+  test("with nothing to choose it names what is missing and esc leaves", async () => {
+    let cancelled = false;
+    const d = driveResources([], () => {
+      cancelled = true;
+    });
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("no Gateways in this project"), 1000);
+    expect(d.lastFrame()).toContain("add one with  agentcore add gateway");
+    // Only esc is on offer: enter has nothing to select. The field publishes
+    // its hints after the first paint, so wait for the default enter hint to go.
+    await waitFor(() => !(d.lastFrame() ?? "").includes("[enter]"), 1000);
+    expect(d.lastFrame()).toContain("[esc] back");
+
+    await d.press("return");
+    expect(d.lastFrame()).toContain("no Gateways in this project");
+    expect(cancelled).toBe(false);
+
+    await d.press("escape");
+    await waitFor(() => cancelled, 1000);
+    d.unmount();
+  });
+
+  test("with resources it is a choice over them", async () => {
+    const d = driveResources(
+      [
+        { value: "tools", label: "tools", description: "the first" },
+        { value: "payments", label: "payments", description: "the second" },
+      ],
+      () => {},
+    );
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("❯ ● tools"), 1000);
+    expect(d.lastFrame()).not.toContain("no Gateways");
+    await d.press("down");
+    await d.press("return");
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("picked"), 1000);
+    expect(d.lastFrame()).toContain("payments");
+    d.unmount();
+  });
+});
+
+// RevealChoiceField opens one input under a chosen row; these cover which rows
+// open it, that the input validates like a TextField, and the way back out.
+describe("RevealChoiceField", () => {
+  function driveReveal() {
+    function Harness() {
+      const [flavour, setFlavour] = useState("preset");
+      const [custom, setCustom] = useState("");
+      return (
+        <Wizard
+          breadcrumb={["agentcore", "test"]}
+          onCancel={() => {}}
+          onSubmit={async () => {}}
+          runningLabel="working…"
+          successLabel="all done"
+        >
+          <Step stepKey="flavour" prompt="which flavour?">
+            <RevealChoiceField
+              choices={[
+                { value: "preset", label: "preset", description: "the built-in one" },
+                { value: "custom", label: "custom", description: "type your own" },
+              ]}
+              value={flavour}
+              onChange={setFlavour}
+              input={{
+                opensFor: (value) => value === "custom",
+                label: "Flavour",
+                name: "flavour",
+                help: "lowercase letters only",
+                value: custom,
+                onChange: setCustom,
+                required: true,
+                schema: z.string().regex(/^[a-z]+$/, "letters only please"),
+              }}
+            />
+          </Step>
+          <Step stepKey="review" prompt="review">
+            <Summary items={{ flavour, custom: custom === "" ? "(none)" : custom }} />
+          </Step>
+        </Wizard>
+      );
+    }
+
+    const instance = render(<></>);
+    Object.defineProperties(instance.stdout, {
+      columns: { configurable: true, value: 100 },
+      rows: { configurable: true, value: 40 },
+    });
+    instance.rerender(<Harness />);
+    return {
+      lastFrame: instance.lastFrame,
+      write: async (input: string) => {
+        await tick();
+        instance.stdin.write(input);
+        await tick();
+      },
+      press: async (key: keyof typeof keys) => {
+        await tick();
+        instance.stdin.write(keys[key]);
+        await tick();
+      },
+      unmount: instance.unmount,
+    };
+  }
+
+  test("enter on a row without a follow-up continues", async () => {
+    const d = driveReveal();
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("❯ ● preset"), 1000);
+    await d.press("return");
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("review"), 1000);
+    expect(d.lastFrame()).toContain("preset");
+    expect(d.lastFrame()).not.toContain("lowercase letters only");
+    d.unmount();
+  });
+
+  test("enter on the revealing row opens the input, which validates before continuing", async () => {
+    const d = driveReveal();
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("❯ ● preset"), 1000);
+    await d.press("down");
+    await d.press("return");
+
+    // The rows keep the value; the pointer moves into the input.
+    await waitFor(() => (d.lastFrame() ?? "").includes("lowercase letters only"), 1000);
+    expect(d.lastFrame()).toContain("● custom");
+    expect(d.lastFrame()).not.toContain("❯ ● custom");
+
+    await d.press("return");
+    await waitFor(() => (d.lastFrame() ?? "").includes("Flavour is required"), 1000);
+
+    await d.write("Mint");
+    await d.press("return");
+    await waitFor(() => (d.lastFrame() ?? "").includes("letters only please"), 1000);
+    expect(d.lastFrame()).toContain("which flavour?");
+    d.unmount();
+  });
+
+  test("a valid input continues, and esc from it returns to the rows keeping what was typed", async () => {
+    const d = driveReveal();
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("❯ ● preset"), 1000);
+    await d.press("down");
+    await d.press("return");
+    await waitFor(() => (d.lastFrame() ?? "").includes("lowercase letters only"), 1000);
+    await d.write("mint");
+
+    await d.press("escape");
+    await waitFor(() => (d.lastFrame() ?? "").includes("❯ ● custom"), 1000);
+    expect(d.lastFrame()).not.toContain("lowercase letters only");
+
+    await d.press("return");
+    await waitFor(() => (d.lastFrame() ?? "").includes("mint"), 1000);
+    await d.press("return");
+
+    await waitFor(() => (d.lastFrame() ?? "").includes("review"), 1000);
+    expect(d.lastFrame()).toContain("mint");
+    d.unmount();
   });
 });
 

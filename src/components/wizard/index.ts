@@ -4,11 +4,18 @@ export { useWizard, useKeyHints, type KeyHint, type WizardControls } from "./con
 export {
   TextField,
   ChoiceField,
+  ResourceChoiceField,
+  ResourceEmptyState,
+  RevealChoiceField,
   MultiChoiceField,
   Summary,
   type Choice,
   type TextFieldProps,
   type ChoiceFieldProps,
+  type ResourceChoiceFieldProps,
+  type ResourceEmptyStateProps,
+  type RevealChoiceFieldProps,
+  type RevealedInput,
   type MultiChoiceFieldProps,
   type SummaryProps,
 } from "./fields";
