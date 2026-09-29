@@ -31,19 +31,30 @@ interface ValidateOptions {
   // numeric flag's own schema can bound the field.
   number?: boolean;
   decimal?: boolean;
+  // json parses the value before the schema sees it, so a malformed blob is
+  // reported as bad JSON rather than as a shape the schema cannot read.
+  json?: boolean;
 }
 
 function validateEntry(
   value: string,
-  { label, required, schema, number = false, decimal = false }: ValidateOptions,
+  { label, required, schema, number = false, decimal = false, json = false }: ValidateOptions,
 ): string | undefined {
   if (value.trim() === "") return required ? `${label} is required` : undefined;
   if (number && !/^\d+$/.test(value)) return `${label} must be a whole number`;
   if (decimal && !/^(?:\d+(?:\.\d*)?|\.\d+)$/.test(value)) {
     return `${label} must be a number`;
   }
+  let parsed: unknown = number || decimal ? Number(value) : value;
+  if (json) {
+    try {
+      parsed = JSON.parse(value);
+    } catch (cause) {
+      return `${label} is not valid JSON: ${(cause as Error).message}`;
+    }
+  }
   if (!schema) return undefined;
-  return firstIssue(schema, number || decimal ? Number(value) : value);
+  return firstIssue(schema, parsed);
 }
 
 export interface TextFieldProps {
@@ -122,7 +133,15 @@ export interface TextAreaFieldProps {
   value: string;
   onChange: (value: string) => void;
   required?: boolean;
+  // schema validates the parsed JSON when `json` is set, and the raw text
+  // otherwise — the same rules TextField applies.
   schema?: z.ZodType;
+  // json parses the value before validating it and reports malformed JSON.
+  json?: boolean;
+  // example is a dimmed line above the editor, kept on screen while the user
+  // types. A placeholder cannot do this job — it disappears on the first
+  // keystroke, exactly when a fiddly value most needs a shape to copy from.
+  example?: string;
 }
 
 // TextAreaField collects a value that arrives multi-line: an agent's
@@ -140,6 +159,8 @@ export function TextAreaField({
   onChange,
   required = false,
   schema,
+  json = false,
+  example,
 }: TextAreaFieldProps) {
   const { advance, back, isLast } = useWizard();
   const [error, setError] = useState<string>();
@@ -157,7 +178,7 @@ export function TextAreaField({
     const continues = (key.ctrl && input === "d") || (key.return && value === "");
     if (!continues) return;
 
-    const issue = validateEntry(value, { label, required, schema });
+    const issue = validateEntry(value, { label, required, schema, json });
     if (issue !== undefined) {
       setError(issue);
       return;
@@ -168,6 +189,7 @@ export function TextAreaField({
 
   return (
     <Box flexDirection="column">
+      {example !== undefined && <Text color={theme.colors.muted}>{`for example  ${example}`}</Text>}
       <FormTextArea
         name=""
         helpText={help}
@@ -400,6 +422,107 @@ export function RevealChoiceField<T>({
           }}
         />
       )}
+      {error !== undefined && <Text color={theme.colors.error}>{error}</Text>}
+    </Box>
+  );
+}
+
+export type TextInputSpec = {
+  key: string;
+  // label heads the input and names it in validation messages.
+  label: string;
+  help?: string;
+  placeholder?: string;
+  value: string;
+  onChange: (value: string) => void;
+  required?: boolean;
+  schema?: z.ZodType;
+};
+
+export type MultiTextFieldProps = {
+  inputs: TextInputSpec[];
+};
+
+// MultiTextField collects several short answers that belong together — a branch
+// and the commit message that lands on it, say — as stacked inputs on one step,
+// the way the online-insight settings and the harness model step lay theirs
+// out. One input has focus at a time: enter validates it the way a TextField
+// would and moves down, the arrows move without validating, and enter on the
+// last input re-checks every input (so one skipped with the arrows cannot slip
+// through) before continuing. Esc goes back a step.
+export function MultiTextField({ inputs }: MultiTextFieldProps) {
+  const { advance, back, isLast } = useWizard();
+  const [focused, setFocused] = useState(0);
+  const [error, setError] = useState<string>();
+
+  useKeyHints([
+    { key: "↑↓", label: "navigate" },
+    { key: "enter", label: isLast ? "submit" : "continue" },
+  ]);
+
+  const issueOf = (input: TextInputSpec) =>
+    validateEntry(input.value, {
+      label: input.label,
+      required: input.required ?? false,
+      schema: input.schema,
+    });
+
+  useInput((_input, key) => {
+    if (key.escape) {
+      back();
+      return;
+    }
+    if (key.upArrow) {
+      setFocused(Math.max(0, focused - 1));
+      setError(undefined);
+      return;
+    }
+    if (key.downArrow) {
+      setFocused(Math.min(inputs.length - 1, focused + 1));
+      setError(undefined);
+      return;
+    }
+    if (!key.return) return;
+
+    const current = inputs[focused];
+    if (current === undefined) return;
+    const issue = issueOf(current);
+    if (issue !== undefined) {
+      setError(issue);
+      return;
+    }
+    if (focused < inputs.length - 1) {
+      setFocused(focused + 1);
+      setError(undefined);
+      return;
+    }
+    const skipped = inputs.findIndex((input) => issueOf(input) !== undefined);
+    if (skipped !== -1) {
+      setFocused(skipped);
+      setError(issueOf(inputs[skipped]!));
+      return;
+    }
+    setError(undefined);
+    advance();
+  });
+
+  return (
+    <Box flexDirection="column">
+      {inputs.map((input, index) => (
+        <FormTextInput
+          key={input.key}
+          name={input.label}
+          helpText={input.help ?? ""}
+          placeholder={input.placeholder ?? ""}
+          errorText=""
+          value={input.value}
+          onChange={(next) => {
+            input.onChange(next);
+            setError(undefined);
+          }}
+          focused={index === focused}
+        />
+      ))}
       {error !== undefined && <Text color={theme.colors.error}>{error}</Text>}
     </Box>
   );
