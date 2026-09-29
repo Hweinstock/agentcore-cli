@@ -44,6 +44,7 @@ import { MemoryListScreen } from "../handlers/memory/list/screen.tsx";
 import { RuntimeInvokeScreen } from "../handlers/runtime/invoke/screen.tsx";
 import { RuntimeInvokeLaunchSessionContext } from "../handlers/runtime/invoke/launchContext.ts";
 import { RuntimeShellScreen } from "../handlers/runtime/shell/screen.tsx";
+import { RuntimeExecScreen } from "../handlers/runtime/exec/screen.tsx";
 import { EvalScreen } from "../handlers/eval/screen.tsx";
 import { EvaluatorScreen } from "../handlers/eval/evaluator/screen.tsx";
 import { EvaluatorListScreen } from "../handlers/eval/evaluator/list/screen.tsx";
@@ -482,6 +483,15 @@ function RouteTable({ ctx, core }: ScreenProps) {
       <Route
         path="agentcore/runtime/shell"
         element={<RuntimeShellScreen ctx={ctx} core={core} />}
+      />
+      <Route path="agentcore/runtime/exec" element={<RuntimeExecScreen ctx={ctx} core={core} />} />
+      <Route
+        path="agentcore/runtime/exec/:runtimeId"
+        element={<RuntimeExecScreen ctx={ctx} core={core} />}
+      />
+      <Route
+        path="agentcore/runtime/exec/:runtimeId/:qualifier"
+        element={<RuntimeExecScreen ctx={ctx} core={core} />}
       />
       <Route
         path="agentcore/runtime/shell/:runtimeId"
