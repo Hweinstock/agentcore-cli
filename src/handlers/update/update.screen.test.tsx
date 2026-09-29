@@ -75,7 +75,7 @@ test("shows the current version while checking", async () => {
   const screen = renderUpdateScreen("/agentcore", fixture.versionManager);
 
   await waitForText(screen.lastFrame, "v1.0.0");
-  expect(screen.lastFrame()).not.toContain("Update available");
+  expect(screen.lastFrame()).not.toContain("update available");
 
   latestVersion.resolve("1.0.0");
   await waitFor(() => fixture.invocationCounts.registry === 1);
@@ -97,7 +97,7 @@ test("shows an available update", async () => {
   const fixture = createVersionManagerFixture({ versions: ["1.1.0"] });
   const screen = renderUpdateScreen("/agentcore", fixture.versionManager);
 
-  await waitForText(screen.lastFrame, "v1.0.0 • Update available");
+  await waitForText(screen.lastFrame, "v1.0.0 • update available");
   expect(screen.lastFrame()).toContain("check for and install CLI updates");
   expect(screen.lastFrame()).toContain("update to install 1.1.0");
   screen.unmount();
@@ -149,7 +149,7 @@ test("navigates through the menu, confirms, and shows update progress", async ()
   });
   const screen = renderUpdateScreen("/agentcore", fixture.versionManager);
 
-  await waitForText(screen.lastFrame, "v1.0.0 • Update available");
+  await waitForText(screen.lastFrame, "v1.0.0 • update available");
   await waitForText(screen.lastFrame, "update to install 1.1.0");
   await screen.write("update");
   await screen.press("return");
