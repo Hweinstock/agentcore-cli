@@ -20,7 +20,7 @@ import {
 import { createRootHandler } from "../../../index";
 import { InputValidationError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
-import { DEFAULT_HARNESS_MODEL } from "../../../../projectSchemas/harness";
+import { DEFAULT_HARNESS_MODEL, HarnessYamlSchema } from "../../../../projectSchemas/harness";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 import { projectQueryKey } from "../../ProjectGate";
 import type { Project } from "../../types";
@@ -32,7 +32,9 @@ afterEach(cleanup);
 afterEach(cleanupScreens);
 
 async function harnessYaml(projectRoot: string, name: string) {
-  return parse(await Bun.file(join(projectRoot, "app", name, "harness.yaml")).text());
+  return HarnessYamlSchema.parse(
+    parse(await Bun.file(join(projectRoot, "app", name, "harness.yaml")).text()),
+  );
 }
 
 async function systemPromptOf(projectRoot: string, name: string) {
