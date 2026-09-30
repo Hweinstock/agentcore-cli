@@ -7,7 +7,7 @@ import {
   useLocation,
   useNavigationType,
 } from "react-router";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { type QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Core, ScreenProps } from "../handlers/types.tsx";
 import { HarnessScreen } from "../handlers/harness/screen.tsx";
 import { HarnessGetScreen, HarnessGetJsonScreen } from "../handlers/harness/get/screen.tsx";
@@ -144,10 +144,11 @@ import { AddLlmAsAJudgeEvaluatorScreen } from "../handlers/project/add/evaluator
 import { AddCodeBasedEvaluatorScreen } from "../handlers/project/add/evaluator/code-based/screen.tsx";
 import { ProjectStatusScreen } from "../handlers/project/status/screen.tsx";
 import { ProjectRemoveScreen } from "../handlers/project/remove/screen.tsx";
+import { ProjectDetectedKey } from "../handlers/project/context.ts";
 import { HelpScreen, RootScreen } from "../handlers/screen.tsx";
 import { RegionKey } from "../handlers/keys.tsx";
 import { RegionPinContext } from "../handlers/utils.tsx";
-import type { Context } from "../router";
+import { ProjectKey, type Context } from "../router";
 
 export interface RootProps {
   // path is the command path to the executing node (e.g. "/agentcore").
@@ -157,25 +158,17 @@ export interface RootProps {
 
   ctx: Context;
 
-  // queryClient is an optional override for the react-query client. Production
-  // leaves it unset (a stable one is created per mount); tests inject one — e.g.
-  // with retries disabled — to keep behavior deterministic and fast.
-  queryClient?: QueryClient;
+  queryClient: QueryClient;
 }
 
 // Root is the top of the Ink React tree, rendered by the `agentcore` default
 // handler when the CLI is invoked without a subcommand: the MemoryRouter over
 // the app's routes plus the react-query client every screen fetches through.
 export function Root({ path, ctx, core, queryClient }: RootProps) {
-  // Create the QueryClient once per mount; a lazy initializer keeps it stable
-  // across re-renders (a fresh client would drop the cache and refetch). An
-  // injected client (tests) takes precedence.
-  const [defaultQueryClient] = useState(() => new QueryClient());
   const [launchSessionConsumed, setLaunchSessionConsumed] = useState(false);
-  const client = queryClient ?? defaultQueryClient;
 
   return (
-    <QueryClientProvider client={client}>
+    <QueryClientProvider client={queryClient}>
       <RuntimeInvokeLaunchSessionContext.Provider
         value={{
           consumed: launchSessionConsumed,
@@ -261,9 +254,14 @@ function PinnedRegion({ ctx, core }: ScreenProps) {
 const DEV_PATH = ["agentcore", "dev"];
 
 function RouteTable({ ctx, core }: ScreenProps) {
+  const inProject = ctx.value(ProjectDetectedKey) ?? ctx.value(ProjectKey) !== undefined;
+
   return (
     <Routes>
-      <Route path="agentcore" element={<RootScreen ctx={ctx} core={core} />} />
+      <Route
+        path="agentcore"
+        element={<RootScreen ctx={ctx} core={core} inProject={inProject} />}
+      />
       {/* `dev` owns the terminal, so selecting it closes the TUI and runs it. */}
       <Route
         path="agentcore/dev"

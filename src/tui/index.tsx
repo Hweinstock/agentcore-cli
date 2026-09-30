@@ -1,4 +1,5 @@
 import { render } from "ink";
+import { QueryClient } from "@tanstack/react-query";
 import { Root } from "../components/Root";
 import {
   type Context,
@@ -8,10 +9,12 @@ import {
   contextKey,
   type ContextKey,
   CommandRunMetricEventKey,
+  ProjectKey,
 } from "../router";
 import type { AppIO } from "../io";
 import type { Core } from "../handlers/types";
 import { JsonKey } from "../handlers/keys";
+import { ProjectDetectedKey } from "../handlers/project/context";
 import { ExitCode, InvalidEnvironmentError } from "../errors";
 import { TuiExitMessageKey } from "./exitMessage";
 import { createResizeGate } from "./resize";
@@ -58,7 +61,13 @@ export async function renderTuiAt(
 
   let exitMessage: string | undefined;
   let handoff: string[] | undefined;
+  const projectDetected =
+    ctx.value(ProjectKey) !== undefined ||
+    (await core.projectManager.resolve({
+      filePath: process.cwd(),
+    })) !== undefined;
   const tuiContext = ctx
+    .withValue(ProjectDetectedKey, projectDetected)
     .withValue(TuiExitMessageKey, (message) => {
       exitMessage = message;
     })
@@ -68,15 +77,20 @@ export async function renderTuiAt(
 
   // alternateScreen switches the terminal to its alternate buffer so the TUI
   // takes over the screen and the prior scrollback is restored on exit (like Vim).
+  const queryClient = new QueryClient();
+
   const resizeGate = createResizeGate(io.stdout);
-  const { waitUntilExit } = render(<Root path={path} ctx={tuiContext} core={core} />, {
-    stdin: io.stdin,
-    stdout: resizeGate.stdout,
-    stderr: io.stderr,
-    interactive: true,
-    alternateScreen: true,
-    incrementalRendering: false,
-  });
+  const { waitUntilExit } = render(
+    <Root path={path} ctx={tuiContext} core={core} queryClient={queryClient} />,
+    {
+      stdin: io.stdin,
+      stdout: resizeGate.stdout,
+      stderr: io.stderr,
+      interactive: true,
+      alternateScreen: true,
+      incrementalRendering: false,
+    },
+  );
   try {
     await waitUntilExit();
   } finally {

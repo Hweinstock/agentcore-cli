@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from "react";
 import { Box, Text, useApp, useInput, useStdin } from "ink";
 import type { Command } from "commander";
 import { Navigate, useNavigate } from "react-router";
+import stringWidth from "string-width";
 import {
   CommandKey,
   commandMenuSectionStart,
@@ -15,6 +16,7 @@ import {
   shouldHideBrandBanner,
 } from "./BrandBanner";
 import { Layout } from "./Layout";
+import { Alert } from "./ui/alert";
 import { Divider } from "./ui/divider";
 import { TextInput } from "./ui/text-input";
 import { darkTheme, glyphs } from "./ui/_core.js";
@@ -58,6 +60,7 @@ export function commandPath(command: Command): string[] {
 interface Option {
   name: string;
   description: string;
+  hint?: string;
   // cliOnly marks a subcommand without a screen; it is listed under a divider
   // and opens its help instead.
   cliOnly: boolean;
@@ -80,6 +83,11 @@ export interface RouterScreenProps extends ScreenProps {
   // tuiOnlyCommands are navigable informational flows that intentionally do
   // not exist in the CLI command tree.
   tuiOnlyCommands?: TuiOnlyCommand[];
+  // optionHints adds short contextual guidance alongside selected menu options.
+  optionHints?: Readonly<Record<string, string>>;
+  // alert is optional guidance rendered between the filter and menu options.
+  alert?: string;
+  hiddenOptions?: readonly string[];
 }
 
 // RouterScreen renders the interactive command menu for a Router node: a filter
@@ -101,6 +109,9 @@ function CommandMenu({
   banner,
   path,
   tuiOnlyCommands = [],
+  optionHints,
+  alert,
+  hiddenOptions,
   command,
 }: RouterScreenProps & { command: Command }) {
   const navigate = useNavigate();
@@ -131,6 +142,7 @@ function CommandMenu({
       return {
         name: c.name(),
         description: c.description(),
+        hint: optionHints?.[c.name()],
         cliOnly,
         section: cliOnly ? CLI_ONLY_SECTION : sectionOf(index),
       };
@@ -138,13 +150,13 @@ function CommandMenu({
     const actualNames = new Set(actual.map((option) => option.name));
     const tuiOnly = tuiOnlyCommands
       .filter((option) => !actualNames.has(option.name))
-      .map((option) => ({ ...option, cliOnly: false }));
+      .map((option): Option => ({ ...option, hint: optionHints?.[option.name], cliOnly: false }));
     return [
       ...tuiOnly,
       ...actual.filter((option) => !option.cliOnly),
       ...actual.filter((option) => option.cliOnly),
-    ];
-  }, [command, tuiOnlyCommands]);
+    ].filter((option) => !hiddenOptions?.includes(option.name));
+  }, [command, optionHints, hiddenOptions, tuiOnlyCommands]);
 
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -221,6 +233,7 @@ function CommandMenu({
     >
       {({ columns, contentRows }) => (
         <CommandMenuBody
+          alert={alert}
           columns={columns}
           contentRows={contentRows}
           filtered={filtered}
@@ -239,6 +252,7 @@ function CommandMenu({
 }
 
 interface CommandMenuBodyProps {
+  alert?: string;
   columns: number;
   contentRows: number;
   filtered: Option[];
@@ -249,7 +263,15 @@ interface CommandMenuBodyProps {
   onQueryChange: (value: string) => void;
 }
 
+function alertRows(alert: string | undefined, columns: number): number {
+  if (!alert) return 0;
+  // Two border/padding columns sit on each side of the alert content.
+  const contentColumns = Math.max(1, columns - 4);
+  return 2 + Math.ceil(stringWidth(`${glyphs.info} ${alert}`) / contentColumns);
+}
+
 function CommandMenuBody({
+  alert,
   columns,
   contentRows,
   filtered,
@@ -260,7 +282,7 @@ function CommandMenuBody({
   onQueryChange,
 }: CommandMenuBodyProps) {
   const sections = useMemo(() => filtered.map((option) => option.section), [filtered]);
-  const menuHeight = Math.max(0, contentRows - FILTER_ROWS);
+  const menuHeight = Math.max(0, contentRows - FILTER_ROWS - alertRows(alert, columns));
   const windowStart = Math.max(0, highlight - Math.floor(menuHeight / 2));
   const view = scrollWindow({
     sections,
@@ -282,6 +304,8 @@ function CommandMenuBody({
       </Box>
 
       <Divider />
+
+      {alert && <Alert>{alert}</Alert>}
 
       <Box flexDirection="column" height={menuHeight} overflow="hidden">
         {filtered.length === 0 ? (
@@ -333,6 +357,7 @@ function CommandMenuBody({
                   </Text>
                 </Box>
                 <Text color={theme.colors.muted}>{option.description}</Text>
+                {option.hint && <Text color={theme.colors.secondary}> {option.hint}</Text>}
               </Box>
             );
           })
