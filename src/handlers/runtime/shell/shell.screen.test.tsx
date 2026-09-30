@@ -1,11 +1,10 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { renderTuiAt } from "../../../tui";
-import { CliVersionManagerKey, DebugKey, EndpointKey, JsonKey, RegionKey } from "../../keys";
+import { DebugKey, EndpointKey, JsonKey, RegionKey } from "../../keys";
 import { ValueContext } from "../../../router";
 import type { RuntimeShellSession } from "../types";
 import {
   cleanupScreens,
-  createTestCliVersionManager,
   renderScreen,
   TestCoreClient,
   tick,
@@ -103,7 +102,6 @@ describe("RuntimeShellScreen", () => {
     value.runtime.setShellSession(failedSession);
     const { streams, stdin } = ttyTestIO();
     const ctx = ValueContext.EmptyContext()
-      .withValue(CliVersionManagerKey, createTestCliVersionManager())
       .withValue(RegionKey, "us-east-1")
       .withValue(EndpointKey, undefined)
       .withValue(JsonKey, false)
@@ -137,7 +135,6 @@ describe("RuntimeShellScreen", () => {
     const value = core();
     const { streams } = ttyTestIO();
     const ctx = ValueContext.EmptyContext()
-      .withValue(CliVersionManagerKey, createTestCliVersionManager())
       .withValue(RegionKey, "us-east-1")
       .withValue(EndpointKey, undefined)
       .withValue(JsonKey, false)
@@ -154,7 +151,6 @@ describe("RuntimeShellScreen", () => {
     value.runtime.setError(new Error("shell lookup failed"));
     const { streams } = ttyTestIO();
     const ctx = ValueContext.EmptyContext()
-      .withValue(CliVersionManagerKey, createTestCliVersionManager())
       .withValue(RegionKey, "us-east-1")
       .withValue(EndpointKey, undefined)
       .withValue(JsonKey, false)
@@ -169,7 +165,6 @@ describe("RuntimeShellScreen", () => {
     const value = core();
     const { streams, stdin } = ttyTestIO();
     const ctx = ValueContext.EmptyContext()
-      .withValue(CliVersionManagerKey, createTestCliVersionManager())
       .withValue(RegionKey, "us-east-1")
       .withValue(EndpointKey, undefined)
       .withValue(JsonKey, false)

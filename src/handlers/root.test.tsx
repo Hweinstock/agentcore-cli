@@ -23,7 +23,7 @@ const WORKFLOW_ORDER = [
   "export",
 ];
 const RESOURCES_ORDER = ["eval", "gateway", "harness", "identity", "memory", "payment", "runtime"];
-const SETTINGS_ORDER = ["feedback", "config"];
+const SETTINGS_ORDER = ["feedback", "config", "update"];
 
 // helpCommandNames reads the command names off the "Commands:" section of help.
 function helpCommandNames(help: string): string[] {
@@ -43,7 +43,6 @@ describe("createRootHandler", () => {
       ...WORKFLOW_ORDER,
       ...RESOURCES_ORDER,
       ...SETTINGS_ORDER,
-      "update",
     ]);
   });
 
@@ -66,7 +65,6 @@ describe("createRootHandler", () => {
       ...WORKFLOW_ORDER,
       ...RESOURCES_ORDER,
       ...SETTINGS_ORDER,
-      "update",
     ]);
   });
 });

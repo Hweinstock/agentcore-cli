@@ -156,31 +156,31 @@ describe("menu rendering", () => {
   });
 
   test("shows the brand banner only on the root menu", async () => {
-    const versionIndicator = `v${PACKAGE_VERSION}`;
+    const version = `v${PACKAGE_VERSION}`;
     const root = renderScreen("/agentcore");
-    await waitForText(root.lastFrame, versionIndicator);
+    await waitForText(root.lastFrame, version);
 
-    expect(root.lastFrame()).toContain(versionIndicator);
+    expect(root.lastFrame()).toContain(version);
     root.unmount();
 
     const nested = renderScreen("/agentcore/harness");
     await waitForText(nested.lastFrame, "agentcore → harness");
 
-    expect(nested.lastFrame()).not.toContain(versionIndicator);
+    expect(nested.lastFrame()).not.toContain(version);
     nested.unmount();
   });
 
   test("hides the brand banner when the terminal is short and restores it when enlarged", async () => {
-    const versionIndicator = `v${PACKAGE_VERSION}`;
+    const version = `v${PACKAGE_VERSION}`;
     const r = renderScreen("/agentcore");
-    await waitForText(r.lastFrame, versionIndicator);
+    await waitForText(r.lastFrame, version);
 
     await r.resize(80, 24);
-    expect(r.lastFrame()).not.toContain(versionIndicator);
+    expect(r.lastFrame()).not.toContain(version);
     expect(r.lastFrame()).toContain("[enter] select");
 
     await r.resize(100, 40);
-    await waitForText(r.lastFrame, versionIndicator);
+    await waitForText(r.lastFrame, version);
     r.unmount();
   });
 
@@ -380,7 +380,6 @@ describe("short terminals", () => {
   async function fullMenu() {
     const r = renderScreen("/agentcore", { withContext: inProjectContext });
     await waitForText(r.lastFrame, "❯ add");
-    await r.resize(100, 40);
     const frame = r.lastFrame()!;
     r.unmount();
     const titles = new Map<string, string | undefined>();
@@ -491,10 +490,9 @@ describe("short terminals", () => {
   test("typing a filter returns the window to the top", async () => {
     const full = await fullMenu();
     const r = await shortMenu();
-    const last = full.names.at(-1)!;
 
     for (let i = 1; i < full.names.length; i++) await r.press("down");
-    await waitForText(r.lastFrame, `❯ ${last}`);
+    await waitForText(r.lastFrame, "❯ update");
     await r.write("e");
     const first = full.names.find((name) => name.includes("e"))!;
     await waitForText(r.lastFrame, `❯ ${first}`);
@@ -505,15 +503,14 @@ describe("short terminals", () => {
   test("resizing taller shows the whole list again", async () => {
     const full = await fullMenu();
     const r = await shortMenu();
-    const last = full.names.at(-1)!;
 
     for (let i = 1; i < full.names.length; i++) await r.press("down");
-    await waitForText(r.lastFrame, `❯ ${last}`);
+    await waitForText(r.lastFrame, "❯ update");
     await r.resize(100, 40);
     const frame = r.lastFrame()!;
     expect(menuGroups(frame).flatMap((group) => group.names)).toEqual(full.names);
     expect(frame).not.toContain(" more");
-    expect(frame).toContain(`❯ ${last}`);
+    expect(frame).toContain("❯ update");
     r.unmount();
   });
 

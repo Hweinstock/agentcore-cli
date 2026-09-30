@@ -38,12 +38,12 @@ function ancestorMenuHeaders(path: string[], command: Command): string[] {
 }
 
 function renderedHeader(frame: string | undefined): string {
-  const header =
+  return (
     (frame ?? "")
       .split("\n")
       .map((line) => line.trim())
-      .find((line) => line.includes(" → ")) ?? "";
-  return header.split(/\s{2,}/)[0] ?? "";
+      .find((line) => line.includes(" → ")) ?? ""
+  );
 }
 
 const SCREENS = screenCommands(compiledRootCommand(), []);
