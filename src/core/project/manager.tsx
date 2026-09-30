@@ -48,7 +48,7 @@ import {
   buildExportNotesMarkdown,
   mapHarnessToExportPlan,
 } from "./templates/export";
-import { HarnessSpecSchema } from "../../projectSchemas/harness";
+import { HarnessSpecSchema, HarnessYamlSchema } from "../../projectSchemas/harness";
 import { FsTreeNode } from "./templates/fsTree";
 import { getEvaluatorTemplateResolver } from "./templates/evaluator";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
@@ -917,7 +917,7 @@ export class FsProjectManager implements ProjectManager {
         message: `Reading harness configuration from '${join(entry.path, "harness.yaml")}'`,
       };
       const harnessPath = join(harnessDir, "harness.yaml");
-      const parsed = HarnessSpecSchema.safeParse(await readYamlFile(harnessPath));
+      const parsed = HarnessYamlSchema.safeParse(await readYamlFile(harnessPath));
       if (!parsed.success) {
         throw new InputValidationError(
           `Invalid harness.yaml at '${harnessPath}': ${z.prettifyError(parsed.error)}`,

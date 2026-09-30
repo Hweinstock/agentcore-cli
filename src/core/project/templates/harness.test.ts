@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parse } from "yaml";
 import type z from "zod";
-import { HarnessSpecSchema } from "../../../projectSchemas/harness";
+import { HarnessSpecSchema, HarnessYamlSchema } from "../../../projectSchemas/harness";
 import { FsAssetSource } from "../source";
 import { getHarnessTemplateResolver } from "./harness";
 import { HandlebarsTemplateRenderer } from "./renderer";
@@ -22,8 +22,6 @@ const defaultSettings = {
   environmentVariables: {},
   networkMode: "PUBLIC",
   authorizerType: "AWS_IAM",
-  efsAccessPoints: [],
-  s3AccessPoints: [],
   tags: {},
 };
 const config = {
@@ -54,8 +52,14 @@ test("scaffolds valid YAML with inactive examples and a resolvable prompt", asyn
   expect((await readdir(directory)).sort()).toEqual(["harness.yaml", "system-prompt.md"]);
   expect(data).toEqual({
     name: "assistant",
-    model,
-    ...defaultSettings,
+    model: { bedrockModelConfig: { modelId: model.modelId } },
+    memory: { managedMemoryConfiguration: {} },
+    tools: [],
+    allowedTools: ["*"],
+    skills: [],
+    truncation: { strategy: "sliding_window" },
+    environmentVariables: {},
+    tags: {},
   });
   expect(yaml).toMatchSnapshot();
   expect(await readFile(join(directory, "system-prompt.md"), "utf8")).toBe(
@@ -78,7 +82,7 @@ test.each([
   { mode: "managed", strategies: ["EPISODIC"], eventExpiryDuration: 365 },
 ] as const)("preserves explicit memory: %j", async (memory) => {
   const { data, yaml } = await scaffold({ memory });
-  expect(data.memory).toEqual(memory);
+  expect<unknown>(HarnessYamlSchema.parse(data).memory).toEqual(memory);
   if (memory.mode !== "managed") {
     expect(yaml).not.toContain("# Managed memory is created for this harness.");
     expect(yaml).not.toContain("# strategies:");
@@ -146,7 +150,7 @@ test("serializes supplied nested strings, arrays, maps, and zero values without 
     model,
     ...overrides,
   });
-  expect(data).toEqual(expected);
+  expect(HarnessYamlSchema.parse(data)).toEqual(expected);
   expect(await readFile(join(directory, "system-prompt.md"), "utf8")).toBe(systemPrompt!);
 });
 
@@ -192,7 +196,31 @@ test("renders supplied deployment settings once in their sections", async () => 
     ],
   };
   const { data } = await scaffold(overrides);
-  expect(data).toEqual({ name: "assistant", model, ...defaultSettings, ...overrides });
+  expect(data.environment).toEqual({
+    agentCoreRuntimeEnvironment: {
+      networkConfiguration: {
+        networkMode: "VPC",
+        networkModeConfig: {
+          subnets: overrides.networkConfig!.subnets,
+          securityGroups: overrides.networkConfig!.securityGroups,
+        },
+      },
+      lifecycleConfiguration: overrides.lifecycleConfig,
+      filesystemConfigurations: [
+        { sessionStorage: { mountPath: overrides.sessionStoragePath } },
+        { efsAccessPoint: overrides.efsAccessPoints![0] },
+        { s3FilesAccessPoint: overrides.s3AccessPoints![0] },
+      ],
+    },
+  });
+  expect(data.networkConfig).toEqual({ vpcId: overrides.networkConfig!.vpcId });
+  expect<unknown>(HarnessYamlSchema.parse(data)).toEqual({
+    name: "assistant",
+    model,
+    tools: [],
+    ...defaultSettings,
+    ...overrides,
+  });
 });
 
 test("preserves explicit empty settings and disabled truncation", async () => {
@@ -211,17 +239,17 @@ test("preserves explicit empty settings and disabled truncation", async () => {
 });
 
 test.each([
-  ["bedrock", "converse_stream", "open_ai, gemini, lite_llm"],
-  ["open_ai", "responses", "bedrock, gemini, lite_llm"],
-  ["gemini", undefined, "bedrock, open_ai, lite_llm"],
-  ["lite_llm", undefined, "bedrock, open_ai, gemini"],
-] as const)("shows compatible model examples for %s", async (provider, apiFormat, alternatives) => {
+  ["bedrock", "converse_stream", "bedrockModelConfig"],
+  ["open_ai", "responses", "openAiModelConfig"],
+  ["gemini", undefined, "geminiModelConfig"],
+  ["lite_llm", undefined, "liteLlmModelConfig"],
+] as const)("shows compatible model examples for %s", async (provider, apiFormat, key) => {
   const { yaml } = await scaffold({
     model: { provider, modelId: "example", apiKeyArn: "arn:example" },
   });
   if (apiFormat) expect(yaml).toContain(`# apiFormat: ${apiFormat}`);
   else expect(yaml).not.toContain("# apiFormat:");
-  expect(yaml).toContain(`provider: ${provider} # ${alternatives}`);
+  expect(yaml).toContain(`  ${key}:`);
 });
 
 test("keeps the sliding-window size optional", async () => {

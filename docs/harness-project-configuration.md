@@ -44,10 +44,10 @@ The following is a small valid configuration:
 ```yaml
 name: assistant
 model:
-  provider: bedrock
-  modelId: global.anthropic.claude-sonnet-4-6
+  bedrockModelConfig:
+    modelId: global.anthropic.claude-sonnet-4-6
 memory:
-  mode: managed
+  managedMemoryConfiguration: {}
 ```
 
 Edit the file, then run `agentcore deploy` from the project directory to
@@ -56,13 +56,14 @@ The examples below are separate alternatives or sections to add to your file.
 Replace a section when switching modes rather than keeping fields from both.
 Replace example ARNs, URLs, and resource IDs with your own.
 
-These examples use the CLI's YAML format. The service APIs represent some of
-the same settings differently, particularly model and skill sources.
+The generated file follows the Harness API's nesting. CLI flags and construct
+inputs are unchanged. The old flat YAML shape is not supported.
 
 ## Model
 
-`model.provider` and `model.modelId` are required. Choose a model supported by
-the selected provider and API format.
+Select one configuration under `model`: `bedrockModelConfig`, `openAiModelConfig`,
+`geminiModelConfig`, or `liteLlmModelConfig`. Each requires `modelId`. Choose a
+model supported by the selected provider and API format.
 
 | Provider   | Credentials                        | Provider-specific options                                          |
 | ---------- | ---------------------------------- | ------------------------------------------------------------------ |
@@ -76,57 +77,57 @@ raw API key or a Secrets Manager secret ARN. The execution role needs permission
 to retrieve that credential. Only use an `apiBase` endpoint you trust with the
 provider credential.
 
-All providers accept `temperature` (0-2), `topP` (0-1), and a positive integer
-`maxTokens`. The selected model can impose narrower limits.
-`model.maxTokens` limits output for each model call. The top-level `maxTokens`
+Provider configurations support `temperature` (0-2), `topP` (0-1), and a positive
+integer `maxTokens`, but individual models can reject optional fields entirely.
+For example, Claude Sonnet 5 rejects `temperature`; leave it unset for that model.
+Check the selected model's parameter support before enabling tuning fields.
+`maxTokens` inside the selected model configuration limits output for each model call. The top-level `maxTokens`
 field applies across the invocation, which can make several model calls.
 
 For Bedrock:
 
 ```yaml
 model:
-  provider: bedrock
-  modelId: global.anthropic.claude-sonnet-4-6
-  apiFormat: converse_stream
-  temperature: 0.2
-  maxTokens: 4096
+  bedrockModelConfig:
+    modelId: global.anthropic.claude-sonnet-4-6
+    apiFormat: converse_stream
+    temperature: 0.2
+    maxTokens: 4096
 ```
 
 For a direct OpenAI model:
 
 ```yaml
 model:
-  provider: open_ai
-  modelId: gpt-5
-  apiFormat: responses
-  apiKeyArn: arn:aws:bedrock-agentcore:us-west-2:123456789012:token-vault/default/apikeycredentialprovider/openai
+  openAiModelConfig:
+    modelId: gpt-5
+    apiFormat: responses
+    apiKeyArn: arn:aws:bedrock-agentcore:us-west-2:123456789012:token-vault/default/apikeycredentialprovider/openai
 ```
 
 For Gemini:
 
 ```yaml
 model:
-  provider: gemini
-  modelId: gemini-2.5-flash
-  apiKeyArn: arn:aws:bedrock-agentcore:us-west-2:123456789012:token-vault/default/apikeycredentialprovider/gemini
-  topK: 40
+  geminiModelConfig:
+    modelId: gemini-2.5-flash
+    apiKeyArn: arn:aws:bedrock-agentcore:us-west-2:123456789012:token-vault/default/apikeycredentialprovider/gemini
+    topK: 40
 ```
 
 For LiteLLM, use a provider-prefixed model ID:
 
 ```yaml
 model:
-  provider: lite_llm
-  modelId: openai/gpt-5
-  apiBase: https://models.example.com/v1
-  apiKeyArn: arn:aws:bedrock-agentcore:us-west-2:123456789012:token-vault/default/apikeycredentialprovider/model-proxy
+  liteLlmModelConfig:
+    modelId: openai/gpt-5
+    apiBase: https://models.example.com/v1
+    apiKeyArn: arn:aws:bedrock-agentcore:us-west-2:123456789012:token-vault/default/apikeycredentialprovider/model-proxy
 ```
 
 Do not set `apiFormat` for `gemini` or `lite_llm`, `topK` for other providers,
 or `apiBase` outside `lite_llm` in this YAML format.
-The schema also accepts `model.additionalParams` for `lite_llm`, but the current
-project CDK mapper does not forward it to the service. Do not rely on that field
-to configure a deployed harness.
+LiteLLM also accepts `model.liteLlmModelConfig.additionalParams` for provider-specific options.
 
 See [Models and instructions](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-models.html)
 for provider behavior and supported API formats.
@@ -138,15 +139,16 @@ Both deployment and local export use inline `systemPrompt` text when it is
 provided. Otherwise, instructions come from `system-prompt.md` next to
 `harness.yaml`. Prompt contents are not trimmed, and blank prompts are rejected.
 
-Use a YAML block scalar for multiline inline instructions:
+Use one text block for inline instructions:
 
 ```yaml
-systemPrompt: |
-  You are a concise assistant.
-  Ask for clarification when a request is ambiguous.
+systemPrompt:
+  - text: |
+      You are a concise assistant.
+      Ask for clarification when a request is ambiguous.
 ```
 
-`systemPrompt` is text, not a local filename. Do not set it to
+`systemPrompt[0].text` is literal text, not a local filename. Do not set it to
 `./instructions.md` or `file://instructions.md` expecting the file to be read.
 Path-shaped inline values ending in `.md` or `.txt` are rejected by the current
 schema. Use the conventional `system-prompt.md` file instead.
@@ -160,7 +162,7 @@ Memory persists conversation events and can extract information for later
 retrieval. It is separate from the conversation truncation settings that control
 what fits in a model request.
 
-Newly scaffolded harnesses use `memory: { mode: managed }` unless another memory
+Newly scaffolded harnesses use `memory: { managedMemoryConfiguration: {} }` unless another memory
 configuration was supplied. Removing `memory` from an existing YAML file disables
 memory. Reading the file never adds the scaffold default.
 
@@ -170,9 +172,13 @@ The Harness service creates and owns the memory:
 
 ```yaml
 memory:
-  mode: managed
-  strategies: [SEMANTIC, SUMMARIZATION, USER_PREFERENCE, EPISODIC]
-  eventExpiryDuration: 30
+  managedMemoryConfiguration:
+    strategies:
+      - SEMANTIC
+      - SUMMARIZATION
+      - USER_PREFERENCE
+      - EPISODIC
+    eventExpiryDuration: 30
 ```
 
 `strategies` is optional. When supplied, it must contain one to four entries,
@@ -185,12 +191,12 @@ Use `name` for a memory declared in this project's `agentcore.json`:
 
 ```yaml
 memory:
-  mode: existing
-  name: ConversationMemory
-  messagesCount: 20
-  retrievalConfig:
-    topK: 5
-    relevanceScore: 0.5
+  agentCoreMemoryConfiguration:
+    name: ConversationMemory
+    messagesCount: 20
+    retrievalConfig:
+      topK: 5
+      relevanceScore: 0.5
 ```
 
 `messagesCount` controls how many recent memory messages are loaded. For a
@@ -202,23 +208,23 @@ Use `arn` for a memory outside the project:
 
 ```yaml
 memory:
-  mode: existing
-  arn: arn:aws:bedrock-agentcore:us-west-2:123456789012:memory/ConversationMemory-abc123
-  actorId: support-user
-  messagesCount: 20
+  agentCoreMemoryConfiguration:
+    arn: arn:aws:bedrock-agentcore:us-west-2:123456789012:memory/ConversationMemory-abc123
+    actorId: support-user
+    messagesCount: 20
 ```
 
 An explicit `actorId` scopes memory to that actor. Do not use a single fixed actor
 for unrelated users who should have separate memory. `retrievalConfig` is not
 supported with an ARN reference in this YAML format because the project cannot
 resolve that memory's strategy namespaces. Managed-memory settings such as
-`strategies` and `eventExpiryDuration` do not belong under `mode: existing`.
+`strategies` and `eventExpiryDuration` do not belong under `agentCoreMemoryConfiguration`.
 
 ### Disabled Memory
 
 ```yaml
 memory:
-  mode: disabled
+  disabled: {}
 ```
 
 Omitting `memory` from the file has the same effect. Enabled memory incurs
@@ -373,8 +379,9 @@ containing `SKILL.md`. Omit `path` if the skill is at the repository root:
 
 ```yaml
 skills:
-  - gitUrl: https://github.com/anthropics/skills.git
-    path: skills/docx
+  - git:
+      url: https://github.com/anthropics/skills.git
+      path: skills/docx
 ```
 
 For a private repository, store its access token in an AgentCore Identity API-key
@@ -384,11 +391,12 @@ from the [project credentials](../command.md#agentcore-add-credentials) declared
 
 ```yaml
 skills:
-  - gitUrl: https://github.com/example/private-skills.git
-    path: skills/support
-    auth:
-      credentialName: github-token
-      username: oauth2
+  - git:
+      url: https://github.com/example/private-skills.git
+      path: skills/support
+      auth:
+        credentialName: github-token
+        username: oauth2
 ```
 
 `credentialName` is the project's logical credential name, not the token value.
@@ -401,11 +409,12 @@ credential name and does not resolve that alternative.
 
 ### S3 Skills
 
-Use `s3Uri` to point to a skill directory in S3:
+Use `s3.uri` to point to a skill directory in S3:
 
 ```yaml
 skills:
-  - s3Uri: s3://your-skills-bucket/skills/company-style/
+  - s3:
+      uri: s3://your-skills-bucket/skills/company-style/
 ```
 
 That prefix should contain `SKILL.md` and any supporting files. The Harness
@@ -433,9 +442,8 @@ COPY skills/refund-policy /opt/skills/refund-policy
 The local `skills/refund-policy` directory must be in the Docker build context.
 Adding `path` to `harness.yaml` alone does not upload it.
 
-This is different from `gitUrl` plus `path`, where `path` is relative to the
-Git repository. A bare string in `skills` is shorthand for a filesystem `path`,
-so use the explicit `s3Uri` and `gitUrl` keys for remote sources.
+This is different from `git.url` plus `git.path`, where `path` is relative to the
+Git repository. Use explicit `path`, `s3`, or `git` source objects.
 
 ### Bundled AWS Skills
 
@@ -519,7 +527,8 @@ timeoutSeconds: 300
 `maxIterations` limits agent-loop iterations, `maxTokens` limits total output
 tokens, and `timeoutSeconds` limits invocation duration in seconds. Each is a
 positive integer. Omitting one sends no override, not a promise of unlimited
-execution. These limits are separate from `model.maxTokens` and session lifetime.
+execution. These limits are separate from `maxTokens` inside the selected model
+configuration and from session lifetime.
 See [Harness limits](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/harness-operations.html#harness-limits)
 for service defaults and quotas.
 
@@ -543,7 +552,7 @@ CloudFormation value limit of 2048 characters.
 
 ### Custom Containers
 
-Omit both `dockerfile` and `containerUri` to use the service-provided environment.
+Omit both `dockerfile` and `environmentArtifact` to use the service-provided environment.
 Set `dockerfile` to build a custom environment:
 
 ```yaml
@@ -557,7 +566,9 @@ harness directory as `Dockerfile`.
 Alternatively, reference a pre-built ECR image:
 
 ```yaml
-containerUri: 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-harness:latest
+environmentArtifact:
+  containerConfiguration:
+    containerUri: 123456789012.dkr.ecr.us-west-2.amazonaws.com/my-harness:latest
 ```
 
 Do not set both fields. Pre-built images must target `linux/arm64`. A custom
@@ -569,15 +580,21 @@ agent entrypoint. The Harness does not run the image's normal `ENTRYPOINT` or
 
 ### Network Access
 
-The generated file uses `networkMode: PUBLIC`. To use your VPC, set both
-`networkMode` and `networkConfig`:
+Omitting network settings uses PUBLIC mode. To use your VPC, set
+`environment.agentCoreRuntimeEnvironment.networkConfiguration`:
 
 ```yaml
-networkMode: VPC
 networkConfig:
   vpcId: vpc-0123456789abcdef0
-  subnets: [subnet-0123456789abcdef0]
-  securityGroups: [sg-0123456789abcdef0]
+environment:
+  agentCoreRuntimeEnvironment:
+    networkConfiguration:
+      networkMode: VPC
+      networkModeConfig:
+        subnets:
+          - subnet-0123456789abcdef0
+        securityGroups:
+          - sg-0123456789abcdef0
 ```
 
 `subnets` and `securityGroups` are required in VPC mode. `vpcId` is additionally
@@ -586,22 +603,22 @@ The build infrastructure must be able to reach its dependencies, and the running
 environment must be able to reach models, tool endpoints, and skill sources.
 Private Git repositories and other public endpoints require suitable egress.
 
-Remove `networkConfig` when switching back to `PUBLIC`. Container builds in VPC
+Remove `networkModeConfig` and the project-only `networkConfig` when switching back to `PUBLIC`. Container builds in VPC
 mode allow at most five security groups. Other configurations accept up to 16.
 VPC container builds within a project share build infrastructure and must use
 the same VPC.
 
 ### Caller Authentication
 
-`authorizerType` controls who can invoke the Harness. The generated file uses
-`AWS_IAM`. For JWT authentication, configure both fields:
+Omitting `authorizerConfiguration` uses AWS IAM caller authorization.
+For JWT authentication, supply:
 
 ```yaml
-authorizerType: CUSTOM_JWT
 authorizerConfiguration:
-  customJwtAuthorizer:
+  customJWTAuthorizer:
     discoveryUrl: https://id.example.com/.well-known/openid-configuration
-    allowedAudience: [my-harness-app]
+    allowedAudience:
+      - my-harness-app
 ```
 
 The discovery URL must use HTTPS and end in
@@ -631,13 +648,15 @@ does not bypass IAM permissions or network restrictions.
 
 ## Session Lifetime and Storage
 
-`lifecycleConfig` controls the lifetime of the underlying Runtime session, not
+`environment.agentCoreRuntimeEnvironment.lifecycleConfiguration` controls the lifetime of the underlying Runtime session, not
 the duration of a single invocation:
 
 ```yaml
-lifecycleConfig:
-  idleRuntimeSessionTimeout: 900
-  maxLifetime: 28800
+environment:
+  agentCoreRuntimeEnvironment:
+    lifecycleConfiguration:
+      idleRuntimeSessionTimeout: 900
+      maxLifetime: 28800
 ```
 
 Both values are seconds, from 60 to 28800. `idleRuntimeSessionTimeout` cannot
@@ -647,22 +666,32 @@ Session storage preserves files across stop/resume cycles for the same session
 ID and does not require VPC mode:
 
 ```yaml
-sessionStoragePath: /mnt/session
+environment:
+  agentCoreRuntimeEnvironment:
+    filesystemConfigurations:
+      - sessionStorage:
+          mountPath: /mnt/session
 ```
 
 EFS and S3 Files mounts use existing access points and require VPC mode:
 
 ```yaml
-networkMode: VPC
-networkConfig:
-  subnets: [subnet-0123456789abcdef0]
-  securityGroups: [sg-0123456789abcdef0]
-efsAccessPoints:
-  - accessPointArn: arn:aws:elasticfilesystem:us-west-2:123456789012:access-point/fsap-0123456789abcdef0
-    mountPath: /mnt/shared
-s3AccessPoints:
-  - accessPointArn: arn:aws:s3files:us-west-2:123456789012:file-system/fs-0123456789abcdef0/access-point/fsap-0123456789abcdef0
-    mountPath: /mnt/data
+environment:
+  agentCoreRuntimeEnvironment:
+    networkConfiguration:
+      networkMode: VPC
+      networkModeConfig:
+        subnets:
+          - subnet-0123456789abcdef0
+        securityGroups:
+          - sg-0123456789abcdef0
+    filesystemConfigurations:
+      - efsAccessPoint:
+          accessPointArn: arn:aws:elasticfilesystem:us-west-2:123456789012:access-point/fsap-0123456789abcdef0
+          mountPath: /mnt/shared
+      - s3FilesAccessPoint:
+          accessPointArn: arn:aws:s3files:us-west-2:123456789012:file-system/fs-0123456789abcdef0/access-point/fsap-0123456789abcdef0
+          mountPath: /mnt/data
 ```
 
 The file supports at most two EFS and two S3 Files mounts. Each mount path must
@@ -688,10 +717,8 @@ must stay within the 50-tag limit.
 ## Validation
 
 Malformed YAML, duplicate keys, and schema violations fail the read.
-Unknown fields at the harness root and directly inside `model` are stripped
-from the parsed configuration. Nested configurations use their own validation
-schemas, so an unknown field may instead be rejected there. A typo at the root
-can therefore be silently ignored. Use the names and nesting shown in this guide.
+Unknown root fields and model variants are rejected. Nested configurations use
+their existing validation rules. Use the names and nesting shown in this guide.
 
 Free-form maps such as headers and tool input schemas accept user-defined keys.
 Tags and environment variables have their own key and value constraints.

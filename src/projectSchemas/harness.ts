@@ -602,6 +602,183 @@ export const HarnessSpecSchema = z
     }
   });
 export type HarnessSpec = z.infer<typeof HarnessSpecSchema>;
+
+const { provider: _provider, ...modelConfigFields } = HarnessModelSchema.shape;
+const modelConfigSchema = z.object(modelConfigFields).strict();
+const { mode: _managedMode, ...managedMemoryFields } = ManagedMemoryRefSchema.shape;
+const { mode: _existingMode, ...existingMemoryFields } = ExistingMemoryRefSchema.shape;
+const {
+  networkMode,
+  networkConfig,
+  lifecycleConfig,
+  sessionStoragePath,
+  efsAccessPoints,
+  s3AccessPoints,
+  containerUri,
+  authorizerType: _authorizerType,
+  authorizerConfiguration,
+  ...yamlFields
+} = HarnessSpecSchema.shape;
+
+/** The on-disk format only; CLI options and construct inputs keep their existing shape. */
+export const HarnessYamlSchema = z
+  .object({
+    ...yamlFields,
+    model: z.union([
+      z
+        .object({ bedrockModelConfig: modelConfigSchema })
+        .strict()
+        .transform(({ bedrockModelConfig }) => ({ provider: "bedrock", ...bedrockModelConfig })),
+      z
+        .object({ openAiModelConfig: modelConfigSchema })
+        .strict()
+        .transform(({ openAiModelConfig }) => ({ provider: "open_ai", ...openAiModelConfig })),
+      z
+        .object({ geminiModelConfig: modelConfigSchema })
+        .strict()
+        .transform(({ geminiModelConfig }) => ({ provider: "gemini", ...geminiModelConfig })),
+      z
+        .object({ liteLlmModelConfig: modelConfigSchema })
+        .strict()
+        .transform(({ liteLlmModelConfig }) => ({ provider: "lite_llm", ...liteLlmModelConfig })),
+    ]),
+    memory: z
+      .union([
+        z
+          .object({ managedMemoryConfiguration: z.object(managedMemoryFields).strict() })
+          .strict()
+          .transform(({ managedMemoryConfiguration }) => ({
+            mode: "managed",
+            ...managedMemoryConfiguration,
+          })),
+        z
+          .object({ agentCoreMemoryConfiguration: z.object(existingMemoryFields).strict() })
+          .strict()
+          .transform(({ agentCoreMemoryConfiguration }) => ({
+            mode: "existing",
+            ...agentCoreMemoryConfiguration,
+          })),
+        z
+          .object({ disabled: z.object({}).strict() })
+          .strict()
+          .transform(() => ({ mode: "disabled" })),
+      ])
+      .optional(),
+    systemPrompt: z
+      .array(z.object({ text: z.string() }).strict())
+      .length(1)
+      .transform(([block]) => block!.text)
+      .optional(),
+    skills: z
+      .array(
+        z.union([
+          HarnessSkillPathSourceSchema,
+          HarnessSkillAwsSkillsSourceSchema,
+          z
+            .object({ s3: z.object({ uri: HarnessSkillS3SourceSchema.shape.s3Uri }).strict() })
+            .strict()
+            .transform(({ s3 }) => ({ s3Uri: s3.uri })),
+          z
+            .object({
+              git: z
+                .object({
+                  url: HarnessSkillGitSourceSchema.shape.gitUrl,
+                  path: HarnessSkillGitSourceSchema.shape.path,
+                  auth: HarnessSkillGitSourceSchema.shape.auth,
+                })
+                .strict(),
+            })
+            .strict()
+            .transform(({ git: { url, ...git } }) => ({ gitUrl: url, ...git })),
+        ]),
+      )
+      .optional(),
+    environmentArtifact: z
+      .object({
+        containerConfiguration: z.object({ containerUri: containerUri.unwrap() }).strict(),
+      })
+      .strict()
+      .optional(),
+    environment: z
+      .object({
+        agentCoreRuntimeEnvironment: z
+          .object({
+            networkConfiguration: z
+              .object({
+                networkMode: networkMode.unwrap(),
+                networkModeConfig: networkConfig.unwrap().omit({ vpcId: true }).strict().optional(),
+              })
+              .strict()
+              .optional(),
+            lifecycleConfiguration: lifecycleConfig,
+            filesystemConfigurations: z
+              .array(
+                z.union([
+                  z
+                    .object({
+                      sessionStorage: z.object({ mountPath: sessionStoragePath.unwrap() }).strict(),
+                    })
+                    .strict(),
+                  z.object({ efsAccessPoint: efsAccessPoints.unwrap().element }).strict(),
+                  z.object({ s3FilesAccessPoint: s3AccessPoints.unwrap().element }).strict(),
+                ]),
+              )
+              .refine(
+                (mounts) => mounts.filter((mount) => "sessionStorage" in mount).length <= 1,
+                "Only one sessionStorage mount is allowed",
+              )
+              .optional(),
+          })
+          .strict(),
+      })
+      .strict()
+      .optional(),
+    networkConfig: networkConfig.unwrap().pick({ vpcId: true }).required().strict().optional(),
+    authorizerConfiguration: z
+      .object({
+        customJWTAuthorizer: authorizerConfiguration.unwrap().shape.customJwtAuthorizer.unwrap(),
+      })
+      .strict()
+      .optional(),
+  })
+  .strict()
+  .transform(
+    ({
+      environment,
+      environmentArtifact,
+      authorizerConfiguration,
+      networkConfig,
+      ...spec
+    }): unknown => {
+      const runtime = environment?.agentCoreRuntimeEnvironment;
+      const network = runtime?.networkConfiguration;
+      const mounts = runtime?.filesystemConfigurations;
+      return {
+        ...spec,
+        containerUri: environmentArtifact?.containerConfiguration.containerUri,
+        networkMode: network?.networkMode ?? "PUBLIC",
+        networkConfig:
+          network?.networkModeConfig || networkConfig
+            ? { ...network?.networkModeConfig, ...networkConfig }
+            : undefined,
+        lifecycleConfig: runtime?.lifecycleConfiguration,
+        sessionStoragePath: mounts?.find((mount) => "sessionStorage" in mount)?.sessionStorage
+          .mountPath,
+        efsAccessPoints: mounts?.flatMap((mount) =>
+          "efsAccessPoint" in mount ? [mount.efsAccessPoint] : [],
+        ),
+        s3AccessPoints: mounts?.flatMap((mount) =>
+          "s3FilesAccessPoint" in mount ? [mount.s3FilesAccessPoint] : [],
+        ),
+        authorizerType: authorizerConfiguration ? "CUSTOM_JWT" : "AWS_IAM",
+        authorizerConfiguration: authorizerConfiguration
+          ? { customJwtAuthorizer: authorizerConfiguration.customJWTAuthorizer }
+          : undefined,
+      };
+    },
+  )
+  .pipe(HarnessSpecSchema);
+
 export const HarnessRegistryEntrySchema = z.object({
   name: HarnessNameSchema,
   path: z.string().min(1, "Path to harness config directory is required"),

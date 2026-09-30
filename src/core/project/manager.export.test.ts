@@ -336,7 +336,7 @@ describe("FsProjectManager.exportHarness side effects", () => {
         source === "file" ? prompt : "Conventional prompt loses.",
       );
       if (source === "file") delete config.systemPrompt;
-      else config.systemPrompt = prompt;
+      else config.systemPrompt = [{ text: prompt }];
       config.truncation = {
         strategy: "summarization",
         config: { summarization: { summarizationSystemPrompt: "  Keep the decisions.\n" } },
@@ -358,7 +358,7 @@ describe("FsProjectManager.exportHarness side effects", () => {
     const configPath = join(project.rootPath, "app", "assistant", "harness.yaml");
     await Bun.write(
       configPath,
-      "name: assistant\nmodel: {provider: bedrock, modelId: example}\nmaxIterations: 0\n",
+      "name: assistant\nmodel: {bedrockModelConfig: {modelId: example}}\nmaxIterations: 0\n",
     );
     await expect(drain(subject.exportHarness(project, exportInput()))).rejects.toThrow(
       /Invalid harness.yaml.*maxIterations/s,
