@@ -9,6 +9,7 @@ import type { ScreenProps } from "./types";
 import { LoadingFrame, useProjectDetected } from "./project/ProjectGate";
 
 const NO_PROJECT_HINTS = { create: `${glyphs.leftArrow} start here` };
+const ROOT_CLI_SECTION_COMMANDS = ["update"];
 const NO_PROJECT_ALERT = "No project detected - create a new project to get started";
 const PROJECT_HIDDEN_OPTIONS = ["create"];
 const PROJECT_REQUIRED_OPTIONS = [
@@ -50,6 +51,7 @@ export function RootScreen({ inProject, ...props }: RootScreenProps) {
       banner={<BrandBanner />}
       path={["agentcore"]}
       optionHints={projectDetected.data ? undefined : NO_PROJECT_HINTS}
+      cliSectionCommands={ROOT_CLI_SECTION_COMMANDS}
       optionNotices={
         updateState.updateAvailable
           ? { update: `· update to install ${updateState.latestVersion}` }

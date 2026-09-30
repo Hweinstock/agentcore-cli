@@ -88,6 +88,9 @@ export interface RouterScreenProps extends ScreenProps {
   optionHints?: Readonly<Record<string, string>>;
   // optionNotices adds warning-colored guidance alongside selected menu options.
   optionNotices?: Readonly<Record<string, string>>;
+  // cliSectionCommands lists commands with screens that should appear in the
+  // command-line-only section.
+  cliSectionCommands?: readonly string[];
   // alert is optional guidance rendered between the filter and menu options.
   alert?: string;
   hiddenOptions?: readonly string[];
@@ -114,6 +117,7 @@ function CommandMenu({
   tuiOnlyCommands = [],
   optionHints,
   optionNotices,
+  cliSectionCommands = [],
   alert,
   hiddenOptions,
   command,
@@ -143,7 +147,7 @@ function CommandMenu({
         .findLast((title) => title !== undefined);
     const actual: Option[] = command.commands.map((c, index) => {
       const cliOnly = !isTuiCommandSupported(c) && !isListedInMenu(c);
-      const belongsToCliSection = cliOnly || (path.length === 1 && c.name() === "update");
+      const belongsToCliSection = cliOnly || cliSectionCommands.includes(c.name());
       return {
         name: c.name(),
         description: c.description(),
@@ -162,7 +166,7 @@ function CommandMenu({
       ...actual.filter((option) => option.section !== CLI_ONLY_SECTION),
       ...actual.filter((option) => option.section === CLI_ONLY_SECTION),
     ].filter((option) => !hiddenOptions?.includes(option.name));
-  }, [command, hiddenOptions, optionHints, optionNotices, path.length, tuiOnlyCommands]);
+  }, [cliSectionCommands, command, hiddenOptions, optionHints, optionNotices, tuiOnlyCommands]);
 
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
