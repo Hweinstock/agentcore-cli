@@ -173,6 +173,24 @@ describe("menu rendering", () => {
   });
 });
 
+describe("narrow terminals", () => {
+  test("a description too long for the row leaves every command name in the same column", async () => {
+    const r = renderScreen("/agentcore/add");
+    await waitForText(r.lastFrame, "❯ ");
+    await r.resize(60);
+
+    await waitForText(r.lastFrame, "── cli");
+    const lines = r.lastFrame()!.split("\n");
+    const nameColumns = lines
+      .map((line) => /^\s{1,3}(?:❯ )?\s*[a-z][a-z0-9-]*\s{2,}\S/.exec(line)?.[0])
+      .filter((row) => row !== undefined)
+      .map((row) => row.replace("❯", " ").search(/[a-z]/));
+    expect(nameColumns.length).toBeGreaterThan(1);
+    expect(new Set(nameColumns).size).toBe(1);
+    r.unmount();
+  });
+});
+
 describe("filtering", () => {
   test("typing narrows the options to matches", async () => {
     const r = renderScreen("/agentcore/harness");

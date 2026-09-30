@@ -314,21 +314,24 @@ function CommandMenuBody({
                 overflow="hidden"
                 flexShrink={0}
               >
-                <Text color={theme.colors.focus}>
-                  {isHighlighted ? `${glyphs.pointer} ` : "  "}
-                </Text>
-                <Text
-                  bold={isHighlighted}
-                  color={
-                    isHighlighted
-                      ? theme.colors.focus
-                      : option.cliOnly
-                        ? theme.colors.muted
-                        : theme.colors.text
-                  }
-                >
-                  {option.name.padEnd(nameWidth)}
-                </Text>
+                {/** A description too long for the row is cut and leaves the name in line. **/}
+                <Box flexShrink={0}>
+                  <Text color={theme.colors.focus}>
+                    {isHighlighted ? `${glyphs.pointer} ` : "  "}
+                  </Text>
+                  <Text
+                    bold={isHighlighted}
+                    color={
+                      isHighlighted
+                        ? theme.colors.focus
+                        : option.cliOnly
+                          ? theme.colors.muted
+                          : theme.colors.text
+                    }
+                  >
+                    {option.name.padEnd(nameWidth)}
+                  </Text>
+                </Box>
                 <Text color={theme.colors.muted}>{option.description}</Text>
               </Box>
             );
