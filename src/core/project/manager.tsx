@@ -72,8 +72,10 @@ import {
   MalformedServiceResponseError,
   NotImplementedError,
   ProjectStateError,
+  RegionUnsupportedFeatureError,
   ResourceNotFoundError,
 } from "../../errors/errors";
+import { isChinaRegion } from "../partition";
 import z from "zod";
 import { CdkBackend, type TransactionSearchEnabler } from "./backends/cdk";
 import { resolveAwsAccount } from "./backends/cdk/environment";
@@ -95,6 +97,94 @@ const TARGETS_EXAMPLE = '[{ "name": "default", "account": "111122223333", "regio
 
 const NODE_INSTALL_HINT = "Install Node.js: https://nodejs.org/";
 const UV_INSTALL_HINT = "Install uv: https://docs.astral.sh/uv/getting-started/installation/";
+
+/**
+ * Shown when a runtime template hardwired to an unreachable model provider
+ * targets a China (aws-cn) region. Amazon Bedrock, Anthropic, OpenAI, and
+ * Gemini cannot be called from China regions; LiteLLM can route to a reachable provider.
+ */
+export const MODEL_PROVIDER_RUNTIMES_CN_MESSAGE =
+  "This template's model provider is not accessible from China regions (cn-north-1, " +
+  "cn-northwest-1): Amazon Bedrock, " +
+  "Anthropic, OpenAI, and Gemini cannot be used there. Either scaffold a provider-free runtime " +
+  "(--template agent-python-minimal or mcp-python-fastmcp) and bring your own model connectivity, " +
+  "or use --template agent-python-strands --model-provider litellm --model-id <model reachable " +
+  "from China>.";
+
+/**
+ * Shown when a harness is created in or deployed to a China (aws-cn) region.
+ * Harnesses are not part of the China launch: their model providers and IAM
+ * role generation are not partition-aware there.
+ */
+export const HARNESS_CN_MESSAGE =
+  "Harness projects are not available in China regions (cn-north-1, cn-northwest-1). " +
+  "Scaffold a runtime project " +
+  "instead (e.g. --template agent-python-minimal) or start from --template empty.";
+
+/**
+ * The resource families whose CloudFormation types ARE registered in the
+ * China regions (verified against cn-north-1's public registry): Runtime,
+ * RuntimeEndpoint, Gateway (+Target/+RateLimit), and Identity credentials.
+ * Declared as an allowlist so any family added later defaults to blocked in
+ * China until its availability there is confirmed.
+ */
+const CN_SUPPORTED_RESOURCE_TYPES = new Set<AddResourceInput["resourceType"]>([
+  "runtime",
+  "runtime-endpoint",
+  "credential",
+  "gateway",
+  "gateway-target",
+]);
+
+/**
+ * The project spec collections deployable to a China region — the spec-file
+ * counterpart of {@link CN_SUPPORTED_RESOURCE_TYPES} (toolRuntimes render as
+ * Runtime resources). Any other non-empty array collection in the spec,
+ * including ones added in the future, blocks a China deploy.
+ */
+const CN_SUPPORTED_SPEC_COLLECTIONS = new Set([
+  "runtimes",
+  "credentials",
+  "agentCoreGateways",
+  "toolRuntimes",
+]);
+
+/** Shown when an `add` targets a resource family that is unavailable in China regions. */
+export function cnUnsupportedResourceMessage(resourceType: string): string {
+  return (
+    `'${resourceType}' resources are not available in China regions (cn-north-1, ` +
+    `cn-northwest-1), and this project has a China deployment target.`
+  );
+}
+
+/**
+ * Shown when the default memory is dropped from a China scaffold. The rendered
+ * code keeps the memory module (it degrades to no memory while its env var is
+ * absent), so a memory can be added without code changes once available.
+ */
+export const MEMORY_STRIPPED_CN_MESSAGE =
+  "AgentCore Memory is not available in China regions (cn-north-1, cn-northwest-1); " +
+  "scaffolding without the default memory";
+
+/**
+ * Shown when a LiteLLM runtime template targets a China (aws-cn) region without
+ * an explicit model id: the LiteLLM default routes to Amazon Bedrock, which is
+ * not available there.
+ */
+export const LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE =
+  "--model-provider litellm requires --model-id in China regions (cn-north-1, " +
+  "cn-northwest-1): the default model id " +
+  "routes to Amazon Bedrock, which is not available there. Pass a LiteLLM model id for a " +
+  "provider reachable from China (see https://docs.litellm.ai/docs/providers).";
+
+/**
+ * Shown when a LiteLLM runtime explicitly targets LiteLLM's Bedrock route
+ * (the 'bedrock/' model id prefix) in a China (aws-cn) region.
+ */
+export const LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE =
+  "the 'bedrock/' LiteLLM model id prefix routes to Amazon Bedrock, which is not available " +
+  "in China regions (cn-north-1, cn-northwest-1). Pass a LiteLLM model id for a provider " +
+  "reachable from China (see https://docs.litellm.ai/docs/providers).";
 const GIT_INSTALL_HINT = "Install git: https://git-scm.com/downloads";
 
 // npm prints nothing until it exits when stderr is piped, and its HTTP log is the only per-package
@@ -344,6 +434,42 @@ export class FsProjectManager implements ProjectManager {
 
     const scaffoldedPaths: string[] = [];
     let envFile: EnvLocalFile | undefined;
+
+    // A project with a China (aws-cn) deployment target can only add the
+    // resource families whose CloudFormation types exist there (Runtime,
+    // Gateway, credential). Runtimes additionally gate on the model provider
+    // — Bedrock/Anthropic/OpenAI/Gemini are unreachable, LiteLLM needs an
+    // explicit model id (its default routes to Bedrock) — and the default
+    // memory is dropped from the scaffold (see MEMORY_STRIPPED_CN_MESSAGE);
+    // provider-free scaffolds (framework "none": minimal, MCP) stay available
+    // as the bring-your-own-implementation path.
+    if ((await this.listTargets(project)).some((target) => isChinaRegion(target.region))) {
+      if (input.resourceType === "harness") {
+        throw new RegionUnsupportedFeatureError(HARNESS_CN_MESSAGE);
+      }
+      if (!CN_SUPPORTED_RESOURCE_TYPES.has(input.resourceType)) {
+        throw new RegionUnsupportedFeatureError(cnUnsupportedResourceMessage(input.resourceType));
+      }
+      if (input.resourceType === "runtime") {
+        const { framework, modelProvider, modelId, memory } =
+          input.resourceConfig.scaffoldRuntimeInput;
+        if (framework !== "none") {
+          if ((modelProvider ?? "Bedrock") !== "LiteLLM") {
+            throw new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE);
+          }
+          if (modelId === undefined) {
+            throw new RegionUnsupportedFeatureError(LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE);
+          }
+          if (modelId.startsWith("bedrock/")) {
+            throw new RegionUnsupportedFeatureError(LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE);
+          }
+        }
+        if (memory !== undefined) {
+          input.resourceConfig.scaffoldRuntimeInput.memory = undefined;
+          yield { type: "step", message: MEMORY_STRIPPED_CN_MESSAGE };
+        }
+      }
+    }
 
     switch (input.resourceType) {
       case "harness": {
@@ -1010,6 +1136,76 @@ export class FsProjectManager implements ProjectManager {
         `Project '${project.name}' has no deployment target named '${input.target}'. ` +
           `${targetsPath} defines: ${targets.map(({ name }) => name).join(", ")}.`,
       );
+    }
+
+    // China (aws-cn) targets cannot run runtimes whose scaffolded code is
+    // wired to Bedrock/Anthropic/OpenAI/Gemini (unreachable there), nor
+    // harnesses (not part of the China launch). Runtimes without a persisted
+    // modelProvider (BYO, provider-free, hand-edited, or scaffolded by an
+    // older CLI) cannot be classified and only get an informational note.
+    if (isChinaRegion(target.region)) {
+      const blocked = project.spec.runtimes.filter(
+        (runtime) =>
+          runtime.modelProvider !== undefined &&
+          (runtime.modelProvider !== "LiteLLM" ||
+            // LiteLLM's 'bedrock/' model id prefix routes to Amazon Bedrock —
+            // the default when a runtime was scaffolded without --model-id.
+            runtime.modelId?.startsWith("bedrock/")),
+      );
+      if (blocked.length > 0) {
+        throw new RegionUnsupportedFeatureError(
+          `Cannot deploy to China region ${target.region}: ` +
+            blocked
+              .map(
+                (runtime) =>
+                  `runtime '${runtime.name}' (${runtime.modelProvider}${
+                    runtime.modelProvider === "LiteLLM" ? ` → ${runtime.modelId}` : ""
+                  })`,
+              )
+              .join(", ") +
+            ` scaffolded with a model provider that is not accessible from China regions. ` +
+            `Re-scaffold with '--model-provider litellm --model-id <model reachable from China>' ` +
+            `or bring your own model connectivity. If you have already replaced a runtime's ` +
+            `model wiring in code, delete its 'modelProvider' field from agentcore.json.`,
+        );
+      }
+      if (project.spec.harnesses.length > 0) {
+        throw new RegionUnsupportedFeatureError(HARNESS_CN_MESSAGE);
+      }
+      // Any non-empty spec collection outside the China allowlist fails here
+      // with a clear message instead of CloudFormation's opaque "Unrecognized
+      // resource types" — including collections added to the spec in the
+      // future, which default to blocked until confirmed available there.
+      const present = Object.entries(project.spec).filter(
+        ([key, value]) =>
+          Array.isArray(value) && value.length > 0 && !CN_SUPPORTED_SPEC_COLLECTIONS.has(key),
+      );
+      if (present.length > 0) {
+        throw new RegionUnsupportedFeatureError(
+          `Cannot deploy to China region ${target.region}: ` +
+            present.map(([name]) => `'${name}'`).join(", ") +
+            ` in agentcore.json ${present.length === 1 ? "is" : "are"} not available in China ` +
+            `regions (cn-north-1, cn-northwest-1). Remove ${
+              present.length === 1 ? "this entry" : "these entries"
+            } before deploying to a China target.`,
+        );
+      }
+      const unclassified = project.spec.runtimes.filter(
+        (runtime) =>
+          runtime.modelProvider === undefined ||
+          // A LiteLLM runtime without a persisted model id (older CLI or
+          // hand-edited spec) cannot be classified by routing.
+          (runtime.modelProvider === "LiteLLM" && runtime.modelId === undefined),
+      );
+      if (unclassified.length > 0) {
+        yield {
+          type: "step",
+          message:
+            `Note: cannot verify the model provider of ` +
+            unclassified.map((runtime) => `'${runtime.name}'`).join(", ") +
+            `; Bedrock, Anthropic, OpenAI, and Gemini connectivity does not work in China regions.`,
+        };
+      }
     }
 
     return yield* this.backendFor(project).deploy(project, {

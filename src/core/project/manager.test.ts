@@ -1,20 +1,31 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import {
   DeserializationError,
   InputValidationError,
   ProjectStateError,
+  RegionUnsupportedFeatureError,
   ResourceNotFoundError,
 } from "../../errors/errors";
 import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
 import { credentialEnvVarName } from "../../projectSchemas/credential";
 import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { ENV_LOCAL_RELATIVE_PATH } from "./envLocal";
-import { FsProjectManager } from "./manager";
-import { resolveRuntimeTemplateShortcut } from "../../handlers/project/shortcuts";
+import {
+  cnUnsupportedResourceMessage,
+  FsProjectManager,
+  LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE,
+  LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE,
+  MEMORY_STRIPPED_CN_MESSAGE,
+  MODEL_PROVIDER_RUNTIMES_CN_MESSAGE,
+} from "./manager";
+import {
+  getDefaultMemorySpec,
+  resolveRuntimeTemplateShortcut,
+} from "../../handlers/project/shortcuts";
 import {
   type AddResourceInput,
   type CreateProjectInput,
@@ -531,6 +542,363 @@ describe("FsProjectManager.addResource", () => {
       expect(await Bun.file(specPath).text()).toBe(specBefore);
     },
   );
+
+  // Model-provider templates are gated in the aws-cn partition: none of the
+  // template model providers are reachable there, so the add must fail before
+  // any scaffolding. Provider-free templates and commercial-only targets pass.
+  describe("China (aws-cn) deployment targets", () => {
+    const MCP_PYTHON_FASTMCP = resolveRuntimeTemplateShortcut("mcp-python-fastmcp");
+
+    async function projectWithTarget(region: string, missingToolAfterCreate?: string) {
+      const checkedTools: string[] = [];
+      let missingTool: string | undefined;
+      const subject = new FsProjectManager({
+        logger: createSilentLogger(),
+        identity: new TestIdentityClient(),
+        enableTransactionSearch: async () => {},
+        runner: async () => {},
+        checkTool: async (candidate: string) => {
+          checkedTools.push(candidate);
+          if (candidate === missingTool) throw new Error(`${candidate} is missing`);
+        },
+      });
+      const { project } = await runCreate(subject, {
+        name: "example",
+        scaffoldRuntimeInput: AGENT_PYTHON,
+        skipInstall: true,
+        skipGit: true,
+      });
+      await writeFile(
+        join(project.rootPath, "agentcore", "aws-targets.json"),
+        JSON.stringify([{ name: "primary", account: "111122223333", region }]),
+      );
+      missingTool = missingToolAfterCreate;
+      checkedTools.length = 0;
+      return { subject, project, checkedTools };
+    }
+
+    test("rejects a model-provider template before scaffolding", async () => {
+      await inTempDirectory();
+      const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
+      const runtimePath = join(project.rootPath, "app", "cn_blocked");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_blocked",
+            scaffoldRuntimeInput: { ...AGENT_PYTHON_STRANDS, runtimeName: "cn_blocked" },
+          },
+        }),
+      ).rejects.toThrow(new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE));
+
+      expect(checkedTools).toEqual([]);
+      expect(existsSync(runtimePath)).toBe(false);
+    });
+
+    test("lets a provider-free template past the partition gate", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1", "uv");
+
+      // The gate does not fire; the add proceeds to dependency checks.
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_allowed",
+            scaffoldRuntimeInput: { ...MCP_PYTHON_FASTMCP, runtimeName: "cn_allowed" },
+          },
+        }),
+      ).rejects.toThrow("uv is missing");
+    });
+
+    test("lets the minimal skeleton past the partition gate despite its nominal provider", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1", "uv");
+
+      // agent-python-minimal carries modelProvider Bedrock in its shortcut but
+      // renders no model code (framework "none") — it is the BYO vehicle in CN.
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_minimal",
+            scaffoldRuntimeInput: { ...AGENT_PYTHON, runtimeName: "cn_minimal" },
+          },
+        }),
+      ).rejects.toThrow("uv is missing");
+    });
+
+    test("requires an explicit model id for LiteLLM", async () => {
+      await inTempDirectory();
+      const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
+      const runtimePath = join(project.rootPath, "app", "cn_litellm");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_litellm",
+            scaffoldRuntimeInput: {
+              ...AGENT_PYTHON_STRANDS,
+              runtimeName: "cn_litellm",
+              modelProvider: "LiteLLM",
+            },
+          },
+        }),
+      ).rejects.toThrow(new RegionUnsupportedFeatureError(LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE));
+
+      expect(checkedTools).toEqual([]);
+      expect(existsSync(runtimePath)).toBe(false);
+    });
+
+    test("rejects a LiteLLM model id routing to Bedrock on a China target", async () => {
+      await inTempDirectory();
+      const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_litellm",
+            scaffoldRuntimeInput: {
+              ...AGENT_PYTHON_STRANDS,
+              runtimeName: "cn_litellm",
+              modelProvider: "LiteLLM",
+              modelId: "bedrock/us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+            },
+          },
+        }),
+      ).rejects.toThrow(new RegionUnsupportedFeatureError(LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE));
+
+      expect(checkedTools).toEqual([]);
+    });
+
+    test("lets LiteLLM with an explicit model id past the partition gate", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1", "uv");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_litellm_ok",
+            scaffoldRuntimeInput: {
+              ...AGENT_PYTHON_STRANDS,
+              runtimeName: "cn_litellm_ok",
+              modelProvider: "LiteLLM",
+              modelId: "openai/my-cn-reachable-model",
+            },
+          },
+        }),
+      ).rejects.toThrow("uv is missing");
+    });
+
+    async function editSpec(
+      project: Project,
+      edit: (spec: {
+        runtimes: { name: string; modelProvider?: string; modelId?: string }[];
+        harnesses: unknown[];
+        memories?: unknown[];
+      }) => void,
+    ) {
+      const specPath = join(project.rootPath, "agentcore", "agentcore.json");
+      const spec = JSON.parse(await readFile(specPath, "utf8"));
+      edit(spec);
+      await writeFile(specPath, JSON.stringify(spec, null, 2));
+    }
+
+    async function deployOutcome(subject: FsProjectManager, project: Project) {
+      // Re-resolve so the deploy sees the spec as edited on disk.
+      const fresh = (await subject.resolve({ filePath: project.rootPath }))!;
+      const steps: string[] = [];
+      try {
+        const generator = subject.deploy(fresh, {
+          target: "primary",
+          region: "us-east-1",
+          confirmTeardown: async () => false,
+        });
+        for await (const event of generator) {
+          if (event.type === "step") steps.push(event.message);
+        }
+        return { steps, error: undefined };
+      } catch (error) {
+        return { steps, error };
+      }
+    }
+
+    test("deploy to a China target hard-fails on a persisted commercial model provider", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "Bedrock";
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("Cannot deploy to China region cn-north-1");
+      expect(String(error)).toContain("'agent_python_minimal'");
+    });
+
+    test("deploy to a China target proceeds past the gate for LiteLLM", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "LiteLLM";
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).not.toBeInstanceOf(RegionUnsupportedFeatureError);
+    });
+
+    test("deploy to a China target hard-fails a LiteLLM runtime routing to Bedrock", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "LiteLLM";
+        spec.runtimes[0]!.modelId = "bedrock/us.anthropic.claude-sonnet-4-5-20250514-v1:0";
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("LiteLLM → bedrock/");
+    });
+
+    test("deploy to a China target passes a LiteLLM runtime with a non-Bedrock model id", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "LiteLLM";
+        spec.runtimes[0]!.modelId = "deepseek/deepseek-chat";
+      });
+
+      const { steps, error } = await deployOutcome(subject, project);
+      expect(error).not.toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(steps.join("\n")).not.toContain("cannot verify the model provider");
+    });
+
+    test("deploy to a China target notes a LiteLLM runtime without a persisted model id", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "LiteLLM";
+      });
+
+      const { steps, error } = await deployOutcome(subject, project);
+      expect(error).not.toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(steps.join("\n")).toContain("cannot verify the model provider");
+    });
+
+    test("deploy to a China target notes unclassifiable runtimes and proceeds", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+
+      const { steps, error } = await deployOutcome(subject, project);
+      expect(steps.join("\n")).toContain(
+        "cannot verify the model provider of 'agent_python_minimal'",
+      );
+      expect(error).not.toBeInstanceOf(RegionUnsupportedFeatureError);
+    });
+
+    test("deploy to a China target rejects harness projects", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.harnesses = [{ name: "example_harness", path: "harness/example" }];
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("Harness projects are not available in China regions");
+    });
+
+    test("deploy to a commercial target skips the China gate entirely", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("us-west-2");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "Bedrock";
+      });
+
+      const { steps, error } = await deployOutcome(subject, project);
+      expect(error).not.toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(steps.join("\n")).not.toContain("cannot verify");
+    });
+
+    test("strips the default memory from a China runtime scaffold", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1", "uv");
+
+      const steps: string[] = [];
+      const iterator = subject.addResource(project, {
+        resourceType: "runtime",
+        resourceConfig: {
+          name: "cn_mem",
+          scaffoldRuntimeInput: {
+            ...AGENT_PYTHON_STRANDS,
+            runtimeName: "cn_mem",
+            modelProvider: "LiteLLM",
+            modelId: "deepseek/deepseek-chat",
+          },
+        },
+      });
+      const error = await (async () => {
+        try {
+          for (;;) {
+            const next = await iterator.next();
+            if (next.done) return undefined;
+            if (next.value.type === "step") steps.push(next.value.message);
+          }
+        } catch (e) {
+          return e;
+        }
+      })();
+
+      // The memory is stripped with a note before the scaffold proceeds to
+      // dependency checks (which fail in this environment).
+      expect(steps.join("\n")).toContain(MEMORY_STRIPPED_CN_MESSAGE);
+      expect(String(error)).toContain("uv is missing");
+    });
+
+    test("rejects adding a memory on a China target", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "memory",
+          resourceConfig: getDefaultMemorySpec("cn_mem"),
+        }),
+      ).rejects.toThrow(new RegionUnsupportedFeatureError(cnUnsupportedResourceMessage("memory")));
+    });
+
+    test("deploy to a China target rejects unsupported spec collections", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.memories = [getDefaultMemorySpec("cn_mem")];
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("'memories'");
+      expect(String(error)).toContain("not available in China regions");
+    });
+
+    test("lets a model-provider template through for commercial-only targets", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("us-west-2", "uv");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "commercial",
+            scaffoldRuntimeInput: { ...AGENT_PYTHON_STRANDS, runtimeName: "commercial" },
+          },
+        }),
+      ).rejects.toThrow("uv is missing");
+    });
+  });
 });
 
 describe("FsProjectManager.build", () => {

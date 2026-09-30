@@ -8,6 +8,8 @@ import type { ReadWriteJson } from "../io";
 import type { Logger } from "../logging";
 import { globalConfigFileSchema } from "./types";
 import { DEFAULT_GLOBAL_CONFIG, applyOverrides } from "./config";
+import { isChinaContext } from "../core/partition";
+import { regionFlagFromArgv, resolveRegion } from "../core/region";
 import z from "zod";
 import { InputValidationError } from "../errors";
 
@@ -45,12 +47,28 @@ export class DefaultGlobalConfigAccessor implements GlobalConfigAccessor {
 
     const configFileData = await this.readConfigFile();
 
+    // Resolve China the same way the telemetry client does (--region from
+    // argv, env vars, shared config profile, project targets) so the persist
+    // decision below can never disagree with the client's suppression.
+    const chinaContext = await isChinaContext({
+      region: await resolveRegion(regionFlagFromArgv(process.argv)),
+    });
+
     // a run with no persisted installationId is the first run on this machine
     const isFirstRun = !configFileData.installationId;
 
     if (isFirstRun) {
       configFileData.installationId = DEFAULT_GLOBAL_CONFIG.installationId;
       this.logger.info(`no installationId found, persisting one`);
+
+      // A first run in a China (aws-cn) environment persists telemetry off:
+      // the first-run notice is not shown there (telemetry is disabled), so
+      // without persisting, a later run in a commercial region would flip
+      // telemetry back on without the notice ever having been displayed.
+      if (chinaContext && configFileData.telemetry?.enabled === undefined) {
+        configFileData.telemetry = { ...configFileData.telemetry, enabled: false };
+        this.logger.info(`first run in a China region, persisting telemetry disabled`);
+      }
 
       try {
         await this.writeToConfigFile(configFileData);
@@ -63,7 +81,17 @@ export class DefaultGlobalConfigAccessor implements GlobalConfigAccessor {
       }
     }
 
-    this.cachedConfig = { ...applyOverrides(DEFAULT_GLOBAL_CONFIG, configFileData), isFirstRun };
+    // No telemetry collector exists in the aws-cn partition, so telemetry
+    // defaults to disabled there; an explicit telemetry.enabled in the config
+    // file still wins through applyOverrides.
+    const defaults = chinaContext
+      ? {
+          ...DEFAULT_GLOBAL_CONFIG,
+          telemetry: { ...DEFAULT_GLOBAL_CONFIG.telemetry, enabled: false },
+        }
+      : DEFAULT_GLOBAL_CONFIG;
+
+    this.cachedConfig = { ...applyOverrides(defaults, configFileData), isFirstRun };
     return this.cachedConfig;
   }
 

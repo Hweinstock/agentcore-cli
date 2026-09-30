@@ -4,9 +4,13 @@ import type { RuntimeResourceConfig } from "../../../handlers/project/add/runtim
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
 import { mergeSpecEntries } from "./spec";
 import type { SpecEntries, TemplateRenderer, TemplateResolver } from "./types";
-import type { EnvLocalEntry, ScaffoldRuntimeInput } from "../../../handlers/project/types";
+import type {
+  EnvLocalEntry,
+  ModelProvider,
+  ScaffoldRuntimeInput,
+} from "../../../handlers/project/types";
 import { credentialEnvVarName } from "../../../projectSchemas/credential";
-import { memoryEnvVarName } from "../../../projectSchemas/memory";
+import { defaultMemoryName, memoryEnvVarName } from "../../../projectSchemas/memory";
 import { InputValidationError } from "../../../errors";
 import { toPythonPackageName } from "../fsUtils";
 
@@ -15,6 +19,15 @@ type ModelProviderTemplateConfig = {
   templateRenderContext: { identityProviders: { name: string; envVarName: string }[] };
   spec: SpecEntries;
   envEntries: EnvLocalEntry[];
+};
+
+/** The model id each provider block renders when the user does not pass one. */
+const DEFAULT_MODEL_IDS: Record<ModelProvider, string> = {
+  Bedrock: "global.anthropic.claude-sonnet-4-5-20250929-v1:0",
+  Anthropic: "claude-sonnet-4-5-20250929",
+  OpenAI: "gpt-4.1",
+  Gemini: "gemini-2.5-flash",
+  LiteLLM: "bedrock/us.anthropic.claude-sonnet-4-5-20250514-v1:0",
 };
 
 function resolveModelProviderScaffold(input: RuntimeResourceConfig): ModelProviderTemplateConfig {
@@ -42,6 +55,20 @@ function buildRuntimeSpec(input: RuntimeResourceConfig): ProjectRuntime {
   return {
     name,
     build: scaffoldRuntimeInput.build,
+    // Persist the provider actually wired into the scaffolded code so the
+    // China deploy gate can classify this runtime later: framework scaffolds
+    // and Bedrock Agent imports (whose translated code calls Bedrock despite
+    // framework "none"). Provider-free scaffolds (minimal, MCP) stay
+    // unclassified.
+    ...((scaffoldRuntimeInput.framework !== "none" || input.importBedrockAgent !== undefined) && {
+      modelProvider: scaffoldRuntimeInput.modelProvider ?? "Bedrock",
+    }),
+    // For LiteLLM the model id determines the actual routing (its 'bedrock/'
+    // prefix routes to Amazon Bedrock), so persist the id the code renders —
+    // explicit --model-id or the template default — for the China deploy gate.
+    ...(scaffoldRuntimeInput.modelProvider === "LiteLLM" && {
+      modelId: scaffoldRuntimeInput.modelId ?? DEFAULT_MODEL_IDS.LiteLLM,
+    }),
     // TypeScript deploys a compiled main.js (esbuild runs at synth); Python runs main.py directly.
     entrypoint: scaffoldRuntimeInput.language === "TypeScript" ? "main.js" : "main.py",
     codeLocation: `app/${name}` as ProjectRuntime["codeLocation"],
@@ -148,10 +175,15 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
   [buildResolverKey("strands", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
     const memory = input.scaffoldRuntimeInput.memory;
     const modelScaffold = resolveModelProviderScaffold(input);
+    const modelProvider = input.scaffoldRuntimeInput.modelProvider ?? "Bedrock";
     const context = {
       name: toPythonPackageName(input.name),
-      modelProvider: input.scaffoldRuntimeInput.modelProvider ?? "Bedrock",
-      memoryEnvVarName: memory ? memoryEnvVarName(memory.name) : undefined,
+      modelProvider,
+      modelId: input.scaffoldRuntimeInput.modelId ?? DEFAULT_MODEL_IDS[modelProvider],
+      // Even without a memory resource (China scaffolds omit it — AgentCore
+      // Memory is not available there), the rendered module reads the default
+      // memory's env var so adding a memory later needs no code edit.
+      memoryEnvVarName: memoryEnvVarName(memory?.name ?? defaultMemoryName(input.name)),
       ...modelScaffold.templateRenderContext,
       enableOtel: true,
       // The strands template's entrypoint is fixed to main.py; the container Dockerfile launches it as the `main` module.
@@ -164,8 +196,10 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       {
         rootDirName: input.name,
         transformContent: (raw) => templateRenderer.render(raw, context),
-        filter: (name, isDir) => {
-          if (isDir && name === "memory") return memory !== undefined;
+        filter: (name) => {
+          // The memory module is always included: main.py imports it
+          // unconditionally and it degrades to no memory when its env var is
+          // absent (the China scaffold omits the memory resource).
           if (name === "Dockerfile" || name === ".dockerignore") return isContainer;
           return true;
         },

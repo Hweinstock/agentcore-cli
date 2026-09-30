@@ -255,6 +255,7 @@ create a new AgentCore project
 - `--name <name>`: name of the project to create (required)
 - `--template <template>`: the template to scaffold the Runtime from; some templates also accept --model-provider/--api-key
 - `--model-provider <model-provider>`: model provider for templates that support it: bedrock, anthropic, open\_ai, gemini, or lite\_llm
+- `--model-id <model-id>`: model id for the scaffolded Runtime code, overriding the provider's default (required with lite\_llm in China regions)
 - `--api-key <api-key>`: API key for non-Bedrock providers: '-' for stdin, 'file://path' for file
 - `--skip-install`: skip installing dependencies (npm install, uv sync) (default: false)
 - `--skip-git`: skip initializing a git repository (default: false)
@@ -352,7 +353,8 @@ add a Runtime to the current project
 - `--name <name>`: the name of the Runtime (required)
 - `--type <type>`: create generates new agent code (the default); import translates a Bedrock Agent version
 - `--template <template>`: template for the Runtime code (default: agent-python-minimal); available templates listed below
-- `--model-provider <model-provider>`: model provider for supported templates (Bedrock, Anthropic, OpenAI, or Gemini)
+- `--model-provider <model-provider>`: model provider for supported templates (Bedrock, Anthropic, OpenAI, Gemini, or LiteLLM)
+- `--model-id <model-id>`: model id for the scaffolded Runtime code, overriding the provider's default (required with litellm in China regions)
 - `--api-key <api-key>`: API key for non-Bedrock providers on supported templates; '-' for stdin, 'file://path' for file
 - `--description <description>`: an optional description of the Runtime
 - `--tags <tags...>`: tags as key=value (repeatable) or JSON object

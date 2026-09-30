@@ -236,9 +236,46 @@ export const RuntimeEndpointSchema = z.object({
   description: z.string().max(200).optional(),
 });
 export type RuntimeEndpoint = z.infer<typeof RuntimeEndpointSchema>;
+export const MODEL_PROVIDERS = ["Bedrock", "Anthropic", "OpenAI", "Gemini", "LiteLLM"] as const;
+export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
+
+const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
+  bedrock: "Bedrock",
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  open_ai: "OpenAI",
+  gemini: "Gemini",
+  litellm: "LiteLLM",
+  lite_llm: "LiteLLM",
+};
+
+/** Parses a provider name case-insensitively (e.g. `anthropic`), normalizing to canonical casing. */
+export const ModelProviderSchema = z.preprocess(
+  (value) =>
+    typeof value === "string" ? (MODEL_PROVIDER_ALIASES[value.toLowerCase()] ?? value) : value,
+  z.enum(MODEL_PROVIDERS),
+);
+
 export const ProjectRuntimeSchema = z
   .object({
     name: AgentNameSchema,
+    /**
+     * The model provider a template scaffold wired into this runtime's code.
+     * Written by scaffolds whose template renders provider client code; absent
+     * for BYO/provider-free runtimes and projects from older CLI versions.
+     * Read by the China (aws-cn) deploy gate; ignored by the CDK app.
+     * If you replace the model wiring in the runtime's code by hand, delete
+     * this field to reflect that.
+     */
+    modelProvider: ModelProviderSchema.optional(),
+    /**
+     * The model id the scaffold rendered into a LiteLLM runtime's code
+     * (explicit --model-id or the template default). Read by the China
+     * deploy gate to detect LiteLLM's Bedrock route ('bedrock/' prefix);
+     * ignored by the CDK app. Delete it together with modelProvider if you
+     * replace the model wiring by hand.
+     */
+    modelId: z.string().min(1).optional(),
     description: z.string().max(200).optional(),
     build: BuildTypeSchema,
     entrypoint: EntrypointSchema,

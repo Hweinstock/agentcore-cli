@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from "bun:test";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createRootHandler } from "../../../index";
 import {
@@ -487,6 +488,9 @@ describe("project add runtime --type import", () => {
       codeLocation: "app/support_proxy",
       runtimeVersion: "PYTHON_3_14",
       protocol: "HTTP",
+      // Imports wire Bedrock model code; persisting the provider lets the
+      // China deploy gate hard-fail if a China target is added later.
+      modelProvider: "Bedrock",
     });
     expect(spec.runtimes[0].additionalPolicies).toBeUndefined();
 
@@ -572,6 +576,35 @@ describe("project add runtime --type import", () => {
     const core = new TestCoreClient();
     const args = [...importArgs.slice(0, -2), "--region", "eu-north-1"];
     await expect(run(args, { core })).rejects.toThrow(/not a supported Bedrock Agent region/);
+    expect(core.importedBedrockAgents).toEqual([]);
+  });
+
+  test("rejects the import before calling Bedrock when a target is in a China region", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    await writeFile(
+      join(projectRoot, "agentcore", "aws-targets.json"),
+      JSON.stringify([{ name: "cn", account: "111122223333", region: "cn-north-1" }]),
+    );
+    const core = new TestCoreClient();
+    core.bedrockAgentImportPlans["A1B2C3D4E5/TSTALIASID"] = translatedImportPlan();
+
+    await expect(run(importArgs, { core })).rejects.toThrow(
+      /Amazon Bedrock is not available in China regions/,
+    );
+    expect(core.importedBedrockAgents).toEqual([]);
+  });
+
+  test("rejects the import when --region is a China region even without a China target", async () => {
+    const { cleanup } = await initProject();
+    cleanups.push(cleanup);
+    const core = new TestCoreClient();
+    core.bedrockAgentImportPlans["A1B2C3D4E5/TSTALIASID"] = translatedImportPlan();
+
+    const args = [...importArgs.slice(0, -2), "--region", "cn-north-1"];
+    await expect(run(args, { core })).rejects.toThrow(
+      /Amazon Bedrock is not available in China regions/,
+    );
     expect(core.importedBedrockAgents).toEqual([]);
   });
 

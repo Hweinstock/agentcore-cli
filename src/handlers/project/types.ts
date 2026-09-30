@@ -37,25 +37,9 @@ export type ManagedEvaluatorScaffoldInput = {
 };
 
 /** Model providers the scaffolded runtime code can target. */
-export const MODEL_PROVIDERS = ["Bedrock", "Anthropic", "OpenAI", "Gemini", "LiteLLM"] as const;
-export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
-
-const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
-  bedrock: "Bedrock",
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  open_ai: "OpenAI",
-  gemini: "Gemini",
-  litellm: "LiteLLM",
-  lite_llm: "LiteLLM",
-};
-
-/** Parses a provider name case-insensitively (e.g. `anthropic`), normalizing to canonical casing. */
-export const ModelProviderSchema = z.preprocess(
-  (value) =>
-    typeof value === "string" ? (MODEL_PROVIDER_ALIASES[value.toLowerCase()] ?? value) : value,
-  z.enum(MODEL_PROVIDERS),
-);
+import { ModelProviderSchema } from "../../projectSchemas/runtime";
+export { MODEL_PROVIDERS, ModelProviderSchema } from "../../projectSchemas/runtime";
+export type { ModelProvider } from "../../projectSchemas/runtime";
 
 /** Set of arguments needed to scaffold a new Runtime-based agent. */
 export const ScaffoldRuntimeInputSchema = z
@@ -66,6 +50,7 @@ export const ScaffoldRuntimeInputSchema = z
     framework: z.enum(["strands", "langchain", "vercelai", "none"]),
     protocol: ProtocolModeSchema.optional(),
     modelProvider: ModelProviderSchema.optional(),
+    modelId: z.string().min(1).optional(),
     apiKey: z.string().min(1).optional(),
     memory: MemorySchema.optional(),
     runtimeVersion: RuntimeVersionSchema.optional(),

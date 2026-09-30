@@ -1,6 +1,6 @@
 import { afterEach, test, expect, describe } from "bun:test";
 import { existsSync } from "node:fs";
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { parse } from "yaml";
 import { createRootHandler } from "../index";
@@ -1131,5 +1131,161 @@ describe("project deploy", () => {
     await expect(run(["deploy", "--target", "staging"])).rejects.toThrow(
       /No deployment targets are configured/,
     );
+  });
+});
+
+describe("create in China regions", () => {
+  const skips = ["--skip-install", "--skip-git"];
+
+  test("rejects a Bedrock-wired template", async () => {
+    cleanups.push((await inTempDirectory()).cleanup);
+    await expect(
+      run([
+        "create",
+        "--name",
+        "CnAgent",
+        "--template",
+        "agent-python-strands",
+        ...skips,
+        "--region",
+        "cn-north-1",
+      ]),
+    ).rejects.toThrow(/not accessible from China regions/);
+  });
+
+  test("requires --model-id with litellm", async () => {
+    cleanups.push((await inTempDirectory()).cleanup);
+    await expect(
+      run([
+        "create",
+        "--name",
+        "CnAgent",
+        "--template",
+        "agent-python-strands",
+        "--model-provider",
+        "lite_llm",
+        ...skips,
+        "--region",
+        "cn-north-1",
+      ]),
+    ).rejects.toThrow(/requires --model-id in China regions/);
+  });
+
+  test("scaffolds litellm with --model-id and persists the provider", async () => {
+    const { path: directory, cleanup } = await inTempDirectory();
+    cleanups.push(cleanup);
+    await run([
+      "create",
+      "--name",
+      "CnAgent",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "lite_llm",
+      "--model-id",
+      "openai/qwen-max",
+      ...skips,
+      "--region",
+      "cn-north-1",
+    ]);
+
+    const projectRoot = join(directory, "CnAgent");
+    const loadPy = await readFile(join(projectRoot, "app", "agent", "model", "load.py"), "utf8");
+    expect(loadPy).toContain('model_id="openai/qwen-max"');
+
+    const spec = JSON.parse(
+      await readFile(join(projectRoot, "agentcore", "agentcore.json"), "utf8"),
+    );
+    expect(spec.runtimes[0].modelProvider).toBe("LiteLLM");
+    expect(spec.runtimes[0].modelId).toBe("openai/qwen-max");
+    // The template's default memory is dropped in China (AgentCore Memory has
+    // no CloudFormation type there), while the memory module stays in the code.
+    expect(spec.memories ?? []).toEqual([]);
+    expect(existsSync(join(projectRoot, "app", "agent", "memory"))).toBe(true);
+  });
+
+  test("rejects a bedrock/ LiteLLM model id in a China region", async () => {
+    const { cleanup } = await inTempDirectory();
+    cleanups.push(cleanup);
+    await expect(
+      run([
+        "create",
+        "--name",
+        "CnBedrockRoute",
+        "--template",
+        "agent-python-strands",
+        "--model-provider",
+        "lite_llm",
+        "--model-id",
+        "bedrock/us.anthropic.claude-sonnet-4-5-20250514-v1:0",
+        ...skips,
+        "--region",
+        "cn-north-1",
+      ]),
+    ).rejects.toThrow(/'bedrock\/' LiteLLM model id prefix routes to Amazon Bedrock/);
+  });
+
+  test("escapes quotes in --model-id in the scaffolded model code", async () => {
+    const { path: directory, cleanup } = await inTempDirectory();
+    cleanups.push(cleanup);
+    await run([
+      "create",
+      "--name",
+      "QuotedModel",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "lite_llm",
+      "--model-id",
+      'openai/we"ird',
+      ...skips,
+      "--region",
+      "cn-north-1",
+    ]);
+
+    const projectRoot = join(directory, "QuotedModel");
+    const loadPy = await readFile(join(projectRoot, "app", "agent", "model", "load.py"), "utf8");
+    expect(loadPy).toContain('model_id="openai/we\\"ird"');
+  });
+
+  test("allows a provider-free template", async () => {
+    const { path: directory, cleanup } = await inTempDirectory();
+    cleanups.push(cleanup);
+    await run([
+      "create",
+      "--name",
+      "CnMcp",
+      "--template",
+      "mcp-python-fastmcp",
+      ...skips,
+      "--region",
+      "cn-north-1",
+    ]);
+
+    const spec = JSON.parse(
+      await readFile(join(directory, "CnMcp", "agentcore", "agentcore.json"), "utf8"),
+    );
+    expect(spec.runtimes[0].modelProvider).toBeUndefined();
+  });
+
+  test("rejects the default harness project", async () => {
+    cleanups.push((await inTempDirectory()).cleanup);
+    await expect(
+      run(["create", "--name", "CnHarness", ...skips, "--region", "cn-north-1"]),
+    ).rejects.toThrow(/Harness projects are not available in China regions/);
+  });
+
+  test("allows the empty template", async () => {
+    cleanups.push((await inTempDirectory()).cleanup);
+    await run([
+      "create",
+      "--name",
+      "CnEmpty",
+      "--template",
+      "empty",
+      ...skips,
+      "--region",
+      "cn-north-1",
+    ]);
   });
 });
