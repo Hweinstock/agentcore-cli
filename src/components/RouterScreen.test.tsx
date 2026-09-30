@@ -156,31 +156,31 @@ describe("menu rendering", () => {
   });
 
   test("shows the brand banner only on the root menu", async () => {
-    const banner = "█▀█ █▀▀";
+    const versionIndicator = `v${PACKAGE_VERSION}`;
     const root = renderScreen("/agentcore");
-    await waitForText(root.lastFrame, banner);
+    await waitForText(root.lastFrame, versionIndicator);
 
-    expect(root.lastFrame()).toContain(banner);
+    expect(root.lastFrame()).toContain(versionIndicator);
     root.unmount();
 
     const nested = renderScreen("/agentcore/harness");
     await waitForText(nested.lastFrame, "agentcore → harness");
 
-    expect(nested.lastFrame()).not.toContain(banner);
+    expect(nested.lastFrame()).not.toContain(versionIndicator);
     nested.unmount();
   });
 
   test("hides the brand banner when the terminal is short and restores it when enlarged", async () => {
-    const banner = "█▀█ █▀▀";
+    const versionIndicator = `v${PACKAGE_VERSION}`;
     const r = renderScreen("/agentcore");
-    await waitForText(r.lastFrame, banner);
+    await waitForText(r.lastFrame, versionIndicator);
 
     await r.resize(80, 24);
-    expect(r.lastFrame()).not.toContain(banner);
+    expect(r.lastFrame()).not.toContain(versionIndicator);
     expect(r.lastFrame()).toContain("[enter] select");
 
     await r.resize(100, 40);
-    await waitForText(r.lastFrame, banner);
+    await waitForText(r.lastFrame, versionIndicator);
     r.unmount();
   });
 
