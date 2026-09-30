@@ -3,6 +3,7 @@ import { PACKAGE_VERSION } from "../constants";
 import {
   cleanupScreens,
   inProjectContext,
+  hasCliDivider,
   menuEntries,
   renderScreen,
   TestCoreClient,
@@ -31,20 +32,29 @@ const PROJECT_WORKFLOW = [
 ];
 
 // menuGroups reads a RouterScreen frame's option names in display order,
-// grouped under the divider each follows (untitled for the leading group).
+// grouped under the divider each follows (untitled for the leading group). The
+// command-line-only divider is drawn as a bare rule — the one between the
+// filter row's rule and the footer's — and is labelled "cli" here.
 function menuGroups(frame: string): { title: string | undefined; names: string[] }[] {
+  const lines = frame.split("\n");
+  const filterRow = lines.findIndex((line) => /^\s*\/ /.test(line));
+  const footerRow = lines.findLastIndex((line) => /^─+$/.test(line.trim()));
   const groups: { title: string | undefined; names: string[] }[] = [];
-  for (const line of frame.split("\n")) {
+  lines.forEach((line, index) => {
     const divider = /^── (.+?) ─/.exec(line);
     if (divider) {
       groups.push({ title: divider[1], names: [] });
-      continue;
+      return;
+    }
+    if (index > filterRow + 1 && index < footerRow && /^─+$/.test(line.trim())) {
+      groups.push({ title: "cli", names: [] });
+      return;
     }
     const option = /^\s{1,3}(?:❯ )?\s*([a-z][a-z0-9-]*)\s{2,}\S/.exec(line);
-    if (!option) continue;
+    if (!option) return;
     if (groups.length === 0) groups.push({ title: undefined, names: [] });
     groups[groups.length - 1]!.names.push(option[1]!);
-  }
+  });
   return groups;
 }
 
@@ -135,7 +145,7 @@ describe("menu rendering", () => {
     await waitForText(r.lastFrame, "❯ harness");
     const frame = r.lastFrame()!;
     expect(frame).toContain("── resources");
-    expect(frame).not.toContain("── cli ");
+    expect(hasCliDivider(frame)).toBe(false);
     r.unmount();
   });
 
@@ -156,7 +166,7 @@ describe("menu rendering", () => {
   });
 
   test("shows the brand banner only on the root menu", async () => {
-    const version = `v${PACKAGE_VERSION}`;
+    const version = `CLI v${PACKAGE_VERSION}`;
     const root = renderScreen("/agentcore");
     await waitForText(root.lastFrame, version);
 
@@ -171,7 +181,7 @@ describe("menu rendering", () => {
   });
 
   test("hides the brand banner when the terminal is short and restores it when enlarged", async () => {
-    const version = `v${PACKAGE_VERSION}`;
+    const version = `CLI v${PACKAGE_VERSION}`;
     const r = renderScreen("/agentcore");
     await waitForText(r.lastFrame, version);
 
@@ -459,7 +469,7 @@ describe("short terminals", () => {
     for (let i = 1; i < full.names.length; i++) await r.press("down");
     await waitForText(r.lastFrame, `❯ ${last}`);
     let frame = r.lastFrame()!;
-    expect(frame).toContain("── cli");
+    expect(hasCliDivider(frame)).toBe(true);
     expect(more(frame, "↑")).toBeGreaterThan(0);
     expect(more(frame, "↓")).toBeUndefined();
 

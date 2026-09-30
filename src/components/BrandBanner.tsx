@@ -5,9 +5,9 @@ import { Divider } from "./ui/divider";
 import { darkTheme, type InkUITheme } from "./ui/_core";
 
 const LOGO: string[] = [
-  "█▀█ █▀▀ █▀▀ █▀█ ▀█▀ █▀▀ █▀█ █▀▄ █▀▀   █▀▀ █   ▀█▀",
-  "█▀█ █ █ █▀▀ █ █  █  █   █ █ █▀▄ █▀▀   █   █    █ ",
-  "▀ ▀ ▀▀▀ ▀▀▀ ▀ ▀  ▀  ▀▀▀ ▀▀▀ ▀ ▀ ▀▀▀   ▀▀▀ ▀▀▀ ▀▀▀",
+  "█▀█ █▀▀ █▀▀ █▀█ ▀█▀ █▀▀ █▀█ █▀▄ █▀▀",
+  "█▀█ █ █ █▀▀ █ █  █  █   █ █ █▀▄ █▀▀",
+  "▀ ▀ ▀▀▀ ▀▀▀ ▀ ▀  ▀  ▀▀▀ ▀▀▀ ▀ ▀ ▀▀▀",
 ];
 
 export const MIN_BANNER_COLUMNS = 80;
@@ -50,7 +50,7 @@ export function BrandBanner({
             theme={theme}
             color={updateState.updateAvailable ? theme.colors.warning : theme.colors.secondary}
           >
-            <>{versionLabel}</>
+            <>CLI {versionLabel}</>
           </Badge>
         </Box>
       </Box>
