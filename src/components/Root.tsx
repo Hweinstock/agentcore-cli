@@ -174,6 +174,8 @@ export interface RootProps {
 // the app's routes plus the react-query client every screen fetches through.
 export function Root({ path, ctx, core, queryClient }: RootProps) {
   const [launchSessionConsumed, setLaunchSessionConsumed] = useState(false);
+  const versionManager = ctx.value(CliVersionManagerKey);
+  const content = <PinnedRegion ctx={ctx} core={core} />;
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -186,9 +188,11 @@ export function Root({ path, ctx, core, queryClient }: RootProps) {
         {/* initialEntries seeds the in-memory history with the CLI command path,
             then leaves navigation to the router so screens can useNavigate. */}
         <MemoryRouter initialEntries={[path]}>
-          <TuiUpdateProvider versionManager={ctx.require(CliVersionManagerKey)}>
-            <PinnedRegion ctx={ctx} core={core} />
-          </TuiUpdateProvider>
+          {versionManager ? (
+            <TuiUpdateProvider versionManager={versionManager}>{content}</TuiUpdateProvider>
+          ) : (
+            content
+          )}
         </MemoryRouter>
       </RuntimeInvokeLaunchSessionContext.Provider>
     </QueryClientProvider>

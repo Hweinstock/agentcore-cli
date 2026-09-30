@@ -4,7 +4,6 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   cleanupScreens,
-  createTestCliVersionManager,
   createSilentLogger,
   flatFrame,
   renderScreen,
@@ -16,11 +15,9 @@ import {
   waitForFlatText,
   waitForText,
 } from "../../../../../testing";
-import { ValueContext } from "../../../../../router";
 import { InputValidationError } from "../../../../../errors";
 import type { AppIO } from "../../../../../io";
 import { createRootHandler } from "../../../../index";
-import { CliVersionManagerKey } from "../../../../keys";
 import { createPaymentProjectTestHarness } from "../../payment-test-support";
 
 const { cleanup, inProject, projectSpec, run } = createPaymentProjectTestHarness(
@@ -352,10 +349,7 @@ describe("project add credentials payment dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(
-        ["node", "agentcore", "add", "credentials", "payment"],
-        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
-      )
+      .route(["node", "agentcore", "add", "credentials", "payment"])
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

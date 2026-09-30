@@ -7,7 +7,6 @@ import {
   waitForFlatText,
   flatFrame,
   cleanupScreens,
-  createTestCliVersionManager,
   createSilentLogger,
   TestCoreClient,
   TestGlobalConfigAccessor,
@@ -22,8 +21,6 @@ import type { AppIO } from "../../../../io";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 import { projectQueryKey } from "../../ProjectGate";
 import type { Project } from "../../types";
-import { ValueContext } from "../../../../router";
-import { CliVersionManagerKey } from "../../../keys";
 
 const { cleanup, inProject, projectSpec, run } =
   createGatewayProjectTestHarness("add-runtime-wizard");
@@ -269,10 +266,7 @@ describe("project add runtime dispatch", () => {
     // outcome never rejects, so a mid-pump failure cannot trip bun's
     // unhandled-rejection detection before the final assertion.
     const outcome = buildRoot(streams.io)
-      .route(
-        ["node", "agentcore", "add", "runtime"],
-        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
-      )
+      .route(["node", "agentcore", "add", "runtime"])
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

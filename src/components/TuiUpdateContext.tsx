@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { createContext, useContext, type ReactNode } from "react";
 import semver from "semver";
 import type { CliVersionManager } from "../cliVersionManager";
+import { PACKAGE_VERSION } from "../constants";
 
 type TuiUpdateState = {
   currentVersion: string;
@@ -10,7 +11,12 @@ type TuiUpdateState = {
   updateAvailable: boolean;
 };
 
-const TuiUpdateContext = createContext<TuiUpdateState | undefined>(undefined);
+const TuiUpdateContext = createContext<TuiUpdateState>({
+  currentVersion: PACKAGE_VERSION,
+  latestVersion: PACKAGE_VERSION,
+  isChecking: false,
+  updateAvailable: false,
+});
 
 export function TuiUpdateProvider({
   versionManager,
@@ -43,7 +49,5 @@ export function TuiUpdateProvider({
 }
 
 export function useTuiUpdate(): TuiUpdateState {
-  const updateState = useContext(TuiUpdateContext);
-  if (!updateState) throw new Error("TuiUpdateProvider is missing");
-  return updateState;
+  return useContext(TuiUpdateContext);
 }

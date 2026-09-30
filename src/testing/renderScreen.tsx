@@ -2,7 +2,7 @@ import { render, cleanup } from "ink-testing-library";
 import { QueryClient } from "@tanstack/react-query";
 import type { Command } from "commander";
 import { ValueContext, compile, CommandKey, PlatformKey, type Context } from "../router";
-import { RegionKey, JsonKey, DebugKey, EndpointKey, CliVersionManagerKey } from "../handlers/keys";
+import { RegionKey, JsonKey, DebugKey, EndpointKey } from "../handlers/keys";
 import { JsonRendererKey } from "../tui";
 import { createRootHandler } from "../handlers";
 import { Root } from "../components/Root";
@@ -13,7 +13,6 @@ import { createSilentLogger } from "./logging";
 import { TestGlobalConfigAccessor } from "./globalConfig";
 import { DEFAULT_GLOBAL_CONFIG, type GlobalConfig } from "../globalConfig";
 import { ProjectDetectedKey } from "../handlers/project/context";
-import { createTestCliVersionManager } from "./cliVersionManager";
 
 // TUI test harness.
 //
@@ -56,7 +55,6 @@ function baseContext(
 ): Context {
   return ValueContext.EmptyContext()
     .withValue(CommandKey, compiledRootCommand(core, globalConfig))
-    .withValue(CliVersionManagerKey, createTestCliVersionManager())
     .withValue(RegionKey, "us-east-1")
     .withValue(PlatformKey, platform)
     .withValue(EndpointKey, endpointUrl)

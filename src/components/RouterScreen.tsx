@@ -23,7 +23,6 @@ import { darkTheme, glyphs } from "./ui/_core.js";
 import type { ScreenProps } from "../handlers/types";
 import { RegionPinContext } from "../handlers/utils";
 import { scrollWindow } from "./scrollWindow";
-import { useTuiUpdate } from "./TuiUpdateContext";
 
 const theme = darkTheme;
 const PLACEHOLDER = "type to choose a command";
@@ -62,7 +61,7 @@ interface Option {
   name: string;
   description: string;
   hint?: string;
-  updateNotice?: string;
+  notice?: string;
   // cliOnly marks a subcommand without a screen; it is listed under a divider
   // and opens its help instead.
   cliOnly: boolean;
@@ -87,6 +86,8 @@ export interface RouterScreenProps extends ScreenProps {
   tuiOnlyCommands?: TuiOnlyCommand[];
   // optionHints adds short contextual guidance alongside selected menu options.
   optionHints?: Readonly<Record<string, string>>;
+  // optionNotices adds warning-colored guidance alongside selected menu options.
+  optionNotices?: Readonly<Record<string, string>>;
   // alert is optional guidance rendered between the filter and menu options.
   alert?: string;
   hiddenOptions?: readonly string[];
@@ -112,6 +113,7 @@ function CommandMenu({
   path,
   tuiOnlyCommands = [],
   optionHints,
+  optionNotices,
   alert,
   hiddenOptions,
   command,
@@ -119,7 +121,6 @@ function CommandMenu({
   const navigate = useNavigate();
   const { isRawModeSupported } = useStdin();
   const { exit } = useApp();
-  const updateState = useTuiUpdate();
 
   // A menu is not about any one resource: whatever is opened from it fetches
   // in the launch region again.
@@ -147,10 +148,7 @@ function CommandMenu({
         name: c.name(),
         description: c.description(),
         hint: optionHints?.[c.name()],
-        updateNotice:
-          path.length === 1 && c.name() === "update" && updateState.updateAvailable
-            ? `· update to install ${updateState.latestVersion}`
-            : undefined,
+        notice: optionNotices?.[c.name()],
         cliOnly,
         section: belongsToCliSection ? CLI_ONLY_SECTION : sectionOf(index),
       };
@@ -164,7 +162,7 @@ function CommandMenu({
       ...actual.filter((option) => option.section !== CLI_ONLY_SECTION),
       ...actual.filter((option) => option.section === CLI_ONLY_SECTION),
     ].filter((option) => !hiddenOptions?.includes(option.name));
-  }, [command, hiddenOptions, optionHints, path.length, tuiOnlyCommands, updateState]);
+  }, [command, hiddenOptions, optionHints, optionNotices, path.length, tuiOnlyCommands]);
 
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
@@ -366,9 +364,7 @@ function CommandMenuBody({
                 </Box>
                 <Text color={theme.colors.muted}>{option.description}</Text>
                 {option.hint && <Text color={theme.colors.secondary}> {option.hint}</Text>}
-                {option.updateNotice && (
-                  <Text color={theme.colors.warning}> {option.updateNotice}</Text>
-                )}
+                {option.notice && <Text color={theme.colors.warning}> {option.notice}</Text>}
               </Box>
             );
           })

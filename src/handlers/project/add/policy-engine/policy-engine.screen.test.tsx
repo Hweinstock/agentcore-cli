@@ -4,7 +4,6 @@ import { join } from "node:path";
 import {
   cleanupScreens,
   createSilentLogger,
-  createTestCliVersionManager,
   flatFrame,
   renderScreen,
   TestCoreClient,
@@ -19,8 +18,6 @@ import {
 import { createRootHandler } from "../../../index";
 import { InputValidationError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
-import { ValueContext } from "../../../../router";
-import { CliVersionManagerKey } from "../../../keys";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const { addGateway, cleanup, inProject, projectSpec, run } = createGatewayProjectTestHarness(
@@ -248,10 +245,7 @@ describe("project add policy-engine dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(
-        ["node", "agentcore", "add", "policy-engine"],
-        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
-      )
+      .route(["node", "agentcore", "add", "policy-engine"])
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

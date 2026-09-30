@@ -2,7 +2,6 @@ import { afterEach, describe, expect, test } from "bun:test";
 import {
   cleanupScreens,
   createSilentLogger,
-  createTestCliVersionManager,
   menuEntries,
   renderScreen,
   TestCoreClient,
@@ -14,9 +13,7 @@ import {
 } from "../../../../testing";
 import { InputValidationError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
-import { ValueContext } from "../../../../router";
 import { createRootHandler } from "../../../index";
-import { CliVersionManagerKey } from "../../../keys";
 import { createGatewayProjectTestHarness } from "../gateway-test-support";
 
 const { cleanup, inProject } = createGatewayProjectTestHarness("add-evaluator-menu");
@@ -81,10 +78,7 @@ describe.each(LEAVES)("project add evaluator %s dispatch", (leaf) => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(
-        ["node", "agentcore", "add", "evaluator", leaf],
-        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
-      )
+      .route(["node", "agentcore", "add", "evaluator", leaf])
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

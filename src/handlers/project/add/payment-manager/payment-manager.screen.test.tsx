@@ -3,7 +3,6 @@ import { QueryClient } from "@tanstack/react-query";
 import {
   cleanupScreens,
   createSilentLogger,
-  createTestCliVersionManager,
   flatFrame,
   renderScreen,
   TestCoreClient,
@@ -16,9 +15,7 @@ import {
 } from "../../../../testing";
 import { InputValidationError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
-import { ValueContext } from "../../../../router";
 import { createRootHandler } from "../../../index";
-import { CliVersionManagerKey } from "../../../keys";
 import { projectQueryKey } from "../../ProjectGate";
 import type { Project } from "../../types";
 import { createPaymentProjectTestHarness } from "../payment-test-support";
@@ -383,10 +380,7 @@ describe("project add payment-manager dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(
-        ["node", "agentcore", "add", "payment-manager"],
-        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
-      )
+      .route(["node", "agentcore", "add", "payment-manager"])
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),

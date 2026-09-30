@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import {
   cleanupScreens,
-  createTestCliVersionManager,
   createSilentLogger,
   flatFrame,
   initProject,
@@ -15,9 +14,7 @@ import {
   waitForText,
   type RenderScreenResult,
 } from "../../../../testing";
-import { ValueContext } from "../../../../router";
 import { createRootHandler } from "../../../index";
-import { CliVersionManagerKey } from "../../../keys";
 import { InputValidationError } from "../../../../errors";
 import type { AppIO } from "../../../../io";
 import { projectSpec, writeProjectSpec } from "../gateway-test-support";
@@ -316,10 +313,7 @@ describe("project add runtime-endpoint dispatch", () => {
     const { streams, stdin } = ttyTestIO();
 
     const outcome = buildRoot(streams.io)
-      .route(
-        ["node", "agentcore", "add", "runtime-endpoint"],
-        ValueContext.EmptyContext().withValue(CliVersionManagerKey, createTestCliVersionManager()),
-      )
+      .route(["node", "agentcore", "add", "runtime-endpoint"])
       .then(
         () => ({ ok: true as const }),
         (error: unknown) => ({ ok: false as const, error }),
