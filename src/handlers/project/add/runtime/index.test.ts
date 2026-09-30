@@ -104,6 +104,18 @@ describe("project add runtime", () => {
       build: "CodeZip",
       protocol: "AGUI",
     },
+    "bedrock-managed-agents template preset": {
+      build: "Container",
+      entrypoint: "lifecycle/server.py",
+      dockerfile: "Dockerfile",
+      protocol: "HTTP",
+      additionalPolicies: ["bma-acr-policy.json"],
+      lifecycleConfiguration: {
+        idleRuntimeSessionTimeout: 1800,
+        maxLifetime: 28800,
+      },
+      tags: { "agentcore:template": "BedrockManagedAgents" },
+    },
     "all infrastructure flags": {
       description: "Configured runtime",
       executionRoleArn: "arn:aws:iam::123456789012:role/MyRole",
@@ -162,6 +174,10 @@ describe("project add runtime", () => {
     [
       "agui-python-strands template preset",
       ["--name", "my_agui", "--template", "agui-python-strands"],
+    ],
+    [
+      "bedrock-managed-agents template preset",
+      ["--name", "my_bma", "--template", "bedrock-managed-agents"],
     ],
     [
       "agent-python-strands with session, EFS, and S3 mounts",
@@ -270,12 +286,100 @@ describe("project add runtime", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     const runtime = spec.runtimes.find((candidate: { name: string }) => candidate.name === name);
     expect(runtime).toMatchObject({ entrypoint: "main.py", ...expectedSpecByLabel[label] });
-    expect(await Bun.file(join(projectRoot, "app", name, "main.py")).exists()).toBe(true);
-    const isContainer = flags.some((flag) => flag.endsWith("-container"));
+    const isBma = flags.includes("bedrock-managed-agents");
+    expect(
+      await Bun.file(
+        join(projectRoot, "app", name, isBma ? "lifecycle/server.py" : "main.py"),
+      ).exists(),
+    ).toBe(true);
+    const isContainer = flags.some(
+      (flag) => flag.endsWith("-container") || flag === "bedrock-managed-agents",
+    );
     expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
     expect(await Bun.file(join(projectRoot, "app", name, "Dockerfile")).exists()).toBe(isContainer);
     expect(await Bun.file(join(projectRoot, "app", name, ".dockerignore")).exists()).toBe(
       isContainer,
+    );
+  });
+
+  test("Bedrock Managed Agents defers local Python dependency setup", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    const { core } = await run([
+      "add",
+      "runtime",
+      "--name",
+      "my_bma",
+      "--template",
+      "bedrock-managed-agents",
+    ]);
+
+    expect(core.projectCommands).toEqual([]);
+    expect(await Bun.file(join(projectRoot, "app", "my_bma", "pyproject.toml")).exists()).toBe(
+      true,
+    );
+  });
+
+  test("Bedrock Managed Agents keeps infrastructure overrides and its required policy", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    await run([
+      "add",
+      "runtime",
+      "--name",
+      "my_bma",
+      "--template",
+      "bedrock-managed-agents",
+      "--lifecycle-configuration",
+      '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
+      "--additional-policies",
+      "custom-policy.json",
+      "--tags",
+      '{"team":"agents"}',
+    ]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes).toContainEqual(
+      expect.objectContaining({
+        name: "my_bma",
+        lifecycleConfiguration: {
+          idleRuntimeSessionTimeout: 300,
+          maxLifetime: 3600,
+        },
+        additionalPolicies: ["bma-acr-policy.json", "custom-policy.json"],
+        tags: { "agentcore:template": "BedrockManagedAgents", team: "agents" },
+      }),
+    );
+  });
+
+  test("Bedrock Managed Agents warns when an existing execution role needs its permissions", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    const roleArn = "arn:aws:iam::111122223333:role/ExistingBmaRole";
+
+    const { io } = await run([
+      "add",
+      "runtime",
+      "--name",
+      "my_bma",
+      "--template",
+      "bedrock-managed-agents",
+      "--role-arn",
+      roleArn,
+      "--json",
+    ]);
+
+    expect(JSON.parse(io.stdout()).notes).toEqual([
+      expect.stringContaining("AgentCore CDK cannot attach bma-acr-policy.json"),
+    ]);
+    expect(io.stderr()).not.toContain("bma-acr-policy.json");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes).toContainEqual(
+      expect.objectContaining({
+        name: "my_bma",
+        executionRoleArn: roleArn,
+        additionalPolicies: ["bma-acr-policy.json"],
+      }),
     );
   });
 
@@ -287,6 +391,7 @@ describe("project add runtime", () => {
     ["agent-typescript-vercel", []],
     ["mcp-python-fastmcp", []],
     ["agui-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
+    ["bedrock-managed-agents", []],
   ])("%s ships with its pre-configured memory", async (templateName, expectedStrategies) => {
     const { projectRoot, cleanup } = await initProject();
     cleanups.push(cleanup);
@@ -419,6 +524,10 @@ describe("project add runtime", () => {
         "--model-provider",
         "Anthropic",
       ],
+    ],
+    [
+      "--model-provider is not valid with the bedrock-managed-agents template",
+      ["--name", "my_bma", "--template", "bedrock-managed-agents", "--model-provider", "Anthropic"],
     ],
     [
       "--model-provider without a template requires agent-python-strands",

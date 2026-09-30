@@ -15,6 +15,7 @@ import { credentialEnvVarName } from "../../projectSchemas/credential";
 import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { ENV_LOCAL_RELATIVE_PATH } from "./envLocal";
 import {
+  BMA_CN_MESSAGE,
   cnUnsupportedResourceMessage,
   FsProjectManager,
   LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE,
@@ -32,6 +33,7 @@ import {
   type DeployResult,
   type Project,
   type ProjectEvent,
+  type ScaffoldRuntimeInput,
 } from "../../handlers/project/types";
 import { createSilentLogger, TestIdentityClient } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
@@ -45,6 +47,14 @@ const AGENT_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut(
 const AGENT_TYPESCRIPT_STRANDS = resolveRuntimeTemplateShortcut("agent-typescript-strands");
 const A2A_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("a2a-python-strands");
 const AGENT_PYTHON_LANGCHAIN = resolveRuntimeTemplateShortcut("agent-python-langchain");
+const BEDROCK_MANAGED_AGENTS = resolveRuntimeTemplateShortcut("bedrock-managed-agents");
+
+function withTemplateProfile(
+  input: ScaffoldRuntimeInput,
+  profile: NonNullable<ScaffoldRuntimeInput["templateProfile"]>,
+): ScaffoldRuntimeInput {
+  return { ...input, templateProfile: profile };
+}
 
 const originalCwd = process.cwd();
 const tempDirectories: string[] = [];
@@ -280,6 +290,56 @@ describe("FsProjectManager.create", () => {
     expect(spec.runtimes[0]).toMatchObject({ build: "Container", dockerfile: "Dockerfile" });
   });
 
+  test("scaffolds the Bedrock Managed Agents environment and runtime defaults", async () => {
+    const directory = await inTempDirectory();
+    const setup = manager();
+    const bmaWithoutTemplateProfile: ScaffoldRuntimeInput = { ...BEDROCK_MANAGED_AGENTS };
+    delete bmaWithoutTemplateProfile.templateProfile;
+    await runCreate(setup.manager, {
+      name: "example",
+      scaffoldRuntimeInput: bmaWithoutTemplateProfile,
+    });
+
+    const projectRoot = join(directory, "example");
+    const appDir = join(projectRoot, "app", "bedrock_managed_agents");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.runtimes).toEqual([
+      {
+        name: "bedrock_managed_agents",
+        build: "Container",
+        entrypoint: "lifecycle/server.py",
+        codeLocation: "app/bedrock_managed_agents",
+        dockerfile: "Dockerfile",
+        additionalPolicies: ["bma-acr-policy.json"],
+        protocol: "HTTP",
+        lifecycleConfiguration: {
+          idleRuntimeSessionTimeout: 1800,
+          maxLifetime: 28800,
+        },
+        tags: { "agentcore:template": "BedrockManagedAgents" },
+      },
+    ]);
+    expect(spec.memories ?? []).toEqual([]);
+    expect(await Bun.file(join(appDir, "lifecycle", "server.py")).exists()).toBe(true);
+    expect(await Bun.file(join(appDir, "otel", "collector.yaml")).exists()).toBe(true);
+    expect(
+      await Bun.file(
+        join(appDir, "plugins", "acr-report", "skills", "acr-report", "SKILL.md"),
+      ).exists(),
+    ).toBe(true);
+    expect(await Bun.file(join(appDir, "pyproject.toml")).text()).toContain(
+      'name = "bedrock_managed_agents"',
+    );
+    expect(setup.commands).toEqual([
+      {
+        command: ["npm", "install", "--loglevel=http"],
+        cwd: join(projectRoot, "agentcore", "cdk"),
+      },
+      { command: ["git", "init"], cwd: projectRoot },
+    ]);
+    expect(setup.checkedTools).toEqual(["npm", "git"]);
+  });
+
   test("refuses to overwrite an existing project", async () => {
     await inTempDirectory();
     const input: CreateProjectInput = {
@@ -384,6 +444,26 @@ describe("FsProjectManager.create", () => {
     expect(harness.checkedTools).toEqual(["npm", "git"]);
   });
 
+  test("defers template-managed local dependency setup", async () => {
+    const directory = await inTempDirectory();
+    const { manager: subject, commands, checkedTools } = manager();
+    await runCreate(subject, {
+      name: "example",
+      scaffoldRuntimeInput: withTemplateProfile(AGENT_PYTHON, {
+        dependencySetup: "deferred",
+      }),
+    });
+
+    expect(commands).toEqual([
+      {
+        command: ["npm", "install", "--loglevel=http"],
+        cwd: join(directory, "example", "agentcore", "cdk"),
+      },
+      { command: ["git", "init"], cwd: join(directory, "example") },
+    ]);
+    expect(checkedTools).toEqual(["npm", "git"]);
+  });
+
   test("skipInstall skips npm install and uv sync", async () => {
     const directory = await inTempDirectory();
     const { manager: subject, commands, checkedTools } = manager();
@@ -422,6 +502,22 @@ describe("FsProjectManager.create", () => {
       expect(checkedTools).toEqual([]);
     },
   );
+
+  test("does not generate a container lockfile when dependency setup is deferred", async () => {
+    await inTempDirectory();
+    const { manager: subject, commands, checkedTools } = manager();
+    await runCreate(subject, {
+      name: "example",
+      scaffoldRuntimeInput: withTemplateProfile(AGENT_PYTHON_STRANDS_CONTAINER, {
+        dependencySetup: "deferred",
+      }),
+      skipInstall: true,
+      skipGit: true,
+    });
+
+    expect(commands).toEqual([]);
+    expect(checkedTools).toEqual([]);
+  });
 
   test("skipGit skips git init", async () => {
     await inTempDirectory();
@@ -492,6 +588,67 @@ describe("FsProjectManager.create", () => {
 });
 
 describe("FsProjectManager.addResource", () => {
+  test("applies a runtime template profile and defers its dependency setup", async () => {
+    await inTempDirectory();
+    const setup = manager();
+    const { project } = await runCreate(setup.manager, {
+      name: "example",
+      scaffoldRuntimeInput: AGENT_PYTHON,
+      skipInstall: true,
+      skipGit: true,
+    });
+    setup.commands.length = 0;
+    setup.checkedTools.length = 0;
+
+    const runtimeName = "profiled_runtime";
+    const updated = await runAdd(setup.manager, project, {
+      resourceType: "runtime",
+      resourceConfig: {
+        name: runtimeName,
+        additionalPolicies: ["custom-policy.json", "template-policy.json"],
+        lifecycleConfiguration: { maxLifetime: 600 },
+        tags: { team: "runtime", "agentcore:template": "Override" },
+        scaffoldRuntimeInput: {
+          ...withTemplateProfile(AGENT_PYTHON_STRANDS_CONTAINER, {
+            usesModel: false,
+            dependencySetup: "deferred",
+            runtime: {
+              entrypoint: "lifecycle/server.py",
+              dockerfile: "Dockerfile",
+              lifecycleConfiguration: {
+                idleRuntimeSessionTimeout: 1800,
+                maxLifetime: 28800,
+              },
+              additionalPolicies: ["template-policy.json"],
+              tags: { "agentcore:template": "Example" },
+            },
+          }),
+          runtimeName,
+        },
+      },
+    });
+
+    expect(updated.spec.runtimes).toContainEqual(
+      expect.objectContaining({
+        name: runtimeName,
+        build: "Container",
+        entrypoint: "lifecycle/server.py",
+        dockerfile: "Dockerfile",
+        lifecycleConfiguration: {
+          idleRuntimeSessionTimeout: 600,
+          maxLifetime: 600,
+        },
+        additionalPolicies: ["template-policy.json", "custom-policy.json"],
+        tags: { "agentcore:template": "Override", team: "runtime" },
+      }),
+    );
+    expect(updated.spec.runtimes.find(({ name }) => name === runtimeName)?.modelProvider).toBe(
+      undefined,
+    );
+    expect(setup.commands).toEqual([]);
+    expect(setup.checkedTools).toEqual([]);
+  });
+
   test.each([
     ["Python", AGENT_PYTHON, "uv"],
     ["TypeScript", AGENT_TYPESCRIPT_STRANDS, "npm"],
@@ -549,7 +706,11 @@ describe("FsProjectManager.addResource", () => {
   describe("China (aws-cn) deployment targets", () => {
     const MCP_PYTHON_FASTMCP = resolveRuntimeTemplateShortcut("mcp-python-fastmcp");
 
-    async function projectWithTarget(region: string, missingToolAfterCreate?: string) {
+    async function projectWithTarget(
+      region: string,
+      missingToolAfterCreate?: string,
+      scaffoldRuntimeInput: ScaffoldRuntimeInput = AGENT_PYTHON,
+    ) {
       const checkedTools: string[] = [];
       const deployCalls: { project: Project; input: DeployBackendInput }[] = [];
       let missingTool: string | undefined;
@@ -580,7 +741,7 @@ describe("FsProjectManager.addResource", () => {
       });
       const { project } = await runCreate(subject, {
         name: "example",
-        scaffoldRuntimeInput: AGENT_PYTHON,
+        scaffoldRuntimeInput,
         skipInstall: true,
         skipGit: true,
       });
@@ -607,6 +768,28 @@ describe("FsProjectManager.addResource", () => {
           },
         }),
       ).rejects.toThrow(new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE));
+
+      expect(checkedTools).toEqual([]);
+      expect(existsSync(runtimePath)).toBe(false);
+    });
+
+    test("rejects a Bedrock Managed Agents template before scaffolding", async () => {
+      await inTempDirectory();
+      const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
+      const runtimePath = join(project.rootPath, "app", "cn_bma");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_bma",
+            scaffoldRuntimeInput: {
+              ...BEDROCK_MANAGED_AGENTS,
+              runtimeName: "cn_bma",
+            },
+          },
+        }),
+      ).rejects.toThrow(new RegionUnsupportedFeatureError(BMA_CN_MESSAGE));
 
       expect(checkedTools).toEqual([]);
       expect(existsSync(runtimePath)).toBe(false);
@@ -754,6 +937,21 @@ describe("FsProjectManager.addResource", () => {
       expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
       expect(String(error)).toContain("Cannot deploy to China region cn-north-1");
       expect(String(error)).toContain("'agent_python_minimal'");
+      expect(deployCalls).toEqual([]);
+    });
+
+    test("deploy to a China target hard-fails a Bedrock Managed Agents runtime", async () => {
+      await inTempDirectory();
+      const { subject, project, deployCalls } = await projectWithTarget(
+        "cn-north-1",
+        undefined,
+        BEDROCK_MANAGED_AGENTS,
+      );
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("runtime 'bedrock_managed_agents'");
+      expect(String(error)).toContain(BMA_CN_MESSAGE);
       expect(deployCalls).toEqual([]);
     });
 

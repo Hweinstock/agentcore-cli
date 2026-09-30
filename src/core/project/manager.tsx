@@ -92,6 +92,14 @@ import type { TemplateRenderer } from "./templates/types";
 import { HandlebarsTemplateRenderer } from "./templates/renderer";
 import type { CreateCloudFormationClient } from "../types";
 import type { CoreIdentityClient } from "../../handlers/identity/types";
+import { templateManagesDependencies } from "../../handlers/project/templateProfile";
+import { resolveRuntimeTemplateProfile } from "../../handlers/project/runtimeTemplateProfile";
+import {
+  BMA_POLICY_FILE,
+  BMA_TEMPLATE_NAME,
+  BMA_TEMPLATE_TAG_KEY,
+  BMA_TEMPLATE_TAG_VALUE,
+} from "../../handlers/project/bmaProfile";
 
 const TARGETS_EXAMPLE = '[{ "name": "default", "account": "111122223333", "region": "us-east-1" }]';
 
@@ -110,6 +118,11 @@ export const MODEL_PROVIDER_RUNTIMES_CN_MESSAGE =
   "(--template agent-python-minimal or mcp-python-fastmcp) and bring your own model connectivity, " +
   "or use --template agent-python-strands --model-provider litellm --model-id <model reachable " +
   "from China>.";
+
+/** Shown when a Bedrock Managed Agents environment targets the aws-cn partition. */
+export const BMA_CN_MESSAGE =
+  "Bedrock Managed Agents is not available in China regions (cn-north-1, cn-northwest-1). " +
+  "Choose a supported commercial or GovCloud region.";
 
 /**
  * Shown when a harness is created in or deployed to a China (aws-cn) region.
@@ -341,9 +354,12 @@ export class FsProjectManager implements ProjectManager {
 
       if (scaffoldRuntimeInput) {
         const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
-        yield* this.installRuntimeDependencies(appDir);
+        yield* this.installRuntimeDependencies(appDir, scaffoldRuntimeInput);
       }
-    } else if (scaffoldRuntimeInput?.build === "Container") {
+    } else if (
+      scaffoldRuntimeInput?.build === "Container" &&
+      templateManagesDependencies(resolveRuntimeTemplateProfile(scaffoldRuntimeInput))
+    ) {
       // Container builds install from a lockfile, so generate it even with no-install.
       const appDir = join(destination, "app", scaffoldRuntimeInput.runtimeName);
       yield* this.ensureLockFileExists(appDir);
@@ -453,6 +469,9 @@ export class FsProjectManager implements ProjectManager {
       if (input.resourceType === "runtime") {
         const { framework, modelProvider, modelId, memory } =
           input.resourceConfig.scaffoldRuntimeInput;
+        if (framework === BMA_TEMPLATE_NAME) {
+          throw new RegionUnsupportedFeatureError(BMA_CN_MESSAGE);
+        }
         if (framework !== "none") {
           if ((modelProvider ?? "Bedrock") !== "LiteLLM") {
             throw new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE);
@@ -511,7 +530,10 @@ export class FsProjectManager implements ProjectManager {
           }
         }
 
-        yield* this.installRuntimeDependencies(outputPath);
+        yield* this.installRuntimeDependencies(
+          outputPath,
+          input.resourceConfig.scaffoldRuntimeInput,
+        );
         break;
       }
       case "credential": {
@@ -1145,6 +1167,18 @@ export class FsProjectManager implements ProjectManager {
     // modelProvider (BYO, provider-free, hand-edited, or scaffolded by an
     // older CLI) cannot be classified and only get an informational note.
     if (isChinaRegion(target.region)) {
+      const bmaRuntimes = project.spec.runtimes.filter(
+        (runtime) =>
+          runtime.tags?.[BMA_TEMPLATE_TAG_KEY] === BMA_TEMPLATE_TAG_VALUE ||
+          runtime.additionalPolicies?.includes(BMA_POLICY_FILE),
+      );
+      if (bmaRuntimes.length > 0) {
+        throw new RegionUnsupportedFeatureError(
+          `Cannot deploy to China region ${target.region}: ` +
+            `${bmaRuntimes.map((runtime) => `runtime '${runtime.name}'`).join(", ")} uses ` +
+            `Bedrock Managed Agents. ${BMA_CN_MESSAGE}`,
+        );
+      }
       const blocked = project.spec.runtimes.filter(
         (runtime) =>
           runtime.modelProvider !== undefined &&
@@ -1368,7 +1402,10 @@ export class FsProjectManager implements ProjectManager {
   private async checkCreateDependencies(input: CreateProjectInput): Promise<void> {
     if (!input.skipInstall) {
       await this.checkTool("npm", NODE_INSTALL_HINT);
-      if (input.scaffoldRuntimeInput?.language === "Python") {
+      if (
+        input.scaffoldRuntimeInput?.language === "Python" &&
+        templateManagesDependencies(resolveRuntimeTemplateProfile(input.scaffoldRuntimeInput))
+      ) {
         await this.checkTool("uv", UV_INSTALL_HINT);
       }
     }
@@ -1380,6 +1417,7 @@ export class FsProjectManager implements ProjectManager {
   private async checkRuntimeDependency(
     input: RuntimeResourceConfig["scaffoldRuntimeInput"],
   ): Promise<void> {
+    if (!templateManagesDependencies(resolveRuntimeTemplateProfile(input))) return;
     if (input.language === "Python") {
       await this.checkTool("uv", UV_INSTALL_HINT);
     } else {
@@ -1391,7 +1429,11 @@ export class FsProjectManager implements ProjectManager {
    * Installs dependencies for a scaffolded runtime directory (e.g. `uv sync`
    * for Python). No-ops if the runtime has no recognized dependency manifest.
    */
-  private async *installRuntimeDependencies(appDir: string): AsyncGenerator<ProjectEvent, void> {
+  private async *installRuntimeDependencies(
+    appDir: string,
+    input?: RuntimeResourceConfig["scaffoldRuntimeInput"],
+  ): AsyncGenerator<ProjectEvent, void> {
+    if (input && !templateManagesDependencies(resolveRuntimeTemplateProfile(input))) return;
     if (existsSync(join(appDir, "pyproject.toml"))) {
       await this.checkTool("uv", UV_INSTALL_HINT);
       yield { type: "step", message: "Syncing Python dependencies with uv" };

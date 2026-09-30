@@ -21,6 +21,7 @@ import type { AppIO } from "../../../io";
 import { resolveRuntimeTemplateShortcut } from "../shortcuts";
 import type { CreateProjectInput } from "../types";
 import { ProjectSpecSchema } from "../../../projectSchemas/project";
+import { RegionKey } from "../../keys";
 
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(cleanupScreens);
@@ -388,6 +389,7 @@ describe("project create wizard", () => {
     expect(r.lastFrame()).toContain("● agent-python-strands");
     expect(r.lastFrame()).not.toContain("agent-python-strands (recommended)");
     expect(r.lastFrame()).toContain("agent-python-strands-container");
+    expect(r.lastFrame()).toContain("bedrock-managed-agents");
     await r.press("return");
 
     // No memory step: memory is no longer a choice, so review follows directly.
@@ -418,6 +420,36 @@ describe("project create wizard", () => {
     r.unmount();
   }, 10000);
 
+  test("the wizard rejects Bedrock Managed Agents in a China region before create", async () => {
+    const { path: directory, cleanup } = await inTempDirectory();
+    cleanups.push(cleanup);
+    const core = new TestCoreClient();
+    const inputs = spyOnCreate(core);
+    const r = renderScreen("/agentcore/create", {
+      core,
+      withContext: (ctx) => ctx.withValue(RegionKey, "cn-north-1"),
+    });
+
+    await waitForText(r.lastFrame, "name your project");
+    await r.write("CnBma");
+    await r.press("return");
+    await waitForText(r.lastFrame, "what kind of agent to start with?");
+    await r.press("return");
+    await waitForText(r.lastFrame, "choose a template");
+    await r.press("down"); // agent-python-strands-container
+    await r.press("down"); // agent-python-langchain
+    await r.press("down"); // bedrock-managed-agents
+    await waitForText(r.lastFrame, "● bedrock-managed-agents");
+    await r.press("return");
+    await waitForText(r.lastFrame, "this project will be created");
+    await r.press("return");
+
+    await waitForText(r.lastFrame, "Bedrock Managed Agents is not available in China regions");
+    expect(inputs).toEqual([]);
+    expect(existsSync(join(directory, "CnBma"))).toBe(false);
+    r.unmount();
+  });
+
   test("template flow: the minimal template scaffolds without memory", async () => {
     const { path: directory, cleanup } = await inTempDirectory();
     cleanups.push(cleanup);
@@ -433,6 +465,7 @@ describe("project create wizard", () => {
     await waitForText(r.lastFrame, "choose a template");
     await r.press("down"); // agent-python-strands-container
     await r.press("down"); // agent-python-langchain
+    await r.press("down"); // bedrock-managed-agents
     await r.press("down"); // agent-python-minimal
     await waitForText(r.lastFrame, "● agent-python-minimal ");
     await r.press("return");
