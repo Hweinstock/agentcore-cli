@@ -389,7 +389,7 @@ describe("project create wizard", () => {
     expect(r.lastFrame()).toContain("● agent-python-strands");
     expect(r.lastFrame()).not.toContain("agent-python-strands (recommended)");
     expect(r.lastFrame()).toContain("agent-python-strands-container");
-    expect(r.lastFrame()).toContain("bedrock-managed-agents");
+    expect(r.lastFrame()).toContain("environment-python-bma");
     await r.press("return");
 
     // No memory step: memory is no longer a choice, so review follows directly.
@@ -438,8 +438,8 @@ describe("project create wizard", () => {
     await waitForText(r.lastFrame, "choose a template");
     await r.press("down"); // agent-python-strands-container
     await r.press("down"); // agent-python-langchain
-    await r.press("down"); // bedrock-managed-agents
-    await waitForText(r.lastFrame, "● bedrock-managed-agents");
+    await r.press("down"); // environment-python-bma
+    await waitForText(r.lastFrame, "● environment-python-bma");
     await r.press("return");
     await waitForText(r.lastFrame, "this project will be created");
     await r.press("return");
@@ -465,7 +465,7 @@ describe("project create wizard", () => {
     await waitForText(r.lastFrame, "choose a template");
     await r.press("down"); // agent-python-strands-container
     await r.press("down"); // agent-python-langchain
-    await r.press("down"); // bedrock-managed-agents
+    await r.press("down"); // environment-python-bma
     await r.press("down"); // agent-python-minimal
     await waitForText(r.lastFrame, "● agent-python-minimal ");
     await r.press("return");

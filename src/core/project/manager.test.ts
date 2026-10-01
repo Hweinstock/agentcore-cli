@@ -47,7 +47,7 @@ const AGENT_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut(
 const AGENT_TYPESCRIPT_STRANDS = resolveRuntimeTemplateShortcut("agent-typescript-strands");
 const A2A_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("a2a-python-strands");
 const AGENT_PYTHON_LANGCHAIN = resolveRuntimeTemplateShortcut("agent-python-langchain");
-const BEDROCK_MANAGED_AGENTS = resolveRuntimeTemplateShortcut("bedrock-managed-agents");
+const BEDROCK_MANAGED_AGENTS = resolveRuntimeTemplateShortcut("environment-python-bma");
 
 function withTemplateProfile(
   input: ScaffoldRuntimeInput,
@@ -301,14 +301,14 @@ describe("FsProjectManager.create", () => {
     });
 
     const projectRoot = join(directory, "example");
-    const appDir = join(projectRoot, "app", "bedrock_managed_agents");
+    const appDir = join(projectRoot, "app", "environment_python_bma");
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes).toEqual([
       {
-        name: "bedrock_managed_agents",
+        name: "environment_python_bma",
         build: "Container",
         entrypoint: "lifecycle/server.py",
-        codeLocation: "app/bedrock_managed_agents",
+        codeLocation: "app/environment_python_bma",
         dockerfile: "Dockerfile",
         additionalPolicies: ["bma-acr-policy.json"],
         protocol: "HTTP",
@@ -328,7 +328,7 @@ describe("FsProjectManager.create", () => {
       ).exists(),
     ).toBe(true);
     expect(await Bun.file(join(appDir, "pyproject.toml")).text()).toContain(
-      'name = "bedrock_managed_agents"',
+      'name = "environment_python_bma"',
     );
     expect(setup.commands).toEqual([
       {
@@ -950,7 +950,7 @@ describe("FsProjectManager.addResource", () => {
 
       const { error } = await deployOutcome(subject, project);
       expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
-      expect(String(error)).toContain("runtime 'bedrock_managed_agents'");
+      expect(String(error)).toContain("runtime 'environment_python_bma'");
       expect(String(error)).toContain(BMA_CN_MESSAGE);
       expect(deployCalls).toEqual([]);
     });

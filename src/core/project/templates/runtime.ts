@@ -331,9 +331,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }] },
     };
   },
-  [buildResolverKey("bedrock-managed-agents", "Python", "HTTP")]: async (
-    input: RuntimeResourceConfig,
-  ) => {
+  [buildResolverKey("bma", "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/bedrock-managed-agents" },

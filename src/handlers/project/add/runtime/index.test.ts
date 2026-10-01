@@ -104,7 +104,7 @@ describe("project add runtime", () => {
       build: "CodeZip",
       protocol: "AGUI",
     },
-    "bedrock-managed-agents template preset": {
+    "environment-python-bma template preset": {
       build: "Container",
       entrypoint: "lifecycle/server.py",
       dockerfile: "Dockerfile",
@@ -176,8 +176,8 @@ describe("project add runtime", () => {
       ["--name", "my_agui", "--template", "agui-python-strands"],
     ],
     [
-      "bedrock-managed-agents template preset",
-      ["--name", "my_bma", "--template", "bedrock-managed-agents"],
+      "environment-python-bma template preset",
+      ["--name", "my_bma", "--template", "environment-python-bma"],
     ],
     [
       "agent-python-strands with session, EFS, and S3 mounts",
@@ -286,14 +286,14 @@ describe("project add runtime", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     const runtime = spec.runtimes.find((candidate: { name: string }) => candidate.name === name);
     expect(runtime).toMatchObject({ entrypoint: "main.py", ...expectedSpecByLabel[label] });
-    const isBma = flags.includes("bedrock-managed-agents");
+    const isBma = flags.includes("environment-python-bma");
     expect(
       await Bun.file(
         join(projectRoot, "app", name, isBma ? "lifecycle/server.py" : "main.py"),
       ).exists(),
     ).toBe(true);
     const isContainer = flags.some(
-      (flag) => flag.endsWith("-container") || flag === "bedrock-managed-agents",
+      (flag) => flag.endsWith("-container") || flag === "environment-python-bma",
     );
     expect(runtime.runtimeVersion).toBe(isContainer ? undefined : "PYTHON_3_14");
     expect(await Bun.file(join(projectRoot, "app", name, "Dockerfile")).exists()).toBe(isContainer);
@@ -311,7 +311,7 @@ describe("project add runtime", () => {
       "--name",
       "my_bma",
       "--template",
-      "bedrock-managed-agents",
+      "environment-python-bma",
     ]);
 
     expect(core.projectCommands).toEqual([]);
@@ -329,7 +329,7 @@ describe("project add runtime", () => {
       "--name",
       "my_bma",
       "--template",
-      "bedrock-managed-agents",
+      "environment-python-bma",
       "--lifecycle-configuration",
       '{"idleRuntimeSessionTimeout":300,"maxLifetime":3600}',
       "--additional-policies",
@@ -363,7 +363,7 @@ describe("project add runtime", () => {
       "--name",
       "my_bma",
       "--template",
-      "bedrock-managed-agents",
+      "environment-python-bma",
       "--role-arn",
       roleArn,
       "--json",
@@ -391,7 +391,7 @@ describe("project add runtime", () => {
     ["agent-typescript-vercel", []],
     ["mcp-python-fastmcp", []],
     ["agui-python-strands", ["SEMANTIC", "USER_PREFERENCE", "SUMMARIZATION", "EPISODIC"]],
-    ["bedrock-managed-agents", []],
+    ["environment-python-bma", []],
   ])("%s ships with its pre-configured memory", async (templateName, expectedStrategies) => {
     const { projectRoot, cleanup } = await initProject();
     cleanups.push(cleanup);
@@ -526,8 +526,9 @@ describe("project add runtime", () => {
       ],
     ],
     [
-      "--model-provider is not valid with the bedrock-managed-agents template",
-      ["--name", "my_bma", "--template", "bedrock-managed-agents", "--model-provider", "Anthropic"],
+      "--model-provider is not valid with the environment-python-bma template",
+      ["--name", "my_bma", "--template", "environment-python-bma", "--model-provider", "Anthropic"],
+      "--model-provider, --model-id, and --api-key are not valid with the environment-python-bma template",
     ],
     [
       "--model-provider without a template requires agent-python-strands",
@@ -545,13 +546,21 @@ describe("project add runtime", () => {
     await expectError(promise, requiredMessage ?? /./, InputValidationError);
   });
 
-  test("rejects an unknown --template value", async () => {
-    const { cleanup } = await initProject();
-    cleanups.push(cleanup);
-    await expect(
-      run(["add", "runtime", "--name", "my_agent", "--template", "nonsense"]),
-    ).rejects.toThrow();
-  });
+  test.each(["nonsense", "bedrock-managed-agents"])(
+    "rejects the unknown --template value %s",
+    async (template) => {
+      const { projectRoot, cleanup } = await initProject();
+      cleanups.push(cleanup);
+      await expect(
+        run(["add", "runtime", "--name", "my_agent", "--template", template]),
+      ).rejects.toThrow();
+      const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+      expect(spec.runtimes).toEqual([]);
+      expect(
+        await Bun.file(join(projectRoot, "app", "my_agent", "lifecycle", "server.py")).exists(),
+      ).toBe(false);
+    },
+  );
 });
 
 describe("project add runtime --type import", () => {

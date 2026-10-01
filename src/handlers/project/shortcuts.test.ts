@@ -14,7 +14,7 @@ describe("template order", () => {
       "agent-python-strands",
       "agent-python-strands-container",
       "agent-python-langchain",
-      "bedrock-managed-agents",
+      "environment-python-bma",
       "agent-python-minimal",
       "agent-typescript-strands",
       "agent-typescript-vercel",
@@ -27,10 +27,10 @@ describe("template order", () => {
 });
 
 test("the Bedrock Managed Agents shortcut selects its environment profile", () => {
-  expect(RUNTIME_TEMPLATE_SHORTCUTS["bedrock-managed-agents"]).toMatchObject({
+  expect(RUNTIME_TEMPLATE_SHORTCUTS["environment-python-bma"]).toMatchObject({
     build: "Container",
     language: "Python",
-    framework: "bedrock-managed-agents",
+    framework: "bma",
     protocol: "HTTP",
     includesMemory: false,
     supportsModelProviderOverride: false,
