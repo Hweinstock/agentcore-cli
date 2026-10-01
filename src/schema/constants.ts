@@ -14,6 +14,13 @@ export const SDKFrameworkSchema = z.enum([
 ]);
 export type SDKFramework = z.infer<typeof SDKFrameworkSchema>;
 
+export const BMA_TEMPLATE_NAME = 'environment-python-bma';
+
+/** Public template name for an internal SDK framework identity. */
+export function getSdkFrameworkDisplayName(framework: string): string {
+  return framework === 'BedrockManagedAgents' ? BMA_TEMPLATE_NAME : framework;
+}
+
 export const TargetLanguageSchema = z.enum(['Python', 'TypeScript', 'Other']);
 export type TargetLanguage = z.infer<typeof TargetLanguageSchema>;
 
@@ -32,10 +39,13 @@ export function matchEnumValue(schema: { options: readonly string[] }, input: st
   return schema.options.find(v => v.toLowerCase() === lower);
 }
 
-/** Short names that --framework also accepts. */
-const SDK_FRAMEWORK_ALIASES: Readonly<Record<string, SDKFramework>> = { bma: 'BedrockManagedAgents' };
+/** Public template names and short names accepted by --sdk and --framework. */
+const SDK_FRAMEWORK_ALIASES: Readonly<Record<string, SDKFramework>> = {
+  [BMA_TEMPLATE_NAME]: 'BedrockManagedAgents',
+  bma: 'BedrockManagedAgents',
+};
 
-/** Case-insensitively match a --framework value, including its short names. */
+/** Case-insensitively match a --sdk or --framework value to its internal identity. */
 export function matchSdkFramework(input: string): SDKFramework | undefined {
   const lower = input.toLowerCase();
   if (Object.hasOwn(SDK_FRAMEWORK_ALIASES, lower)) return SDK_FRAMEWORK_ALIASES[lower];

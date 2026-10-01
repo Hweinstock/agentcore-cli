@@ -50,6 +50,7 @@ export interface CreateOptions extends VpcOptions {
 export type CreateResult = Result<{
   projectPath?: string;
   agentName?: string;
+  sdk?: string;
   harnessName?: string;
   dryRun?: boolean;
   wouldCreate?: string[];

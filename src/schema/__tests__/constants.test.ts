@@ -13,6 +13,7 @@ import {
   TargetLanguageSchema,
   VPC_ID_PATTERN,
   getFrameworksForLanguage,
+  getSdkFrameworkDisplayName,
   getSupportedFrameworksForProtocol,
   getSupportedModelProviders,
   isFrameworkSupportedForLanguage,
@@ -20,6 +21,7 @@ import {
   isModelProviderSupported,
   isReservedProjectName,
   matchEnumValue,
+  matchSdkFramework,
 } from '../constants.js';
 import { describe, expect, it } from 'vitest';
 
@@ -41,6 +43,25 @@ describe('matchEnumValue', () => {
     expect(matchEnumValue(SDKFrameworkSchema, 'langchain_langgraph')).toBe('LangChain_LangGraph');
     expect(matchEnumValue(SDKFrameworkSchema, 'openaiagents')).toBe('OpenAIAgents');
     expect(matchEnumValue(SDKFrameworkSchema, 'googleadk')).toBe('GoogleADK');
+  });
+});
+
+describe('public template names', () => {
+  it.each(['environment-python-bma', 'ENVIRONMENT-PYTHON-BMA', 'BMA', 'BedrockManagedAgents'])(
+    'resolves %s to the stable BMA identity',
+    input => {
+      expect(matchSdkFramework(input)).toBe('BedrockManagedAgents');
+    }
+  );
+
+  it('displays the public name while retaining the internal schema identity', () => {
+    expect(getSdkFrameworkDisplayName('BedrockManagedAgents')).toBe('environment-python-bma');
+    expect(SDKFrameworkSchema.safeParse(matchSdkFramework('environment-python-bma')).success).toBe(true);
+    expect(getSdkFrameworkDisplayName('Strands')).toBe('Strands');
+  });
+
+  it.each(['environment-python', 'constructor', '__proto__', 'toString'])('rejects unknown name %s', input => {
+    expect(matchSdkFramework(input)).toBeUndefined();
   });
 });
 

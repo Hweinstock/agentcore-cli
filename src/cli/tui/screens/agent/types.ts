@@ -12,7 +12,7 @@ import type {
   SDKFramework,
   TargetLanguage,
 } from '../../../../schema';
-import { DEFAULT_MODEL_IDS, getSupportedModelProviders } from '../../../../schema';
+import { BMA_TEMPLATE_NAME, DEFAULT_MODEL_IDS, getSupportedModelProviders } from '../../../../schema';
 import type { JwtConfigOptions } from '../../../primitives/auth-utils';
 import type { MemoryOption } from '../generate/types';
 
@@ -201,7 +201,7 @@ export const FRAMEWORK_OPTIONS = [
   { id: 'OpenAIAgents', title: 'OpenAI Agents', description: 'OpenAI native agent SDK' },
   {
     id: 'BedrockManagedAgents',
-    title: 'Bedrock Managed Agents',
+    title: BMA_TEMPLATE_NAME,
     description: 'Runtime environment for Bedrock Managed Agents sessions',
   },
 ] as const;

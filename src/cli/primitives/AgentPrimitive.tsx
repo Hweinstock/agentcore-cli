@@ -31,6 +31,8 @@ import {
   DEFAULT_PYTHON_VERSION,
   LIFECYCLE_TIMEOUT_MAX,
   LIFECYCLE_TIMEOUT_MIN,
+  SDKFrameworkSchema,
+  getSdkFrameworkDisplayName,
   isCapacityProviderArn,
 } from '../../schema';
 import { getCredentialProvider } from '../aws/account';
@@ -163,7 +165,7 @@ export class AgentPrimitive extends BasePrimitive<AddAgentOptions, RemovableReso
     };
   }
 
-  async add(options: AddAgentOptions): Promise<AddResult<{ agentName: string; agentPath?: string }>> {
+  async add(options: AddAgentOptions): Promise<AddResult<{ agentName: string; agentPath?: string; sdk?: string }>> {
     try {
       const configBaseDir = findConfigRoot();
       if (!configBaseDir) {
@@ -281,8 +283,8 @@ export class AgentPrimitive extends BasePrimitive<AddAgentOptions, RemovableReso
       .option('--build <type>', 'Build type: CodeZip or Container (default: CodeZip) [non-interactive]')
       .option('--language <lang>', 'Language: Python (create), or Python/TypeScript/Other (BYO) [non-interactive]')
       .option(
-        '--framework <fw>',
-        'Framework: Strands, LangChain_LangGraph, GoogleADK, OpenAIAgents, VercelAI, BedrockManagedAgents [non-interactive]'
+        '--sdk, --framework <fw>',
+        `Framework: ${SDKFrameworkSchema.options.map(getSdkFrameworkDisplayName).join(', ')} [non-interactive]`
       )
       .option('--model-provider <provider>', 'Model provider: Bedrock, Anthropic, OpenAI, Gemini [non-interactive]')
       .option('--api-key <key>', 'API key for non-Bedrock providers [non-interactive]')
@@ -590,7 +592,7 @@ export class AgentPrimitive extends BasePrimitive<AddAgentOptions, RemovableReso
   private async handleCreatePath(
     options: AddAgentOptions,
     configBaseDir: string
-  ): Promise<AddResult<{ agentName: string; agentPath?: string }>> {
+  ): Promise<AddResult<{ agentName: string; agentPath?: string; sdk?: string }>> {
     const projectRoot = dirname(configBaseDir);
     const configIO = new ConfigIO({ baseDir: configBaseDir });
     const project = await configIO.readProjectSpec();
@@ -705,7 +707,12 @@ export class AgentPrimitive extends BasePrimitive<AddAgentOptions, RemovableReso
       await createConfigBundleForAgent(options.name, configBaseDir);
     }
 
-    return { success: true, agentName: options.name, agentPath };
+    return {
+      success: true,
+      agentName: options.name,
+      agentPath,
+      sdk: options.protocol === 'MCP' ? undefined : getSdkFrameworkDisplayName(options.framework),
+    };
   }
 
   /**

@@ -29,10 +29,14 @@ describe('getSDKOptionsForProtocol', () => {
     expect(ids).not.toContain('VercelAI');
   });
 
-  it('offers Bedrock Managed Agents only for Python HTTP agents', () => {
-    expect(getSDKOptionsForProtocol('HTTP', 'Python').map(o => o.id)).toContain('BedrockManagedAgents');
+  it('offers environment-python-bma only for Python HTTP agents with a stable selection identity', () => {
+    expect(getSDKOptionsForProtocol('HTTP', 'Python')).toContainEqual(
+      expect.objectContaining({ id: 'BedrockManagedAgents', title: 'environment-python-bma' })
+    );
     expect(getSDKOptionsForProtocol('HTTP', 'TypeScript').map(o => o.id)).not.toContain('BedrockManagedAgents');
     expect(getSDKOptionsForProtocol('MCP', 'Python').map(o => o.id)).not.toContain('BedrockManagedAgents');
+    expect(getSDKOptionsForProtocol('A2A', 'Python').map(o => o.id)).not.toContain('BedrockManagedAgents');
+    expect(getSDKOptionsForProtocol('AGUI', 'Python').map(o => o.id)).not.toContain('BedrockManagedAgents');
   });
 });
 

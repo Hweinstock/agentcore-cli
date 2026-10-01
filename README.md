@@ -68,7 +68,7 @@ agentcore invoke
 | LangChain/LangGraph    | Graph-based workflows                                                       |
 | Google ADK             | Gemini models only                                                          |
 | OpenAI Agents          | OpenAI models only                                                          |
-| Bedrock Managed Agents | Runtime environment for Bedrock Managed Agents sessions (Python, Container) |
+| environment-python-bma | Runtime environment for Bedrock Managed Agents sessions (Python, Container) |
 
 ## Supported Model Providers
 

@@ -12,6 +12,7 @@ import type {
   TargetLanguage,
 } from '../../../../schema';
 import {
+  BMA_TEMPLATE_NAME,
   DEFAULT_MODEL_IDS,
   PROTOCOL_FRAMEWORK_MATRIX,
   getFrameworksForLanguage,
@@ -178,7 +179,7 @@ export const SDK_OPTIONS = [
   { id: 'VercelAI', title: 'Vercel AI SDK', description: 'Vercel AI SDK for TypeScript agents' },
   {
     id: 'BedrockManagedAgents',
-    title: 'Bedrock Managed Agents',
+    title: BMA_TEMPLATE_NAME,
     description: 'Runtime environment for Bedrock Managed Agents sessions',
   },
 ] as const;

@@ -1,4 +1,4 @@
-import { AgentEnvSpecSchema } from '../../../schema';
+import { AgentEnvSpecSchema, matchSdkFramework } from '../../../schema';
 import type { AddAgentOptions } from '../../commands/add/types.js';
 import { validateAddAgentOptions } from '../../commands/add/validate.js';
 import { getDryRunInfo } from '../../commands/create/action.js';
@@ -23,7 +23,7 @@ const bmaConfig: GenerateConfig = {
   projectName: 'BmaEnv',
   buildType: 'CodeZip',
   protocol: 'HTTP',
-  sdk: 'BedrockManagedAgents',
+  sdk: matchSdkFramework('environment-python-bma')!,
   modelProvider: 'Bedrock',
   memory: 'none',
   language: 'Python',
@@ -289,9 +289,9 @@ describe('BmaRenderer', () => {
   });
 });
 
-describe('validateCreateOptions for BedrockManagedAgents', () => {
+describe('validateCreateOptions for environment-python-bma', () => {
   let testDir: string;
-  const base = { name: 'BmaEnv', framework: 'BedrockManagedAgents' };
+  const base = { name: 'BmaEnv', framework: 'environment-python-bma' };
 
   beforeAll(() => {
     testDir = join(tmpdir(), `bma-validate-${randomUUID()}`);
@@ -302,20 +302,27 @@ describe('validateCreateOptions for BedrockManagedAgents', () => {
     rmSync(testDir, { recursive: true, force: true });
   });
 
-  it('accepts the BedrockManagedAgents framework with only --name and --framework', () => {
-    const options: CreateOptions = { ...base };
-    expect(validateCreateOptions(options, testDir).valid).toBe(true);
-    expect(options).toMatchObject({ modelProvider: 'Bedrock', memory: 'none', language: 'Python', build: 'Container' });
-    expect(validateCreateOptions({ ...base, framework: 'bedrockmanagedagents' }, testDir).valid).toBe(true);
-    expect(validateCreateOptions({ ...base, build: 'Container' }, testDir).valid).toBe(true);
-  });
+  it.each(['environment-python-bma', 'ENVIRONMENT-PYTHON-BMA', 'BedrockManagedAgents', 'bedrockmanagedagents'])(
+    'accepts %s with only a name and template selection',
+    framework => {
+      const options: CreateOptions = { ...base, framework };
+      expect(validateCreateOptions(options, testDir).valid).toBe(true);
+      expect(options).toMatchObject({
+        framework: 'BedrockManagedAgents',
+        modelProvider: 'Bedrock',
+        memory: 'none',
+        language: 'Python',
+        build: 'Container',
+      });
+    }
+  );
 
   it('rejects memory and CodeZip builds', () => {
     expect(validateCreateOptions({ ...base, memory: 'shortTerm' }, testDir).error).toBe(
-      'BedrockManagedAgents supports only --memory none'
+      'environment-python-bma supports only --memory none'
     );
     expect(validateCreateOptions({ ...base, build: 'CodeZip' }, testDir).error).toBe(
-      'BedrockManagedAgents supports only --build Container'
+      'environment-python-bma supports only --build Container'
     );
   });
 
@@ -326,12 +333,16 @@ describe('validateCreateOptions for BedrockManagedAgents', () => {
   });
 
   it('rejects a model provider other than Bedrock, TypeScript, and protocols other than HTTP', () => {
-    expect(validateCreateOptions({ ...base, modelProvider: 'OpenAI' }, testDir).valid).toBe(false);
+    expect(validateCreateOptions({ ...base, modelProvider: 'OpenAI' }, testDir).error).toBe(
+      'environment-python-bma does not support OpenAI'
+    );
     expect(validateCreateOptions({ ...base, language: 'TypeScript' }, testDir).valid).toBe(false);
     expect(validateCreateOptions({ ...base, language: 'Other' }, testDir).error).toBe(
-      'BedrockManagedAgents supports only --language Python'
+      'environment-python-bma supports only --language Python'
     );
-    expect(validateCreateOptions({ ...base, protocol: 'A2A' }, testDir).valid).toBe(false);
+    expect(validateCreateOptions({ ...base, protocol: 'A2A' }, testDir).error).toBe(
+      'environment-python-bma does not support A2A protocol'
+    );
     expect(validateCreateOptions({ ...base, protocol: 'MCP' }, testDir).valid).toBe(false);
   });
 
@@ -353,10 +364,10 @@ describe('validateAddAgentOptions for BedrockManagedAgents', () => {
 
   it('rejects --type byo and import', () => {
     expect(validateAddAgentOptions({ ...base, type: 'byo', codeLocation: './x' }).error).toBe(
-      'BedrockManagedAgents supports only --type create'
+      'environment-python-bma supports only --type create'
     );
     expect(validateAddAgentOptions({ ...base, type: 'import' }).error).toBe(
-      'BedrockManagedAgents supports only --type create'
+      'environment-python-bma supports only --type create'
     );
   });
 
@@ -368,13 +379,13 @@ describe('validateAddAgentOptions for BedrockManagedAgents', () => {
 
   it('rejects memory and CodeZip builds', () => {
     expect(validateAddAgentOptions({ ...base, memory: 'shortTerm' }).error).toBe(
-      'BedrockManagedAgents supports only --memory none'
+      'environment-python-bma supports only --memory none'
     );
     expect(validateAddAgentOptions({ ...base, build: 'CodeZip' }).error).toBe(
-      'BedrockManagedAgents supports only --build Container'
+      'environment-python-bma supports only --build Container'
     );
     expect(validateAddAgentOptions({ ...base, language: 'TypeScript' }).error).toBe(
-      'BedrockManagedAgents supports only --language Python'
+      'environment-python-bma supports only --language Python'
     );
   });
 });

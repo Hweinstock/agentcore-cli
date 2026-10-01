@@ -16,14 +16,14 @@ framework is restricted to `Strands` or `VercelAI`; other values are rejected. S
 
 ## Available Frameworks
 
-| Framework                | Supported Model Providers                               |
-| ------------------------ | ------------------------------------------------------- |
-| **Strands Agents**       | Bedrock, Anthropic, OpenAI, Gemini                      |
-| **LangChain_LangGraph**  | Bedrock, Anthropic, OpenAI, Gemini                      |
-| **GoogleADK**            | Gemini only                                             |
-| **OpenAIAgents**         | OpenAI only                                             |
-| **VercelAI**             | Bedrock, Anthropic, OpenAI, Gemini                      |
-| **BedrockManagedAgents** | Bedrock only (the model runs in Bedrock Managed Agents) |
+| Framework                  | Supported Model Providers                               |
+| -------------------------- | ------------------------------------------------------- |
+| **Strands Agents**         | Bedrock, Anthropic, OpenAI, Gemini                      |
+| **LangChain_LangGraph**    | Bedrock, Anthropic, OpenAI, Gemini                      |
+| **GoogleADK**              | Gemini only                                             |
+| **OpenAIAgents**           | OpenAI only                                             |
+| **VercelAI**               | Bedrock, Anthropic, OpenAI, Gemini                      |
+| **environment-python-bma** | Bedrock only (the model runs in Bedrock Managed Agents) |
 
 ## Runtime Input Validation
 
@@ -120,7 +120,7 @@ agentcore create --framework VercelAI --model-provider Bedrock
 agentcore create --framework VercelAI --model-provider Bedrock --language TypeScript
 ```
 
-### Bedrock Managed Agents
+### environment-python-bma
 
 A Runtime environment for Amazon Bedrock Managed Agents (BMA). BMA runs the agent loop (Codex) in the service and sends
 the session's commands to this Runtime. The Runtime runs no model code.
@@ -133,12 +133,20 @@ the session's commands to this Runtime. The Runtime runs no model code.
 
 **Languages:** Python (Container build only, no memory)
 
-`BMA` is a short name for the framework. The template sets an idle timeout of 1800 seconds, a maximum lifetime of 28800
-seconds, and a policy that lets the Runtime connect to BMA. It adds no session storage, so the same project deploys to a
-microVM Runtime and to a capacity provider.
+Select `environment-python-bma` in the create or add agent wizard, or pass `--sdk environment-python-bma` in headless
+mode. `--framework` accepts the same values, and `BMA` remains a short name. The template sets an idle timeout of 1800
+seconds, a maximum lifetime of 28800 seconds, and a policy that lets the Runtime connect to BMA. It adds no session
+storage, so the same project deploys to a microVM Runtime and to a capacity provider.
+
+Successful create and add agent JSON results report `"sdk": "environment-python-bma"`.
+
+![Create wizard showing environment-python-bma](screenshots/environment-python-bma-create.png)
 
 ```bash
-agentcore create --name MyManagedAgent --framework BedrockManagedAgents
+agentcore create --name MyManagedAgent --sdk environment-python-bma
+
+# Add an environment to an existing project
+agentcore add agent --name MyManagedEnvironment --sdk environment-python-bma
 ```
 
 ## Import from Bedrock Agents
@@ -227,8 +235,8 @@ agentcore add agent \
 
 Not all frameworks support all protocol modes. MCP protocol is a standalone tool server with no framework.
 
-| Protocol | Supported Frameworks                                                                  |
-| -------- | ------------------------------------------------------------------------------------- |
-| **HTTP** | Strands, LangChain_LangGraph, GoogleADK, OpenAIAgents, VercelAI, BedrockManagedAgents |
-| **MCP**  | None (standalone tool server)                                                         |
-| **A2A**  | Strands, GoogleADK, LangChain_LangGraph                                               |
+| Protocol | Supported Frameworks                                                                    |
+| -------- | --------------------------------------------------------------------------------------- |
+| **HTTP** | Strands, LangChain_LangGraph, GoogleADK, OpenAIAgents, VercelAI, environment-python-bma |
+| **MCP**  | None (standalone tool server)                                                           |
+| **A2A**  | Strands, GoogleADK, LangChain_LangGraph                                                 |

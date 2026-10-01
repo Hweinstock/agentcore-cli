@@ -8,8 +8,13 @@ import type {
   SDKFramework,
   TargetLanguage,
 } from '../../../schema';
-import { LIFECYCLE_TIMEOUT_MAX, LIFECYCLE_TIMEOUT_MIN } from '../../../schema';
-import { isCapacityProviderArn } from '../../../schema';
+import {
+  LIFECYCLE_TIMEOUT_MAX,
+  LIFECYCLE_TIMEOUT_MIN,
+  SDKFrameworkSchema,
+  getSdkFrameworkDisplayName,
+  isCapacityProviderArn,
+} from '../../../schema';
 import { ANSI, COMMAND_DESCRIPTIONS } from '../../constants';
 import { getErrorMessage } from '../../errors';
 import { ADDITIONAL_PARAMS_JSON_ERROR } from '../../primitives/constants';
@@ -76,7 +81,7 @@ function printCreateSummary(
   console.log(`${dim}Created:${reset}`);
   console.log(`  ${projectName}/`);
   if (agentName) {
-    const frameworkLabel = framework ?? 'agent';
+    const frameworkLabel = getSdkFrameworkDisplayName(framework ?? 'agent');
     const agentPath = `app/${agentName}/`;
     const agentcorePath = 'agentcore/';
     const maxPathLen = Math.max(agentPath.length, agentcorePath.length);
@@ -503,8 +508,8 @@ export const registerCreate = (program: Command) => {
     .option('--build <type>', 'Build type: CodeZip or Container (default: CodeZip) [non-interactive]')
     .option('--language <language>', 'Target language: Python or TypeScript (default: Python) [non-interactive]')
     .option(
-      '--framework <framework>',
-      'Agent framework (Strands, LangChain_LangGraph, GoogleADK, OpenAIAgents, VercelAI, BedrockManagedAgents) [non-interactive]'
+      '--sdk, --framework <framework>',
+      `Agent framework (${SDKFrameworkSchema.options.map(getSdkFrameworkDisplayName).join(', ')}) [non-interactive]`
     )
     .option('--model-provider <provider>', 'Model provider (Bedrock, Anthropic, OpenAI, Gemini) [non-interactive]')
     .option('--api-key <key>', 'API key for non-Bedrock providers [non-interactive]')

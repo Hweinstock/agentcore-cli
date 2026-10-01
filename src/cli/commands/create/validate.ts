@@ -1,5 +1,6 @@
 import {
   AgentNameSchema,
+  BMA_TEMPLATE_NAME,
   BuildTypeSchema,
   MAX_EFS_MOUNTS,
   MAX_S3_MOUNTS,
@@ -10,6 +11,7 @@ import {
   SessionStorageSchema,
   TargetLanguageSchema,
   getFrameworksForLanguage,
+  getSdkFrameworkDisplayName,
   getSupportedFrameworksForProtocol,
   getSupportedModelProviders,
   isFrameworkSupportedForLanguage,
@@ -84,10 +86,13 @@ export function validateCreateOptions(options: CreateOptions, cwd?: string): Val
     if (!options.region) return { valid: false, error: '--region is required for import' };
     if (!options.framework)
       return { valid: false, error: '--framework is required for import (Strands or LangChain_LangGraph)' };
-    const fw = matchEnumValue(SDKFrameworkSchema, options.framework) ?? options.framework;
+    const fw = matchSdkFramework(options.framework) ?? options.framework;
     options.framework = fw;
     if (fw !== 'Strands' && fw !== 'LangChain_LangGraph') {
-      return { valid: false, error: `Import only supports Strands or LangChain_LangGraph, got: ${options.framework}` };
+      return {
+        valid: false,
+        error: `Import only supports Strands or LangChain_LangGraph, got: ${getSdkFrameworkDisplayName(options.framework)}`,
+      };
     }
     options.memory ??= 'none';
     if (!MEMORY_OPTIONS.includes(options.memory as (typeof MEMORY_OPTIONS)[number])) {
@@ -111,7 +116,7 @@ export function validateCreateOptions(options: CreateOptions, cwd?: string): Val
   applyTemplateOptionDefaults(options.framework, options);
   const templateError = validateTemplateOptions(options.framework, options);
   if (templateError) {
-    return { valid: false, error: templateError };
+    return { valid: false, error: templateError.replaceAll('BedrockManagedAgents', BMA_TEMPLATE_NAME) };
   }
 
   // Validate protocol if provided
@@ -201,7 +206,10 @@ export function validateCreateOptions(options: CreateOptions, cwd?: string): Val
     if (protocol !== 'HTTP') {
       const supportedFrameworks = getSupportedFrameworksForProtocol(protocol);
       if (!supportedFrameworks.includes(fwResult.data)) {
-        return { valid: false, error: `${options.framework} does not support ${protocol} protocol` };
+        return {
+          valid: false,
+          error: `${getSdkFrameworkDisplayName(options.framework)} does not support ${protocol} protocol`,
+        };
       }
     }
 
@@ -217,17 +225,20 @@ export function validateCreateOptions(options: CreateOptions, cwd?: string): Val
       (langResult.data === 'Python' || langResult.data === 'TypeScript') &&
       !isFrameworkSupportedForLanguage(langResult.data, fwResult.data)
     ) {
-      const supported = getFrameworksForLanguage(langResult.data).join(', ');
+      const supported = getFrameworksForLanguage(langResult.data).map(getSdkFrameworkDisplayName).join(', ');
       return {
         valid: false,
-        error: `Framework ${options.framework} is not yet available for ${langResult.data}. Supported: ${supported}.`,
+        error: `Framework ${getSdkFrameworkDisplayName(options.framework)} is not yet available for ${langResult.data}. Supported: ${supported}.`,
       };
     }
 
     // Validate framework/model compatibility
     const supportedProviders = getSupportedModelProviders(fwResult.data);
     if (!supportedProviders.includes(mpResult.data)) {
-      return { valid: false, error: `${options.framework} does not support ${options.modelProvider}` };
+      return {
+        valid: false,
+        error: `${getSdkFrameworkDisplayName(options.framework)} does not support ${options.modelProvider}`,
+      };
     }
 
     // Validate memory option

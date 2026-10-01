@@ -1,6 +1,7 @@
 import { ConfigIO, findConfigRoot } from '../../../lib';
 import {
   AgentNameSchema,
+  BMA_TEMPLATE_NAME,
   BuildTypeSchema,
   CONNECTOR_ID_VALUES,
   DatasetNameSchema,
@@ -17,6 +18,7 @@ import {
   TARGET_TYPE_AUTH_CONFIG,
   TargetLanguageSchema,
   getFrameworksForLanguage,
+  getSdkFrameworkDisplayName,
   getSupportedFrameworksForProtocol,
   getSupportedModelProviders,
   isFrameworkSupportedForLanguage,
@@ -105,7 +107,7 @@ export function validateAddAgentOptions(options: AddAgentOptions): ValidationRes
   applyTemplateOptionDefaults(options.framework, options);
   const templateError = validateTemplateOptions(options.framework, options);
   if (templateError) {
-    return { valid: false, error: templateError };
+    return { valid: false, error: templateError.replaceAll('BedrockManagedAgents', BMA_TEMPLATE_NAME) };
   }
 
   // Session storage is not supported for TypeScript agents — reject early before any path-specific returns
@@ -234,7 +236,10 @@ export function validateAddAgentOptions(options: AddAgentOptions): ValidationRes
   if (protocol !== 'HTTP') {
     const supportedFrameworks = getSupportedFrameworksForProtocol(protocol);
     if (!supportedFrameworks.includes(options.framework)) {
-      return { valid: false, error: `${options.framework} does not support ${protocol} protocol` };
+      return {
+        valid: false,
+        error: `${getSdkFrameworkDisplayName(options.framework)} does not support ${protocol} protocol`,
+      };
     }
   }
 
@@ -249,7 +254,10 @@ export function validateAddAgentOptions(options: AddAgentOptions): ValidationRes
 
   const supportedProviders = getSupportedModelProviders(options.framework);
   if (!supportedProviders.includes(options.modelProvider)) {
-    return { valid: false, error: `${options.framework} does not support ${options.modelProvider}` };
+    return {
+      valid: false,
+      error: `${getSdkFrameworkDisplayName(options.framework)} does not support ${options.modelProvider}`,
+    };
   }
 
   if (!options.language) {
@@ -275,10 +283,10 @@ export function validateAddAgentOptions(options: AddAgentOptions): ValidationRes
       (langResult.data === 'Python' || langResult.data === 'TypeScript') &&
       !isFrameworkSupportedForLanguage(langResult.data, fwResult.data)
     ) {
-      const supported = getFrameworksForLanguage(langResult.data).join(', ');
+      const supported = getFrameworksForLanguage(langResult.data).map(getSdkFrameworkDisplayName).join(', ');
       return {
         valid: false,
-        error: `Framework ${options.framework} is not yet available for ${langResult.data}. Supported: ${supported}.`,
+        error: `Framework ${getSdkFrameworkDisplayName(options.framework)} is not yet available for ${langResult.data}. Supported: ${supported}.`,
       };
     }
 

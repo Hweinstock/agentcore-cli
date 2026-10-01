@@ -21,6 +21,7 @@ import type {
   SDKFramework,
   TargetLanguage,
 } from '../../../schema';
+import { getSdkFrameworkDisplayName, matchSdkFramework } from '../../../schema';
 import { checkCreateDependencies } from '../../external-requirements';
 import { initGitRepo, setupNodeProject, setupPythonProject, writeEnvFile, writeGitignore } from '../../operations';
 import { createConfigBundleForAgent } from '../../operations/agent/config-bundle-defaults';
@@ -257,6 +258,7 @@ export async function createProjectWithAgent(options: CreateWithAgentOptions): P
         success: true,
         projectPath: projectRoot,
         agentName: name,
+        sdk: getSdkFrameworkDisplayName(framework ?? 'Strands'),
         warnings: depWarnings.length > 0 ? depWarnings : undefined,
       };
     } catch (err) {
@@ -373,6 +375,7 @@ export async function createProjectWithAgent(options: CreateWithAgentOptions): P
       success: true,
       projectPath: projectRoot,
       agentName: name,
+      sdk: isMcp ? undefined : getSdkFrameworkDisplayName(resolvedFramework),
       warnings: depWarnings.length > 0 ? depWarnings : undefined,
     };
   } catch (err) {
@@ -388,6 +391,7 @@ export function getDryRunInfo(options: {
   projectName?: string;
 }): CreateResult {
   const { name, cwd, language } = options;
+  const framework = options.framework ? (matchSdkFramework(options.framework) ?? options.framework) : undefined;
   const projectName = options.projectName ?? name;
   const projectRoot = join(cwd, projectName);
 
@@ -402,7 +406,7 @@ export function getDryRunInfo(options: {
 
   if (language === 'Python') {
     wouldCreate.push(`${projectRoot}/app/${name}/`);
-    wouldCreate.push(`${projectRoot}/app/${name}/${getTemplateProfile(options.framework)?.entrypoint ?? 'main.py'}`);
+    wouldCreate.push(`${projectRoot}/app/${name}/${getTemplateProfile(framework)?.entrypoint ?? 'main.py'}`);
     wouldCreate.push(`${projectRoot}/app/${name}/pyproject.toml`);
   } else if (language === 'TypeScript') {
     wouldCreate.push(`${projectRoot}/app/${name}/`);
@@ -417,6 +421,7 @@ export function getDryRunInfo(options: {
     success: true,
     dryRun: true,
     projectPath: projectRoot,
+    sdk: framework ? getSdkFrameworkDisplayName(framework) : undefined,
     wouldCreate,
   };
 }

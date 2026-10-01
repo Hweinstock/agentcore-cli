@@ -8,6 +8,7 @@ import {
   MAX_S3_MOUNTS,
   ProjectNameSchema,
   SessionStorageSchema,
+  getSdkFrameworkDisplayName,
 } from '../../../../schema';
 import {
   validateBYOMountPath,
@@ -721,7 +722,7 @@ function ConfirmView({ config, credentialProjectName }: { config: GenerateConfig
           <>
             <Text>
               <Text dimColor>Framework: </Text>
-              <Text>{config.sdk}</Text>
+              <Text>{getSdkFrameworkDisplayName(config.sdk)}</Text>
             </Text>
             {templateUsesModel(config.sdk) && (
               <Text>
