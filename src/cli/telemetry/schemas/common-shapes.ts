@@ -134,6 +134,7 @@ export const ErrorName = z.enum([
   'MissingDependencyError',
   'MissingProjectFileError',
   'NoProjectError',
+  'NotSupportedError',
   'PackagingError',
   'PollExhaustedError',
   'PollTimeoutError',

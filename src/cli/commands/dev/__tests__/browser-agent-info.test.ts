@@ -21,6 +21,40 @@ describe('getBrowserAgentInfo', () => {
     ]);
   });
 
+  it('omits BMA environments from the browser runtime picker', () => {
+    const project = {
+      runtimes: [
+        {
+          name: 'Environment',
+          build: 'Container',
+          entrypoint: 'lifecycle/server.py',
+          tags: { 'agentcore:template': 'BedrockManagedAgents' },
+        },
+        { name: 'LocalAgent', build: 'CodeZip', entrypoint: 'main.py' },
+      ],
+    } as unknown as AgentCoreProjectSpec;
+
+    expect(getBrowserAgentInfo(project)).toEqual([
+      { name: 'LocalAgent', buildType: 'CodeZip', protocol: 'HTTP', runtimeIndex: 1 },
+    ]);
+  });
+
+  it('treats a BMA environment alongside a harness as a project without local dev runtimes', () => {
+    const project = {
+      runtimes: [
+        {
+          name: 'Environment',
+          build: 'Container',
+          entrypoint: 'lifecycle/server.py',
+          tags: { 'agentcore:template': 'BedrockManagedAgents' },
+        },
+      ],
+      harnesses: [{ name: 'Harness' }],
+    } as unknown as AgentCoreProjectSpec;
+
+    expect(getBrowserAgentInfo(project)).toEqual([]);
+  });
+
   it('selects the only supported runtime so an explicit port applies to it', () => {
     const agents = [{ name: 'only-agent', buildType: 'CodeZip', protocol: 'A2A', runtimeIndex: 1 }];
 

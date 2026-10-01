@@ -99,6 +99,12 @@ export class ResourceNotFoundError extends BaseError {
   }
 }
 
+export class NotSupportedError extends BaseError {
+  constructor(message: string, options?: BaseErrorOptions) {
+    super(message, { defaultSource: 'user', ...options });
+  }
+}
+
 /**
  * Error indicating a job (recommendation / batch evaluation) was not found locally or on the service.
  */

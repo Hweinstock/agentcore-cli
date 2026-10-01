@@ -1,5 +1,12 @@
-import { ConfigIO, findConfigRoot } from '../../../lib';
-import type { AgentCoreProjectSpec, AgentEnvSpec, BuildType, ProtocolMode } from '../../../schema';
+import { ConfigIO, NotSupportedError, findConfigRoot } from '../../../lib';
+import {
+  type AgentCoreProjectSpec,
+  type AgentEnvSpec,
+  BMA_TEMPLATE_NAME,
+  type BuildType,
+  type ProtocolMode,
+} from '../../../schema';
+import { getTemplateProfile } from '../../templates/profiles';
 import { A2A_DEFAULT_PORT, MCP_DEFAULT_PORT } from './constants';
 import { dirname, isAbsolute, join } from 'node:path';
 
@@ -35,8 +42,16 @@ function isPythonAgent(agent: AgentEnvSpec): boolean {
  *
  * Requirements:
  * - Agent must have an entrypoint
+ * - Agent template must support local dev
  */
 function isDevSupported(agent: AgentEnvSpec): DevSupportResult {
+  if (getTemplateProfile(agent.tags?.['agentcore:template'])?.supportsDev === false) {
+    return {
+      supported: false,
+      reason: `Local dev is not supported for runtime "${agent.name}" (${BMA_TEMPLATE_NAME}). Run agentcore deploy, then use client.py to connect through Bedrock Managed Agents.`,
+    };
+  }
+
   if (!agent.entrypoint) {
     return {
       supported: false,
@@ -158,7 +173,7 @@ export function getDevConfig(
 
   const supportResult = isDevSupported(targetAgent);
   if (!supportResult.supported) {
-    throw new Error(supportResult.reason ?? 'Agent does not support dev mode');
+    throw new NotSupportedError(supportResult.reason ?? 'Agent does not support dev mode');
   }
 
   const directory =

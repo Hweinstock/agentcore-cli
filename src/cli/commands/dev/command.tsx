@@ -1,6 +1,7 @@
 import {
   DevServerConnectionError,
   NoProjectError,
+  NotSupportedError,
   ResourceNotFoundError,
   ValidationError,
   findConfigRoot,
@@ -264,14 +265,18 @@ export const registerDev = (program: Command) => {
               const invokeProject = await loadProjectConfig(workingDir);
 
               let invokePort = port;
-              let targetAgent = invokeProject?.runtimes[0];
+              const supportedAgents = getDevSupportedAgents(invokeProject);
+              let targetAgent = supportedAgents[0];
               if (opts.runtime && invokeProject) {
-                targetAgent = invokeProject.runtimes.find(a => a.name === opts.runtime);
-              } else if (invokeProject && invokeProject.runtimes.length > 1 && !opts.runtime) {
-                const names = invokeProject.runtimes.map(a => a.name).join(', ');
+                getDevConfig(workingDir, invokeProject, undefined, opts.runtime);
+                targetAgent = supportedAgents.find(a => a.name === opts.runtime);
+              } else if (supportedAgents.length > 1) {
+                const names = supportedAgents.map(a => a.name).join(', ');
                 throw new ValidationError(
                   `Multiple runtimes found. Use --runtime to specify which one. Available: ${names}`
                 );
+              } else if (invokeProject?.runtimes.length && supportedAgents.length === 0) {
+                getDevConfig(workingDir, invokeProject, undefined, invokeProject.runtimes[0]?.name);
               }
 
               const protocol = targetAgent?.protocol ?? 'HTTP';
@@ -338,19 +343,23 @@ export const registerDev = (program: Command) => {
               );
             }
 
+            if (opts.runtime || (project.runtimes.length === 1 && !hasHarnesses)) {
+              getDevConfig(workingDir, project, undefined, opts.runtime ?? project.runtimes[0]?.name);
+            }
+
+            const supportedAgents = getDevSupportedAgents(project);
             const targetDevAgent = opts.runtime
-              ? project.runtimes.find(a => a.name === opts.runtime)
-              : project.runtimes[0];
+              ? supportedAgents.find(a => a.name === opts.runtime)
+              : supportedAgents[0];
             if (targetDevAgent?.networkMode === 'VPC') {
               console.log(
                 '\x1b[33mWarning: This agent uses VPC network mode. Local dev server runs outside your VPC. Network behavior may differ from deployed environment.\x1b[0m\n'
               );
             }
 
-            const supportedAgents = getDevSupportedAgents(project);
             if (supportedAgents.length === 0 && !hasHarnesses) {
-              throw new ValidationError(
-                'No agents support dev mode. Dev mode requires an agent with an entrypoint or a harness.'
+              throw new NotSupportedError(
+                'No agents support dev mode. Dev mode requires a template that supports local dev and an entrypoint, or a harness.'
               );
             }
 
@@ -384,14 +393,14 @@ export const registerDev = (program: Command) => {
                 return { success: true as const, blockingPromise: Promise.resolve() };
               }
 
-              if (project.runtimes.length > 1 && !opts.runtime) {
-                const names = project.runtimes.map(a => a.name).join(', ');
+              if (supportedAgents.length > 1 && !opts.runtime) {
+                const names = supportedAgents.map(a => a.name).join(', ');
                 throw new ValidationError(
                   `Multiple runtimes found. Use --runtime to specify which one. Available: ${names}`
                 );
               }
 
-              const agentName = opts.runtime ?? project.runtimes[0]?.name;
+              const agentName = opts.runtime ?? supportedAgents[0]?.name;
               const selectedRuntime = project.runtimes.find(r => r.name === agentName);
               const { envVars } = await loadDevEnv(workingDir, selectedRuntime);
               const mergedEnvVars = { ...envVars, ...otelEnvVars };

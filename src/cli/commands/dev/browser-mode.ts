@@ -143,10 +143,13 @@ export async function launchBrowserDev(): Promise<void> {
     process.exit(1);
   }
 
-  const hasRuntimes = project.runtimes.length > 0;
+  const hasRuntimes = getDevSupportedAgents(project).length > 0;
   const hasHarnesses = (project.harnesses ?? []).length > 0;
 
   if (!hasRuntimes && !hasHarnesses) {
+    if (project.runtimes[0]) {
+      getDevConfig(workingDir, project, undefined, project.runtimes[0].name);
+    }
     console.error('Error: No agents or harnesses defined in project.');
     process.exit(1);
   }

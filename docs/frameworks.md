@@ -149,6 +149,10 @@ agentcore create --name MyManagedAgent --sdk environment-python-bma
 agentcore add agent --name MyManagedEnvironment --sdk environment-python-bma
 ```
 
+Local dev is not supported for this environment. `agentcore dev` skips it when other runtimes or harnesses are
+available. Selecting it with `--runtime` returns an error. Deploy the environment with `agentcore deploy`, then connect
+through Bedrock Managed Agents using the generated `client.py`.
+
 ## Import from Bedrock Agents
 
 If you have an existing Bedrock Agent, you can import its configuration and translate it into runnable Strands or

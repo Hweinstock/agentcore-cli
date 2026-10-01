@@ -18,6 +18,8 @@ export interface TemplateProfile {
   usesModel?: boolean;
   /** False when the image installs the Python dependencies, so the CLI sets up no local venv. */
   setupPythonVenv?: boolean;
+  /** False when the runtime requires its deployed service and cannot run in local dev. */
+  supportsDev?: boolean;
   /** Runtime settings that the template needs. User-supplied values win. */
   runtime?: TemplateRuntimeProfile;
 }

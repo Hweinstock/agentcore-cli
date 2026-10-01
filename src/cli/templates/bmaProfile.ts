@@ -12,6 +12,7 @@ export const BMA_TEMPLATE_PROFILE: TemplateProfile = {
   createOnly: true,
   usesModel: false,
   setupPythonVenv: false,
+  supportsDev: false,
   runtime: {
     dockerfile: 'Dockerfile',
     idleRuntimeSessionTimeout: 1800,
