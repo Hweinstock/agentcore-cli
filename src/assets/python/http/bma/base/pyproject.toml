@@ -13,6 +13,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "aws-bedrock-token-generator>=1.1.0",
+    "boto3>=1.43.0",
     "openai>=3.16.2",
 ]
 

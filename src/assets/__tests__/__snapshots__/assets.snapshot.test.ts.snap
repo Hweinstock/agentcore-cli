@@ -874,12 +874,14 @@ exports[`Assets Directory Snapshots > File listing > should match the expected f
   "python/http/autogen/base/pyproject.toml",
   "python/http/bma/base/Dockerfile",
   "python/http/bma/base/README.md",
-  "python/http/bma/base/bma-acr-policy.json",
   "python/http/bma/base/client.py",
   "python/http/bma/base/lifecycle/server.py",
   "python/http/bma/base/otel/collector.yaml",
   "python/http/bma/base/plugins/acr-report/.codex-plugin/plugin.json",
   "python/http/bma/base/plugins/acr-report/skills/acr-report/SKILL.md",
+  "python/http/bma/base/policies/bma-acr-policy.json",
+  "python/http/bma/base/policies/bma-session-policy.json",
+  "python/http/bma/base/policies/bma-session-trust.json",
   "python/http/bma/base/pyproject.toml",
   "python/http/googleadk/base/README.md",
   "python/http/googleadk/base/gitignore.template",
@@ -3916,9 +3918,11 @@ environment where BMA runs commands. The ACR has no model code.
 | \`lifecycle/server.py\` | The environment lifecycle server, \`bma-acr-lifecycle\`. It handles the lifecycle calls from BMA and starts \`codex exec-server\`. |
 | \`otel/collector.yaml\` | The configuration of the CloudWatch agent. The agent gets the spans and logs of \`codex exec-server\`, puts the session ID on them, and sends them to X-Ray and CloudWatch Logs with the ACR role. To turn off observability, add \`DISABLE_ADOT_OBSERVABILITY\` with the value \`true\` to \`envVars\`. |
 | \`plugins/acr-report\` | A Codex plugin with the \`acr-report\` skill. The skill saves the Python version, the user ID, and the working directory in \`acr-report.txt\`. |
-| \`bma-acr-policy.json\` | Lets the ACR role call \`bedrock-mantle:RegisterEnvironment\` and \`bedrock-mantle:ConnectEnvironment\` on every Mantle project. To limit the role to your projects, change \`Resource\` to \`arn:aws:bedrock-mantle:<region>:<account-id>:project/<project-id>\`. |
+| \`policies/bma-acr-policy.json\` | Lets the ACR role call \`bedrock-mantle:RegisterEnvironment\` and \`bedrock-mantle:ConnectEnvironment\` on every Mantle project. To limit the role to your projects, change \`Resource\` to \`arn:aws:bedrock-mantle:<region>:<account-id>:project/<project-id>\`. |
+| \`policies/bma-session-trust.json\` | The trust policy of the session role. BMA assumes the session role to call the ACR. The conditions let only BMA sessions and projects in the account and the Region of the ACR assume the role. \`client.py\` changes \`\${AWS::Partition}\`, \`\${AWS::Region}\`, and \`\${AWS::AccountId}\` to the values of the ACR ARN. |
+| \`policies/bma-session-policy.json\` | The policy of the session role. It lets BMA call the model with \`bedrock-mantle:CreateInference\`, and call and stop the ACRs and the Gateways in the account and the Region of the ACR. |
 | \`pyproject.toml\` | The Python dependencies. \`aws-opentelemetry-distro\` sends a span for each call from BMA and a child span for each step of the call, for example the state load or the exec-server start. \`bedrock-agentcore\` is the AgentCore SDK. The \`dev\` group has the dependencies of \`client.py\`, and the image does not install it. Each image build installs the latest Python and the latest releases. To pin them, run \`uv lock\` and keep \`uv.lock\` next to this file. \`requires-python\` sets only a minimum, 3.12, so that \`uv run client.py\` does not use an older system Python. |
-| \`client.py\` | A sample OpenAI SDK client. It creates a session in BMA, and BMA sends the session's commands to this ACR. |
+| \`client.py\` | A sample OpenAI SDK client. It creates the session role if necessary, and it creates a session in BMA. BMA sends the session's commands to this ACR. |
 
 Do not change \`lifecycle/server.py\`. It must match the lifecycle calls that BMA makes.
 
@@ -3936,6 +3940,7 @@ image build downloads Codex and Python from the internet, so a build in VPC mode
 
 \`agentcore create\` writes these settings to \`agentcore/agentcore.json\`:
 
+- \`policies/bma-acr-policy.json\` in \`additionalPolicies\`. The ACR role gets this policy.
 - An idle timeout of 1800 seconds (30 minutes) and a maximum lifetime of 28800
   seconds (8 hours).
 - No session storage. Session storage is only for a microVM Runtime, so without it the same settings work on a
@@ -4003,6 +4008,50 @@ agentcore deploy
 
 Give the ACR ARN to BMA when you create the BMA environment.
 
+# Session role
+
+BMA needs two IAM roles in your account:
+
+| Role | Who uses it | Who creates it |
+| --- | --- | --- |
+| The ACR role | The ACR, to connect to BMA. | \`agentcore deploy\`, with \`policies/bma-acr-policy.json\`. |
+| The session role | BMA, to call the model and to call and stop this ACR. | \`client.py\`, with \`policies/bma-session-trust.json\` and \`policies/bma-session-policy.json\`. |
+
+**\`client.py\` creates an IAM role in your account.** \`agentcore deploy\` does not create the session role, and
+\`agentcore remove\` does not delete it. The client always gives the session role to BMA, so you do not need the role
+\`BedrockManagedAgentsPreviewInferenceServiceRole\`.
+
+When the client creates a session and you do not give \`--role-arn\`, the client does these steps:
+
+1. It gets the partition, the Region, and the account from the ACR ARN, and it puts them in the two files.
+2. If the role \`BmaSessionRole-<region>\` does not exist, the client creates it.
+3. If the trust policy of the role is not the same as \`policies/bma-session-trust.json\`, the client writes the file to
+   the role.
+4. If the inline policy \`BmaSession\` of the role is not the same as \`policies/bma-session-policy.json\`, the client
+   writes the file to the role.
+5. If it changed the role, the client waits 15 seconds, because IAM needs this time before BMA can use the change.
+
+Thus, if you or another person changes the trust policy or the policy \`BmaSession\`, the next new session puts the
+files back. To change the role, change the files. Then run the client.
+
+The client does not change these items:
+
+- Other policies on the role. For example, a \`Deny\` policy that someone adds stays on the role, and the session fails.
+- A role that you give with \`--role-arn\`.
+- The role, when you give \`--session-id\` for a session that exists. BMA assumes the role again at each turn. If the role
+  is broken, the turn fails until a new session puts the files back.
+
+To use a role that you created, add \`--role-arn <session role ARN>\`. The trust policy must let
+\`bedrock-mantle.amazonaws.com\` assume the role, and the role needs the permissions in
+\`policies/bma-session-policy.json\`.
+
+To delete the session role:
+
+\`\`\`bash
+aws iam delete-role-policy --role-name BmaSessionRole-<region> --policy-name BmaSession
+aws iam delete-role --role-name BmaSessionRole-<region>
+\`\`\`
+
 # Run the client
 
 Run the client from this directory with the ACR ARN from \`agentcore status\`:
@@ -4010,6 +4059,15 @@ Run the client from this directory with the ACR ARN from \`agentcore status\`:
 \`\`\`bash
 uv run client.py --runtime <ACR ARN>
 \`\`\`
+
+The identity that runs the client needs these permissions:
+
+- \`bedrock-mantle\` permissions for the BMA sessions, for example \`bedrock-mantle:CreateAgentSession\`.
+- \`bedrock-mantle:CallWithBearerToken\`, because the client signs in with a bearer token.
+- \`iam:PassRole\` on the session role, with the condition \`iam:PassedToService\` set to \`bedrock-mantle.amazonaws.com\`.
+- \`iam:GetRole\`, \`iam:CreateRole\`, \`iam:UpdateAssumeRolePolicy\`, \`iam:GetRolePolicy\`, and \`iam:PutRolePolicy\` on
+  \`arn:aws:iam::<account-id>:role/BmaSessionRole-*\`. The client does not need these permissions if you give
+  \`--role-arn\`. Without them, the client stops and tells you to give \`--role-arn\`.
 
 \`uv run\` installs the dependencies and the \`dev\` group from \`pyproject.toml\` in \`.venv\`. The client creates a BMA
 session and prints the session ID, each command with its output, and the answer of the agent as it streams.
@@ -4028,29 +4086,18 @@ To delete the session after the turn, add \`--delete\`. To print each stream eve
 "
 `;
 
-exports[`Assets Directory Snapshots > Python framework assets > python/python/http/bma/base/bma-acr-policy.json should match snapshot 1`] = `
-"{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Sid": "AttachToBmaEnvironment",
-      "Effect": "Allow",
-      "Action": ["bedrock-mantle:RegisterEnvironment", "bedrock-mantle:ConnectEnvironment"],
-      "Resource": "arn:*:bedrock-mantle:*:*:project/*"
-    }
-  ]
-}
-"
-`;
-
 exports[`Assets Directory Snapshots > Python framework assets > python/python/http/bma/base/client.py should match snapshot 1`] = `
 """"Send an input to a Bedrock Managed Agents session that uses this project's ACR."""
 
 import argparse
 import json
+import time
+from pathlib import Path
 from typing import Any
 
+import boto3
 from aws_bedrock_token_generator import provide_token
+from botocore.exceptions import ClientError
 from openai import NotFoundError, OpenAI
 
 BMA_MODEL_ID = "openai.gpt-5.6-luna"
@@ -4058,6 +4105,9 @@ WORKSPACE_DIRECTORY = "/home/app/workspace"
 CAPABILITY_DIRECTORIES = ["/opt/bma/plugins"]
 TURN_END = ("completed", "failed", "cancelled")
 TOOL_CALLS = ("mcp_call", "function_call", "web_search_call")
+POLICIES = Path(__file__).parent / "policies"
+SESSION_ROLE = "BmaSessionRole-{region}"
+SESSION_POLICY = "BmaSession"
 
 
 def show(data: dict[str, Any]) -> None:
@@ -4077,6 +4127,52 @@ def show(data: dict[str, Any]) -> None:
         print(f"\\n{kind} {(source or data).get('error') or ''}".rstrip())
 
 
+def load_policy(name: str, partition: str, region: str, account: str) -> str:
+    """Reads a policy file and puts in the partition, the Region, and the account."""
+    text = (POLICIES / name).read_text()
+    for key, value in (("Partition", partition), ("Region", region), ("AccountId", account)):
+        text = text.replace("\${AWS::" + key + "}", value)
+    return text
+
+
+def session_role(runtime_arn: str) -> str:
+    """Creates or repairs the session role, and returns its ARN.
+
+    If the trust policy or the policy of the role is not the same as the file in \`policies/\`,
+    the client writes the file to the role.
+    """
+    _, partition, _, region, account = runtime_arn.split(":")[:5]
+    name = SESSION_ROLE.format(region=region)
+    trust = load_policy("bma-session-trust.json", partition, region, account)
+    policy = load_policy("bma-session-policy.json", partition, region, account)
+    iam = boto3.client("iam")
+    changed = False
+    try:
+        role = iam.get_role(RoleName=name)["Role"]
+    except iam.exceptions.NoSuchEntityException:
+        role = iam.create_role(RoleName=name, AssumeRolePolicyDocument=trust)["Role"]
+        print(f"Created the session role {name}")
+        changed = True
+    else:
+        if role["AssumeRolePolicyDocument"] != json.loads(trust):
+            iam.update_assume_role_policy(RoleName=name, PolicyDocument=trust)
+            print(f"Updated the trust policy of {name}")
+            changed = True
+    try:
+        current = iam.get_role_policy(RoleName=name, PolicyName=SESSION_POLICY)["PolicyDocument"]
+    except iam.exceptions.NoSuchEntityException:
+        current = None
+    if current != json.loads(policy):
+        iam.put_role_policy(RoleName=name, PolicyName=SESSION_POLICY, PolicyDocument=policy)
+        if not changed:
+            print(f"Updated the policy of {name}")
+        changed = True
+    if changed:
+        # IAM needs some seconds before BMA can use a new or changed role.
+        time.sleep(15)
+    return role["Arn"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", required=True, help="The ACR ARN.")
@@ -4091,6 +4187,10 @@ def main() -> None:
     parser.add_argument(
         "--gateway",
         help="The Gateway URL from the output of \`agentcore deploy\`.",
+    )
+    parser.add_argument(
+        "--role-arn",
+        help="The session role that BMA assumes. If you do not give it, the client creates a role.",
     )
     parser.add_argument("--delete", action="store_true", help="Delete the session.")
     parser.add_argument("--raw", action="store_true", help="Print events as JSON.")
@@ -4113,6 +4213,15 @@ def main() -> None:
             else:
                 if session["environment"].get("runtime_arn") != args.runtime:
                     raise ValueError(f"Session {session_id} uses another ACR.")
+        if not session_id and not args.role_arn:
+            try:
+                args.role_arn = session_role(args.runtime)
+            except ClientError as error:
+                parser.error(
+                    f"The client cannot create or check the session role: {error}. "
+                    "Get the IAM permissions in README.md, or give --role-arn."
+                )
+            print(f"Session role {args.role_arn}")
 
         if session_id:
             # BMA opens the stream only with stream=true, and the SDK does not send it.
@@ -4156,6 +4265,8 @@ def main() -> None:
                 },
                 input=args.input,
                 stream=True,
+                # The SDK has no role_arn parameter. BMA assumes this role to call the ACR.
+                extra_body={"role_arn": args.role_arn},
             )
 
         with events:
@@ -4927,6 +5038,84 @@ If a command fails, put its error in the report. Do not change the commands.
 "
 `;
 
+exports[`Assets Directory Snapshots > Python framework assets > python/python/http/bma/base/policies/bma-acr-policy.json should match snapshot 1`] = `
+"{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AttachToBmaEnvironment",
+      "Effect": "Allow",
+      "Action": ["bedrock-mantle:RegisterEnvironment", "bedrock-mantle:ConnectEnvironment"],
+      "Resource": "arn:*:bedrock-mantle:*:*:project/*"
+    }
+  ]
+}
+"
+`;
+
+exports[`Assets Directory Snapshots > Python framework assets > python/python/http/bma/base/policies/bma-session-policy.json should match snapshot 1`] = `
+"{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "CreateInference",
+      "Effect": "Allow",
+      "Action": "bedrock-mantle:CreateInference",
+      "Resource": "*"
+    },
+    {
+      "Sid": "InvokeAgentCoreRuntime",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:InvokeAgentRuntime",
+      "Resource": [
+        "arn:\${AWS::Partition}:bedrock-agentcore:\${AWS::Region}:\${AWS::AccountId}:runtime/*",
+        "arn:\${AWS::Partition}:bedrock-agentcore:\${AWS::Region}:\${AWS::AccountId}:runtime/*/runtime-endpoint/*"
+      ]
+    },
+    {
+      "Sid": "StopAgentCoreRuntimeSession",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:StopRuntimeSession",
+      "Resource": [
+        "arn:\${AWS::Partition}:bedrock-agentcore:\${AWS::Region}:\${AWS::AccountId}:runtime/*",
+        "arn:\${AWS::Partition}:bedrock-agentcore:\${AWS::Region}:\${AWS::AccountId}:runtime/*/runtime-endpoint/*"
+      ]
+    },
+    {
+      "Sid": "InvokeAgentCoreGateway",
+      "Effect": "Allow",
+      "Action": "bedrock-agentcore:InvokeGateway",
+      "Resource": "arn:\${AWS::Partition}:bedrock-agentcore:\${AWS::Region}:\${AWS::AccountId}:gateway/*"
+    }
+  ]
+}
+"
+`;
+
+exports[`Assets Directory Snapshots > Python framework assets > python/python/http/bma/base/policies/bma-session-trust.json should match snapshot 1`] = `
+"{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "AssumeFromBmaSession",
+      "Effect": "Allow",
+      "Principal": { "Service": "bedrock-mantle.amazonaws.com" },
+      "Action": "sts:AssumeRole",
+      "Condition": {
+        "StringEquals": { "aws:SourceAccount": "\${AWS::AccountId}" },
+        "ArnLike": {
+          "aws:SourceArn": [
+            "arn:\${AWS::Partition}:bedrock-mantle:\${AWS::Region}:\${AWS::AccountId}:session/*",
+            "arn:\${AWS::Partition}:bedrock-mantle:\${AWS::Region}:\${AWS::AccountId}:project/*"
+          ]
+        }
+      }
+    }
+  ]
+}
+"
+`;
+
 exports[`Assets Directory Snapshots > Python framework assets > python/python/http/bma/base/pyproject.toml should match snapshot 1`] = `
 "[project]
 name = "{{ name }}"
@@ -4943,6 +5132,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "aws-bedrock-token-generator>=1.1.0",
+    "boto3>=1.43.0",
     "openai>=3.16.2",
 ]
 

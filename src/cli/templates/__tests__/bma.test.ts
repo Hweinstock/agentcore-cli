@@ -31,6 +31,19 @@ const bmaConfig: GenerateConfig = {
 
 const TEMPLATE_DIR = join(TEMPLATE_ROOT, 'python', 'http', 'bma', 'base');
 
+interface PolicyDocument {
+  Statement: {
+    Action: string | string[];
+    Resource?: string | string[];
+    Principal?: unknown;
+    Condition?: unknown;
+  }[];
+}
+
+function readPolicy(name: string): PolicyDocument {
+  return JSON.parse(readFileSync(join(TEMPLATE_DIR, 'policies', name), 'utf-8')) as PolicyDocument;
+}
+
 describe('BMA runtime spec', () => {
   it('writes a Container runtime with no session storage or env vars, a 30 minute idle timeout, an 8 hour lifetime, the Mantle policy, and the template tag', () => {
     const agent = mapGenerateConfigToAgent(bmaConfig);
@@ -41,7 +54,7 @@ describe('BMA runtime spec', () => {
     expect(agent.lifecycleConfiguration).toEqual({ idleRuntimeSessionTimeout: 1800, maxLifetime: 28800 });
     expect(agent.filesystemConfigurations).toBeUndefined();
     expect(agent.envVars).toBeUndefined();
-    expect(agent.additionalPolicies).toEqual(['bma-acr-policy.json']);
+    expect(agent.additionalPolicies).toEqual(['policies/bma-acr-policy.json']);
     expect(agent.tags).toEqual({ 'agentcore:template': 'BedrockManagedAgents' });
   });
 
@@ -95,16 +108,47 @@ describe('BMA runtime spec', () => {
     }
   });
 
-  it('policy file grants only RegisterEnvironment and ConnectEnvironment in any partition', () => {
-    const policy = JSON.parse(readFileSync(join(TEMPLATE_DIR, 'bma-acr-policy.json'), 'utf-8')) as {
-      Statement: { Action: string[]; Resource: string }[];
-    };
+  it('ACR policy grants only RegisterEnvironment and ConnectEnvironment in any partition', () => {
+    const policy = readPolicy('bma-acr-policy.json');
 
     expect(policy.Statement.flatMap(s => s.Action)).toEqual([
       'bedrock-mantle:RegisterEnvironment',
       'bedrock-mantle:ConnectEnvironment',
     ]);
     expect(policy.Statement.map(s => s.Resource)).toEqual(['arn:*:bedrock-mantle:*:*:project/*']);
+  });
+
+  it('session trust lets only BMA assume the role, for sessions and projects in the account and the Region', () => {
+    const trust = readPolicy('bma-session-trust.json');
+
+    expect(trust.Statement).toHaveLength(1);
+    const [statement] = trust.Statement;
+    expect(statement!.Principal).toEqual({ Service: 'bedrock-mantle.amazonaws.com' });
+    expect(statement!.Action).toBe('sts:AssumeRole');
+    expect(statement!.Condition).toEqual({
+      StringEquals: { 'aws:SourceAccount': '${AWS::AccountId}' },
+      ArnLike: {
+        'aws:SourceArn': [
+          'arn:${AWS::Partition}:bedrock-mantle:${AWS::Region}:${AWS::AccountId}:session/*',
+          'arn:${AWS::Partition}:bedrock-mantle:${AWS::Region}:${AWS::AccountId}:project/*',
+        ],
+      },
+    });
+  });
+
+  it('session policy grants inference, and the ACR and Gateway calls in the account and the Region', () => {
+    const policy = readPolicy('bma-session-policy.json');
+
+    expect(policy.Statement.flatMap(s => s.Action)).toEqual([
+      'bedrock-mantle:CreateInference',
+      'bedrock-agentcore:InvokeAgentRuntime',
+      'bedrock-agentcore:StopRuntimeSession',
+      'bedrock-agentcore:InvokeGateway',
+    ]);
+    const scoped = policy.Statement.flatMap(s => [s.Resource].flat()).filter(r => r !== '*');
+    for (const resource of scoped) {
+      expect(resource).toMatch(/^arn:\$\{AWS::Partition\}:bedrock-agentcore:\$\{AWS::Region\}:\$\{AWS::AccountId\}:/);
+    }
   });
 });
 
@@ -135,7 +179,15 @@ describe('BmaRenderer', () => {
     const agentDir = join(outputDir, 'app', 'BmaEnv');
     expect(readFileSync(join(agentDir, 'Dockerfile'), 'utf-8')).toContain('install-codex.sh');
     expect(existsSync(join(agentDir, '.dockerignore'))).toBe(true);
-    expect(existsSync(join(agentDir, 'bma-acr-policy.json'))).toBe(true);
+  });
+
+  it('copies the policy files without changes, so that the client substitutes the placeholders', () => {
+    const agentDir = join(outputDir, 'app', 'BmaEnv');
+    for (const file of ['bma-acr-policy.json', 'bma-session-trust.json', 'bma-session-policy.json']) {
+      const path = join('policies', file);
+      expect(readFileSync(join(agentDir, path), 'utf-8')).toBe(readFileSync(join(TEMPLATE_DIR, path), 'utf-8'));
+    }
+    expect(existsSync(join(agentDir, 'bma-acr-policy.json'))).toBe(false);
   });
 
   it('runs the server with OpenTelemetry and writes its dependency', () => {
@@ -153,7 +205,7 @@ describe('BmaRenderer', () => {
     expect(pyproject).toContain('"bedrock-agentcore",');
     // The client dependencies are a dev group, which `uv sync --no-dev` leaves out of the image.
     expect(pyproject).toContain(
-      '[dependency-groups]\ndev = [\n    "aws-bedrock-token-generator>=1.1.0",\n    "openai>=3.16.2",\n]\n'
+      '[dependency-groups]\ndev = [\n    "aws-bedrock-token-generator>=1.1.0",\n    "boto3>=1.43.0",\n    "openai>=3.16.2",\n]\n'
     );
     expect(readFileSync(join(agentDir, 'client.py'), 'utf-8')).not.toContain('# /// script');
     expect(mapGenerateConfigToAgent(bmaConfig).instrumentation).toBeUndefined();
@@ -216,6 +268,14 @@ describe('BmaRenderer', () => {
     expect(main).not.toContain('control-plane');
     expect(main).toContain('AWS_REGION = os.environ.get("AWS_REGION", "us-east-1")\n');
     expect(main).not.toContain('BMA_REGION');
+  });
+
+  it('writes a client that creates the session role and gives it to CreateAgentSession', () => {
+    const client = readFileSync(join(outputDir, 'app', 'BmaEnv', 'client.py'), 'utf-8');
+    expect(client).toContain('"--role-arn"');
+    expect(client).toContain('args.role_arn = session_role(args.runtime)');
+    expect(client).toContain('POLICIES / name');
+    expect(client).toContain('extra_body={"role_arn": args.role_arn}');
   });
 
   it('writes a client that uses a workspace in the home directory', () => {

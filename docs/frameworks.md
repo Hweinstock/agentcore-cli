@@ -137,8 +137,21 @@ the session's commands to this Runtime. The Runtime runs no model code.
 seconds, and a policy that lets the Runtime connect to BMA. It adds no session storage, so the same project deploys to a
 microVM Runtime and to a capacity provider.
 
+BMA assumes a session role to call the Runtime. **The generated `client.py` creates this IAM role,
+`BmaSessionRole-<region>`, in your account.** `agentcore deploy` does not create the session role, and
+`agentcore remove` does not delete it. The policy files of the session role are in `policies/` in the agent directory.
+They are limited to the account and the Region of the Runtime.
+
 ```bash
 agentcore create --name MyManagedAgent --framework BedrockManagedAgents
+```
+
+After `agentcore deploy`, give the Runtime ARN from `agentcore status` to the client. If the role exists, the client
+compares it with the files in `policies/`, and puts the files back if someone changed the role. To use your own role,
+give `--role-arn`. The `README.md` in the agent directory gives the details and the IAM permissions of the client.
+
+```bash
+uv run client.py --runtime <Runtime ARN>
 ```
 
 ## Import from Bedrock Agents
