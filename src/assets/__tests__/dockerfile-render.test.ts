@@ -8,6 +8,27 @@ const DOCKERFILE_PATH = path.resolve(__dirname, '..', 'container', 'python', 'Do
 describe('Dockerfile enableOtel rendering', () => {
   const template = Handlebars.compile(fs.readFileSync(DOCKERFILE_PATH, 'utf-8'));
 
+  it('renders OS updates before switching to the runtime user', () => {
+    const rendered = template({ entrypoint: 'main', enableOtel: true });
+    expect(rendered).toContain('apt-get update');
+    expect(rendered).toContain('apt-get upgrade -y');
+    expect(rendered.indexOf('apt-get upgrade -y')).toBeLessThan(rendered.indexOf('USER bedrock_agentcore'));
+  });
+
+  it('disables uv caching before installing the locked dependencies', () => {
+    const rendered = template({ entrypoint: 'main', enableOtel: true });
+    expect(rendered).toContain('UV_NO_CACHE=1');
+    expect(rendered.indexOf('UV_NO_CACHE=1')).toBeLessThan(rendered.indexOf('RUN uv sync --frozen'));
+  });
+
+  it('removes the global uv installation after the final sync and before changing users', () => {
+    const rendered = template({ entrypoint: 'main', enableOtel: true });
+    const uninstall = '/usr/local/bin/python -m pip uninstall -y uv';
+    expect(rendered).toContain(uninstall);
+    expect(rendered.lastIndexOf('uv sync --frozen')).toBeLessThan(rendered.indexOf(uninstall));
+    expect(rendered.indexOf(uninstall)).toBeLessThan(rendered.indexOf('USER bedrock_agentcore'));
+  });
+
   it('renders opentelemetry-instrument CMD when enableOtel is true', () => {
     const rendered = template({ entrypoint: 'main', enableOtel: true });
     expect(rendered).toMatchSnapshot('Dockerfile-enableOtel-true');
