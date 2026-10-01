@@ -359,7 +359,7 @@ describe("project create", () => {
       "--name",
       "BmaProject",
       "--template",
-      "bedrock-managed-agents",
+      "environment-python-bma",
     ]);
 
     const projectRoot = join(directory, "BmaProject");
@@ -1206,7 +1206,7 @@ describe("create in China regions", () => {
         "--name",
         "CnBma",
         "--template",
-        "bedrock-managed-agents",
+        "environment-python-bma",
         ...skips,
         "--region",
         "cn-north-1",

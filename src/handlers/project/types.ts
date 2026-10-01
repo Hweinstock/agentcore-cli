@@ -17,6 +17,7 @@ import type { AwsDeploymentTarget } from "../../projectSchemas/aws-targets";
 import type { ProgressEvent } from "../../tui/progress";
 import type { AwsCredentialProvider } from "../../core/types";
 import { RuntimeTemplateProfileSchema } from "./templateProfile";
+import { BMA_TEMPLATE_NAME } from "./bmaProfile";
 
 type CreateProjectInputBase = {
   /** The name of the project; also the directory it is scaffolded into. */
@@ -48,7 +49,7 @@ export const ScaffoldRuntimeInputSchema = z
     runtimeName: AgentNameSchema,
     build: BuildTypeSchema,
     language: z.enum(["Python", "TypeScript"]),
-    framework: z.enum(["strands", "langchain", "vercelai", "bedrock-managed-agents", "none"]),
+    framework: z.enum(["strands", "langchain", "vercelai", BMA_TEMPLATE_NAME, "none"]),
     protocol: ProtocolModeSchema.optional(),
     modelProvider: ModelProviderSchema.optional(),
     modelId: z.string().min(1).optional(),

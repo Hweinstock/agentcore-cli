@@ -202,7 +202,7 @@ export function ProjectCreateScreen({ ctx, core }: ScreenProps) {
 
       {values.kind === "agent" && (
         <Step stepKey="template" prompt="choose a template">
-          <ChoiceField
+          <ChoiceField<TemplateName>
             choices={TEMPLATE_CHOICES}
             value={values.template}
             onChange={(template) => patch({ template })}

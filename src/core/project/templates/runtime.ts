@@ -15,6 +15,7 @@ import { InputValidationError } from "../../../errors";
 import { toPythonPackageName } from "../fsUtils";
 import { templateUsesModel } from "../../../handlers/project/templateProfile";
 import { resolveRuntimeTemplateProfile } from "../../../handlers/project/runtimeTemplateProfile";
+import { BMA_TEMPLATE_NAME } from "../../../handlers/project/bmaProfile";
 
 /** A model provider's render context, spec entries, and .env.local secrets for a scaffolded runtime. */
 type ModelProviderTemplateConfig = {
@@ -331,9 +332,7 @@ const getTemplateResolvers = (assetSource: AssetSource, templateRenderer: Templa
       spec: { runtimes: [{ ...buildRuntimeSpec(input), protocol: "HTTP" as const }] },
     };
   },
-  [buildResolverKey("bedrock-managed-agents", "Python", "HTTP")]: async (
-    input: RuntimeResourceConfig,
-  ) => {
+  [buildResolverKey(BMA_TEMPLATE_NAME, "Python", "HTTP")]: async (input: RuntimeResourceConfig) => {
     const tree = await FsTreeNode.fromAssetSource(
       { assetSource },
       { assetDir: "templates/bedrock-managed-agents" },

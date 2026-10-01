@@ -142,10 +142,11 @@ describe("project add runtime wizard", () => {
     await r.press("return");
 
     await waitForText(r.lastFrame, "choose a template");
-    await selectTemplate(r, "bedrock-managed-agents");
+    await selectTemplate(r, "environment-python-bma");
     await r.press("return");
 
     await waitForFlatText(r.lastFrame, "build Container");
+    expect(flatFrame(r.lastFrame)).toContain("template environment-python-bma");
     await r.press("return");
     await waitForText(r.lastFrame, "added runtime 'bma_environment' to 'TestProject'");
 
@@ -153,6 +154,7 @@ describe("project add runtime wizard", () => {
       build: "Container",
       entrypoint: "lifecycle/server.py",
       additionalPolicies: ["bma-acr-policy.json"],
+      tags: { "agentcore:template": "BedrockManagedAgents" },
     });
     expect(
       await Bun.file(

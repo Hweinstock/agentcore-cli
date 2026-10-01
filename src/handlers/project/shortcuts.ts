@@ -8,7 +8,7 @@ import {
 import { InputValidationError } from "../../errors";
 import { ScaffoldRuntimeInputSchema, type ModelProvider, type ScaffoldRuntimeInput } from "./types";
 import type { RuntimeTemplateProfile } from "./templateProfile";
-import { BMA_TEMPLATE_PROFILE } from "./bmaProfile";
+import { BMA_TEMPLATE_NAME, BMA_TEMPLATE_PROFILE } from "./bmaProfile";
 
 /** The default memory that templates ship with. */
 export function getDefaultMemorySpec(runtimeName: string): Memory {
@@ -117,12 +117,12 @@ export const RUNTIME_TEMPLATE_SHORTCUTS = {
     supportsModelProviderOverride: false,
     runtimeVersion: "NODE_22",
   },
-  "bedrock-managed-agents": {
-    runtimeName: "bedrock_managed_agents",
+  [BMA_TEMPLATE_NAME]: {
+    runtimeName: "environment_python_bma",
     description: "Execution environment for Bedrock Managed Agents",
     build: "Container",
     language: "Python",
-    framework: "bedrock-managed-agents",
+    framework: BMA_TEMPLATE_NAME,
     protocol: "HTTP",
     includesMemory: false,
     supportsModelProviderOverride: false,
@@ -181,7 +181,7 @@ const FRAMEWORK_ORDER: Record<ScaffoldRuntimeInput["framework"], number> = {
   strands: 0,
   langchain: 1,
   vercelai: 2,
-  "bedrock-managed-agents": 3,
+  [BMA_TEMPLATE_NAME]: 3,
   none: 4,
 };
 const BUILD_ORDER: Record<ScaffoldRuntimeInput["build"], number> = { CodeZip: 0, Container: 1 };

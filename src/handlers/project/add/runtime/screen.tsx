@@ -119,7 +119,7 @@ function AddRuntimeWizard({ project, core }: { project: Project; core: ScreenPro
       </Step>
 
       <Step stepKey="template" prompt="choose a template">
-        <ChoiceField
+        <ChoiceField<RuntimeTemplateShortcutName>
           help="the agent code scaffolded into app/"
           choices={TEMPLATE_CHOICES}
           value={values.template}

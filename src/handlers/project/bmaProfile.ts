@@ -1,6 +1,6 @@
 import type { RuntimeTemplateProfile } from "./templateProfile";
 
-export const BMA_TEMPLATE_NAME = "bedrock-managed-agents";
+export const BMA_TEMPLATE_NAME = "environment-python-bma";
 export const BMA_POLICY_FILE = "bma-acr-policy.json";
 export const BMA_TEMPLATE_TAG_KEY = "agentcore:template";
 export const BMA_TEMPLATE_TAG_VALUE = "BedrockManagedAgents";

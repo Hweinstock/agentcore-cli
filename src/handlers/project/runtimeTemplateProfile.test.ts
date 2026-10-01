@@ -6,13 +6,13 @@ describe("resolveRuntimeTemplateProfile", () => {
   test("derives the canonical BMA profile from the framework", () => {
     expect(
       resolveRuntimeTemplateProfile({
-        framework: "bedrock-managed-agents",
+        framework: "environment-python-bma",
       }),
     ).toBe(BMA_TEMPLATE_PROFILE);
 
     expect(
       resolveRuntimeTemplateProfile({
-        framework: "bedrock-managed-agents",
+        framework: "environment-python-bma",
         templateProfile: {
           usesModel: true,
           dependencySetup: "managed",
