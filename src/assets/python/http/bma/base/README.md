@@ -11,9 +11,11 @@ environment where BMA runs commands. The ACR has no model code.
 | `lifecycle/server.py` | The environment lifecycle server, `bma-acr-lifecycle`. It handles the lifecycle calls from BMA and starts `codex exec-server`. |
 | `otel/collector.yaml` | The configuration of the CloudWatch agent. The agent gets the spans and logs of `codex exec-server`, puts the session ID on them, and sends them to X-Ray and CloudWatch Logs with the ACR role. To turn off observability, add `DISABLE_ADOT_OBSERVABILITY` with the value `true` to `envVars`. |
 | `plugins/acr-report` | A Codex plugin with the `acr-report` skill. The skill saves the Python version, the user ID, and the working directory in `acr-report.txt`. |
-| `bma-acr-policy.json` | Lets the ACR role call `bedrock-mantle:RegisterEnvironment` and `bedrock-mantle:ConnectEnvironment` on every Mantle project. To limit the role to your projects, change `Resource` to `arn:aws:bedrock-mantle:<region>:<account-id>:project/<project-id>`. |
+| `policies/bma-acr-policy.json` | Lets the ACR role call `bedrock-mantle:RegisterEnvironment` and `bedrock-mantle:ConnectEnvironment` on every Mantle project. To limit the role to your projects, change `Resource` to `arn:aws:bedrock-mantle:<region>:<account-id>:project/<project-id>`. |
+| `policies/bma-session-trust.json` | The trust policy of the session role. BMA assumes the session role to call the ACR. The conditions let only BMA sessions and projects in the account and the Region of the ACR assume the role. `client.py` changes `${AWS::Partition}`, `${AWS::Region}`, and `${AWS::AccountId}` to the values of the ACR ARN. |
+| `policies/bma-session-policy.json` | The policy of the session role. It lets BMA call the model with `bedrock-mantle:CreateInference`, and call and stop the ACRs and the Gateways in the account and the Region of the ACR. |
 | `pyproject.toml` | The Python dependencies. `aws-opentelemetry-distro` sends a span for each call from BMA and a child span for each step of the call, for example the state load or the exec-server start. `bedrock-agentcore` is the AgentCore SDK. The `dev` group has the dependencies of `client.py`, and the image does not install it. Each image build installs the latest Python and the latest releases. To pin them, run `uv lock` and keep `uv.lock` next to this file. `requires-python` sets only a minimum, 3.12, so that `uv run client.py` does not use an older system Python. |
-| `client.py` | A sample OpenAI SDK client. It creates a session in BMA, and BMA sends the session's commands to this ACR. |
+| `client.py` | A sample OpenAI SDK client. It creates the session role if necessary, and it creates a session in BMA. BMA sends the session's commands to this ACR. |
 
 Do not change `lifecycle/server.py`. It must match the lifecycle calls that BMA makes.
 
@@ -31,6 +33,7 @@ image build downloads Codex and Python from the internet, so a build in VPC mode
 
 `agentcore create` writes these settings to `agentcore/agentcore.json`:
 
+- `policies/bma-acr-policy.json` in `additionalPolicies`. The ACR role gets this policy.
 - An idle timeout of 1800 seconds (30 minutes) and a maximum lifetime of 28800
   seconds (8 hours).
 - No session storage. Session storage is only for a microVM Runtime, so without it the same settings work on a
@@ -98,6 +101,50 @@ agentcore deploy
 
 Give the ACR ARN to BMA when you create the BMA environment.
 
+# Session role
+
+BMA needs two IAM roles in your account:
+
+| Role | Who uses it | Who creates it |
+| --- | --- | --- |
+| The ACR role | The ACR, to connect to BMA. | `agentcore deploy`, with `policies/bma-acr-policy.json`. |
+| The session role | BMA, to call the model and to call and stop this ACR. | `client.py`, with `policies/bma-session-trust.json` and `policies/bma-session-policy.json`. |
+
+**`client.py` creates an IAM role in your account.** `agentcore deploy` does not create the session role, and
+`agentcore remove` does not delete it. The client always gives the session role to BMA, so you do not need the role
+`BedrockManagedAgentsPreviewInferenceServiceRole`.
+
+When the client creates a session and you do not give `--role-arn`, the client does these steps:
+
+1. It gets the partition, the Region, and the account from the ACR ARN, and it puts them in the two files.
+2. If the role `BmaSessionRole-<region>` does not exist, the client creates it.
+3. If the trust policy of the role is not the same as `policies/bma-session-trust.json`, the client writes the file to
+   the role.
+4. If the inline policy `BmaSession` of the role is not the same as `policies/bma-session-policy.json`, the client
+   writes the file to the role.
+5. If it changed the role, the client waits 15 seconds, because IAM needs this time before BMA can use the change.
+
+Thus, if you or another person changes the trust policy or the policy `BmaSession`, the next new session puts the
+files back. To change the role, change the files. Then run the client.
+
+The client does not change these items:
+
+- Other policies on the role. For example, a `Deny` policy that someone adds stays on the role, and the session fails.
+- A role that you give with `--role-arn`.
+- The role, when you give `--session-id` for a session that exists. BMA assumes the role again at each turn. If the role
+  is broken, the turn fails until a new session puts the files back.
+
+To use a role that you created, add `--role-arn <session role ARN>`. The trust policy must let
+`bedrock-mantle.amazonaws.com` assume the role, and the role needs the permissions in
+`policies/bma-session-policy.json`.
+
+To delete the session role:
+
+```bash
+aws iam delete-role-policy --role-name BmaSessionRole-<region> --policy-name BmaSession
+aws iam delete-role --role-name BmaSessionRole-<region>
+```
+
 # Run the client
 
 Run the client from this directory with the ACR ARN from `agentcore status`:
@@ -105,6 +152,15 @@ Run the client from this directory with the ACR ARN from `agentcore status`:
 ```bash
 uv run client.py --runtime <ACR ARN>
 ```
+
+The identity that runs the client needs these permissions:
+
+- `bedrock-mantle` permissions for the BMA sessions, for example `bedrock-mantle:CreateAgentSession`.
+- `bedrock-mantle:CallWithBearerToken`, because the client signs in with a bearer token.
+- `iam:PassRole` on the session role, with the condition `iam:PassedToService` set to `bedrock-mantle.amazonaws.com`.
+- `iam:GetRole`, `iam:CreateRole`, `iam:UpdateAssumeRolePolicy`, `iam:GetRolePolicy`, and `iam:PutRolePolicy` on
+  `arn:aws:iam::<account-id>:role/BmaSessionRole-*`. The client does not need these permissions if you give
+  `--role-arn`. Without them, the client stops and tells you to give `--role-arn`.
 
 `uv run` installs the dependencies and the `dev` group from `pyproject.toml` in `.venv`. The client creates a BMA
 session and prints the session ID, each command with its output, and the answer of the agent as it streams.

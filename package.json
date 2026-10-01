@@ -183,7 +183,9 @@
     "@aws-sdk/xml-builder": "3.972.15",
     "@opentelemetry/core": ">=2.8.0",
     "protobufjs": ">=8.7.0",
-    "fast-uri": "^3.1.5"
+    "fast-uri": "^3.1.8",
+    "brace-expansion": "^5.0.12",
+    "@humanfs/node": "^0.16.8"
   },
   "engines": {
     "node": ">=20"

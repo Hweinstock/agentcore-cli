@@ -16,7 +16,7 @@ export const BMA_TEMPLATE_PROFILE: TemplateProfile = {
     dockerfile: 'Dockerfile',
     idleRuntimeSessionTimeout: 1800,
     maxLifetime: 28800,
-    additionalPolicies: ['bma-acr-policy.json'],
+    additionalPolicies: ['policies/bma-acr-policy.json'],
     tags: { 'agentcore:template': 'BedrockManagedAgents' },
   },
 };

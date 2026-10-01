@@ -2,9 +2,13 @@
 
 import argparse
 import json
+import time
+from pathlib import Path
 from typing import Any
 
+import boto3
 from aws_bedrock_token_generator import provide_token
+from botocore.exceptions import ClientError
 from openai import NotFoundError, OpenAI
 
 BMA_MODEL_ID = "openai.gpt-5.6-luna"
@@ -12,6 +16,9 @@ WORKSPACE_DIRECTORY = "/home/app/workspace"
 CAPABILITY_DIRECTORIES = ["/opt/bma/plugins"]
 TURN_END = ("completed", "failed", "cancelled")
 TOOL_CALLS = ("mcp_call", "function_call", "web_search_call")
+POLICIES = Path(__file__).parent / "policies"
+SESSION_ROLE = "BmaSessionRole-{region}"
+SESSION_POLICY = "BmaSession"
 
 
 def show(data: dict[str, Any]) -> None:
@@ -31,6 +38,52 @@ def show(data: dict[str, Any]) -> None:
         print(f"\n{kind} {(source or data).get('error') or ''}".rstrip())
 
 
+def load_policy(name: str, partition: str, region: str, account: str) -> str:
+    """Reads a policy file and puts in the partition, the Region, and the account."""
+    text = (POLICIES / name).read_text()
+    for key, value in (("Partition", partition), ("Region", region), ("AccountId", account)):
+        text = text.replace("${AWS::" + key + "}", value)
+    return text
+
+
+def session_role(runtime_arn: str) -> str:
+    """Creates or repairs the session role, and returns its ARN.
+
+    If the trust policy or the policy of the role is not the same as the file in `policies/`,
+    the client writes the file to the role.
+    """
+    _, partition, _, region, account = runtime_arn.split(":")[:5]
+    name = SESSION_ROLE.format(region=region)
+    trust = load_policy("bma-session-trust.json", partition, region, account)
+    policy = load_policy("bma-session-policy.json", partition, region, account)
+    iam = boto3.client("iam")
+    changed = False
+    try:
+        role = iam.get_role(RoleName=name)["Role"]
+    except iam.exceptions.NoSuchEntityException:
+        role = iam.create_role(RoleName=name, AssumeRolePolicyDocument=trust)["Role"]
+        print(f"Created the session role {name}")
+        changed = True
+    else:
+        if role["AssumeRolePolicyDocument"] != json.loads(trust):
+            iam.update_assume_role_policy(RoleName=name, PolicyDocument=trust)
+            print(f"Updated the trust policy of {name}")
+            changed = True
+    try:
+        current = iam.get_role_policy(RoleName=name, PolicyName=SESSION_POLICY)["PolicyDocument"]
+    except iam.exceptions.NoSuchEntityException:
+        current = None
+    if current != json.loads(policy):
+        iam.put_role_policy(RoleName=name, PolicyName=SESSION_POLICY, PolicyDocument=policy)
+        if not changed:
+            print(f"Updated the policy of {name}")
+        changed = True
+    if changed:
+        # IAM needs some seconds before BMA can use a new or changed role.
+        time.sleep(15)
+    return role["Arn"]
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", required=True, help="The ACR ARN.")
@@ -45,6 +98,10 @@ def main() -> None:
     parser.add_argument(
         "--gateway",
         help="The Gateway URL from the output of `agentcore deploy`.",
+    )
+    parser.add_argument(
+        "--role-arn",
+        help="The session role that BMA assumes. If you do not give it, the client creates a role.",
     )
     parser.add_argument("--delete", action="store_true", help="Delete the session.")
     parser.add_argument("--raw", action="store_true", help="Print events as JSON.")
@@ -67,6 +124,15 @@ def main() -> None:
             else:
                 if session["environment"].get("runtime_arn") != args.runtime:
                     raise ValueError(f"Session {session_id} uses another ACR.")
+        if not session_id and not args.role_arn:
+            try:
+                args.role_arn = session_role(args.runtime)
+            except ClientError as error:
+                parser.error(
+                    f"The client cannot create or check the session role: {error}. "
+                    "Get the IAM permissions in README.md, or give --role-arn."
+                )
+            print(f"Session role {args.role_arn}")
 
         if session_id:
             # BMA opens the stream only with stream=true, and the SDK does not send it.
@@ -110,6 +176,8 @@ def main() -> None:
                 },
                 input=args.input,
                 stream=True,
+                # The SDK has no role_arn parameter. BMA assumes this role to call the ACR.
+                extra_body={"role_arn": args.role_arn},
             )
 
         with events:
