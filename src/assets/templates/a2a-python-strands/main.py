@@ -1,6 +1,5 @@
 from strands import Agent, tool
 from strands.multiagent.a2a.executor import StrandsA2AExecutor
-from a2a.types import AgentCapabilities, AgentCard, AgentSkill
 from bedrock_agentcore.runtime import serve_a2a
 from model.load import load_model
 from memory.session import get_memory_session_manager
@@ -83,26 +82,6 @@ You have access to the following mounted filesystems. Use file_read, file_write,
 {{/each}}{{/if}}
 """
 
-AGENT_DESCRIPTION = "A Bedrock AgentCore agent"
-AGENT_CARD = AgentCard(
-    name="{{ name }}",
-    description=AGENT_DESCRIPTION,
-    url="http://localhost:9000/",
-    version="0.1.0",
-    capabilities=AgentCapabilities(streaming=True),
-    skills=[
-        AgentSkill(
-            id="main",
-            name="{{ name }}",
-            description=AGENT_DESCRIPTION,
-            tags=["main"],
-        )
-    ],
-    default_input_modes=["text"],
-    default_output_modes=["text"],
-)
-
-
 def create_agent(context_id: str) -> Agent:
     return Agent(
         name="{{ name }}",
@@ -115,4 +94,4 @@ def create_agent(context_id: str) -> Agent:
 # serve_a2a binds 0.0.0.0:9000 in the container (the AgentCore A2A service
 # contract) and publishes the agent card at /.well-known/agent-card.json.
 if __name__ == "__main__":
-    serve_a2a(StrandsA2AExecutor(agent_factory=create_agent), agent_card=AGENT_CARD)
+    serve_a2a(StrandsA2AExecutor(agent_factory=create_agent))
