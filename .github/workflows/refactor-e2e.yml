@@ -1,0 +1,136 @@
+name: e2e-test(refactor)
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: git reference (commit, branch, or tag) to build and test
+        required: false
+        type: string
+        default: ''
+      tags:
+        description: Vitest tag expression, for example runtime || canary
+        required: false
+        type: string
+        default: ''
+      linuxOnly:
+        description: Run E2E tests only on Linux
+        required: false
+        type: boolean
+        default: false
+    secrets:
+      WORKFLOW_SECRETS_READER_ROLE_ARN:
+        required: true
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: git reference (commit, branch, or tag) to build and test
+        type: string
+        default: refactor
+      tags:
+        description: Vitest tag expression, for example runtime || canary
+        type: string
+        default: ''
+      linuxOnly:
+        description: Run E2E tests only on Linux
+        type: boolean
+        default: false
+
+concurrency:
+  group:
+    e2e-test-${{ inputs.ref || 'refactor' }}-${{ inputs.tags || 'all' }}-${{ inputs.linuxOnly && 'linux-only' ||
+    'all-os' }}
+  cancel-in-progress: false
+
+env:
+  AGENTCORE_TELEMETRY_DISABLED: '1'
+
+jobs:
+  authorize:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      is-authorized: ${{ github.workflow == 'canary(refactor)' || steps.check.outputs.is_authorized == 'true' }}
+    steps:
+      - name: Fetch secrets from Secrets Manager
+        uses: aws/agentcore-devx-devtools/.github/actions/fetch-secrets@75989f65f7f193deaf83c237c36572d1a8f800b2
+        with:
+          role-arn: ${{ secrets.WORKFLOW_SECRETS_READER_ROLE_ARN }}
+          repo: AUTHORIZED_USERS
+      - name: Check authorization
+        id: authz
+        uses: aws/agentcore-devx-devtools/.github/actions/check-authorized-user@31aa3b031a86664e29861d68956e44b07cf21a74
+        with:
+          subject: ${{ github.actor }}
+          authorized-users: ${{ env.AUTHORIZED_USERS }}
+      - name: Determine authorization
+        id: check
+        env:
+          IS_AUTHORIZED: ${{ steps.authz.outputs.is-authorized }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          if [[ "$IS_AUTHORIZED" == "true" ]]; then
+            echo "Actor ${ACTOR} is authorized"
+            echo "is_authorized=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Actor ${ACTOR} is not in AUTHORIZED_USERS, skipping"
+            echo "is_authorized=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  e2e:
+    name: test (${{ matrix.name }})
+    needs: authorize
+    if: needs.authorize.outputs.is-authorized == 'true'
+    runs-on: >-
+      ${{ fromJSON(
+        matrix.name == 'Linux' &&
+          format('["codebuild-agentcore-e2e-{0}-{1}","e2e-linux"]', github.run_id, github.run_attempt)
+        || matrix.name == 'Windows' &&
+          format('["codebuild-agentcore-e2e-{0}-{1}","image:windows-1.0","e2e-windows"]', github.run_id,
+      github.run_attempt)
+        || matrix.name == 'macOS' && '["macos-latest"]'
+      ) }}
+    permissions:
+      id-token: write
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        name: ${{ fromJSON(inputs.linuxOnly && '["Linux"]' || '["Linux","Windows","macOS"]') }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.ref || 'refactor' }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: astral-sh/setup-uv@v6
+      - run: bun install --frozen-lockfile
+      - name: Fetch E2E role from Secrets Manager
+        uses: aws/agentcore-devx-devtools/.github/actions/fetch-secrets@75989f65f7f193deaf83c237c36572d1a8f800b2
+        with:
+          role-arn: ${{ secrets.WORKFLOW_SECRETS_READER_ROLE_ARN }}
+          repo: E2E_AWS_ROLE_ARN
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          role-to-assume: ${{ env.E2E_AWS_ROLE_ARN }}
+          aws-region: ${{ vars.E2E_REGION || 'us-east-1' }}
+          unset-current-credentials: true
+      - name: Build CLI
+        run: bun run build
+      - name: Run all E2E tests
+        if: inputs.tags == ''
+        env:
+          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
+          AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
+        run: bun run test:e2e
+      - name: Run tagged E2E tests
+        if: inputs.tags != ''
+        env:
+          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
+          AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
+        run: bun run test:e2e -- --tagsFilter="${{ inputs.tags }}"
