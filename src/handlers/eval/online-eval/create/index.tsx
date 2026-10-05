@@ -9,19 +9,20 @@ import {
   assertMutuallyExclusiveFlags,
   coreOptsFromCtx,
   parseJsonFlag,
-  parseJsonFlagWithSchema,
+  parseTagsWithSchema,
 } from "../../../utils";
 import { filtersHelp } from "../filtersHelp";
 import { onlineEvalDataSourceConfigHelp } from "../dataSourceConfigHelp";
 import { OnlineEvalOutputConfigFlag } from "../outputConfig";
 import { TagsSchema } from "../../../../projectSchemas/tags";
 
-const tagsHelp = `(JSON: map of string to string)
-Tags applied to the online evaluation configuration.
+const tagsHelp = `(repeated key=value or JSON: map of string to string)
+Tags applied to the online evaluation configuration. Repeat --tags for multiple key=value pairs.
 
-Accepts inline JSON, file://<path>, or - to read stdin.
+For JSON, accepts inline content, file://<path>, or - to read stdin.
 
 Example:
+  --tags team=ml-platform --tags env=prod
   --tags '{"team":"ml-platform","env":"prod"}'`;
 
 const CONFIGURATION = "Configuration:";
@@ -50,10 +51,15 @@ export const createCreateOnlineEvalHandler = (core: Core, io: AppIO) =>
         z.enum(["true", "false"]).optional(),
         { group: CONFIGURATION },
       ),
-      flag("tags", "resource tags (JSON object of key/value strings)", z.string().optional(), {
-        group: CONFIGURATION,
-        help: tagsHelp,
-      }),
+      flag(
+        "tags",
+        "resource tags as repeated key=value entries or a JSON object",
+        z.array(z.string()).optional(),
+        {
+          group: CONFIGURATION,
+          help: tagsHelp,
+        },
+      ),
       flag("agent", "harness ID or Runtime ID whose traffic to sample", z.string().optional(), {
         group: SESSION_SOURCE,
       }),
@@ -109,9 +115,9 @@ export const createCreateOnlineEvalHandler = (core: Core, io: AppIO) =>
       // rather than reading empty after the first drains stdin.
       const source = new SourceResolver({ stdin: io.stdin });
       const outputConfig = await OnlineEvalOutputConfigFlag.resolve(flags["output-config"], source);
-      const tags = parseJsonFlagWithSchema(
-        "tags",
-        await source.resolveText("tags", flags["tags"]),
+      const tagValues = flags["tags"];
+      const tags = parseTagsWithSchema(
+        tagValues?.length === 1 ? [await source.resolveText("tags", tagValues[0]!)] : tagValues,
         TagsSchema,
       );
       const common = {

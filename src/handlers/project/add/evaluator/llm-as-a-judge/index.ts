@@ -10,9 +10,8 @@ import {
   type EvaluatorModelProvider,
   type RatingScale,
 } from "../../../../../projectSchemas/evaluator";
-import { TagsSchema } from "../../../../../projectSchemas/tags";
 import type { AddResourceInput } from "../../../types";
-import { parseJsonFlagWithSchema } from "../../../../utils";
+import { parseJsonFlagWithSchema, parseTags } from "../../../../utils";
 import type { AddProjectResourceConfig } from "../../types";
 import { addProjectResource, requireDeployedNameFits } from "../../shared";
 import {
@@ -95,7 +94,11 @@ export const createAddLlmAsAJudgeEvaluatorHandler = (config: AddProjectResourceC
         "customer-managed KMS key ARN to encrypt the evaluator",
         z.string().optional(),
       ),
-      flag("tags", "tags to apply (JSON object of key/value strings)", z.string().optional()),
+      flag(
+        "tags",
+        "tags as repeated key=value entries or a JSON object",
+        z.array(z.string()).optional(),
+      ),
     ],
     handle: async (ctx, flags) => {
       const project = ctx.require(ProjectKey);
@@ -126,7 +129,7 @@ export const createAddLlmAsAJudgeEvaluatorHandler = (config: AddProjectResourceC
           ratingScale,
           description: flags["description"],
           kmsKeyArn: flags["kms-key-arn"],
-          tags: parseJsonFlagWithSchema("tags", flags["tags"], TagsSchema),
+          tags: parseTags(flags["tags"]),
         }),
         `added evaluator '${flags["name"]}' to '${project.name}'`,
       );

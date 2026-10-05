@@ -179,8 +179,20 @@ export function assertMutuallyExclusiveFlags(
 export function parseTags(values: string[] | undefined): Record<string, string> | undefined {
   if (!values || values.length === 0) return undefined;
 
-  const first = values[0];
-  if (values.length === 1 && first?.trimStart().startsWith("{")) {
+  const jsonIndex = values.findIndex((value) => {
+    const trimmed = value.trimStart();
+    return trimmed.startsWith("{") || trimmed.startsWith("[");
+  });
+  if (jsonIndex !== -1) {
+    if (values.length > 1) {
+      throw new InputValidationError(
+        "--tags accepts either one JSON object or repeated key=value entries, not both",
+      );
+    }
+    const first = values[jsonIndex]!;
+    if (first.trimStart().startsWith("[")) {
+      throw new InputValidationError("--tags JSON must be an object of string key-value pairs");
+    }
     const parsed = parseJsonFlag<Record<string, unknown>>("tags", first);
     if (parsed === undefined) return undefined;
     if (Array.isArray(parsed)) {
@@ -207,6 +219,25 @@ export function parseTags(values: string[] | undefined): Record<string, string> 
     result[entry.slice(0, eqIndex)] = entry.slice(eqIndex + 1);
   }
   return result;
+}
+
+export function parseTagsWithSchema<T>(
+  values: string[] | undefined,
+  schema: z.ZodType<T>,
+): T | undefined {
+  const tags = parseTags(values);
+  if (tags === undefined) return undefined;
+
+  const parsed = schema.safeParse(tags);
+  if (!parsed.success) {
+    throw new InputValidationError(
+      `Invalid value for option '--tags': ${formatZodError(parsed.error)}`,
+      {
+        cause: parsed.error,
+      },
+    );
+  }
+  return parsed.data;
 }
 
 // renderJsonError reports a command failure as a JSON document in --json mode,

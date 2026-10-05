@@ -3,7 +3,7 @@ import { createHandler, flag } from "../../../../../router";
 import { JsonRendererKey } from "../../../../../tui";
 import { SourceResolver, type AppIO } from "../../../../../io";
 import type { Core } from "../../../../types";
-import { coreOptsFromCtx, parseJsonFlag } from "../../../../utils";
+import { coreOptsFromCtx, parseTags } from "../../../../utils";
 import { LEVELS } from "../../levels";
 
 export const createCodeBasedCreateHandler = (core: Core, io: AppIO) =>
@@ -23,15 +23,15 @@ export const createCodeBasedCreateHandler = (core: Core, io: AppIO) =>
       flag("kms-key-arn", "customer managed KMS key ARN for evaluator data", z.string().optional()),
       flag(
         "tags",
-        "tags to apply (JSON object of key/value strings; inline, file://<path>, or - for stdin)",
-        z.string().optional(),
+        "tags as repeated key=value entries or a JSON object (inline, file://<path>, or - for stdin)",
+        z.array(z.string()).optional(),
       ),
     ],
     handle: async (ctx, flags) => {
       const source = new SourceResolver({ stdin: io.stdin });
-      const tags = parseJsonFlag<Record<string, string>>(
-        "tags",
-        await source.resolveText("tags", flags["tags"]),
+      const tagValues = flags["tags"];
+      const tags = parseTags(
+        tagValues?.length === 1 ? [await source.resolveText("tags", tagValues[0]!)] : tagValues,
       );
 
       const response = await core.eval.createEvaluator(
