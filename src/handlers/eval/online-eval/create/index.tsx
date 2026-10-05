@@ -9,12 +9,11 @@ import {
   assertMutuallyExclusiveFlags,
   coreOptsFromCtx,
   parseJsonFlag,
-  parseTagsWithSchema,
+  parseTags,
 } from "../../../utils";
 import { filtersHelp } from "../filtersHelp";
 import { onlineEvalDataSourceConfigHelp } from "../dataSourceConfigHelp";
 import { OnlineEvalOutputConfigFlag } from "../outputConfig";
-import { TagsSchema } from "../../../../projectSchemas/tags";
 
 const tagsHelp = `(repeated key=value or JSON: map of string to string)
 Tags applied to the online evaluation configuration. Repeat --tags for multiple key=value pairs.
@@ -116,9 +115,8 @@ export const createCreateOnlineEvalHandler = (core: Core, io: AppIO) =>
       const source = new SourceResolver({ stdin: io.stdin });
       const outputConfig = await OnlineEvalOutputConfigFlag.resolve(flags["output-config"], source);
       const tagValues = flags["tags"];
-      const tags = parseTagsWithSchema(
+      const tags = parseTags(
         tagValues?.length === 1 ? [await source.resolveText("tags", tagValues[0]!)] : tagValues,
-        TagsSchema,
       );
       const common = {
         name: flags["name"],

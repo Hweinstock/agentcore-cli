@@ -221,25 +221,6 @@ export function parseTags(values: string[] | undefined): Record<string, string> 
   return result;
 }
 
-export function parseTagsWithSchema<T>(
-  values: string[] | undefined,
-  schema: z.ZodType<T>,
-): T | undefined {
-  const tags = parseTags(values);
-  if (tags === undefined) return undefined;
-
-  const parsed = schema.safeParse(tags);
-  if (!parsed.success) {
-    throw new InputValidationError(
-      `Invalid value for option '--tags': ${formatZodError(parsed.error)}`,
-      {
-        cause: parsed.error,
-      },
-    );
-  }
-  return parsed.data;
-}
-
 // renderJsonError reports a command failure as a JSON document in --json mode,
 // so scripted callers can read the outcome from stdout instead of parsing the
 // human-oriented `Error: ...` line the exit-code handler prints to stderr.
