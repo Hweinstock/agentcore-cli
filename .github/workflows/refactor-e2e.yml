@@ -2,8 +2,13 @@ name: e2e-test(refactor)
 on:
   workflow_call:
     inputs:
-      ref:
-        description: git reference (commit, branch, or tag) to build and test
+      artifactRef:
+        description: git reference (commit, branch, or tag) to build the CLI from
+        required: false
+        type: string
+        default: ''
+      testRef:
+        description: git reference (commit, branch, or tag) to run E2E tests from, defaults to artifactRef
         required: false
         type: string
         default: ''
@@ -22,10 +27,14 @@ on:
         required: true
   workflow_dispatch:
     inputs:
-      ref:
-        description: git reference (commit, branch, or tag) to build and test
+      artifactRef:
+        description: git reference (commit, branch, or tag) to build the CLI from
         type: string
         default: refactor
+      testRef:
+        description: git reference (commit, branch, or tag) to run E2E tests from, defaults to artifactRef
+        type: string
+        default: ''
       tags:
         description: Vitest tag expression, for example runtime || canary
         type: string
@@ -37,8 +46,8 @@ on:
 
 concurrency:
   group:
-    e2e-test-${{ inputs.ref || 'refactor' }}-${{ inputs.tags || 'all' }}-${{ inputs.linuxOnly && 'linux-only' ||
-    'all-os' }}
+    e2e-test-${{ inputs.artifactRef || 'refactor' }}-${{ inputs.testRef || inputs.artifactRef || 'refactor' }}-${{
+    inputs.tags || 'all' }}-${{ inputs.linuxOnly && 'linux-only' || 'all-os' }}
   cancel-in-progress: false
 
 env:
@@ -101,7 +110,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: ${{ inputs.ref || 'refactor' }}
+          ref: ${{ inputs.testRef || inputs.artifactRef || 'refactor' }}
+          persist-credentials: false
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.artifactRef || 'refactor' }}
+          path: artifact
           persist-credentials: false
       - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
@@ -109,6 +123,8 @@ jobs:
           node-version: '24'
       - uses: astral-sh/setup-uv@v6
       - run: bun install --frozen-lockfile
+      - run: bun install --frozen-lockfile
+        working-directory: artifact
       - name: Fetch E2E role from Secrets Manager
         uses: aws/agentcore-devx-devtools/.github/actions/fetch-secrets@75989f65f7f193deaf83c237c36572d1a8f800b2
         with:
@@ -121,16 +137,17 @@ jobs:
           aws-region: ${{ vars.E2E_REGION || 'us-east-1' }}
           unset-current-credentials: true
       - name: Build CLI
+        working-directory: artifact
         run: bun run build
       - name: Run all E2E tests
         if: inputs.tags == ''
         env:
-          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
+          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/artifact/dist/index.js
           AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
         run: bun run test:e2e
       - name: Run tagged E2E tests
         if: inputs.tags != ''
         env:
-          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/dist/index.js
+          AGENTCORE_CLI_PATH: node ${{ github.workspace }}/artifact/dist/index.js
           AWS_REGION: ${{ vars.E2E_REGION || 'us-east-1' }}
         run: bun run test:e2e -- --tagsFilter="${{ inputs.tags }}"

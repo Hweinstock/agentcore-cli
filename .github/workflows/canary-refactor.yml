@@ -43,7 +43,8 @@ jobs:
     needs: resolve_release
     uses: ./.github/workflows/refactor-e2e.yml
     with:
-      ref: ${{ needs.resolve_release.outputs.ref }}
+      artifactRef: ${{ needs.resolve_release.outputs.ref }}
+      testRef: refactor
       tags: canary
       linuxOnly: true
     secrets:
