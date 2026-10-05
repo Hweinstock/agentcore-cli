@@ -36,7 +36,7 @@ export const createLlmAsAJudgeCreateHandler = (core: Core, io: AppIO) =>
       flag("kms-key-arn", "customer managed KMS key ARN for evaluator data", z.string().optional()),
       flag(
         "tags",
-        "tags as repeated key=value entries or a JSON object (inline, file://<path>, or - for stdin)",
+        "tags as repeated key=value entries or a JSON object",
         z.array(z.string()).optional(),
       ),
     ],
@@ -57,10 +57,6 @@ export const createLlmAsAJudgeCreateHandler = (core: Core, io: AppIO) =>
         throw new InputValidationError("Option '--instructions' must resolve to non-empty text");
       }
       const ratingScale = await resolveRatingScale(flags["rating-scale"], source);
-      const tagValues = flags["tags"];
-      const tags = parseTags(
-        tagValues?.length === 1 ? [await source.resolveText("tags", tagValues[0]!)] : tagValues,
-      );
 
       const response = await core.eval.createEvaluator(
         {
@@ -74,7 +70,7 @@ export const createLlmAsAJudgeCreateHandler = (core: Core, io: AppIO) =>
             },
           },
           kmsKeyArn: flags["kms-key-arn"],
-          tags,
+          tags: parseTags(flags["tags"]),
         },
         coreOptsFromCtx(ctx),
       );

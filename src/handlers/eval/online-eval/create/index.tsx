@@ -18,8 +18,6 @@ import { OnlineEvalOutputConfigFlag } from "../outputConfig";
 const tagsHelp = `(repeated key=value or JSON: map of string to string)
 Tags applied to the online evaluation configuration. Repeat --tags for multiple key=value pairs.
 
-For JSON, accepts inline content, file://<path>, or - to read stdin.
-
 Example:
   --tags team=ml-platform --tags env=prod
   --tags '{"team":"ml-platform","env":"prod"}'`;
@@ -109,19 +107,15 @@ export const createCreateOnlineEvalHandler = (core: Core, io: AppIO) =>
         throw new InputValidationError("'--endpoint' can only be used with '--agent'");
       }
 
-      // One resolver shared across every stdin-capable flag (--tags, --filters,
+      // One resolver shared across every stdin-capable flag (--filters,
       // --data-source-config, --output-config) so a second `-` is rejected
       // rather than reading empty after the first drains stdin.
       const source = new SourceResolver({ stdin: io.stdin });
       const outputConfig = await OnlineEvalOutputConfigFlag.resolve(flags["output-config"], source);
-      const tagValues = flags["tags"];
-      const tags = parseTags(
-        tagValues?.length === 1 ? [await source.resolveText("tags", tagValues[0]!)] : tagValues,
-      );
       const common = {
         name: flags["name"],
         description: flags["description"],
-        tags,
+        tags: parseTags(flags["tags"]),
         outputConfig,
         samplingRate: flags["sampling-rate"],
         sessionTimeoutMinutes: flags["session-timeout-minutes"],
