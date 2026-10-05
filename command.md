@@ -339,7 +339,7 @@ add a Memory to the current project
 - `--stream-delivery-resources <stream-delivery-resources>`: destinations Memory records are streamed to (JSON StreamDeliveryResources)
 - `--encryption-key-arn <encryption-key-arn>`: customer managed KMS key ARN used to encrypt the Memory
 - `--execution-role-arn <execution-role-arn>`: IAM role the Memory assumes; a default role is created when omitted
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 #### `agentcore add runtime`
 
@@ -392,7 +392,7 @@ add an online evaluation config to the current project
 - `--sampling-rate <sampling-rate>`: percentage of sessions to sample (0.01-100) (required)
 - `--description <description>`: a description of the config's monitoring purpose
 - `--enable-on-create <enable-on-create>`: enable evaluation immediately after deploy (default true; pass false to add it paused)
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 #### `agentcore add online-insight`
 
@@ -414,7 +414,7 @@ add an online insight config to the current project
 - `--sampling-rate <sampling-rate>`: percentage of sessions to sample (0.01-100) (required)
 - `--description <description>`: a description of the config's monitoring purpose
 - `--enable-on-create <enable-on-create>`: enable insights immediately after deploy (default true; pass false to add it paused)
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 #### `agentcore add evaluator`
 
@@ -442,7 +442,7 @@ add an LLM-as-a-Judge evaluator to the current project
 - `--rating-scale <rating-scale>`: a rating scale preset (1-5-quality, 1-3-simple, pass-fail, good-neutral-bad) or an inline JSON rating scale (required)
 - `--description <description>`: a description of what this evaluator measures
 - `--kms-key-arn <kms-key-arn>`: customer-managed KMS key ARN to encrypt the evaluator
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 ##### `agentcore add evaluator code-based`
 
@@ -460,7 +460,7 @@ add a code-based evaluator to the current project
 - `--timeout-seconds <timeout-seconds>`: evaluator timeout in seconds (1-300)
 - `--description <description>`: a description of what this evaluator measures
 - `--kms-key-arn <kms-key-arn>`: customer-managed KMS key ARN to encrypt the evaluator
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 #### `agentcore add credentials`
 
@@ -988,7 +988,7 @@ create an LLM-as-a-Judge evaluator
 - `--instructions <instructions>`: evaluation instructions (inline, file://&lt;path&gt;, or - for stdin) (required)
 - `--rating-scale <rating-scale>`: rating scale: a preset (1-5-quality | 1-3-simple | pass-fail | good-neutral-bad) or a custom RatingScale (JSON inline, file://&lt;path&gt;, or - for stdin) (required)
 - `--kms-key-arn <kms-key-arn>`: customer managed KMS key ARN for evaluator data
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings; inline, file://&lt;path&gt;, or - for stdin)
 
 ###### `agentcore eval evaluator llm-as-a-judge update`
 
@@ -1030,7 +1030,7 @@ create a code-based (Lambda-backed) evaluator
 - `--lambda-arn <lambda-arn>`: ARN of the Lambda function that scores a session (required)
 - `--timeout <timeout>`: Lambda timeout in seconds (1-300)
 - `--kms-key-arn <kms-key-arn>`: customer managed KMS key ARN for evaluator data
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings; inline, file://&lt;path&gt;, or - for stdin)
 
 ###### `agentcore eval evaluator code-based update`
 
@@ -1105,7 +1105,7 @@ create an online evaluation config
 - `--name <name>`: the name of the online evaluation config (required)
 - `--description <description>`: a description of the config's monitoring purpose
 - `--enable-on-create <enable-on-create>`: whether to enable evaluation immediately (default true; pass false to create it paused)
-- `--tags <tags...>`: resource tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: resource tags (JSON object of key/value strings)
 - `--agent <agent>`: harness ID or Runtime ID whose traffic to sample
 - `--data-source-config <data-source-config>`: the traces to sample (JSON DataSourceConfig), as an alternative to --agent
 - `--endpoint <endpoint>`: the agent endpoint qualifier to scope monitoring to (default DEFAULT)
@@ -2134,7 +2134,7 @@ create a harness
 - `--max-iterations <max-iterations>`: max agent loop iterations per invocation
 - `--max-tokens <max-tokens>`: max total output tokens per invocation
 - `--timeout-seconds <timeout-seconds>`: max duration in seconds per invocation
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 #### `agentcore harness get`
 
@@ -2319,7 +2319,7 @@ create a harness endpoint
 - `--id <id>`: the ID of the harness (required)
 - `--name <name>`: the name of the endpoint (required)
 - `--target-version <target-version>`: the harness version the endpoint points to (default latest)
-- `--tags <tags...>`: tags as repeated key=value entries or a JSON object
+- `--tags <tags>`: tags to apply (JSON object of key/value strings)
 
 ##### `agentcore harness endpoint get`
 
