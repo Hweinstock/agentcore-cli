@@ -164,10 +164,18 @@ export function assertMutuallyExclusiveFlags(
   }
 }
 
-// parseTags parses a tags flag that accepts two mutually exclusive forms:
-//   - Repeated key=value shorthand: ["env=prod", "team=foo"]
-//   - A single JSON object: ['{"env":"prod","team":"foo"}']
-// The two forms cannot be mixed. Returns undefined when the input is empty.
+/**
+ * Given tag values, parses either repeated `key=value` entries (for example,
+ * `["env=prod", "team=foo"]`) or a single JSON object (for example,
+ * `['{"env":"prod","team":"foo"}']`).
+ *
+ * The two forms cannot be mixed. Returns `undefined` when the input is missing
+ * or empty.
+ *
+ * @param values - Tag values supplied through `--tags`.
+ * @returns Parsed tags, or `undefined` when no tags were provided.
+ * @throws {InputValidationError} If an entry is malformed or a JSON value is not a string.
+ */
 export function parseTags(values: string[] | undefined): Record<string, string> | undefined {
   if (!values || values.length === 0) return undefined;
 
