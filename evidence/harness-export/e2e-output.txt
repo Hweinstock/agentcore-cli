@@ -1,0 +1,57 @@
+PASS: compiled Linux CLI, actual terminal progress, installed dependencies, compact manual note, next steps.
+
+> node --version
+v20.20.2
+> agentcore export harness --name helloWorld  # Node npm bundle
+Reading project spec file at '/tmp/agentcore-export-verification/NodeDemo/agentcore/agentcore.json'
+Reading harness configuration from 'app/helloWorld/harness.yaml'
+Mapping harness 'helloWorld' to the Strands runtime template
+Rendering agent code at 'app/helloWorldAgent'
+Writing EXPORT_NOTES.md
+Updating project spec file at '/tmp/agentcore-export-verification/NodeDemo/agentcore/agentcore.json'
+Syncing Python dependencies with uv
+Exported harness 'helloWorld' to runtime agent 'helloWorldAgent' (app/helloWorldAgent)
+1 export note requiring manual follow-up:
+  - External memory reference not exported
+Review app/helloWorldAgent/EXPORT_NOTES.md for details.
+Next steps:
+  Review the generated code
+  agentcore build
+  agentcore deploy
+PASS: Node 20 npm bundle export; no AWS SDK Node version warning.
+PASS: npm bundle JSON parses and keeps human summary/next steps off stderr.
+PASS: unrelated Node warnings remain visible.
+
+> cd app/helloWorld
+> agentcore export harness --name helloWorld --target-agent-name nestedAgent
+Reading project spec file at '/tmp/agentcore-export-verification/NodeDemo/agentcore/agentcore.json'
+Reading harness configuration from 'app/helloWorld/harness.yaml'
+Mapping harness 'helloWorld' to the Strands runtime template
+Rendering agent code at 'app/nestedAgent'
+Writing EXPORT_NOTES.md
+Updating project spec file at '/tmp/agentcore-export-verification/NodeDemo/agentcore/agentcore.json'
+Syncing Python dependencies with uv
+Exported harness 'helloWorld' to runtime agent 'nestedAgent' (../nestedAgent)
+1 export note requiring manual follow-up:
+  - External memory reference not exported
+Review ../nestedAgent/EXPORT_NOTES.md for details.
+Next steps:
+  Review the generated code
+  agentcore build
+  agentcore deploy
+PASS: displayed output paths resolve from the invocation subdirectory.
+
+> agentcore export harness --name helloWorld  # no manual follow-up
+Reading project spec file at '/tmp/agentcore-export-verification/QuietDemo/agentcore/agentcore.json'
+Reading harness configuration from 'app/helloWorld/harness.yaml'
+Mapping harness 'helloWorld' to the Strands runtime template
+Rendering agent code at 'app/helloWorldAgent'
+Writing EXPORT_NOTES.md
+Updating project spec file at '/tmp/agentcore-export-verification/QuietDemo/agentcore/agentcore.json'
+Syncing Python dependencies with uv
+Exported harness 'helloWorld' to runtime agent 'helloWorldAgent' (app/helloWorldAgent)
+Next steps:
+  Review the generated code
+  agentcore build
+  agentcore deploy
+PASS: compiled CLI omits unnecessary no-follow-up confirmation.
