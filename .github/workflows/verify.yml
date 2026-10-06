@@ -54,7 +54,6 @@ jobs:
         if: runner.os == 'Linux' && !cancelled()
       - run: bun run typecheck
         if: runner.os == 'Linux' && !cancelled()
-      # The temporary GHSA exception lives in package.json's audit script; remove when braces is patched.
       - run: bun run audit
         if: runner.os == 'Linux' && !cancelled()
       - run: bun run secrets:check
