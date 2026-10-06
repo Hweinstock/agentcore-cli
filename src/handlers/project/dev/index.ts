@@ -17,7 +17,13 @@ import {
 } from "../../../errors";
 import type { AppIO, BrowserOpener, FileWatcher, PortChecker, startHttpServer } from "../../../io";
 import { withUserCancellation } from "../../../runnable";
-import { createHandler, flag, ProjectKey, type Middleware } from "../../../router";
+import {
+  createHandler,
+  flag,
+  GlobalConfigAccessorKey,
+  ProjectKey,
+  type Middleware,
+} from "../../../router";
 import { JsonRendererKey, type JsonRenderer } from "../../../tui";
 import { JsonKey, RegionKey } from "../../keys";
 import { assertMutuallyExclusiveFlags } from "../../utils";
@@ -246,7 +252,16 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
     ],
     handle: async (ctx, flags) => {
       const json = ctx.require(JsonKey) ? ctx.require(JsonRendererKey) : undefined;
-      const project = ctx.require(ProjectKey);
+      const { harnessDev } = await ctx.require(GlobalConfigAccessorKey).get();
+      if (flags.harness !== undefined && !harnessDev) {
+        throw new InputValidationError(
+          "--harness requires the harnessDev feature flag. Enable it with: agentcore config harnessDev true",
+        );
+      }
+      const configuredProject = ctx.require(ProjectKey);
+      const project = harnessDev
+        ? configuredProject
+        : { ...configuredProject, spec: { ...configuredProject.spec, harnesses: [] } };
       const region = ctx.require(RegionKey);
       assertMutuallyExclusiveFlags(flags, ["agent", "harness"]);
       const selectedAgent = flags.agent ?? flags.harness;

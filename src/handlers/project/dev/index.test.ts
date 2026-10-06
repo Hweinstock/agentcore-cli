@@ -9,8 +9,9 @@ import {
   UserCancellationError,
 } from "../../../errors";
 import type { HttpRequestHandler, PortChecker } from "../../../io";
-import { ProjectKey, ValueContext } from "../../../router";
-import { testIO } from "../../../testing";
+import { DEFAULT_GLOBAL_CONFIG } from "../../../globalConfig";
+import { GlobalConfigAccessorKey, ProjectKey, ValueContext } from "../../../router";
+import { TestGlobalConfigAccessor, testIO } from "../../../testing";
 import { JsonRendererKey } from "../../../tui";
 import { JsonKey, RegionKey } from "../../keys";
 import type { Project } from "../types";
@@ -109,6 +110,8 @@ function fakeCollector() {
 
 type HarnessOptions = {
   project?: Project;
+  /** The harnessDev feature flag; on unless a test covers the flag-off behavior. */
+  harnessDev?: boolean;
   tty?: boolean;
   reloadedRuntimes?: ProjectRuntime[];
   codeZip?: ReturnType<typeof captureRunner>;
@@ -173,6 +176,12 @@ function harness(options: HarnessOptions = {}) {
     .withValue(ProjectKey, options.project ?? project(runtime()))
     .withValue(JsonKey, options.json ?? false)
     .withValue(RegionKey, "us-west-2")
+    .withValue(
+      GlobalConfigAccessorKey,
+      new TestGlobalConfigAccessor({
+        initialConfigData: { ...DEFAULT_GLOBAL_CONFIG, harnessDev: options.harnessDev ?? true },
+      }),
+    )
     .withValue(JsonRendererKey, {
       renderJson: (data) => io.io.stdout.write(`${JSON.stringify(data, null, 2)}\n`),
       renderJsonLine: (data) => io.io.stdout.write(`${JSON.stringify(data)}\n`),
@@ -418,6 +427,25 @@ describe("project dev headless multi-agent", () => {
 
     process.emit("SIGINT", "SIGINT");
     await expect(pending).rejects.toMatchObject({ exitCode: 130 });
+  });
+
+  test("without the harnessDev feature flag, harnesses are ignored and --harness is rejected", async () => {
+    const harnessOnly = harness({
+      project: withHarnesses(project(), "researcher"),
+      harnessDev: false,
+    });
+    await expect(harnessOnly.run()).rejects.toThrow("This project has no runtimes");
+    await expect(harnessOnly.run({ harness: "researcher" })).rejects.toThrow(
+      "--harness requires the harnessDev feature flag. Enable it with: agentcore config harnessDev true",
+    );
+
+    const mixed = harness({
+      project: withHarnesses(project(runtime("orders")), "researcher"),
+      harnessDev: false,
+    });
+    await mixed.run({ port: 4567 });
+    expect(mixed.codeZip.inputs).toMatchObject([{ runtime: { name: "orders" }, port: 4567 }]);
+    expect(mixed.harnessRunner.inputs).toHaveLength(0);
   });
 
   test("--harness runs only the selected harness on an explicit port", async () => {

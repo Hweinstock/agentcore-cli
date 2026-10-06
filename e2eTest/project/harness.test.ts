@@ -111,6 +111,7 @@ describe("add, deploy, and invoke harnesses", { sequential: true, tags: harnessT
     let dev: ReturnType<CliRunner["start"]> | undefined;
     let pendingOutput = "";
     let devOutput = "";
+    let previousHarnessDev = "false";
 
     /** Given dev-process output, records the ports announced by running harnesses. */
     const captureDevOutput = (chunk: Buffer) => {
@@ -125,16 +126,20 @@ describe("add, deploy, and invoke harnesses", { sequential: true, tags: harnessT
       }
     };
 
-    beforeAll(() => {
+    beforeAll(async () => {
+      previousHarnessDev = (await cli.run(["config", "harnessDev"], projectDir)).stdout.trim();
+      await cli.run(["config", "harnessDev", "true"], projectDir);
       dev = cli.start(["dev", "--mode", "headless"], projectDir);
       dev.stdout?.on("data", captureDevOutput);
       dev.stderr?.on("data", captureDevOutput);
     }, TIMEOUT_MS.PROJECT_DEV);
 
     afterAll(async () => {
-      if (!dev || dev.exitCode !== null) return;
-      dev.kill("SIGTERM");
-      await new Promise<void>((resolve) => dev?.once("close", resolve));
+      if (dev && dev.exitCode === null) {
+        dev.kill("SIGTERM");
+        await new Promise<void>((resolve) => dev?.once("close", resolve));
+      }
+      await cli.run(["config", "harnessDev", previousHarnessDev], projectDir);
     });
 
     test.each(HARNESS_TEST_CASES)(

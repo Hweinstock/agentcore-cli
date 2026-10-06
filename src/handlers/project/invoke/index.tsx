@@ -6,6 +6,7 @@ import { DEFAULT_TARGET_NAME } from "../../../projectSchemas/aws-targets";
 import {
   createHandler,
   flag,
+  GlobalConfigAccessorKey,
   PathKey,
   ProjectKey,
   type FlagsOf,
@@ -135,7 +136,11 @@ export function createProjectInvokeHandler(core: Core, io: AppIO) {
       const acceptedFlags = [
         ...RESOURCE_TYPES,
         "target",
-        ...(resourceType === "gateway" ? [] : ["local", "port"]),
+        ...(resourceType === "runtime" ||
+        (resourceType === "harness" &&
+          (await ctx.require(GlobalConfigAccessorKey).get()).harnessDev)
+          ? ["local", "port"]
+          : []),
         ...handler.flags().map(({ name }) => name),
       ];
       const unsupported = Object.entries(flags).find(

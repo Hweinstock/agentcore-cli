@@ -11,6 +11,7 @@ export const DEFAULT_GLOBAL_CONFIG: GlobalConfig = {
   },
   installationId: crypto.randomUUID(),
   transactionSearch: true,
+  harnessDev: false,
 };
 
 /**
@@ -28,5 +29,6 @@ export function applyOverrides(
     },
     installationId: overrides.installationId ?? defaults.installationId,
     transactionSearch: overrides.transactionSearch ?? defaults.transactionSearch,
+    harnessDev: overrides.harnessDev ?? defaults.harnessDev,
   };
 }

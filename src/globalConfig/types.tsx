@@ -21,6 +21,8 @@ export const globalConfigFileSchema = z.object({
     .optional(),
   installationId: z.uuid().optional(),
   transactionSearch: z.boolean().optional(),
+  /** Feature flag: run and invoke harnesses locally with `agentcore dev`. */
+  harnessDev: z.boolean().optional(),
 });
 
 /** The raw shape stored on disk for overriding defaults. */

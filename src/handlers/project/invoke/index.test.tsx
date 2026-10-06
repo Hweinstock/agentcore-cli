@@ -9,6 +9,7 @@ import type {
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import type { ProjectBackend } from "../../../core/project";
 import { ExitCode } from "../../../errors";
+import { DEFAULT_GLOBAL_CONFIG } from "../../../globalConfig";
 import { startHttpServer, type HttpServerHandle } from "../../../io";
 import { ProjectSpecSchema } from "../../../projectSchemas/project";
 import { runWithExitCode } from "../../../runnable";
@@ -111,7 +112,7 @@ function backend() {
 async function routedCommand(
   args: readonly string[],
   resources: Resources | undefined,
-  options: { writeTargets?: boolean; isTTY?: boolean } = {},
+  options: { writeTargets?: boolean; isTTY?: boolean; harnessDev?: boolean } = {},
 ) {
   if (resources) {
     await inProject(resources, options);
@@ -152,7 +153,9 @@ async function routedCommand(
   const root = createRootHandler(core, {
     io: io.io,
     logger: createSilentLogger(),
-    globalConfigAccessor: new TestGlobalConfigAccessor(),
+    globalConfigAccessor: new TestGlobalConfigAccessor({
+      initialConfigData: { ...DEFAULT_GLOBAL_CONFIG, harnessDev: options.harnessDev ?? false },
+    }),
   });
   const route = () => root.route(["node", "agentcore", "invoke", ...args, "--region", "us-east-1"]);
   return { core, io, resolved, route };
@@ -280,15 +283,23 @@ describe("invoke", () => {
       message: "--local does not apply to a Gateway",
     },
     {
+      name: "--local for a harness without the harnessDev feature flag",
+      args: ["--harness", "support", "--local", "--prompt", "hi"],
+      resources: { harnesses: [HARNESS] },
+      message: "--local does not apply to a Harness",
+    },
+    {
       name: "--local for a harness without a prompt",
       args: ["--harness", "support", "--local"],
       resources: { harnesses: [HARNESS] },
+      options: { harnessDev: true },
       message: "required option '--prompt <text>' not specified",
     },
     {
       name: "--local for a harness with a qualifier",
       args: ["--harness", "support", "--local", "--prompt", "hi", "--qualifier", "beta"],
       resources: { harnesses: [HARNESS] },
+      options: { harnessDev: true },
       message: "--qualifier cannot be used with --local",
     },
     {
@@ -309,8 +320,8 @@ describe("invoke", () => {
       resources: { harnesses: [HARNESS] },
       message: "Invalid value for option '--session-id'",
     },
-  ])("rejects $name", async ({ args, resources, message }) => {
-    const subject = await routedCommand(args, resources);
+  ])("rejects $name", async ({ args, resources, options, message }) => {
+    const subject = await routedCommand(args, resources, options);
 
     await expect(subject.route()).rejects.toThrow(message);
   });
@@ -441,7 +452,7 @@ describe("invoke", () => {
         "--json",
       ],
       { harnesses: [HARNESS] },
-      { writeTargets: false },
+      { writeTargets: false, harnessDev: true },
     );
     await mkdir(HARNESS.path, { recursive: true });
     await writeFile(
