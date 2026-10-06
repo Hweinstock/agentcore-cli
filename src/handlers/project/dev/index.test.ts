@@ -109,6 +109,7 @@ type HarnessOptions = {
   codeZip?: ReturnType<typeof captureRunner>;
   container?: ReturnType<typeof captureRunner>;
   checkPort?: PortChecker;
+  waitReady?: NonNullable<DevProjectHandlerConfig["waitReady"]>;
   json?: boolean;
   loadEnvironment?: DevProjectHandlerConfig["loadDevEnvironment"];
 };
@@ -155,9 +156,7 @@ function harness(options: HarnessOptions = {}) {
       resolve: async () =>
         options.reloadedRuntimes ? project(...options.reloadedRuntimes) : undefined,
     },
-    waitReady: async () => {
-      await Bun.sleep(5);
-    },
+    waitReady: options.waitReady ?? (async () => {}),
   });
   const ctx = ValueContext.EmptyContext()
     .withValue(ProjectKey, options.project ?? project(runtime()))
@@ -358,6 +357,9 @@ describe("project dev headless multi-agent", () => {
       project: twoRuntimes(),
       codeZip: captureRunner([{ type: "status", message: "dying" }]),
       container: stayingRunner(),
+      waitReady: async () => {
+        await Bun.sleep(5);
+      },
     });
     const { pending } = await supervised(subject);
 
@@ -369,7 +371,12 @@ describe("project dev headless multi-agent", () => {
   });
 
   test("exits non-zero when every agent fails to start", async () => {
-    const subject = harness({ project: twoRuntimes() });
+    const subject = harness({
+      project: twoRuntimes(),
+      waitReady: async () => {
+        await Bun.sleep(5);
+      },
+    });
 
     await expect(subject.run()).rejects.toBeInstanceOf(SilentCLIError);
     expect(subject.collector.state.closed).toBe(1);

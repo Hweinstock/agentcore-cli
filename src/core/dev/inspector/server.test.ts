@@ -92,7 +92,7 @@ describe("GET /api/status", () => {
           buildType: "Container",
           protocol: "MCP",
           phase: "failed",
-          error: "boom",
+          error: new Error("boom"),
         },
       ],
     });
