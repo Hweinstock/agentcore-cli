@@ -1,10 +1,11 @@
 import z from "zod";
+import { relative } from "node:path";
 import { InputValidationError, ResourceNotFoundError } from "../../../errors";
 import { createHandler, flag, ProjectKey } from "../../../router";
 import { JsonRendererKey } from "../../../tui";
+import { runWithProgress } from "../../../tui/progress";
 import { JsonKey } from "../../keys";
 import { AgentNameSchema } from "../../../projectSchemas/runtime";
-import { formatExportNotes } from "../../../core/project/templates/export";
 import { assertMutuallyExclusiveFlags, coreOptsFromCtx } from "../../utils";
 import type { ExportHarnessInput } from "../types";
 import type { ExportProjectResourceConfig } from "./types";
@@ -36,50 +37,41 @@ export const createExportHarnessHandler = (config: ExportProjectResourceConfig) 
       const project = ctx.require(ProjectKey);
       const jsonOutput = ctx.require(JsonKey);
 
-      let input: ExportHarnessInput;
-      if (flags.arn) {
-        config.io.stderr.write(`Fetching harness from the service\n`);
-        const harnessId = harnessIdFromArn(flags.arn);
-        // The ARN names the region the harness lives in and takes precedence over
-        // the CLI's resolved region, so service fetches never drift to ambient config.
-        const coreOpts = coreOptsFromCtx(ctx);
-        const region = regionFromHarnessArn(flags.arn);
-        const response = await config.core.harness.getHarness(harnessId, { ...coreOpts, region });
-        if (!response.harness) {
-          throw new ResourceNotFoundError(`no harness exists for '${flags.arn}'`);
-        }
-        const { spec, systemPrompt, notes, modelAdditionalParams } = mapServiceHarnessToSpec(
-          response.harness,
-        );
-        input = {
-          prefetched: { spec, systemPrompt, notes, modelAdditionalParams },
-          targetAgentName: resolveTargetAgentName(flags["target-agent-name"], spec.name),
-        };
-      } else {
-        input = {
-          harnessName: flags.name!,
-          targetAgentName: resolveTargetAgentName(flags["target-agent-name"], flags.name!),
-        };
-      }
-
-      // Progress goes to stderr, keeping stdout for machine output. Driven by
-      // hand because the result is the generator's return value.
-      const exportRun = config.projectManager.exportHarness(project, input);
-      let next = await exportRun.next();
-      while (!next.done) {
-        if (next.value.type === "step") config.io.stderr.write(`${next.value.message}\n`);
-        next = await exportRun.next();
-      }
-      const result = next.value;
-
-      config.io.stderr.write(
-        `Exported harness '${result.harnessName}' to runtime agent '${result.agentName}' (${result.agentPath})\n`,
-      );
-      for (const line of formatExportNotes(result.notes, result.notesPath)) {
-        config.io.stderr.write(`${line.text}\n`);
-      }
-      config.io.stderr.write(
-        "Next steps: review the generated code, then `agentcore build` and `agentcore deploy`\n",
+      const result = await runWithProgress(
+        (async function* () {
+          let input: ExportHarnessInput;
+          if (flags.arn) {
+            const harnessId = harnessIdFromArn(flags.arn);
+            // The ARN's region takes precedence over the CLI's resolved region.
+            const coreOpts = coreOptsFromCtx(ctx);
+            const region = regionFromHarnessArn(flags.arn);
+            yield { type: "step" as const, message: "Fetching harness from the service" };
+            const response = await config.core.harness.getHarness(harnessId, {
+              ...coreOpts,
+              region,
+            });
+            if (!response.harness) {
+              throw new ResourceNotFoundError(`no harness exists for '${flags.arn}'`);
+            }
+            const { spec, systemPrompt, notes, modelAdditionalParams } = mapServiceHarnessToSpec(
+              response.harness,
+            );
+            input = {
+              prefetched: { spec, systemPrompt, notes, modelAdditionalParams },
+              targetAgentName: resolveTargetAgentName(flags["target-agent-name"], spec.name),
+            };
+          } else {
+            input = {
+              harnessName: flags.name!,
+              targetAgentName: resolveTargetAgentName(flags["target-agent-name"], flags.name!),
+            };
+          }
+          return yield* config.projectManager.exportHarness(project, input);
+        })(),
+        {
+          io: config.io,
+          interactive: jsonOutput ? false : undefined,
+        },
       );
 
       if (jsonOutput) {
@@ -90,7 +82,26 @@ export const createExportHarnessHandler = (config: ExportProjectResourceConfig) 
           notesPath: result.notesPath,
           notes: result.notes,
         });
+        return;
       }
+
+      config.io.stderr.write(
+        `Exported harness '${result.harnessName}' to runtime agent '${result.agentName}' (${relative(process.cwd(), result.agentPath)})\n`,
+      );
+      if (result.notes.length > 0) {
+        config.io.stderr.write(
+          `${result.notes.length} export ${result.notes.length === 1 ? "note" : "notes"} requiring manual follow-up:\n`,
+        );
+        for (const note of result.notes) {
+          config.io.stderr.write(`  - ${note.category}\n`);
+        }
+        config.io.stderr.write(
+          `Review ${relative(process.cwd(), result.notesPath)} for details.\n`,
+        );
+      }
+      config.io.stderr.write(
+        "Next steps:\n  Review the generated code\n  agentcore build\n  agentcore deploy\n",
+      );
     },
   });
 
