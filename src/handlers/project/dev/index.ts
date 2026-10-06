@@ -20,6 +20,7 @@ import { withUserCancellation } from "../../../runnable";
 import { createHandler, flag, ProjectKey, type Middleware } from "../../../router";
 import { JsonRendererKey, type JsonRenderer } from "../../../tui";
 import { JsonKey, RegionKey } from "../../keys";
+import { assertMutuallyExclusiveFlags } from "../../utils";
 import type { Project, ProjectManager } from "../types";
 import { BMA_TEMPLATE_NAME, isBmaRuntime } from "../bma";
 import type { DevEnvironmentLoader } from "./environment";
@@ -193,6 +194,7 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
     middlewares: config.middlewares,
     flags: [
       flag("agent", "Runtime to run", z.string().optional()),
+      flag("harness", "Harness to run", z.string().optional()),
       flag(
         "port",
         "port for the development server",
@@ -214,6 +216,12 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
       const json = ctx.require(JsonKey) ? ctx.require(JsonRendererKey) : undefined;
       const project = ctx.require(ProjectKey);
       const region = ctx.require(RegionKey);
+      assertMutuallyExclusiveFlags(flags, ["agent", "harness"]);
+      if (flags.harness !== undefined) {
+        throw new NotImplementedError("Local dev is not supported for harnesses yet.", {
+          source: ERROR_SOURCE.USER,
+        });
+      }
       await withUserCancellation(
         async (signal) => {
           let collector: DevTraceCollector | undefined;

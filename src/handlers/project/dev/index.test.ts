@@ -179,6 +179,7 @@ function harness(options: HarnessOptions = {}) {
     run: (
       flags: {
         agent?: string;
+        harness?: string;
         port?: number;
         traces?: boolean;
         mode?: "browser" | "headless" | "tui";
@@ -234,6 +235,12 @@ describe("project dev selection and dispatch", () => {
       project(runtime("orders"), runtime("support", "Container")),
       { port: 4567 },
       "--port applies to a single runtime. Use --agent to select one.",
+      InputValidationError,
+    ],
+    [
+      project(runtime("orders")),
+      { agent: "orders", harness: "researcher" },
+      "--agent, --harness are mutually exclusive",
       InputValidationError,
     ],
     [
