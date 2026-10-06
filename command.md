@@ -272,6 +272,7 @@ run the project locally for development
 **Options**
 
 - `--agent <agent>`: Runtime to run
+- `--harness <harness>`: Harness to run
 - `--port <port>`: port for the development server
 - `--no-traces`: disable local OTEL trace collection
 - `--mode <mode>`: how to run: browser (Agent Inspector web UI) or headless (agents stream to the terminal) (default: "headless")
