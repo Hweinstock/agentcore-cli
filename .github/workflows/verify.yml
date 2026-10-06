@@ -54,8 +54,8 @@ jobs:
         if: runner.os == 'Linux' && !cancelled()
       - run: bun run typecheck
         if: runner.os == 'Linux' && !cancelled()
-      # Temporary exception for GHSA-vfj7-8cjw-p6xm; remove when a patched braces release is available.
-      - run: bun audit --ignore GHSA-vfj7-8cjw-p6xm
+      # The temporary GHSA exception lives in package.json's audit script; remove when braces is patched.
+      - run: bun run audit
         if: runner.os == 'Linux' && !cancelled()
       - run: bun run secrets:check
         if: runner.os == 'Linux' && !cancelled()
