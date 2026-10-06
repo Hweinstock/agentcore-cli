@@ -274,10 +274,22 @@ describe("invoke", () => {
       message: "--prompt does not apply to a Runtime",
     },
     {
-      name: "--local for a harness",
+      name: "--local for a gateway",
+      args: ["--gateway", "tools", "--local"],
+      resources: { agentCoreGateways: [GATEWAY] },
+      message: "--local does not apply to a Gateway",
+    },
+    {
+      name: "--local for a harness without a prompt",
       args: ["--harness", "support", "--local"],
       resources: { harnesses: [HARNESS] },
-      message: "--local does not apply to a Harness",
+      message: "required option '--prompt <text>' not specified",
+    },
+    {
+      name: "--local for a harness with a qualifier",
+      args: ["--harness", "support", "--local", "--prompt", "hi", "--qualifier", "beta"],
+      resources: { harnesses: [HARNESS] },
+      message: "--qualifier cannot be used with --local",
     },
     {
       name: "--target with an ID",
@@ -392,6 +404,82 @@ describe("invoke", () => {
     expect(io.stderr()).toContain(`runtime-session-id=${request?.sessionId}`);
     expect(resolved.targets).toEqual([]);
     expect(core.runtime.calls).toEqual([]);
+  });
+
+  test("invokes a local harness configured by its project files", async () => {
+    let request: { sessionId: string | undefined; body: unknown } | undefined;
+    const server = await startHttpServer((received) => {
+      request = {
+        sessionId: header(received.headers["x-amzn-bedrock-agentcore-runtime-session-id"]),
+        body: JSON.parse(received.body.toString()),
+      };
+      return {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+        body: [
+          { event: { messageStart: { role: "assistant" } } },
+          { event: { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "hello" } } } },
+          { error: "model unavailable" },
+        ]
+          .map((frame) => `data: ${JSON.stringify(frame)}\n\n`)
+          .join(""),
+      };
+    });
+    servers.push(server);
+    const sessionId = "a".repeat(33);
+    const subject = await routedCommand(
+      [
+        "--harness",
+        HARNESS.name,
+        "--local",
+        "--port",
+        String(server.port),
+        "--prompt",
+        "hi",
+        "--session-id",
+        sessionId,
+        "--json",
+      ],
+      { harnesses: [HARNESS] },
+      { writeTargets: false },
+    );
+    await mkdir(HARNESS.path, { recursive: true });
+    await writeFile(
+      join(HARNESS.path, "harness.yaml"),
+      [
+        "name: support",
+        "model: { bedrockModelConfig: { modelId: test-model } }",
+        "allowedTools: ['*']",
+        "truncation: { strategy: none }",
+        "memory: { disabled: {} }",
+      ].join("\n"),
+    );
+    await writeFile(join(HARNESS.path, "system-prompt.md"), "Be brief.");
+    await subject.route();
+
+    expect(request).toEqual({
+      sessionId,
+      body: {
+        operation: "invoke",
+        truncation: { strategy: "none" },
+        invokePayload: {
+          model: { bedrockModelConfig: { modelId: "test-model" } },
+          systemPrompt: [{ text: "Be brief." }],
+          allowedTools: ["*"],
+          messages: [{ role: "user", content: [{ text: "hi" }] }],
+        },
+      },
+    });
+    expect(JSON.parse(subject.io.stdout())).toMatchObject({
+      sessionId,
+      transcript: [
+        { kind: "user", text: "hi" },
+        { kind: "text", text: "hello" },
+        { kind: "error", message: "model unavailable" },
+      ],
+    });
+    expect(subject.resolved.targets).toEqual([]);
+    expect(subject.core.harness.calls).toEqual([]);
   });
 
   test("forwards local HTTP Runtime request options", async () => {

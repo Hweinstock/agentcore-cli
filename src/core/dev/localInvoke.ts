@@ -1,11 +1,39 @@
 import { randomUUID } from "node:crypto";
-import { InputValidationError, InvalidEnvironmentError } from "../../errors";
+import { existsSync } from "node:fs";
+import { join } from "node:path";
+import {
+  RuntimeClientError,
+  type InvokeHarnessRequest,
+  type InvokeHarnessResponse,
+  type InvokeHarnessStreamOutput,
+} from "@aws-sdk/client-bedrock-agentcore";
+import {
+  InputValidationError,
+  InvalidEnvironmentError,
+  RuntimeInvokeResponseError,
+} from "../../errors";
+import { readTextFile, readYamlFile } from "../../io";
 import type { ProtocolMode } from "../../projectSchemas/constants";
 import { abortable } from "../abortable";
 import type { RuntimeInvokeResponse } from "../invokeRuntime";
+import { sseData } from "./inspector/respond";
+
+/** The harness.yaml fields an InvokeHarness request can override. */
+const HARNESS_INVOKE_FIELDS = [
+  "model",
+  "systemPrompt",
+  "tools",
+  "skills",
+  "allowedTools",
+  "maxIterations",
+  "maxTokens",
+  "timeoutSeconds",
+] as const;
 
 export type LocalRuntimeInvokeRequest = {
   port: number;
+  /** The `agentcore dev` flag that selects this server, for the hint when it is unreachable. */
+  devSelector?: "--agent" | "--harness";
   protocol: ProtocolMode;
   payload: Uint8Array;
   contentType?: string;
@@ -79,7 +107,7 @@ export async function invokeLocalRuntime(
     const detail = error instanceof Error ? error.message : String(error);
     throw new InvalidEnvironmentError(
       `Could not reach local dev server on port ${request.port} (${detail}). Start it with: ` +
-        `agentcore dev --mode headless --agent <name> --port ${request.port}`,
+        `agentcore dev --mode headless ${request.devSelector ?? "--agent"} <name> --port ${request.port}`,
       { cause: error },
     );
   }
@@ -98,4 +126,70 @@ export async function invokeLocalRuntime(
     baggage: response.headers.get("baggage") ?? undefined,
     body: signal ? abortable(body, signal) : body,
   };
+}
+
+/**
+ * Invoke a local harness container. Its harness.yaml (and system-prompt.md) configure the turn as
+ * they would the deployed harness, and fields set on `request` override them as in InvokeHarness.
+ */
+export async function invokeLocalHarness(
+  port: number,
+  harnessDirectory: string,
+  {
+    harnessArn: _harnessArn,
+    qualifier: _qualifier,
+    runtimeSessionId,
+    ...request
+  }: InvokeHarnessRequest,
+  signal?: AbortSignal,
+): Promise<InvokeHarnessResponse> {
+  const config = (await readYamlFile(join(harnessDirectory, "harness.yaml"))) as Record<
+    string,
+    unknown
+  > & { memory?: { agentCoreMemoryConfiguration?: { arn?: string } } };
+  const promptPath = join(harnessDirectory, "system-prompt.md");
+  const memory = config.memory?.agentCoreMemoryConfiguration;
+  const body = {
+    operation: "invoke",
+    truncation: config.truncation,
+    memoryConfig: memory?.arn ? { agentCoreMemoryConfiguration: memory } : undefined,
+    invokePayload: {
+      ...(existsSync(promptPath) && { systemPrompt: [{ text: await readTextFile(promptPath) }] }),
+      ...definedFields(Object.fromEntries(HARNESS_INVOKE_FIELDS.map((key) => [key, config[key]]))),
+      ...definedFields(request),
+    },
+  };
+  const response = await invokeLocalRuntime(
+    {
+      port,
+      protocol: "HTTP",
+      devSelector: "--harness",
+      payload: new TextEncoder().encode(JSON.stringify(body)),
+      runtimeSessionId,
+    },
+    signal,
+  );
+  if (response.statusCode < 200 || response.statusCode >= 300) {
+    const chunks: Uint8Array[] = [];
+    for await (const chunk of response.body) chunks.push(chunk);
+    const detail = Buffer.concat(chunks).toString();
+    throw new RuntimeInvokeResponseError(`HTTP ${response.statusCode}: ${detail}`);
+  }
+  return { stream: harnessEvents(response.body) };
+}
+
+function definedFields(fields: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined));
+}
+
+/** The container streams `{ event }` frames, or `{ error }` when it rejects the request. */
+async function* harnessEvents(
+  body: AsyncIterable<Uint8Array>,
+): AsyncGenerator<InvokeHarnessStreamOutput> {
+  for await (const data of sseData(body)) {
+    const frame = JSON.parse(data) as { event?: InvokeHarnessStreamOutput; error?: string };
+    yield frame.event ?? {
+      runtimeClientError: new RuntimeClientError({ message: frame.error ?? data, $metadata: {} }),
+    };
+  }
 }

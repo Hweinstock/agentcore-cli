@@ -11,7 +11,7 @@ export type HarnessInvokeResult = {
 };
 
 export async function invokeHarnessTurn(
-  client: CoreHarnessClient,
+  client: Pick<CoreHarnessClient, "getHarness" | "invokeHarness">,
   input: {
     harnessId: string;
     prompt: string;

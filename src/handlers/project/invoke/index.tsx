@@ -21,6 +21,7 @@ import { assertMutuallyExclusiveFlags, resolveResource } from "../../utils";
 import { projectResourceNames } from "../selection";
 import { RESOURCE_LABELS, type ProjectInvokableResource } from "../types";
 import { createInvokeRuntimeHandler, invokeRuntimeFlags } from "../../runtime/invoke";
+import { invokeProjectHarnessLocally } from "./harness";
 import { invokeProjectRuntimeLocally } from "./runtime";
 
 const RESOURCE = "Resource options:";
@@ -134,7 +135,7 @@ export function createProjectInvokeHandler(core: Core, io: AppIO) {
       const acceptedFlags = [
         ...RESOURCE_TYPES,
         "target",
-        ...(resourceType === "runtime" ? ["local", "port"] : []),
+        ...(resourceType === "gateway" ? [] : ["local", "port"]),
         ...handler.flags().map(({ name }) => name),
       ];
       const unsupported = Object.entries(flags).find(
@@ -154,6 +155,11 @@ export function createProjectInvokeHandler(core: Core, io: AppIO) {
       }
       if (!flags.local && flags.port !== undefined) {
         throw new InputValidationError("--port requires --local");
+      }
+      if (flags.local && resourceType === "harness") {
+        const harness = project!.spec.harnesses.find(({ name }) => name === identifier)!;
+        await invokeProjectHarnessLocally(io, ctx, project!, harness, flags);
+        return;
       }
       if (flags.local) {
         const runtime = project!.spec.runtimes.find(({ name }) => name === identifier)!;
