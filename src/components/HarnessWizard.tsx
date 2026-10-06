@@ -590,7 +590,7 @@ const MODEL_PROVIDERS: {
   {
     kind: "bedrock",
     label: "bedrock",
-    description: "an Amazon Bedrock model or inference profile",
+    description: "Anthropic Claude and other models on Amazon Bedrock",
     fields: [
       {
         key: "modelId",
@@ -808,7 +808,7 @@ function ModelStep({
       {error && <Text color={theme.colors.error}>{error}</Text>}
       {provider.kind !== "default" && (
         <Text color={theme.colors.primary}>
-          use the command line to pass additional params, e.g.,{" "}
+          pass additional params with flags, e.g.,{" "}
           <Text color={theme.colors.primary}>agentcore harness create --name …</Text>
         </Text>
       )}
