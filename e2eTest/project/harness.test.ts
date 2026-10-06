@@ -1,10 +1,11 @@
-import { beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vitest";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import z from "zod";
 import { E2E_PREFIX, TAGS } from "../constants";
 import { CliRunner, parseResult } from "../helpers/run";
+import { retry } from "../helpers/retry";
 import { TIMEOUT_MS } from "../timeouts";
 
 type HarnessTestCase = {
@@ -58,6 +59,20 @@ const HarnessInvokeResponseSchema = z.object({
   transcript: z.array(TranscriptItemSchema).min(2),
 });
 
+/** Given an invoke response, asserts the harness replied with text, and the expected text if any. */
+function expectHarnessReply(
+  response: z.infer<typeof HarnessInvokeResponseSchema>,
+  harness: HarnessTestCase,
+): void {
+  const responseText = response.transcript
+    .filter((item) => item.kind === "text")
+    .flatMap((item) => item.text ?? [])
+    .join("");
+
+  expect(responseText.trim()).not.toBe("");
+  if (harness.expectedText) expect(responseText).toContain(harness.expectedText);
+}
+
 const harnessTags = [TAGS.HARNESS, TAGS.CANARY];
 describe("add, deploy, and invoke harnesses", { sequential: true, tags: harnessTags }, () => {
   const cli = new CliRunner();
@@ -91,6 +106,75 @@ describe("add, deploy, and invoke harnesses", { sequential: true, tags: harnessT
     },
   );
 
+  describe("local invocation", { sequential: true }, () => {
+    const harnessPorts = new Map<string, number>();
+    let dev: ReturnType<CliRunner["start"]> | undefined;
+    let pendingOutput = "";
+    let devOutput = "";
+
+    /** Given dev-process output, records the ports announced by running harnesses. */
+    const captureDevOutput = (chunk: Buffer) => {
+      const text = chunk.toString();
+      devOutput += text;
+      pendingOutput += text;
+      const lines = pendingOutput.split(/\r?\n/);
+      pendingOutput = lines.pop() ?? "";
+      for (const line of lines) {
+        const match = line.match(/Agent '([^']+)' is running on port (\d+)\./);
+        if (match?.[1] && match[2]) harnessPorts.set(match[1], Number(match[2]));
+      }
+    };
+
+    beforeAll(() => {
+      dev = cli.start(["dev", "--mode", "headless"], projectDir);
+      dev.stdout?.on("data", captureDevOutput);
+      dev.stderr?.on("data", captureDevOutput);
+    }, TIMEOUT_MS.PROJECT_DEV);
+
+    afterAll(async () => {
+      if (!dev || dev.exitCode !== null) return;
+      dev.kill("SIGTERM");
+      await new Promise<void>((resolve) => dev?.once("close", resolve));
+    });
+
+    test.each(HARNESS_TEST_CASES)(
+      "$name runs locally",
+      { concurrent: true, timeout: TIMEOUT_MS.PROJECT_INVOKE },
+      async (harness) => {
+        // The container accepts connections before its server is ready, so retry until it answers.
+        const response = await retry(async () => {
+          if (dev?.exitCode !== null) {
+            throw new Error(`agentcore dev is not running. \nstdout/stderr = ${devOutput}`);
+          }
+          const port = harnessPorts.get(harness.name);
+          if (!port) {
+            throw new Error(
+              `Harness '${harness.name}' is not ready. \nstdout/stderr = ${devOutput}`,
+            );
+          }
+          return parseResult(
+            HarnessInvokeResponseSchema,
+            await cli.run(
+              [
+                "invoke",
+                "--harness",
+                harness.name,
+                "--local",
+                "--port",
+                String(port),
+                "--json",
+                ...harness.invokeFlags,
+              ],
+              projectDir,
+            ),
+          );
+        }, TIMEOUT_MS.PROJECT_INVOKE * 0.9);
+
+        expectHarnessReply(response, harness);
+      },
+    );
+  });
+
   test("deploys all harnesses", { timeout: TIMEOUT_MS.PROJECT_DEPLOY }, async () => {
     const deployment = parseResult(
       DeployResponseSchema,
@@ -110,13 +194,7 @@ describe("add, deploy, and invoke harnesses", { sequential: true, tags: harnessT
           projectDir,
         ),
       );
-      const responseText = response.transcript
-        .filter((item) => item.kind === "text")
-        .flatMap((item) => item.text ?? [])
-        .join("");
-
-      expect(responseText.trim()).not.toBe("");
-      if (harness.expectedText) expect(responseText).toContain(harness.expectedText);
+      expectHarnessReply(response, harness);
     },
   );
 
