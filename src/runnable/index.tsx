@@ -1,11 +1,24 @@
 import { AgentCoreCLIError, ExitCode, SilentCLIError, UserCancellationError } from "../errors";
 
-/** Runs a headless operation with process SIGINT mapped to UserCancellationError. */
-export async function withUserCancellation<T>(fn: (signal: AbortSignal) => Promise<T>): Promise<T> {
+/** Runs a headless operation with process interrupts mapped to UserCancellationError. */
+export async function withUserCancellation<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
+  options: { onCancel?: () => void } = {},
+): Promise<T> {
   const controller = new AbortController();
-  const interrupt = () => controller.abort(new UserCancellationError());
+  const signals = ["SIGINT", "SIGTERM"] as const;
+  let interrupted = false;
+  const interrupt = () => {
+    if (interrupted) return;
+    interrupted = true;
+    try {
+      options.onCancel?.();
+    } finally {
+      controller.abort(new UserCancellationError());
+    }
+  };
   // Ink's signal-exit handler must see our listener until cancellation cleanup settles.
-  process.on("SIGINT", interrupt);
+  for (const signal of signals) process.on(signal, interrupt);
   try {
     const result = await fn(controller.signal);
     controller.signal.throwIfAborted();
@@ -15,7 +28,7 @@ export async function withUserCancellation<T>(fn: (signal: AbortSignal) => Promi
     throw error;
   } finally {
     controller.abort();
-    process.off("SIGINT", interrupt);
+    for (const signal of signals) process.off(signal, interrupt);
   }
 }
 

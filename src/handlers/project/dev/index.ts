@@ -14,9 +14,9 @@ import {
   NotImplementedError,
   ResourceNotFoundError,
   SilentCLIError,
-  UserCancellationError,
 } from "../../../errors";
 import type { AppIO, BrowserOpener, FileWatcher, PortChecker, startHttpServer } from "../../../io";
+import { withUserCancellation } from "../../../runnable";
 import { createHandler, flag, ProjectKey, type Middleware } from "../../../router";
 import { JsonRendererKey, type JsonRenderer } from "../../../tui";
 import { JsonKey, RegionKey } from "../../keys";
@@ -133,197 +133,190 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
       ),
     ],
     handle: async (ctx, flags) => {
-      const controller = new AbortController();
       const json = ctx.require(JsonKey) ? ctx.require(JsonRendererKey) : undefined;
-      const interrupt = () => {
-        if (controller.signal.aborted) return;
-        config.io.stderr.write("Shutting down…\n");
-        controller.abort(new UserCancellationError());
-      };
+      const project = ctx.require(ProjectKey);
+      const region = ctx.require(RegionKey);
+      await withUserCancellation(
+        async (signal) => {
+          let collector: DevTraceCollector | undefined;
+          try {
+            const runtimes = selectRuntimes(project, flags.agent);
+            if (runtimes.length > 1 && flags.port !== undefined) {
+              throw new InputValidationError(
+                "--port applies to a single runtime. Use --agent to select one.",
+              );
+            }
+            if (!flags.agent) {
+              for (const runtime of project.spec.runtimes.filter(
+                (runtime) => !supportsLocalDev(runtime),
+              )) {
+                renderStatus(
+                  config.io,
+                  `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
+                  json,
+                );
+              }
+            }
 
-      const signals = ["SIGINT", "SIGTERM"] as const;
-      for (const signal of signals) process.on(signal, interrupt);
-      let collector: DevTraceCollector | undefined;
-      try {
-        const project = ctx.require(ProjectKey);
-        const region = ctx.require(RegionKey);
-        const runtimes = selectRuntimes(project, flags.agent);
-        if (runtimes.length > 1 && flags.port !== undefined) {
-          throw new InputValidationError(
-            "--port applies to a single runtime. Use --agent to select one.",
-          );
-        }
-        if (!flags.agent) {
-          for (const runtime of project.spec.runtimes.filter(
-            (runtime) => !supportsLocalDev(runtime),
-          )) {
-            renderStatus(
-              config.io,
-              `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
-              json,
-            );
-          }
-        }
-
-        if (
-          flags.traces &&
-          runtimes.some((runtime) => runtime.instrumentation?.enableOtel ?? true)
-        ) {
-          const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
-          let tracePersistErrorReported = false;
-          collector = await config.startTraceCollector({
-            tracesDirectory,
-            // A container reaches the collector over the host bridge, which a
-            // 127.0.0.1 bind refuses, so bind all interfaces when any runtime
-            // is a container.
-            host: runtimes.some((runtime) => runtime.build === "Container")
-              ? "0.0.0.0"
-              : "127.0.0.1",
-            // Persistence can fail after startup (disk, permissions). Warn once —
-            // exports are still acked, so without this the loss would be silent.
-            onError: (error) => {
-              if (tracePersistErrorReported) return;
-              tracePersistErrorReported = true;
-              const detail = error instanceof Error ? error.message : String(error);
+            if (
+              flags.traces &&
+              runtimes.some((runtime) => runtime.instrumentation?.enableOtel ?? true)
+            ) {
+              const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
+              let tracePersistErrorReported = false;
+              collector = await config.startTraceCollector({
+                tracesDirectory,
+                // A container reaches the collector over the host bridge, which a
+                // 127.0.0.1 bind refuses, so bind all interfaces when any runtime
+                // is a container.
+                host: runtimes.some((runtime) => runtime.build === "Container")
+                  ? "0.0.0.0"
+                  : "127.0.0.1",
+                // Persistence can fail after startup (disk, permissions). Warn once —
+                // exports are still acked, so without this the loss would be silent.
+                onError: (error) => {
+                  if (tracePersistErrorReported) return;
+                  tracePersistErrorReported = true;
+                  const detail = error instanceof Error ? error.message : String(error);
+                  renderStatus(
+                    config.io,
+                    `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
+                    json,
+                  );
+                },
+              });
               renderStatus(
                 config.io,
-                `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
+                `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
                 json,
               );
-            },
-          });
-          renderStatus(
-            config.io,
-            `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
-            json,
-          );
-        }
-        controller.signal.throwIfAborted();
-
-        const getDevEnvVarsForRuntime = async (
-          runtime: ProjectRuntime,
-        ): Promise<Record<string, string>> => {
-          const { env } = await config.loadDevEnvironment({
-            projectRoot: project.rootPath,
-            runtime,
-            region,
-          });
-          const otel =
-            collector && (runtime.instrumentation?.enableOtel ?? true)
-              ? otelEnvForRuntime(collector, runtime)
-              : {};
-          return { ...env, ...otel };
-        };
-
-        if (flags.mode === "headless" && flags.agent) {
-          await runWithoutUi(
-            config,
-            runtimes[0]!,
-            project,
-            flags.port,
-            getDevEnvVarsForRuntime,
-            controller,
-            json,
-          );
-          return;
-        }
-
-        const assignedPorts =
-          flags.mode === "headless"
-            ? await resolveDevPorts(runtimes, flags.port, config.checkPort, controller.signal)
-            : undefined;
-        const supervisor = new DevSupervisor({
-          runtimes,
-          projectRoot: project.rootPath,
-          runners: config.runners,
-          getDevEnvVarsForRuntime,
-          // The --port guard above rejects an explicit port with more than one
-          // runtime, so passing flags.port here only ever applies to a lone one.
-          resolvePort: async (runtime) => {
-            if (assignedPorts) {
-              const assignedPort = assignedPorts.get(runtime.name);
-              if (assignedPort === undefined) {
-                throw new AgentCoreCLIError(`No port was assigned to runtime '${runtime.name}'.`);
-              }
-              return assignedPort;
             }
-            return (
-              await resolveDevPort(
-                runtime.protocol,
+            signal.throwIfAborted();
+
+            const getDevEnvVarsForRuntime = async (
+              runtime: ProjectRuntime,
+            ): Promise<Record<string, string>> => {
+              const { env } = await config.loadDevEnvironment({
+                projectRoot: project.rootPath,
+                runtime,
+                region,
+              });
+              const otel =
+                collector && (runtime.instrumentation?.enableOtel ?? true)
+                  ? otelEnvForRuntime(collector, runtime)
+                  : {};
+              return { ...env, ...otel };
+            };
+
+            if (flags.mode === "headless" && flags.agent) {
+              await runWithoutUi(
+                config,
+                runtimes[0]!,
+                project,
                 flags.port,
-                config.checkPort,
-                controller.signal,
-              )
-            ).port;
-          },
-          waitReady: config.waitReady,
-          signal: controller.signal,
-        });
-
-        if (flags.mode === "headless") {
-          void Promise.allSettled(runtimes.map((runtime) => supervisor.start(runtime.name)));
-          for await (const { agentName, event } of supervisor.events()) {
-            renderAgentEvent(config.io, event, agentName, json);
-            const phases = supervisor.snapshot();
-            if (phases.every(({ phase }) => phase !== "starting" && phase !== "running")) {
-              if (phases.some(({ phase }) => phase === "failed")) throw new SilentCLIError();
-              break;
+                getDevEnvVarsForRuntime,
+                signal,
+                json,
+              );
+              return;
             }
-          }
-          controller.signal.throwIfAborted();
-          return;
-        }
 
-        const uiPort = (
-          await findFreePort(UI_DEFAULT_PORT, flags["ui-port"], config.checkPort, controller.signal)
-        ).port;
-        const server = await config.startServer(
-          createInspectorHandler({
-            supervisor,
-            traces: collector?.traces,
-            assets: config.inspectorAssets,
-            project,
-            selectedAgent: flags.agent,
-          }),
-          { port: uiPort, signal: controller.signal },
-        );
+            const assignedPorts =
+              flags.mode === "headless"
+                ? await resolveDevPorts(runtimes, flags.port, config.checkPort, signal)
+                : undefined;
+            const supervisor = new DevSupervisor({
+              runtimes,
+              projectRoot: project.rootPath,
+              runners: config.runners,
+              getDevEnvVarsForRuntime,
+              // The --port guard above rejects an explicit port with more than one
+              // runtime, so passing flags.port here only ever applies to a lone one.
+              resolvePort: async (runtime) => {
+                if (assignedPorts) {
+                  const assignedPort = assignedPorts.get(runtime.name);
+                  if (assignedPort === undefined) {
+                    throw new AgentCoreCLIError(
+                      `No port was assigned to runtime '${runtime.name}'.`,
+                    );
+                  }
+                  return assignedPort;
+                }
+                return (
+                  await resolveDevPort(runtime.protocol, flags.port, config.checkPort, signal)
+                ).port;
+              },
+              waitReady: config.waitReady,
+              signal,
+            });
 
-        const onConfigChange = async () => {
-          try {
-            const reloaded = await config.projectManager.resolve({ filePath: project.rootPath });
-            if (!reloaded) return;
-            const runtimes = reloaded.spec.runtimes.filter(supportsLocalDev);
-            supervisor.setRuntimes(
-              flags.agent ? runtimes.filter((runtime) => runtime.name === flags.agent) : runtimes,
+            if (flags.mode === "headless") {
+              void Promise.allSettled(runtimes.map((runtime) => supervisor.start(runtime.name)));
+              for await (const { agentName, event } of supervisor.events()) {
+                renderAgentEvent(config.io, event, agentName, json);
+                const phases = supervisor.snapshot();
+                if (phases.every(({ phase }) => phase !== "starting" && phase !== "running")) {
+                  if (phases.some(({ phase }) => phase === "failed")) throw new SilentCLIError();
+                  break;
+                }
+              }
+              signal.throwIfAborted();
+              return;
+            }
+
+            const uiPort = (
+              await findFreePort(UI_DEFAULT_PORT, flags["ui-port"], config.checkPort, signal)
+            ).port;
+            const server = await config.startServer(
+              createInspectorHandler({
+                supervisor,
+                traces: collector?.traces,
+                assets: config.inspectorAssets,
+                project,
+                selectedAgent: flags.agent,
+              }),
+              { port: uiPort, signal },
             );
-            renderStatus(config.io, "Reloaded agents from agentcore.json.", json);
-          } catch {
-            // A half-saved config parses on the next change event.
+
+            const onConfigChange = async () => {
+              try {
+                const reloaded = await config.projectManager.resolve({
+                  filePath: project.rootPath,
+                });
+                if (!reloaded) return;
+                const runtimes = reloaded.spec.runtimes.filter(supportsLocalDev);
+                supervisor.setRuntimes(
+                  flags.agent
+                    ? runtimes.filter((runtime) => runtime.name === flags.agent)
+                    : runtimes,
+                );
+                renderStatus(config.io, "Reloaded agents from agentcore.json.", json);
+              } catch {
+                // A half-saved config parses on the next change event.
+              }
+            };
+            config.watchFile(
+              projectSpecPath(project.rootPath),
+              () => void onConfigChange(),
+              signal,
+            );
+
+            const url = `http://127.0.0.1:${server.port}`;
+            renderStatus(config.io, `Agent Inspector running at ${url}`, json);
+            if (config.isInteractive() && !json) await config.openBrowser(url);
+
+            for await (const { agentName, event } of supervisor.events()) {
+              renderAgentEvent(config.io, event, agentName, json);
+            }
+            signal.throwIfAborted();
+          } finally {
+            // Close only after the runner returns, which is after the child's own
+            // shutdown grace, so the agent's final spans still reach the collector.
+            await collector?.close();
           }
-        };
-        config.watchFile(
-          projectSpecPath(project.rootPath),
-          () => void onConfigChange(),
-          controller.signal,
-        );
-
-        const url = `http://127.0.0.1:${server.port}`;
-        renderStatus(config.io, `Agent Inspector running at ${url}`, json);
-        if (config.isInteractive() && !json) await config.openBrowser(url);
-
-        for await (const { agentName, event } of supervisor.events()) {
-          renderAgentEvent(config.io, event, agentName, json);
-        }
-        controller.signal.throwIfAborted();
-      } catch (error) {
-        controller.signal.throwIfAborted();
-        throw error;
-      } finally {
-        for (const signal of signals) process.removeListener(signal, interrupt);
-        // Close only after the runner returns, which is after the child's own
-        // shutdown grace, so the agent's final spans still reach the collector.
-        await collector?.close();
-      }
+        },
+        { onCancel: () => config.io.stderr.write("Shutting down…\n") },
+      );
     },
   });
 
@@ -337,15 +330,10 @@ async function runWithoutUi(
   project: Project,
   explicitPort: number | undefined,
   environment: (runtime: ProjectRuntime) => Promise<Record<string, string>>,
-  controller: AbortController,
+  signal: AbortSignal,
   json?: JsonRenderer,
 ): Promise<void> {
-  const devPort = await resolveDevPort(
-    runtime.protocol,
-    explicitPort,
-    config.checkPort,
-    controller.signal,
-  );
+  const devPort = await resolveDevPort(runtime.protocol, explicitPort, config.checkPort, signal);
   if (devPort.port !== devPort.requestedPort) {
     renderStatus(
       config.io,
@@ -355,7 +343,7 @@ async function runWithoutUi(
   }
 
   const env = await environment(runtime);
-  controller.signal.throwIfAborted();
+  signal.throwIfAborted();
 
   const runner = config.runners[runtime.build];
   for await (const event of runner.run({
@@ -363,7 +351,7 @@ async function runWithoutUi(
     projectRoot: project.rootPath,
     port: devPort.port,
     env,
-    signal: controller.signal,
+    signal,
   })) {
     renderAgentEvent(config.io, event, runtime.name, json);
   }
