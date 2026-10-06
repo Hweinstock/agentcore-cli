@@ -86,9 +86,9 @@ function handleStatus(deps: InspectorDeps): HttpResponse {
     running: snapshot
       .filter((agent) => agent.phase === "running" && agent.port !== undefined)
       .map(({ name, port }) => ({ name, port: port! })),
-    errors: snapshot
-      .filter((agent) => agent.error !== undefined)
-      .map(({ name, error }) => ({ name, message: error! })),
+    errors: snapshot.flatMap(({ name, error }) =>
+      error ? [{ name, message: error.message }] : [],
+    ),
     selectedAgent: deps.selectedAgent,
   };
   return json(200, status);

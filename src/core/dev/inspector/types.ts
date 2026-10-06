@@ -14,7 +14,7 @@ export interface InspectorAgentStatus {
   protocol: string;
   phase: "idle" | "starting" | "running" | "failed";
   port?: number;
-  error?: string;
+  error?: Error;
 }
 
 /** The slice of the dev supervisor the Inspector routes need. */

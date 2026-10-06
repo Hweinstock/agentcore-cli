@@ -11,7 +11,7 @@ export interface AgentStatus {
   protocol: NonNullable<ProjectRuntime["protocol"]>;
   phase: AgentPhase;
   port?: number;
-  error?: string;
+  error?: Error;
 }
 
 /** A dev event tagged with the name of the runtime that produced it. */
@@ -41,7 +41,8 @@ type AgentEntry = {
   runtime: ProjectRuntime;
   phase: AgentPhase;
   port?: number;
-  error?: string;
+  error?: Error;
+  completed?: boolean;
   starting?: Promise<{ name: string; port: number }>;
   /** The running child's pump, so shutdown can await its final spans. */
   running?: Promise<void>;
@@ -50,11 +51,10 @@ type AgentEntry = {
 };
 
 /**
- * Owns the lifecycle of every dev-able runtime for the Inspector: agents start
- * lazily (triggered from the browser), each in its own abort scope chained off
- * the command's signal, and every runner's events merge into one attributed
- * stream the dev handler renders. Restart-on-edit stays inside the child
- * (uvicorn --reload / tsx watch) — the supervisor never restarts processes.
+ * Owns the lifecycle of dev runtimes: agents can start lazily from the Inspector
+ * or eagerly in headless mode. Each runs in its own abort scope chained off the
+ * command's signal, and runner events merge into one attributed stream. Restart-
+ * on-edit stays inside the child (uvicorn --reload / tsx watch).
  */
 export class DevSupervisor {
   private readonly agents = new Map<string, AgentEntry>();
@@ -183,7 +183,8 @@ export class DevSupervisor {
   private async launch(entry: AgentEntry): Promise<{ name: string; port: number }> {
     const name = entry.runtime.name;
     entry.phase = "starting";
-    entry.error = undefined;
+    delete entry.error;
+    entry.completed = false;
 
     const controller = new AbortController();
     const onParentAbort = () => controller.abort(this.config.signal.reason);
@@ -207,14 +208,23 @@ export class DevSupervisor {
       });
       entry.running = pump;
       const earlyExit = pump.finally(unchain).then(() => {
-        if (!ready)
-          throw new Error(entry.error ?? `Agent '${name}' exited before it became ready.`);
+        if (!ready) {
+          if (entry.error) throw entry.error;
+          throw new Error(`Agent '${name}' exited before it became ready.`);
+        }
       });
       // Both branches outlive the race (the pump runs for the agent's lifetime);
       // swallow their late rejections so losing branches never become unhandled.
       readiness.catch(() => {});
       earlyExit.catch(() => {});
       await Promise.race([readiness, earlyExit]);
+
+      if (entry.completed) {
+        entry.phase = "idle";
+        entry.port = undefined;
+        this.push(name, { type: "status", message: `Agent '${name}' stopped.` });
+        return { name, port };
+      }
 
       entry.phase = "running";
       entry.port = port;
@@ -224,10 +234,12 @@ export class DevSupervisor {
       controller.abort();
       unchain(); // idempotent alongside the pump's cleanup; covers setup failures before the pump exists
       entry.phase = "failed";
-      entry.error = error instanceof Error ? error.message : String(error);
+      const agentError =
+        error instanceof Error ? error : new Error(String(error), { cause: error });
+      entry.error = agentError;
       this.push(name, {
         type: "status",
-        message: `Agent '${name}' failed to start: ${entry.error}`,
+        message: `Agent '${name}' failed to start: ${agentError.message}`,
       });
       throw error;
     }
@@ -256,6 +268,8 @@ export class DevSupervisor {
         entry.phase = "idle";
         entry.port = undefined;
         this.push(name, { type: "status", message: `Agent '${name}' stopped.` });
+      } else if (entry.phase === "starting") {
+        entry.completed = true;
       }
     } catch (error) {
       /** The runner rejects with the abort reason on teardown, which is a stop, not a crash. */
@@ -267,12 +281,16 @@ export class DevSupervisor {
         }
         return;
       }
-      const message = error instanceof Error ? error.message : String(error);
-      entry.error = message;
+      const agentError =
+        error instanceof Error ? error : new Error(String(error), { cause: error });
+      entry.error = agentError;
       if (entry.phase === "running") {
         entry.phase = "failed";
         entry.port = undefined;
-        this.push(name, { type: "status", message: `Agent '${name}' crashed: ${message}` });
+        this.push(name, {
+          type: "status",
+          message: `Agent '${name}' crashed: ${agentError.message}`,
+        });
       }
     }
   }
