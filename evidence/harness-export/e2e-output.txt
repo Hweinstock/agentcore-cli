@@ -10,12 +10,8 @@ Rendering agent code at 'app/helloWorldAgent'
 Writing EXPORT_NOTES.md
 Updating project spec file at '/tmp/agentcore-export-verification/NodeDemo/agentcore/agentcore.json'
 Syncing Python dependencies with uv
-Exported harness 'helloWorld' to runtime agent 'helloWorldAgent' (app/helloWorldAgent)
-1 export note requiring manual follow-up:
-  - External memory reference not exported
-Review app/helloWorldAgent/EXPORT_NOTES.md for details.
 Next steps:
-  Review the generated code
+  Review the generated code in app/helloWorldAgent (1 manual follow-up in EXPORT_NOTES.md)
   agentcore build
   agentcore deploy
 PASS: Node 20 npm bundle export; no AWS SDK Node version warning.
@@ -31,12 +27,8 @@ Rendering agent code at 'app/nestedAgent'
 Writing EXPORT_NOTES.md
 Updating project spec file at '/tmp/agentcore-export-verification/NodeDemo/agentcore/agentcore.json'
 Syncing Python dependencies with uv
-Exported harness 'helloWorld' to runtime agent 'nestedAgent' (../nestedAgent)
-1 export note requiring manual follow-up:
-  - External memory reference not exported
-Review ../nestedAgent/EXPORT_NOTES.md for details.
 Next steps:
-  Review the generated code
+  Review the generated code in ../nestedAgent (1 manual follow-up in EXPORT_NOTES.md)
   agentcore build
   agentcore deploy
 PASS: displayed output paths resolve from the invocation subdirectory.
@@ -49,9 +41,8 @@ Rendering agent code at 'app/helloWorldAgent'
 Writing EXPORT_NOTES.md
 Updating project spec file at '/tmp/agentcore-export-verification/QuietDemo/agentcore/agentcore.json'
 Syncing Python dependencies with uv
-Exported harness 'helloWorld' to runtime agent 'helloWorldAgent' (app/helloWorldAgent)
 Next steps:
-  Review the generated code
+  Review the generated code in app/helloWorldAgent
   agentcore build
   agentcore deploy
 PASS: compiled CLI omits unnecessary no-follow-up confirmation.
