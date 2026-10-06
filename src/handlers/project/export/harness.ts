@@ -85,22 +85,12 @@ export const createExportHarnessHandler = (config: ExportProjectResourceConfig) 
         return;
       }
 
+      const reviewNotes =
+        result.notes.length > 0
+          ? ` (${result.notes.length} manual follow-up${result.notes.length === 1 ? "" : "s"} in EXPORT_NOTES.md)`
+          : "";
       config.io.stderr.write(
-        `Exported harness '${result.harnessName}' to runtime agent '${result.agentName}' (${relative(process.cwd(), result.agentPath)})\n`,
-      );
-      if (result.notes.length > 0) {
-        config.io.stderr.write(
-          `${result.notes.length} export ${result.notes.length === 1 ? "note" : "notes"} requiring manual follow-up:\n`,
-        );
-        for (const note of result.notes) {
-          config.io.stderr.write(`  - ${note.category}\n`);
-        }
-        config.io.stderr.write(
-          `Review ${relative(process.cwd(), result.notesPath)} for details.\n`,
-        );
-      }
-      config.io.stderr.write(
-        "Next steps:\n  Review the generated code\n  agentcore build\n  agentcore deploy\n",
+        `Next steps:\n  Review the generated code in ${relative(process.cwd(), result.agentPath)}${reviewNotes}\n  agentcore build\n  agentcore deploy\n`,
       );
     },
   });

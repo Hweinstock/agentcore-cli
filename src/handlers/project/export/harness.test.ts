@@ -166,7 +166,7 @@ describe("project export harness handler", () => {
     });
 
     expect(subject.io.stderr()).toContain(
-      "Exported harness 'exportme' to runtime agent 'exportmeAgent'",
+      `Review the generated code in ${join("app", "exportmeAgent")}`,
     );
     expect(subject.io.stdout()).toBe("");
   });
@@ -251,14 +251,12 @@ describe("project export harness handler", () => {
       expect(output).toContain("✓ Updating project spec file");
       expect(output).toContain("✓ Syncing Python dependencies with uv");
       expect(output).toContain(
-        `Exported harness '${harnessName}' to runtime agent '${harnessName}Agent' (${join("app", `${harnessName}Agent`)})\n`,
-      );
-      expect(output).toContain(
-        "Next steps:\n  Review the generated code\n  agentcore build\n  agentcore deploy",
+        `Next steps:\n  Review the generated code in ${join("app", `${harnessName}Agent`)}\n  agentcore build\n  agentcore deploy`,
       );
       expect(output.indexOf("✓ Syncing Python dependencies with uv")).toBeLessThan(
-        output.indexOf("Exported harness"),
+        output.indexOf("Next steps:"),
       );
+      expect(output).not.toContain("Exported harness");
       expect(subject.io.stdout()).toBe("");
     },
   );
@@ -346,21 +344,16 @@ describe("project export harness handler", () => {
         );
         for (const note of summary.notes) expect(notes).toContain(note.message);
         expect(subject.io.stderr()).not.toContain(String.fromCharCode(0x1b));
-        expect(output).not.toContain("export notes requiring manual follow-up:");
-        expect(output).not.toContain(
-          `Review ${join("app", "remote_harnessAgent", "EXPORT_NOTES.md")}`,
-        );
+        expect(output).not.toContain("manual follow-ups in EXPORT_NOTES.md");
         expect(output).not.toContain("Next steps:");
         expect(output).not.toContain("Exported harness");
       } else {
         expect(output).toContain(
-          "2 export notes requiring manual follow-up:\n" +
-            categories.map((category) => `  - ${category}\n`).join("") +
-            `Review ${join("app", "remote_harnessAgent", "EXPORT_NOTES.md")} for details.\n`,
+          `Next steps:\n  Review the generated code in ${join("app", "remote_harnessAgent")} (2 manual follow-ups in EXPORT_NOTES.md)\n  agentcore build\n  agentcore deploy`,
         );
-        expect(output).toContain(
-          `Exported harness 'remote_harness' to runtime agent 'remote_harnessAgent' (${join("app", "remote_harnessAgent")})`,
-        );
+        for (const category of categories) expect(output).not.toContain(category);
+        expect(output).not.toContain("Exported harness");
+        expect(output).not.toContain("requiring manual follow-up:");
         expect(output).not.toContain(notesPath);
         expect(subject.io.stdout()).toBe("");
       }
@@ -387,17 +380,16 @@ describe("project export harness handler", () => {
 
     const output = subject.io.stderr();
     const displayedAgentPath = output.match(
-      /Exported harness 'remote_harness' to runtime agent 'remote_harnessAgent' \(([^)]+)\)/,
+      /Review the generated code in (.+) \(2 manual follow-ups in EXPORT_NOTES\.md\)/,
     )?.[1];
-    const displayedNotesPath = output.match(/Review (.+) for details\./)?.[1];
     const agentPath = join(projectRoot, "app", "remote_harnessAgent");
     const notesPath = join(agentPath, "EXPORT_NOTES.md");
     expect(displayedAgentPath).toBe(join("..", "remote_harnessAgent"));
     expect(resolve(invocationDirectory, displayedAgentPath!)).toBe(agentPath);
     expect(existsSync(join(agentPath, "main.py"))).toBe(true);
-    expect(displayedNotesPath).toBe(join("..", "remote_harnessAgent", "EXPORT_NOTES.md"));
-    expect(resolve(invocationDirectory, displayedNotesPath!)).toBe(notesPath);
-    const notes = await readFile(resolve(invocationDirectory, displayedNotesPath!), "utf8");
+    const displayedNotesPath = resolve(invocationDirectory, displayedAgentPath!, "EXPORT_NOTES.md");
+    expect(displayedNotesPath).toBe(notesPath);
+    const notes = await readFile(displayedNotesPath, "utf8");
     expect(notes).toContain("### External memory reference not exported");
     expect(notes).toContain(memoryArn);
     expect(notes).toContain("messagesCount=12");
