@@ -54,7 +54,7 @@ jobs:
         if: runner.os == 'Linux' && !cancelled()
       - run: bun run typecheck
         if: runner.os == 'Linux' && !cancelled()
-      - run: bun audit
+      - run: bun run audit
         if: runner.os == 'Linux' && !cancelled()
       - run: bun run secrets:check
         if: runner.os == 'Linux' && !cancelled()
