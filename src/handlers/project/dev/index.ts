@@ -24,7 +24,7 @@ import { assertMutuallyExclusiveFlags } from "../../utils";
 import type { Project, ProjectManager } from "../types";
 import { BMA_TEMPLATE_NAME, isBmaRuntime } from "../bma";
 import type { DevEnvironmentLoader } from "./environment";
-import type { DevEvent, DevRunner, DevTraceCollector, DevTraceCollectorStarter } from "./types";
+import type { DevAgent, DevEvent, DevTraceCollector, DevTraceCollectorStarter } from "./types";
 
 /** The Inspector UI binds 8081 or, when that is taken, the next free port. */
 const UI_DEFAULT_PORT = 8081;
@@ -32,7 +32,7 @@ const UI_DEFAULT_PORT = 8081;
 export type DevProjectHandlerConfig = {
   io: AppIO;
   middlewares?: Middleware[];
-  runners: { CodeZip: DevRunner; Container: DevRunner };
+  runners: SupervisorConfig["runners"];
   loadDevEnvironment: DevEnvironmentLoader;
   checkPort: PortChecker;
   startTraceCollector: DevTraceCollectorStarter;
@@ -52,10 +52,10 @@ export type DevProjectHandlerConfig = {
 /** Env for a spawned agent so its OTEL SDK reports to the collector as this runtime. */
 function otelEnvForRuntime(
   collector: DevTraceCollector,
-  runtime: ProjectRuntime,
+  runtime: DevAgent,
 ): Record<string, string> {
   const env = { ...collector.envVars, OTEL_SERVICE_NAME: runtime.name };
-  return runtime.build === "Container" ? rewriteOtelEndpointForContainer(env) : env;
+  return runtime.build === "CodeZip" ? env : rewriteOtelEndpointForContainer(env);
 }
 
 function supportsLocalDev(runtime: ProjectRuntime): boolean {
@@ -66,17 +66,40 @@ function selectRuntimes(
   project: Project,
   {
     name,
+    harness,
     port,
+    mode,
     io,
     json,
   }: {
     name: string | undefined;
+    harness: string | undefined;
     port: number | undefined;
+    mode: "browser" | "headless";
     io: AppIO;
     json: JsonRenderer | undefined;
   },
-): ProjectRuntime[] {
-  if (project.spec.runtimes.length === 0) {
+): DevAgent[] {
+  if (
+    mode === "browser" &&
+    (harness !== undefined ||
+      (project.spec.runtimes.length === 0 && !name && project.spec.harnesses.length > 0))
+  ) {
+    throw new NotImplementedError("The Agent Inspector does not support harnesses yet.", {
+      source: ERROR_SOURCE.USER,
+    });
+  }
+  const harnesses = project.spec.harnesses
+    .filter((candidate) => (harness ? candidate.name === harness : !name && mode === "headless"))
+    .map((candidate): DevAgent => ({ name: candidate.name, build: "Harness" }));
+  if (harness !== undefined) {
+    if (harnesses.length > 0) return harnesses;
+    const available = project.spec.harnesses.map((candidate) => candidate.name).join(", ");
+    throw new ResourceNotFoundError(
+      `Harness '${harness}' was not found. Available harnesses: ${available || "none"}.`,
+    );
+  }
+  if (project.spec.runtimes.length === 0 && harnesses.length === 0) {
     throw new InputValidationError(
       "This project has no runtimes. Add a runtime to agentcore/agentcore.json and retry.",
     );
@@ -84,24 +107,33 @@ function selectRuntimes(
   const selectedRuntimes = name
     ? project.spec.runtimes.filter((runtime) => runtime.name === name)
     : project.spec.runtimes;
-  if (selectedRuntimes.length === 0) {
+  if (name && selectedRuntimes.length === 0) {
     const available = project.spec.runtimes.map((candidate) => candidate.name).join(", ");
     throw new ResourceNotFoundError(
       `Runtime '${name}' was not found. Available runtimes: ${available}.`,
     );
   }
   const supportedRuntimes = selectedRuntimes.filter(supportsLocalDev);
-  if (supportedRuntimes.length === 0) {
+  if (supportedRuntimes.length === 0 && harnesses.length === 0) {
     throw new NotImplementedError(
       `Local dev is not supported for runtime '${selectedRuntimes[0]!.name}' (${BMA_TEMPLATE_NAME}). ` +
         "Run agentcore deploy, then use client.py to connect through Bedrock Managed Agents.",
       { source: ERROR_SOURCE.USER },
     );
   }
-  if (supportedRuntimes.length > 1 && port !== undefined) {
+  if (supportedRuntimes.length + harnesses.length > 1 && port !== undefined) {
     throw new InputValidationError(
-      "--port applies to a single runtime. Use --agent to select one.",
+      `--port applies to a single runtime. Use ${project.spec.harnesses.length ? "--agent or --harness" : "--agent"} to select one.`,
     );
+  }
+  if (!name && mode === "browser") {
+    for (const { name: harnessName } of project.spec.harnesses) {
+      renderStatus(
+        io,
+        `Skipping harness '${harnessName}': the Agent Inspector does not support harnesses yet.`,
+        json,
+      );
+    }
   }
   if (!name) {
     for (const runtime of selectedRuntimes.filter((runtime) => !supportsLocalDev(runtime))) {
@@ -112,7 +144,7 @@ function selectRuntimes(
       );
     }
   }
-  return supportedRuntimes;
+  return [...supportedRuntimes, ...harnesses];
 }
 
 /** An agent's own output, always tagged with the agent that produced it. */
@@ -139,7 +171,7 @@ function renderStatus(io: AppIO, message: string, json?: JsonRenderer): void {
 async function startTraceCollector(
   config: DevProjectHandlerConfig,
   project: Project,
-  runtimes: ProjectRuntime[],
+  runtimes: DevAgent[],
   json?: JsonRenderer,
 ): Promise<DevTraceCollector> {
   const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
@@ -149,7 +181,7 @@ async function startTraceCollector(
     // A container reaches the collector over the host bridge, which a
     // 127.0.0.1 bind refuses, so bind all interfaces when any runtime is
     // a container.
-    host: runtimes.some((runtime) => runtime.build === "Container") ? "0.0.0.0" : "127.0.0.1",
+    host: runtimes.some((runtime) => runtime.build !== "CodeZip") ? "0.0.0.0" : "127.0.0.1",
     // Persistence can fail after startup (disk, permissions). Warn once —
     // exports are still acked, so without this the loss would be silent.
     onError: (error) => {
@@ -176,7 +208,7 @@ function createDevEnvironmentResolver(
   projectRoot: string,
   region: string | undefined,
   collector: DevTraceCollector | undefined,
-): (runtime: ProjectRuntime) => Promise<Record<string, string>> {
+): (runtime: DevAgent) => Promise<Record<string, string>> {
   return async (runtime) => {
     const { env } = await loadDevEnvironment({ projectRoot, runtime, region });
     const otel =
@@ -217,18 +249,16 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
       const project = ctx.require(ProjectKey);
       const region = ctx.require(RegionKey);
       assertMutuallyExclusiveFlags(flags, ["agent", "harness"]);
-      if (flags.harness !== undefined) {
-        throw new NotImplementedError("Local dev is not supported for harnesses yet.", {
-          source: ERROR_SOURCE.USER,
-        });
-      }
+      const selectedAgent = flags.agent ?? flags.harness;
       await withUserCancellation(
         async (signal) => {
           let collector: DevTraceCollector | undefined;
           try {
             const runtimes = selectRuntimes(project, {
               name: flags.agent,
+              harness: flags.harness,
               port: flags.port,
+              mode: flags.mode,
               io: config.io,
               json,
             });
@@ -248,7 +278,7 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
             );
 
             const assignedPorts =
-              flags.mode === "headless" && !flags.agent
+              flags.mode === "headless" && !selectedAgent
                 ? await resolveDevPorts(runtimes, flags.port, config.checkPort, signal)
                 : undefined;
             const supervisor = new DevSupervisor({
@@ -275,7 +305,7 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
                 );
                 if (
                   flags.mode === "headless" &&
-                  flags.agent &&
+                  selectedAgent &&
                   resolved.port !== resolved.requestedPort
                 ) {
                   renderStatus(
@@ -295,7 +325,7 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
               for await (const { agentName, event } of supervisor.events()) {
                 const message = event.type === "status" ? event.message : undefined;
                 const lifecycleStatus =
-                  flags.agent !== undefined &&
+                  selectedAgent !== undefined &&
                   (message === `Agent '${agentName}' stopped.` ||
                     message?.startsWith(`Agent '${agentName}' is running on port `) ||
                     message?.startsWith(`Agent '${agentName}' failed to start: `) ||
@@ -304,8 +334,8 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
                 const phases = supervisor.snapshot();
                 if (phases.every(({ phase }) => phase !== "starting" && phase !== "running")) {
                   if (phases.some(({ phase }) => phase === "failed")) {
-                    const error = flags.agent
-                      ? supervisor.snapshot().find(({ name }) => name === flags.agent)?.error
+                    const error = selectedAgent
+                      ? supervisor.snapshot().find(({ name }) => name === selectedAgent)?.error
                       : undefined;
                     if (error !== undefined) throw error;
                     throw new SilentCLIError();

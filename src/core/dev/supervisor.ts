@@ -1,13 +1,13 @@
 import { ResourceNotFoundError } from "../../errors";
 import { waitForPort } from "../../io";
-import type { DevEvent, DevRunner } from "../../handlers/project/dev/types";
+import type { DevAgent, DevEvent, DevRunner } from "../../handlers/project/dev/types";
 import type { ProjectRuntime } from "../../projectSchemas/runtime";
 
 export type AgentPhase = "idle" | "starting" | "running" | "failed";
 
 export interface AgentStatus {
   name: string;
-  buildType: ProjectRuntime["build"];
+  buildType: DevAgent["build"];
   protocol: NonNullable<ProjectRuntime["protocol"]>;
   phase: AgentPhase;
   port?: number;
@@ -21,13 +21,13 @@ export interface SupervisedEvent {
 }
 
 export type SupervisorConfig = {
-  runtimes: ProjectRuntime[];
+  runtimes: DevAgent[];
   projectRoot: string;
-  runners: { CodeZip: DevRunner; Container: DevRunner };
+  runners: Record<DevAgent["build"], DevRunner<DevAgent>>;
   /** Resolves the full child environment for a runtime (dev env + OTEL vars). */
-  getDevEnvVarsForRuntime: (runtime: ProjectRuntime) => Promise<Record<string, string>>;
+  getDevEnvVarsForRuntime: (runtime: DevAgent) => Promise<Record<string, string>>;
   /** Resolves the port a runtime should serve on. */
-  resolvePort: (runtime: ProjectRuntime) => Promise<number>;
+  resolvePort: (runtime: DevAgent) => Promise<number>;
   /**
    * Resolves once a started agent accepts connections on its port. `lastActivityAt`
    * returns the time of the agent's most recent output, so a build that keeps
@@ -38,7 +38,7 @@ export type SupervisorConfig = {
 };
 
 type AgentEntry = {
-  runtime: ProjectRuntime;
+  runtime: DevAgent;
   phase: AgentPhase;
   port?: number;
   error?: Error;
@@ -47,7 +47,7 @@ type AgentEntry = {
   /** The running child's pump, so shutdown can await its final spans. */
   running?: Promise<void>;
   /** A reloaded definition held for a live agent, applied on its next start. */
-  pendingRuntime?: ProjectRuntime;
+  pendingRuntime?: DevAgent;
 };
 
 /**
@@ -79,7 +79,7 @@ export class DevSupervisor {
    * idle, edited definitions apply on the next start, and removed runtimes
    * drop unless they are currently starting or running.
    */
-  public setRuntimes(runtimes: ProjectRuntime[]): void {
+  public setRuntimes(runtimes: DevAgent[]): void {
     const names = new Set(runtimes.map((runtime) => runtime.name));
     for (const runtime of runtimes) {
       const existing = this.agents.get(runtime.name);
@@ -248,7 +248,7 @@ export class DevSupervisor {
   /** Drives one runner generator, attributing its events; resolves when the runner ends. */
   private async pump(
     entry: AgentEntry,
-    runner: DevRunner,
+    runner: DevRunner<DevAgent>,
     input: { port: number; env: Record<string, string>; signal: AbortSignal },
     onActivity: () => void,
   ): Promise<void> {

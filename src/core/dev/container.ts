@@ -4,7 +4,12 @@ import { rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { InputValidationError, InvalidEnvironmentError, ResourceNotFoundError } from "../../errors";
-import type { DevEvent, DevRunner, DevServerInput } from "../../handlers/project/dev/types";
+import type {
+  DevAgent,
+  DevEvent,
+  DevRunner,
+  DevServerInput,
+} from "../../handlers/project/dev/types";
 import {
   MissingToolError,
   streamProcess,
@@ -25,6 +30,13 @@ const AWS_ENV_KEYS = [
   "AWS_PROFILE",
 ] as const;
 const CLEANUP_TIMEOUT_MS = 2_000;
+const HARNESS_IMAGE_ALIASES: Record<string, string> = {
+  "us-west-2": "y5s8y8h8",
+  "us-east-1": "i0n3d3i5",
+  "us-east-2": "f8y8k1i5",
+  "eu-west-1": "i0v7l5a2",
+  "ap-southeast-2": "y5n7p0r5",
+};
 const DOCKERFILE_NAME = "Dockerfile";
 const CONTAINER_RUNTIME_INSTALL_HINT =
   "Install Docker (https://docs.docker.com/get-docker/), Podman (https://podman.io/), " +
@@ -60,7 +72,7 @@ type ContainerDevRunnerConfig = {
   processEnv?: NodeJS.ProcessEnv;
 };
 
-export class ContainerDevRunner implements DevRunner {
+export class ContainerDevRunner implements DevRunner<DevAgent> {
   private readonly streamProcess: ProcessStreamer;
   private readonly toolAvailable: ToolAvailable;
   private readonly awsDirectory: string;
@@ -73,8 +85,28 @@ export class ContainerDevRunner implements DevRunner {
     this.processEnv = config.processEnv ?? process.env;
   }
 
-  public async *run(input: DevServerInput): AsyncGenerator<DevEvent, void> {
+  public async *run(input: DevServerInput<DevAgent>): AsyncGenerator<DevEvent, void> {
     input.signal.throwIfAborted();
+    if (input.runtime.build === "Harness") {
+      const region = input.env?.AWS_REGION ?? "";
+      const alias = HARNESS_IMAGE_ALIASES[region];
+      if (!alias) {
+        throw new InputValidationError(
+          `Local harnesses are not available in '${region}'. Supported regions: ${Object.keys(HARNESS_IMAGE_ALIASES).join(", ")}.`,
+        );
+      }
+      const hasAwsConfig = this.assertAwsCredentials(input.env);
+      const tool = await this.resolveContainerTool(input.signal);
+      input.signal.throwIfAborted();
+      const containerName = `agentcore-dev-${input.runtime.name.toLowerCase()}-${hashString(resolve(input.projectRoot))}`;
+      await this.removeContainer(tool, containerName, input.projectRoot);
+      yield* this.start(input, tool, input.projectRoot, hasAwsConfig, containerName, [
+        "--platform",
+        "linux/arm64",
+        `public.ecr.aws/${alias}/harness-${region}:latest`,
+      ]);
+      return;
+    }
     const context = join(
       input.projectRoot,
       input.runtime.buildContextPath ?? input.runtime.codeLocation,
@@ -91,18 +123,7 @@ export class ContainerDevRunner implements DevRunner {
       throw new ResourceNotFoundError(`no container Dockerfile exists at ${dockerfilePath}`);
     }
 
-    const hasAwsCredentials = Boolean(
-      (input.env?.AWS_ACCESS_KEY_ID ?? this.processEnv.AWS_ACCESS_KEY_ID) &&
-      (input.env?.AWS_SECRET_ACCESS_KEY ?? this.processEnv.AWS_SECRET_ACCESS_KEY),
-    );
-    const hasAwsConfig = existsSync(this.awsDirectory);
-    if (!hasAwsCredentials && !hasAwsConfig) {
-      throw new InvalidEnvironmentError(
-        "Unable to resolve AWS credentials for the container. Configure AWS credentials " +
-          "or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, then retry.",
-      );
-    }
-
+    const hasAwsConfig = this.assertAwsCredentials(input.env);
     const tool = await this.resolveContainerTool(input.signal);
     input.signal.throwIfAborted();
     if (input.runtime.buildContextPath) {
@@ -147,7 +168,33 @@ export class ContainerDevRunner implements DevRunner {
 
     yield { type: "status", message: `Building image with ${tool}` };
     yield* this.streamProcess(buildCommand, buildOptions);
+    yield* this.start(input, tool, context, hasAwsConfig, containerName, [imageTag]);
+  }
 
+  private assertAwsCredentials(env: Record<string, string> | undefined): boolean {
+    const hasAwsCredentials = Boolean(
+      (env?.AWS_ACCESS_KEY_ID ?? this.processEnv.AWS_ACCESS_KEY_ID) &&
+      (env?.AWS_SECRET_ACCESS_KEY ?? this.processEnv.AWS_SECRET_ACCESS_KEY),
+    );
+    const hasAwsConfig = existsSync(this.awsDirectory);
+    if (!hasAwsCredentials && !hasAwsConfig) {
+      throw new InvalidEnvironmentError(
+        "Unable to resolve AWS credentials for the container. Configure AWS credentials " +
+          "or set AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY, then retry.",
+      );
+    }
+    return hasAwsConfig;
+  }
+
+  /** Runs `imageArgs` (the image, after any `docker run` flags it needs) until the signal aborts. */
+  private async *start(
+    input: DevServerInput<DevAgent>,
+    tool: ContainerTool,
+    context: string,
+    hasAwsConfig: boolean,
+    containerName: string,
+    imageArgs: string[],
+  ): AsyncGenerator<DevEvent, void> {
     const containerPort = DEV_PORTS[input.runtime.protocol ?? "HTTP"];
     const forwardedEnv: Record<string, string> = {};
     for (const key of AWS_ENV_KEYS) {
@@ -191,7 +238,7 @@ export class ContainerDevRunner implements DevRunner {
       ...awsMount,
       "--env-file",
       envFile,
-      imageTag,
+      ...imageArgs,
     ];
 
     yield { type: "status", message: "Starting container" };

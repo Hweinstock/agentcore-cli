@@ -42,6 +42,7 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
       runners: {
         CodeZip: new CodeZipDevRunner(),
         Container: new ContainerDevRunner(),
+        Harness: new ContainerDevRunner(),
       },
       loadDevEnvironment,
       checkPort,

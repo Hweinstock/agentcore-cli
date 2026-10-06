@@ -567,6 +567,48 @@ describe("ContainerDevRunner", () => {
     expect(calls[3]?.options.signal).not.toBe(runInput.signal);
   });
 
+  /** Given a region, runs a harness through the runner and returns the calls it made. */
+  async function runHarness(region: string) {
+    const root = await mkdtemp(join(tmpdir(), "agentcore-container-"));
+    tempDirectories.push(root);
+    const subject = harness();
+    const run = collect(
+      subject.runner.run({
+        runtime: { name: "Researcher", build: "Harness" },
+        projectRoot: root,
+        port: 3000,
+        env: { AWS_REGION: region },
+        signal: new AbortController().signal,
+      }),
+    );
+    return { ...subject, run };
+  }
+
+  test("runs a harness from its regional public image without building", async () => {
+    const { calls, run } = await runHarness("us-east-1");
+    await run;
+
+    expect(calls.map(({ command }) => command.slice(0, 2))).toEqual([
+      ["docker", "rm"],
+      ["docker", "run"],
+      ["docker", "rm"],
+    ]);
+    expect(calls[1]?.command).toContain("127.0.0.1:3000:8080");
+    expect(calls[1]?.command.slice(-3)).toEqual([
+      "--platform",
+      "linux/arm64",
+      "public.ecr.aws/i0n3d3i5/harness-us-east-1:latest",
+    ]);
+    expect(calls[1]?.envFile?.contents).toContain("AWS_REGION=us-east-1\n");
+  });
+
+  test("rejects a harness in a region without a public image", async () => {
+    const { calls, run } = await runHarness("mars-east-1");
+
+    await expect(run).rejects.toThrow("Local harnesses are not available in 'mars-east-1'");
+    expect(calls).toHaveLength(0);
+  });
+
   test("cleans up when the container process fails", async () => {
     const projectRuntime = runtime();
     const root = await projectRoot(projectRuntime);

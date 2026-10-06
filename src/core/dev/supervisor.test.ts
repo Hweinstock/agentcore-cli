@@ -94,7 +94,7 @@ function harness(options: HarnessOptions = {}) {
   const supervisor = new DevSupervisor({
     runtimes: options.runtimes ?? [runtime("orders"), runtime("billing", "Container")],
     projectRoot: "/workspace/project",
-    runners: { CodeZip: codeZip.runner, Container: container.runner },
+    runners: { CodeZip: codeZip.runner, Container: container.runner, Harness: container.runner },
     getDevEnvVarsForRuntime: async (agentRuntime) => ({ AGENT: agentRuntime.name }),
     resolvePort: async () => nextPort++,
     waitReady: options.ready ?? (async () => {}),
@@ -335,7 +335,11 @@ describe("DevSupervisor", () => {
     const supervisor = new DevSupervisor({
       runtimes: [runtime("orders")],
       projectRoot: "/workspace/project",
-      runners: { CodeZip: serverRunner().runner, Container: serverRunner().runner },
+      runners: {
+        CodeZip: serverRunner().runner,
+        Container: serverRunner().runner,
+        Harness: serverRunner().runner,
+      },
       getDevEnvVarsForRuntime: async () => ({}),
       resolvePort: async () => {
         throw new Error("no ports for you");

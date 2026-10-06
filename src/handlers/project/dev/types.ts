@@ -6,16 +6,26 @@ export type DevEvent =
   | { type: "stdout"; line: string }
   | { type: "stderr"; line: string };
 
-export type DevServerInput = {
-  runtime: ProjectRuntime;
+/** A project harness, run from the public harness image over the HTTP protocol. */
+export type DevHarness = Pick<
+  ProjectRuntime,
+  "name" | "protocol" | "instrumentation" | "envVars"
+> & {
+  build: "Harness";
+};
+
+export type DevAgent = ProjectRuntime | DevHarness;
+
+export type DevServerInput<Agent extends DevAgent = ProjectRuntime> = {
+  runtime: Agent;
   projectRoot: string;
   port: number;
   env?: Record<string, string>;
   signal: AbortSignal;
 };
 
-export interface DevRunner {
-  run(input: DevServerInput): AsyncGenerator<DevEvent, void>;
+export interface DevRunner<Agent extends DevAgent = ProjectRuntime> {
+  run(input: DevServerInput<Agent>): AsyncGenerator<DevEvent, void>;
 }
 
 /** A local OTLP receiver that spawned agents export traces to. */

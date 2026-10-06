@@ -38,8 +38,13 @@ function project(...runtimes: ProjectRuntime[]): Project {
   return {
     name: "test-project",
     rootPath: "/workspace/project",
-    spec: { runtimes } as Project["spec"],
+    spec: { runtimes, harnesses: [] as Project["spec"]["harnesses"] } as Project["spec"],
   };
+}
+
+function withHarnesses(configuredProject: Project, ...names: string[]): Project {
+  const harnesses = names.map((name) => ({ name, path: `app/${name}` }));
+  return { ...configuredProject, spec: { ...configuredProject.spec, harnesses } };
 }
 
 function bmaRuntime(overrides: Partial<ProjectRuntime> = {}): ProjectRuntime {
@@ -108,6 +113,7 @@ type HarnessOptions = {
   reloadedRuntimes?: ProjectRuntime[];
   codeZip?: ReturnType<typeof captureRunner>;
   container?: ReturnType<typeof captureRunner>;
+  harnessRunner?: ReturnType<typeof captureRunner>;
   checkPort?: PortChecker;
   waitReady?: NonNullable<DevProjectHandlerConfig["waitReady"]>;
   json?: boolean;
@@ -121,11 +127,16 @@ function harness(options: HarnessOptions = {}) {
   let capturedHandler: HttpRequestHandler | undefined;
   const codeZip = options.codeZip ?? captureRunner();
   const container = options.container ?? captureRunner();
+  const harnessRunner = options.harnessRunner ?? captureRunner();
   const collector = fakeCollector();
   const environmentInputs: DevEnvironmentInput[] = [];
   const handler = createDevProjectHandler({
     io: io.io,
-    runners: { CodeZip: codeZip.runner, Container: container.runner },
+    runners: {
+      CodeZip: codeZip.runner,
+      Container: container.runner,
+      Harness: harnessRunner.runner,
+    },
     loadDevEnvironment:
       options.loadEnvironment ??
       (async (input) => {
@@ -170,6 +181,7 @@ function harness(options: HarnessOptions = {}) {
   return {
     codeZip,
     container,
+    harnessRunner,
     collector,
     environmentInputs,
     io,
@@ -236,6 +248,30 @@ describe("project dev selection and dispatch", () => {
       { port: 4567 },
       "--port applies to a single runtime. Use --agent to select one.",
       InputValidationError,
+    ],
+    [
+      withHarnesses(project(runtime("orders")), "researcher"),
+      { port: 4567 },
+      "--port applies to a single runtime. Use --agent or --harness to select one.",
+      InputValidationError,
+    ],
+    [
+      withHarnesses(project(runtime("orders")), "researcher"),
+      { harness: "missing" },
+      "Harness 'missing' was not found. Available harnesses: researcher.",
+      ResourceNotFoundError,
+    ],
+    [
+      withHarnesses(project(), "researcher"),
+      { harness: "researcher", mode: "browser" },
+      "The Agent Inspector does not support harnesses yet.",
+      NotImplementedError,
+    ],
+    [
+      withHarnesses(project(), "researcher"),
+      { mode: "browser" },
+      "The Agent Inspector does not support harnesses yet.",
+      NotImplementedError,
     ],
     [
       project(runtime("orders")),
@@ -359,6 +395,43 @@ describe("project dev headless multi-agent", () => {
     await expect(pending).rejects.toMatchObject({ exitCode: 130 });
   });
 
+  test("runs harnesses alongside runtimes on distinct container ports", async () => {
+    const codeZip = stayingRunner();
+    const harnessRunner = stayingRunner();
+    const subject = harness({
+      project: withHarnesses(project(runtime("orders")), "researcher", "writer"),
+      codeZip,
+      harnessRunner,
+    });
+    const { pending } = await supervised(subject);
+
+    expect(codeZip.inputs[0]?.port).toBe(8080);
+    expect(harnessRunner.inputs).toMatchObject([
+      {
+        runtime: { name: "researcher", build: "Harness" },
+        port: 8081,
+        env: { OTEL_EXPORTER_OTLP_ENDPOINT: "http://host.docker.internal:43180" },
+      },
+      { runtime: { name: "writer", build: "Harness" }, port: 8082 },
+    ]);
+    expect(subject.collector.starts[0]?.host).toBe("0.0.0.0");
+
+    process.emit("SIGINT", "SIGINT");
+    await expect(pending).rejects.toMatchObject({ exitCode: 130 });
+  });
+
+  test("--harness runs only the selected harness on an explicit port", async () => {
+    const subject = harness({
+      project: withHarnesses(project(runtime("orders")), "researcher", "writer"),
+    });
+    await subject.run({ harness: "writer", port: 4567 });
+
+    expect(subject.codeZip.inputs).toHaveLength(0);
+    expect(subject.harnessRunner.inputs).toMatchObject([
+      { runtime: { name: "writer", build: "Harness" }, port: 4567 },
+    ]);
+  });
+
   test("one agent failing to start leaves the others running", async () => {
     const subject = harness({
       project: twoRuntimes(),
@@ -470,6 +543,19 @@ describe("project dev Inspector UI mode", () => {
     await Bun.sleep(5); // let the handler start the UI server and block on events
     return { pending };
   }
+
+  test("skips harnesses with a notice", async () => {
+    const subject = harness({ project: withHarnesses(project(runtime("orders")), "researcher") });
+    const { pending } = await runUi(subject);
+
+    expect(subject.io.stderr()).toContain(
+      "Skipping harness 'researcher': the Agent Inspector does not support harnesses yet.",
+    );
+    expect(await inspectorStatus(subject)).toEqual([expect.objectContaining({ name: "orders" })]);
+
+    process.emit("SIGINT", "SIGINT");
+    await pending.catch(() => undefined);
+  });
 
   test("starts the Inspector, prints the URL, and opens the browser on a TTY", async () => {
     const subject = harness({ tty: true });

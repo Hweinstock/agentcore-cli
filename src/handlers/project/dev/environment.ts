@@ -1,14 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { parseEnv } from "node:util";
-import type { ProjectRuntime } from "../../../projectSchemas/runtime";
 import { InputValidationError } from "../../../errors";
+import type { DevAgent } from "./types";
 
 const RESERVED_ENV_KEYS = ["PORT", "FASTMCP_PORT", "LOCAL_DEV"] as const;
 
 export type DevEnvironmentInput = {
   projectRoot: string;
-  runtime: ProjectRuntime;
+  runtime: DevAgent;
   region?: string;
 };
 

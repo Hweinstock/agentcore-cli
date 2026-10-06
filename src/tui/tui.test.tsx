@@ -125,7 +125,7 @@ describe("TUI handoff", () => {
       ({
         name: "test-project",
         rootPath: process.cwd(),
-        spec: { runtimes: [] } as unknown as Project["spec"],
+        spec: { runtimes: [], harnesses: [] } as unknown as Project["spec"],
       }) as Project;
     const { streams, stdin } = ttyTestIO();
     const root = createRootHandler(core, {

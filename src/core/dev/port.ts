@@ -1,4 +1,5 @@
 import { AgentCoreCLIError, ERROR_SOURCE, InputValidationError } from "../../errors";
+import type { DevAgent } from "../../handlers/project/dev/types";
 import type { ProjectRuntime } from "../../projectSchemas/runtime";
 import type { PortChecker } from "../../io";
 
@@ -32,7 +33,7 @@ export async function resolveDevPort(
 
 /** Resolve distinct ports for runtimes before launching any of them. */
 export async function resolveDevPorts(
-  runtimes: ProjectRuntime[],
+  runtimes: DevAgent[],
   explicitPort: number | undefined,
   checkPort: PortChecker,
   signal: AbortSignal,
