@@ -60,7 +60,12 @@ function supportsLocalDev(runtime: ProjectRuntime): boolean {
   return !isBmaRuntime(runtime);
 }
 
-function selectRuntimes(project: Project, name?: string): ProjectRuntime[] {
+function selectRuntimes(
+  project: Project,
+  { agent: name, port }: { agent?: string; port?: number },
+  io: AppIO,
+  json?: JsonRenderer,
+): ProjectRuntime[] {
   if (project.spec.runtimes.length === 0) {
     throw new InputValidationError(
       "This project has no runtimes. Add a runtime to agentcore/agentcore.json and retry.",
@@ -82,6 +87,20 @@ function selectRuntimes(project: Project, name?: string): ProjectRuntime[] {
         "Run agentcore deploy, then use client.py to connect through Bedrock Managed Agents.",
       { source: ERROR_SOURCE.USER },
     );
+  }
+  if (supportedRuntimes.length > 1 && port !== undefined) {
+    throw new InputValidationError(
+      "--port applies to a single runtime. Use --agent to select one.",
+    );
+  }
+  if (!name) {
+    for (const runtime of selectedRuntimes.filter((runtime) => !supportsLocalDev(runtime))) {
+      renderStatus(
+        io,
+        `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
+        json,
+      );
+    }
   }
   return supportedRuntimes;
 }
@@ -105,6 +124,41 @@ function renderStatus(io: AppIO, message: string, json?: JsonRenderer): void {
     return;
   }
   io.stderr.write(`${message}\n`);
+}
+
+async function startTraceCollector(
+  config: DevProjectHandlerConfig,
+  project: Project,
+  runtimes: ProjectRuntime[],
+  json?: JsonRenderer,
+): Promise<DevTraceCollector> {
+  const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
+  let tracePersistErrorReported = false;
+  const collector = await config.startTraceCollector({
+    tracesDirectory,
+    // A container reaches the collector over the host bridge, which a
+    // 127.0.0.1 bind refuses, so bind all interfaces when any runtime is
+    // a container.
+    host: runtimes.some((runtime) => runtime.build === "Container") ? "0.0.0.0" : "127.0.0.1",
+    // Persistence can fail after startup (disk, permissions). Warn once —
+    // exports are still acked, so without this the loss would be silent.
+    onError: (error) => {
+      if (tracePersistErrorReported) return;
+      tracePersistErrorReported = true;
+      const detail = error instanceof Error ? error.message : String(error);
+      renderStatus(
+        config.io,
+        `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
+        json,
+      );
+    },
+  });
+  renderStatus(
+    config.io,
+    `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
+    json,
+  );
+  return collector;
 }
 
 export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
@@ -139,55 +193,12 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
         async (signal) => {
           let collector: DevTraceCollector | undefined;
           try {
-            const runtimes = selectRuntimes(project, flags.agent);
-            if (runtimes.length > 1 && flags.port !== undefined) {
-              throw new InputValidationError(
-                "--port applies to a single runtime. Use --agent to select one.",
-              );
-            }
-            if (!flags.agent) {
-              for (const runtime of project.spec.runtimes.filter(
-                (runtime) => !supportsLocalDev(runtime),
-              )) {
-                renderStatus(
-                  config.io,
-                  `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
-                  json,
-                );
-              }
-            }
+            const runtimes = selectRuntimes(project, flags, config.io, json);
             if (
               flags.traces &&
               runtimes.some((runtime) => runtime.instrumentation?.enableOtel ?? true)
             ) {
-              const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
-              let tracePersistErrorReported = false;
-              collector = await config.startTraceCollector({
-                tracesDirectory,
-                // A container reaches the collector over the host bridge, which a
-                // 127.0.0.1 bind refuses, so bind all interfaces when any runtime
-                // is a container.
-                host: runtimes.some((runtime) => runtime.build === "Container")
-                  ? "0.0.0.0"
-                  : "127.0.0.1",
-                // Persistence can fail after startup (disk, permissions). Warn once —
-                // exports are still acked, so without this the loss would be silent.
-                onError: (error) => {
-                  if (tracePersistErrorReported) return;
-                  tracePersistErrorReported = true;
-                  const detail = error instanceof Error ? error.message : String(error);
-                  renderStatus(
-                    config.io,
-                    `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
-                    json,
-                  );
-                },
-              });
-              renderStatus(
-                config.io,
-                `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
-                json,
-              );
+              collector = await startTraceCollector(config, project, runtimes, json);
             }
             signal.throwIfAborted();
 
