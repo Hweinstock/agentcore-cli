@@ -32,12 +32,6 @@ export interface ExportNote {
   message: string;
 }
 
-/** A single rendered output line + a tone the caller maps to its own styling. */
-export interface ExportNoteLine {
-  text: string;
-  tone: "warn" | "dim";
-}
-
 /** Everything the mapper needs; all reads are done by the caller. */
 export interface HarnessExportInput {
   harnessName: string;
@@ -977,7 +971,7 @@ function fnmatch(pattern: string, str: string): boolean {
 }
 
 // ============================================================================
-// EXPORT_NOTES.md + display formatting
+// EXPORT_NOTES.md
 // ============================================================================
 
 /** Render the EXPORT_NOTES.md content written into the exported agent's directory. */
@@ -1009,27 +1003,4 @@ export function buildExportNotesMarkdown(
 
   lines.push("");
   return lines.join("\n");
-}
-
-/**
- * Format export notes into styled lines for the export success path. Pure so the
- * CLI (and a future TUI screen) render identical wording.
- */
-export function formatExportNotes(notes: ExportNote[], notesFileHint: string): ExportNoteLine[] {
-  if (notes.length === 0) {
-    return [{ text: `No manual follow-up required. (Details: ${notesFileHint})`, tone: "dim" }];
-  }
-
-  const label = notes.length === 1 ? "note" : "notes";
-  const lines: ExportNoteLine[] = [
-    { text: `${notes.length} export ${label} requiring manual follow-up:`, tone: "warn" },
-  ];
-  for (const note of notes) {
-    lines.push({ text: `  - ${note.category}`, tone: "warn" });
-    for (const messageLine of note.message.split("\n")) {
-      lines.push({ text: `    ${messageLine}`, tone: "dim" });
-    }
-  }
-  lines.push({ text: `These notes are also saved to ${notesFileHint}`, tone: "dim" });
-  return lines;
 }
