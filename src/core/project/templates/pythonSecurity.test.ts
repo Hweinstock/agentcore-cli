@@ -12,7 +12,7 @@ test.each([
     "a2a-python-strands",
     [
       "a2a-sdk[all] ~= 0.3.26",
-      "aws-opentelemetry-distro ~= 0.18.0",
+      "aws-opentelemetry-distro ~= 0.21.0",
       "bedrock-agentcore[a2a,strands-agents] ~= 1.24.0",
       "botocore[crt] ~= 1.43.107",
       "strands-agents ~= 1.57.2",

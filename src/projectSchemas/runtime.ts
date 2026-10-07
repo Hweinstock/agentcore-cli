@@ -236,14 +236,42 @@ export const RuntimeEndpointSchema = z.object({
   description: z.string().max(200).optional(),
 });
 export type RuntimeEndpoint = z.infer<typeof RuntimeEndpointSchema>;
-export const MODEL_PROVIDERS = ["Bedrock", "Anthropic", "OpenAI", "Gemini", "LiteLLM"] as const;
+export const MODEL_PROVIDERS = [
+  "Bedrock",
+  "Anthropic",
+  "OpenAI",
+  "OpenAICompatible",
+  "Gemini",
+  "LiteLLM",
+] as const;
 export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
+
+/**
+ * OpenAICompatible is the OpenAI client pointed at a user-supplied base URL
+ * (DeepSeek, Qwen, a self-hosted vLLM, ...). Nothing can be assumed about the
+ * endpoint, so it has no default model id: the user names the model.
+ */
+export type ModelProviderWithDefaultModelId = Exclude<ModelProvider, "OpenAICompatible">;
+
+/** The model id each provider's scaffolded code renders when none is given:
+ * the flag path's default and the wizards' prefilled answer, so the entry
+ * points cannot drift. */
+export const DEFAULT_MODEL_IDS: Record<ModelProviderWithDefaultModelId, string> = {
+  Bedrock: "global.anthropic.claude-sonnet-5-5",
+  Anthropic: "claude-sonnet-5-5",
+  OpenAI: "gpt-6.1-sol",
+  Gemini: "gemini-3.8-flash",
+  LiteLLM: "bedrock/global.anthropic.claude-sonnet-5-5",
+};
 
 const MODEL_PROVIDER_ALIASES: Record<string, ModelProvider> = {
   bedrock: "Bedrock",
   anthropic: "Anthropic",
   openai: "OpenAI",
   open_ai: "OpenAI",
+  openai_compatible: "OpenAICompatible",
+  "openai-compatible": "OpenAICompatible",
+  openaicompatible: "OpenAICompatible",
   gemini: "Gemini",
   litellm: "LiteLLM",
   lite_llm: "LiteLLM",

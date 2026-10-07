@@ -22,7 +22,7 @@ import {
   resolveImportBedrockAgentInput,
 } from "../../importBedrockAgent";
 import { RegionKey } from "../../../keys";
-import { addProjectResource, requireDeployedNameFits } from "../shared";
+import { addProjectResource, requireDeployedNameFits, addDescription } from "../shared";
 import { BMA_CUSTOM_EXECUTION_ROLE_WARNING } from "../../bma";
 
 const CONFIGURATION = "Configuration:";
@@ -58,7 +58,7 @@ export function toAddRuntimeInput(input: RuntimeInput): AddResourceInput {
 export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
   createHandler({
     name: "runtime",
-    description: "add a Runtime to the current project",
+    description: addDescription("runtime", "add a Runtime to the current project"),
     flags: [
       flag("name", "the name of the Runtime", AgentNameSchema, { group: CONFIGURATION }),
       flag(
@@ -75,14 +75,15 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       ),
       flag(
         "model-provider",
-        "model provider for supported templates (Bedrock, Anthropic, OpenAI, Gemini, or LiteLLM)",
+        "model provider for supported templates: bedrock, anthropic, open_ai (or openai), " +
+          "openai_compatible, gemini, or lite_llm (or litellm)",
         ModelProviderSchema.optional(),
         { group: CONFIGURATION },
       ),
       flag(
         "model-id",
         "model id for the scaffolded Runtime code, overriding the provider's default " +
-          "(required with litellm in China regions)",
+          "(required with openai_compatible, and with litellm in China regions)",
         z.string().min(1).optional(),
         { group: CONFIGURATION },
       ),
@@ -91,6 +92,13 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
         "API key for non-Bedrock providers on supported templates; '-' for stdin, 'file://path' for file",
         z.string().optional(),
         { group: CONFIGURATION, sensitive: true },
+      ),
+      flag(
+        "api-base",
+        "base URL of the endpoint for --model-provider openai_compatible (required with it, " +
+          "not accepted with other providers)",
+        z.string().url().optional(),
+        { group: CONFIGURATION },
       ),
       flag("description", "an optional description of the Runtime", z.string().optional(), {
         group: CONFIGURATION,
@@ -190,16 +198,17 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       const modelFlagsPresent =
         flags["model-provider"] !== undefined ||
         flags["model-id"] !== undefined ||
-        flags["api-key"] !== undefined;
+        flags["api-key"] !== undefined ||
+        flags["api-base"] !== undefined;
 
       if (flags.framework !== undefined && !isImport) {
         throw new InputValidationError("--framework requires --type import");
       }
 
       if (isImport) {
-        const importIncompatibleFlags = (["model-provider", "model-id", "api-key"] as const).filter(
-          (flagName) => flags[flagName] !== undefined,
-        );
+        const importIncompatibleFlags = (
+          ["model-provider", "model-id", "api-key", "api-base"] as const
+        ).filter((flagName) => flags[flagName] !== undefined);
         if (isTemplate || importIncompatibleFlags.length > 0) {
           const offending = isTemplate ? "template" : importIncompatibleFlags[0];
           throw new InputValidationError(
@@ -215,12 +224,12 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
       if (!isImport && modelFlagsPresent) {
         if (!isTemplate) {
           throw new InputValidationError(
-            "--model-provider, --model-id, and --api-key only apply to templates that support them",
+            "--model-provider, --model-id, --api-key, and --api-base only apply to templates that support them",
           );
         }
         if (!RUNTIME_TEMPLATE_SHORTCUTS[flags.template!].supportsModelProviderOverride) {
           throw new InputValidationError(
-            `--model-provider, --model-id, and --api-key are not valid with the ${flags.template} template`,
+            `--model-provider, --model-id, --api-key, and --api-base are not valid with the ${flags.template} template`,
           );
         }
       }
@@ -272,6 +281,7 @@ export const createAddRuntimeHandler = (config: AddProjectResourceConfig) =>
               modelProvider: flags["model-provider"],
               modelId: flags["model-id"],
               apiKey,
+              apiBase: flags["api-base"],
             })
           : resolveRuntimeTemplateShortcut("agent-python-minimal", { runtimeName: flags.name });
 

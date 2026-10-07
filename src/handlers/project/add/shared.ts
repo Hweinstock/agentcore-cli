@@ -1,8 +1,9 @@
 import { InputValidationError } from "../../../errors";
 import { type AwsDeploymentTarget, DEFAULT_TARGET_NAME } from "../../../projectSchemas/aws-targets";
+import { type ChinaAddKind, isAddableInChina } from "../../../core/project/manager";
 import type { Context } from "../../../router";
 import { runWithProgress } from "../../../tui/progress";
-import { JsonKey } from "../../keys";
+import { JsonKey, RegionKey } from "../../keys";
 import { renderResult } from "../../utils";
 import {
   projectMutationResource,
@@ -12,6 +13,23 @@ import {
 } from "../output";
 import type { AddResourceInput, Project } from "../types";
 import type { AddProjectResourceConfig } from "./types";
+
+/**
+ * The note on the help of every `add` subcommand whose kind is not in the
+ * project manager's China allowlist. The add menu's China alert quotes it.
+ */
+export const CN_UNAVAILABLE_NOTE = "not available in China regions";
+
+/**
+ * The help description of an `add` subcommand. Every add handler declares its
+ * description through this with the {@link ChinaAddKind} it adds, so the note
+ * follows the project manager's allowlist (`isAddableInChina`): a kind added
+ * later is marked "(not available in China regions)" in `--help`, the add menu
+ * and command.md until the allowlist says otherwise.
+ */
+export function addDescription(kind: ChinaAddKind, description: string): string {
+  return isAddableInChina(kind) ? description : `${description} (${CN_UNAVAILABLE_NOTE})`;
+}
 
 type AddProjectResourceResultOptions = {
   resourceType?: ProjectMutationResourceType;
@@ -50,10 +68,13 @@ export async function addProjectResource(
   // Same driver as create, build, and deploy: a live step list in a TTY, and
   // plain line-per-step output when stderr is not a TTY or --json wants no ANSI
   // on it.
-  const updatedProject = await runWithProgress(config.projectManager.addResource(project, input), {
-    io: config.io,
-    interactive: ctx.require(JsonKey) ? false : undefined,
-  });
+  const updatedProject = await runWithProgress(
+    config.projectManager.addResource(project, input, { region: ctx.value(RegionKey) }),
+    {
+      io: config.io,
+      interactive: ctx.require(JsonKey) ? false : undefined,
+    },
+  );
 
   renderResult<ProjectMutationResult>(
     ctx,

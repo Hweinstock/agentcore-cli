@@ -55,7 +55,19 @@ To start from code you own instead, pick a template (`agentcore create --help` l
 agentcore create --name MyAgent --template agent-python-strands
 ```
 
-Run `agentcore create` with no flags for a guided setup. Either way, run it outside any existing
+Templates that take a model provider (`agent-python-strands` and its `-container` variant,
+`a2a-python-strands`, `agui-python-strands`, `agent-typescript-strands`) also accept
+`--model-provider` (`bedrock`, `anthropic`, `open_ai`, `openai_compatible`, `gemini`, `lite_llm`;
+`openai` and `litellm` are accepted too; LiteLLM is Python-only), `--model-id`, and
+`--api-key file://<path>`; the API key is kept in `agentcore/.env.local` and provisioned as an
+AgentCore Identity credential on deploy. `openai_compatible` is the OpenAI client pointed at any
+OpenAI-compatible endpoint (DeepSeek, Qwen, a self-hosted vLLM, …): it requires
+`--api-base <url>` and `--model-id <model>`, since nothing is known about the endpoint until you
+name it, while `open_ai` always calls api.openai.com and takes neither. A self-hosted endpoint that
+ignores authentication still needs an `--api-key` file; any placeholder value works.
+
+Run `agentcore create` with no flags for a guided setup; for those templates the wizard asks the
+same provider, model id, and API-key-file questions. Either way, run it outside any existing
 project.
 
 ## Projects

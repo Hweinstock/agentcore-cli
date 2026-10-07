@@ -26,12 +26,10 @@ import {
   type HarnessModelProvider,
 } from "../../../projectSchemas/harness";
 import { InputValidationError } from "../../../errors";
-import { isChinaRegion } from "../../../core/partition";
-import { MEMORY_STRIPPED_CN_MESSAGE } from "../../../core/project/manager";
 import { JsonKey, RegionKey } from "../../keys";
 import { renderResult } from "../../utils";
 import { projectReference, type ProjectMutationResult } from "../output";
-import { validateCreateRegionSupport } from "./region";
+import { stripCreateRegionUnavailableDefaults, validateCreateRegionSupport } from "./region";
 
 type CreateProjectHandlerConfig = {
   projectManager: ProjectManager;
@@ -39,7 +37,24 @@ type CreateProjectHandlerConfig = {
   middlewares?: Middleware[];
 };
 
-const ModelProviderFlagSchema = z.enum([...HarnessModelProviderSchema.options, "anthropic"]);
+const MODEL_PROVIDER_FLAG_VALUES = [
+  ...HarnessModelProviderSchema.options,
+  "anthropic",
+  "openai_compatible",
+] as const;
+// `add runtime` parses its provider through ModelProviderSchema, which takes `litellm`/`openai` in
+// any case; create accepts the same spellings so a command copied from one works in the other.
+const MODEL_PROVIDER_FLAG_ALIASES: Record<string, (typeof MODEL_PROVIDER_FLAG_VALUES)[number]> = {
+  litellm: "lite_llm",
+  openai: "open_ai",
+  "openai-compatible": "openai_compatible",
+  openaicompatible: "openai_compatible",
+};
+const ModelProviderFlagSchema = z.preprocess((value) => {
+  if (typeof value !== "string") return value;
+  const lower = value.toLowerCase();
+  return MODEL_PROVIDER_FLAG_ALIASES[lower] ?? lower;
+}, z.enum(MODEL_PROVIDER_FLAG_VALUES));
 type ModelProviderFlag = z.infer<typeof ModelProviderFlagSchema>;
 
 export const DEFAULT_CREATE_RUNTIME_NAME = "agent";
@@ -68,13 +83,14 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       ),
       flag(
         "model-provider",
-        "model provider for templates that support it: bedrock, anthropic, open_ai, gemini, or lite_llm",
+        "model provider for templates that support it: bedrock, anthropic, open_ai (or openai), " +
+          "openai_compatible, gemini, or lite_llm (or litellm)",
         ModelProviderFlagSchema.optional(),
       ),
       flag(
         "model-id",
         "model id for the scaffolded Runtime code, overriding the provider's default " +
-          "(required with lite_llm in China regions)",
+          "(required with openai_compatible, and with litellm in China regions)",
         z.string().min(1).optional(),
       ),
       flag(
@@ -82,6 +98,12 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
         "API key for non-Bedrock providers: '-' for stdin, 'file://path' for file",
         z.string().optional(),
         { sensitive: true },
+      ),
+      flag(
+        "api-base",
+        "base URL of the endpoint for --model-provider openai_compatible (required with it, " +
+          "not accepted with other providers)",
+        z.string().url().optional(),
       ),
       flag(
         "skip-install",
@@ -102,9 +124,9 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
       const modelProviderFlag = flags["model-provider"];
       const apiKeyFlag = flags["api-key"];
 
-      const runtimeCodeFlags = (["model-provider", "model-id", "api-key"] as const).filter(
-        (flagName) => flags[flagName] !== undefined,
-      );
+      const runtimeCodeFlags = (
+        ["model-provider", "model-id", "api-key", "api-base"] as const
+      ).filter((flagName) => flags[flagName] !== undefined);
       if (runtimeCodeFlags.length > 0) {
         if (template === undefined || template === EMPTY_TEMPLATE_NAME) {
           throw new InputValidationError(
@@ -137,18 +159,15 @@ export const createCreateProjectHandler = (config: CreateProjectHandlerConfig) =
           modelProvider: resolveRuntimeModelProvider(modelProviderFlag),
           modelId: flags["model-id"],
           apiKey,
+          apiBase: flags["api-base"],
         });
         createInput = { ...base, scaffoldRuntimeInput };
       }
 
       const region = ctx.require(RegionKey);
       validateCreateRegionSupport(createInput, region);
-      // AgentCore Memory is not available in China regions; scaffold without
-      // the template's default memory after all hard restrictions have passed.
-      if (isChinaRegion(region) && createInput.scaffoldRuntimeInput?.memory !== undefined) {
-        createInput.scaffoldRuntimeInput.memory = undefined;
-        config.io.stderr.write(`${MEMORY_STRIPPED_CN_MESSAGE}\n`);
-      }
+      const stripped = stripCreateRegionUnavailableDefaults(createInput, region);
+      if (stripped !== undefined) config.io.stderr.write(`${stripped}\n`);
 
       // Same driver as build and deploy: a live step list in a TTY, and the previous plain
       // line-per-step output when stderr is not a TTY or --json wants no ANSI on it.
@@ -226,6 +245,7 @@ const MODEL_PROVIDERS: Record<
   gemini: { harness: "gemini", runtime: "Gemini" },
   lite_llm: { harness: "lite_llm", runtime: "LiteLLM" },
   anthropic: { runtime: "Anthropic" },
+  openai_compatible: { runtime: "OpenAICompatible" },
 };
 
 function resolveHarnessModelProvider(

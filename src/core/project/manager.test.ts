@@ -16,12 +16,15 @@ import { ProjectSpecSchema } from "../../projectSchemas/project";
 import { ENV_LOCAL_RELATIVE_PATH } from "./envLocal";
 import {
   BMA_CN_MESSAGE,
+  cnConnectorTargetMessage,
   cnUnsupportedResourceMessage,
   FsProjectManager,
   LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE,
   LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE,
   MEMORY_STRIPPED_CN_MESSAGE,
   MODEL_PROVIDER_RUNTIMES_CN_MESSAGE,
+  chinaModelProviderRestriction,
+  modelProviderOverridableCnMessage,
 } from "./manager";
 import {
   getDefaultMemorySpec,
@@ -34,6 +37,7 @@ import {
   type Project,
   type ProjectEvent,
   type ScaffoldRuntimeInput,
+  type AddResourceOptions,
 } from "../../handlers/project/types";
 import { createSilentLogger, TestIdentityClient } from "../../testing";
 import type { DeployBackendInput, ProjectBackend } from "./backends/types";
@@ -46,6 +50,7 @@ const AGENT_PYTHON_STRANDS_CONTAINER = resolveRuntimeTemplateShortcut(
 );
 const AGENT_TYPESCRIPT_STRANDS = resolveRuntimeTemplateShortcut("agent-typescript-strands");
 const A2A_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("a2a-python-strands");
+const AGUI_PYTHON_STRANDS = resolveRuntimeTemplateShortcut("agui-python-strands");
 const AGENT_PYTHON_LANGCHAIN = resolveRuntimeTemplateShortcut("agent-python-langchain");
 const BEDROCK_MANAGED_AGENTS = resolveRuntimeTemplateShortcut("environment-python-bma");
 
@@ -121,8 +126,9 @@ async function runAdd(
   subject: FsProjectManager,
   project: Project,
   input: AddResourceInput,
+  options?: AddResourceOptions,
 ): Promise<Project> {
-  const iterator = subject.addResource(project, input);
+  const iterator = subject.addResource(project, input, options);
   while (true) {
     const next = await iterator.next();
     if (next.done) return next.value;
@@ -234,6 +240,27 @@ describe("FsProjectManager.create", () => {
       entrypoint: "main.py",
     });
     expect(spec.memories).toMatchObject([{ name: "a2a_python_strandsMemory" }]);
+  });
+
+  test("builds the AG-UI app with FastAPI's environment-driven OTLP export turned off", async () => {
+    // FastAPI >= 0.142 adds its own unsigned OTLP exporters from the OTEL_* env at
+    // startup, next to the runtime's SigV4-signing distro: every batch is sent twice
+    // and the unsigned copy is rejected with 403.
+    const directory = await inTempDirectory();
+    await runCreate(manager().manager, {
+      name: "example",
+      scaffoldRuntimeInput: AGUI_PYTHON_STRANDS,
+    });
+
+    const agentDir = join(directory, "example", "app", "agui_python_strands");
+    const main = await Bun.file(join(agentDir, "main.py")).text();
+    expect(main).toContain('telemetry={"auto_configure": False}');
+    expect(main).not.toContain("create_strands_app(");
+    expect(main).toContain('add_strands_fastapi_endpoint(app, agui_agent, "/invocations")');
+    expect(main).toContain('add_ping(app, "/ping")');
+    // The telemetry= argument only exists from FastAPI 0.142.
+    const pyproject = await Bun.file(join(agentDir, "pyproject.toml")).text();
+    expect(pyproject).toContain('"fastapi >= 0.142.0, < 1.0.0"');
   });
 
   test("renders the Strands memory session reading the deploy-injected memory id", async () => {
@@ -759,6 +786,7 @@ describe("FsProjectManager.addResource", () => {
       const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
       const runtimePath = join(project.rootPath, "app", "cn_blocked");
 
+      // strands takes --model-provider, so the message says to keep the template.
       await expect(
         runAdd(subject, project, {
           resourceType: "runtime",
@@ -767,10 +795,30 @@ describe("FsProjectManager.addResource", () => {
             scaffoldRuntimeInput: { ...AGENT_PYTHON_STRANDS, runtimeName: "cn_blocked" },
           },
         }),
-      ).rejects.toThrow(new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE));
+      ).rejects.toThrow(
+        new RegionUnsupportedFeatureError(modelProviderOverridableCnMessage("Bedrock", "Python")),
+      );
 
       expect(checkedTools).toEqual([]);
       expect(existsSync(runtimePath)).toBe(false);
+    });
+
+    test("rejects a Bedrock-only template with the pick-another-template message", async () => {
+      await inTempDirectory();
+      const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_langchain",
+            scaffoldRuntimeInput: { ...AGENT_PYTHON_LANGCHAIN, runtimeName: "cn_langchain" },
+          },
+        }),
+      ).rejects.toThrow(new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE));
+
+      expect(checkedTools).toEqual([]);
+      expect(existsSync(join(project.rootPath, "app", "cn_langchain"))).toBe(false);
     });
 
     test("rejects a Bedrock Managed Agents template before scaffolding", async () => {
@@ -893,12 +941,63 @@ describe("FsProjectManager.addResource", () => {
       ).rejects.toThrow("uv is missing");
     });
 
+    test("refuses OpenAI like the other unreachable providers", async () => {
+      await inTempDirectory();
+      const { subject, project, checkedTools } = await projectWithTarget("cn-north-1");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_openai",
+            scaffoldRuntimeInput: {
+              ...AGENT_PYTHON_STRANDS,
+              runtimeName: "cn_openai",
+              modelProvider: "OpenAI",
+              apiKey: "sk-test",
+            },
+          },
+        }),
+      ).rejects.toThrow(
+        new RegionUnsupportedFeatureError(modelProviderOverridableCnMessage("OpenAI", "Python")),
+      );
+
+      expect(checkedTools).toEqual([]);
+    });
+
+    test("lets OpenAICompatible past the partition gate", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1", "uv");
+
+      await expect(
+        runAdd(subject, project, {
+          resourceType: "runtime",
+          resourceConfig: {
+            name: "cn_openai_ok",
+            scaffoldRuntimeInput: {
+              ...AGENT_PYTHON_STRANDS,
+              runtimeName: "cn_openai_ok",
+              modelProvider: "OpenAICompatible",
+              modelId: "deepseek-chat",
+              apiKey: "sk-test",
+              apiBase: "https://api.deepseek.com/v1",
+            },
+          },
+        }),
+      ).rejects.toThrow("uv is missing");
+    });
+
     async function editSpec(
       project: Project,
       edit: (spec: {
-        runtimes: { name: string; modelProvider?: string; modelId?: string }[];
+        runtimes: {
+          name: string;
+          modelProvider?: string;
+          modelId?: string;
+        }[];
         harnesses: unknown[];
         memories?: unknown[];
+        agentCoreGateways?: unknown[];
       }) => void,
     ) {
       const specPath = join(project.rootPath, "agentcore", "agentcore.json");
@@ -995,6 +1094,32 @@ describe("FsProjectManager.addResource", () => {
       expect(deployCalls).toHaveLength(1);
     });
 
+    test("deploy to a China target hard-fails an OpenAI runtime", async () => {
+      await inTempDirectory();
+      const { subject, project, deployCalls } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "OpenAI";
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("(OpenAI)");
+      expect(String(error)).toContain("--model-provider openai_compatible --api-base");
+      expect(deployCalls).toEqual([]);
+    });
+
+    test("deploy to a China target passes an OpenAICompatible runtime", async () => {
+      await inTempDirectory();
+      const { subject, project, deployCalls } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.runtimes[0]!.modelProvider = "OpenAICompatible";
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeUndefined();
+      expect(deployCalls).toHaveLength(1);
+    });
+
     test("deploy to a China target notes a LiteLLM runtime without a persisted model id", async () => {
       await inTempDirectory();
       const { subject, project, deployCalls } = await projectWithTarget("cn-north-1");
@@ -1081,6 +1206,100 @@ describe("FsProjectManager.addResource", () => {
       expect(String(error)).toContain("uv is missing");
     });
 
+    // Before the first deploy a project has no target; the CLI's resolved
+    // region stands in, so `add` behaves the same as it will once deployed.
+    async function projectWithoutTarget(scaffoldRuntimeInput: ScaffoldRuntimeInput = AGENT_PYTHON) {
+      const created = await projectWithTarget("us-east-1", "uv", scaffoldRuntimeInput);
+      await rm(join(created.project.rootPath, "agentcore", "aws-targets.json"));
+      return created;
+    }
+
+    async function collectSteps(iterator: AsyncGenerator<ProjectEvent, Project>) {
+      const steps: string[] = [];
+      try {
+        for (;;) {
+          const next = await iterator.next();
+          if (next.done) return { steps, error: undefined };
+          if (next.value.type === "step") steps.push(next.value.message);
+        }
+      } catch (error) {
+        return { steps, error };
+      }
+    }
+
+    const LITELLM_RUNTIME = {
+      resourceType: "runtime" as const,
+      resourceConfig: {
+        name: "cn_mem",
+        scaffoldRuntimeInput: {
+          ...AGENT_PYTHON_STRANDS,
+          runtimeName: "cn_mem",
+          modelProvider: "LiteLLM" as const,
+          modelId: "deepseek/deepseek-chat",
+        },
+      },
+    };
+
+    test("with no target yet, a China resolved region drops the default memory", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithoutTarget();
+
+      const { steps, error } = await collectSteps(
+        subject.addResource(project, LITELLM_RUNTIME, { region: "cn-north-1" }),
+      );
+
+      expect(steps.join("\n")).toContain(MEMORY_STRIPPED_CN_MESSAGE);
+      expect(String(error)).toContain("uv is missing");
+    });
+
+    test("with no target yet, a China resolved region refuses a blocked model provider", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithoutTarget();
+
+      await expect(
+        runAdd(
+          subject,
+          project,
+          {
+            resourceType: "runtime",
+            resourceConfig: {
+              name: "cn_claude",
+              scaffoldRuntimeInput: {
+                ...AGENT_PYTHON_STRANDS,
+                runtimeName: "cn_claude",
+                modelProvider: "Anthropic",
+              },
+            },
+          },
+          { region: "cn-north-1" },
+        ),
+      ).rejects.toThrow(RegionUnsupportedFeatureError);
+    });
+
+    test("with no target yet, a commercial resolved region keeps the default memory", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithoutTarget();
+
+      const { steps, error } = await collectSteps(
+        subject.addResource(project, LITELLM_RUNTIME, { region: "us-west-2" }),
+      );
+
+      expect(steps.join("\n")).not.toContain(MEMORY_STRIPPED_CN_MESSAGE);
+      expect(String(error)).toContain("uv is missing");
+    });
+
+    test("a defined commercial target wins over a China resolved region", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("us-east-1", "uv");
+
+      const { steps, error } = await collectSteps(
+        subject.addResource(project, LITELLM_RUNTIME, { region: "cn-north-1" }),
+      );
+
+      expect(steps.join("\n")).not.toContain(MEMORY_STRIPPED_CN_MESSAGE);
+      expect(String(error)).toContain("uv is missing");
+    });
+
     test("rejects adding a memory on a China target", async () => {
       await inTempDirectory();
       const { subject, project } = await projectWithTarget("cn-north-1");
@@ -1091,6 +1310,89 @@ describe("FsProjectManager.addResource", () => {
           resourceConfig: getDefaultMemorySpec("cn_mem"),
         }),
       ).rejects.toThrow(new RegionUnsupportedFeatureError(cnUnsupportedResourceMessage("memory")));
+    });
+
+    test("rejects a connector Gateway Target on a China target; a Runtime-backed one is fine", async () => {
+      await inTempDirectory();
+      const { subject, project } = await projectWithTarget("cn-north-1");
+      await runAdd(subject, project, {
+        resourceType: "gateway",
+        resourceConfig: {
+          name: "gw",
+          targets: [],
+          authorizerType: "AWS_IAM",
+          protocolType: "None",
+          enableSemanticSearch: false,
+          exceptionLevel: "NONE",
+        },
+      });
+
+      const connectors: [
+        "web-search" | "bedrock-knowledge-bases",
+        { name: string; parameterValues: Record<string, unknown> }[],
+      ][] = [
+        ["web-search", [{ name: "WebSearch", parameterValues: { maxResults: 10 } }]],
+        [
+          "bedrock-knowledge-bases",
+          [{ name: "Retrieve", parameterValues: { knowledgeBaseId: "ABCDEFGHIJ" } }],
+        ],
+      ];
+      for (const [connectorId, configurations] of connectors) {
+        await expect(
+          runAdd(subject, project, {
+            resourceType: "gateway-target",
+            gatewayName: "gw",
+            resourceConfig: {
+              name: connectorId,
+              targetType: "connector",
+              connectorId,
+              configurations,
+            },
+          }),
+        ).rejects.toThrow(new RegionUnsupportedFeatureError(cnConnectorTargetMessage(connectorId)));
+      }
+      expect(cnConnectorTargetMessage("bedrock-knowledge-bases")).toContain(
+        "Amazon Bedrock Knowledge Bases are not available in China",
+      );
+      expect(cnConnectorTargetMessage("web-search")).not.toContain("Knowledge Bases");
+
+      const added = await runAdd(subject, project, {
+        resourceType: "gateway-target",
+        gatewayName: "gw",
+        resourceConfig: {
+          name: "rt",
+          targetType: "httpRuntime",
+          httpRuntime: { runtime: "agent_python_minimal" },
+        },
+      });
+      expect(added.spec.agentCoreGateways[0]!.targets.map((target) => target.name)).toEqual(["rt"]);
+    });
+
+    test("deploy to a China target hard-fails a Gateway with a connector Target", async () => {
+      await inTempDirectory();
+      const { subject, project, deployCalls } = await projectWithTarget("cn-north-1");
+      await editSpec(project, (spec) => {
+        spec.agentCoreGateways = [
+          {
+            name: "gw",
+            authorizerType: "AWS_IAM",
+            targets: [
+              {
+                name: "web",
+                targetType: "connector",
+                connectorId: "web-search",
+                configurations: [{ name: "WebSearch", parameterValues: { maxResults: 10 } }],
+              },
+            ],
+          },
+        ];
+      });
+
+      const { error } = await deployOutcome(subject, project);
+      expect(error).toBeInstanceOf(RegionUnsupportedFeatureError);
+      expect(String(error)).toContain("gateway 'gw' target 'web' is a connector");
+      expect(String(error)).toContain(cnConnectorTargetMessage("web-search"));
+      expect(deployCalls).toEqual([]);
     });
 
     test("deploy to a China target rejects unsupported spec collections", async () => {
@@ -1121,6 +1423,70 @@ describe("FsProjectManager.addResource", () => {
         }),
       ).rejects.toThrow("uv is missing");
     });
+  });
+});
+
+describe("chinaModelProviderRestriction", () => {
+  test("names the blocked provider and keeps the template when it takes an override", () => {
+    const message = chinaModelProviderRestriction(AGENT_PYTHON_STRANDS);
+    expect(message).toBe(modelProviderOverridableCnMessage("Bedrock", "Python"));
+    expect(message).toStartWith("Amazon Bedrock is not accessible from China regions");
+    expect(message).toContain("neither are Anthropic, OpenAI, Gemini");
+    expect(message).toContain("To use this template, point it at a model reachable from China");
+    expect(message).toContain("--model-provider litellm --model-id");
+    expect(message).toContain("--model-provider openai_compatible --api-base");
+    expect(message).not.toContain("open_ai --api-base");
+
+    const anthropic = chinaModelProviderRestriction({
+      ...AGENT_PYTHON_STRANDS,
+      modelProvider: "Anthropic",
+    });
+    expect(anthropic).toStartWith("Anthropic is not accessible from China regions");
+    expect(anthropic).toContain("neither are Amazon Bedrock, OpenAI, Gemini");
+
+    // OpenAI is blocked outright: the client calls api.openai.com, which is unreachable there.
+    const openai = chinaModelProviderRestriction({
+      ...AGENT_PYTHON_STRANDS,
+      modelProvider: "OpenAI",
+    });
+    expect(openai).toStartWith("OpenAI is not accessible from China regions");
+    expect(openai).toContain("neither are Amazon Bedrock, Anthropic, Gemini");
+  });
+
+  test("offers only the OpenAI-compatible route for TypeScript templates", () => {
+    const message = chinaModelProviderRestriction(AGENT_TYPESCRIPT_STRANDS);
+    expect(message).toBe(modelProviderOverridableCnMessage("Bedrock", "TypeScript"));
+    expect(message).not.toContain("litellm");
+    expect(message).toContain("--model-provider openai_compatible --api-base");
+  });
+
+  test("tells Bedrock-only templates to pick another template", () => {
+    expect(chinaModelProviderRestriction(AGENT_PYTHON_LANGCHAIN)).toBe(
+      MODEL_PROVIDER_RUNTIMES_CN_MESSAGE,
+    );
+    expect(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE).toContain("takes no --model-provider override");
+    // A scaffold without template metadata (e.g. --type import) gets the same generic text.
+    expect(
+      chinaModelProviderRestriction({ ...AGENT_PYTHON_STRANDS, templateProfile: undefined }),
+    ).toBe(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE);
+  });
+
+  test("lets provider-free, LiteLLM-with-id and OpenAICompatible scaffolds through", () => {
+    expect(chinaModelProviderRestriction(AGENT_PYTHON)).toBeUndefined();
+    expect(
+      chinaModelProviderRestriction({
+        ...AGENT_PYTHON_STRANDS,
+        modelProvider: "LiteLLM",
+        modelId: "deepseek/deepseek-chat",
+      }),
+    ).toBeUndefined();
+    expect(
+      chinaModelProviderRestriction({
+        ...AGENT_TYPESCRIPT_STRANDS,
+        modelProvider: "OpenAICompatible",
+        modelId: "deepseek-chat",
+      }),
+    ).toBeUndefined();
   });
 });
 

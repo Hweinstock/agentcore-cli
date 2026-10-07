@@ -411,6 +411,93 @@ describe("project add runtime", () => {
     expect(memory.strategies.map(({ type }: { type: string }) => type)).toEqual(expectedStrategies);
   });
 
+  test("openai_compatible renders the OpenAI client against --api-base", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    const apiKeyPath = join(projectRoot, "api-key.txt");
+    await Bun.write(apiKeyPath, "sk-ds");
+
+    await run([
+      "add",
+      "runtime",
+      "--name",
+      "ds_agent",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "openai_compatible",
+      "--model-id",
+      "deepseek-chat",
+      "--api-key",
+      `file://${apiKeyPath}`,
+      "--api-base",
+      "https://api.deepseek.com/v1",
+    ]);
+
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    const runtime = spec.runtimes.find(
+      (candidate: { name: string }) => candidate.name === "ds_agent",
+    );
+    expect(runtime.modelProvider).toBe("OpenAICompatible");
+    expect(runtime.modelApiBase).toBeUndefined();
+    expect(spec.credentials).toContainEqual({
+      authorizerType: "ApiKeyCredentialProvider",
+      name: "ds_agentOpenAICompatibleApiKey",
+    });
+    const loadModel = await Bun.file(
+      join(projectRoot, "app", "ds_agent", "model", "load.py"),
+    ).text();
+    expect(loadModel).toContain('"base_url": "https://api.deepseek.com/v1"');
+  });
+
+  test("--api-base is refused with a provider other than openai_compatible", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    const apiKeyPath = join(projectRoot, "api-key.txt");
+    await Bun.write(apiKeyPath, "sk-g");
+    await expect(
+      run([
+        "add",
+        "runtime",
+        "--name",
+        "g_agent",
+        "--template",
+        "agent-python-strands",
+        "--model-provider",
+        "gemini",
+        "--api-key",
+        `file://${apiKeyPath}`,
+        "--api-base",
+        "https://example.com/v1",
+      ]),
+    ).rejects.toThrow(/only supported with the openai_compatible model provider/);
+  });
+
+  test("openai_compatible without --api-base or --model-id is refused", async () => {
+    const { projectRoot, cleanup } = await initProject();
+    cleanups.push(cleanup);
+    const apiKeyPath = join(projectRoot, "api-key.txt");
+    await Bun.write(apiKeyPath, "sk-ds");
+    const base = [
+      "add",
+      "runtime",
+      "--name",
+      "ds_agent",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "openai_compatible",
+      "--api-key",
+      `file://${apiKeyPath}`,
+    ];
+    await expect(run([...base, "--model-id", "deepseek-chat"])).rejects.toThrow(
+      /openai_compatible requires --api-base/,
+    );
+    await expect(run([...base, "--api-base", "https://api.deepseek.com/v1"])).rejects.toThrow(
+      /openai_compatible requires --model-id/,
+    );
+  });
+
   test("agent-typescript-strands scaffolds a TypeScript agent", async () => {
     const { projectRoot, cleanup } = await initProject();
     cleanups.push(cleanup);
@@ -528,7 +615,7 @@ describe("project add runtime", () => {
     [
       "--model-provider is not valid with the environment-python-bma template",
       ["--name", "my_bma", "--template", "environment-python-bma", "--model-provider", "Anthropic"],
-      "--model-provider, --model-id, and --api-key are not valid with the environment-python-bma template",
+      "--model-provider, --model-id, --api-key, and --api-base are not valid with the environment-python-bma template",
     ],
     [
       "--model-provider without a template requires agent-python-strands",
@@ -711,6 +798,58 @@ describe("project add runtime --type import", () => {
       /Amazon Bedrock is not available in China regions/,
     );
     expect(core.importedBedrockAgents).toEqual([]);
+  });
+
+  test("with no target yet, --region cn-north-1 drops the default memory and refuses blocked providers", async () => {
+    const { projectRoot, cleanup } = await initProject({
+      flags: ["--template", "agent-python-minimal"],
+    });
+    cleanups.push(cleanup);
+    const keyFile = join(projectRoot, "key.txt");
+    await writeFile(keyFile, "sk-test");
+
+    // Blocked provider: refused before anything is written, as it is once a China target exists.
+    await expect(
+      run([
+        "add",
+        "runtime",
+        "--name",
+        "claude",
+        "--template",
+        "agent-python-strands",
+        "--model-provider",
+        "anthropic",
+        "--api-key",
+        `file://${keyFile}`,
+        "--region",
+        "cn-north-1",
+      ]),
+    ).rejects.toThrow(/not accessible from China regions/);
+
+    // Allowed provider: added, with the template's default memory dropped and the notice shown.
+    const { io } = await run([
+      "add",
+      "runtime",
+      "--name",
+      "cn_mem",
+      "--template",
+      "agent-python-strands",
+      "--model-provider",
+      "litellm",
+      "--model-id",
+      "deepseek/deepseek-chat",
+      "--api-key",
+      `file://${keyFile}`,
+      "--region",
+      "cn-north-1",
+    ]);
+    expect(io.stderr()).toContain("AgentCore Memory is not available in China regions");
+    const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
+    expect(spec.memories).toEqual([]);
+    expect(spec.runtimes.map((runtime: { name: string }) => runtime.name)).toEqual([
+      "agent",
+      "cn_mem",
+    ]);
   });
 
   test("rejects the import when --region is a China region even without a China target", async () => {

@@ -45,7 +45,7 @@ def load_model() -> AnthropicModel:
         max_tokens=5000,
     )
 {{/if}}
-{{#if (eq modelProvider "OpenAI")}}
+{{#if (or (eq modelProvider "OpenAI") (eq modelProvider "OpenAICompatible"))}}
 import os
 
 from strands.models.openai import OpenAIModel
@@ -79,7 +79,7 @@ def _get_api_key() -> str:
 def load_model() -> OpenAIModel:
     """Get authenticated OpenAI model client."""
     return OpenAIModel(
-        client_args={"api_key": _get_api_key()},
+        client_args={"api_key": _get_api_key(){{#if apiBase}}, "base_url": {{safeJson apiBase}}{{/if~}} },
         model_id={{safeJson modelId}},
     )
 {{/if}}

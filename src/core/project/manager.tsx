@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import type {
+  AddResourceOptions,
   AddResourceInput,
   CreateProjectInput,
   DeployProjectInput,
@@ -103,16 +104,49 @@ const UV_INSTALL_HINT = "Install uv: https://docs.astral.sh/uv/getting-started/i
 
 /**
  * Shown when a runtime template hardwired to an unreachable model provider
- * targets a China (aws-cn) region. Amazon Bedrock, Anthropic, OpenAI, and
- * Gemini cannot be called from China regions; LiteLLM can route to a reachable provider.
+ * targets a China (aws-cn) region and takes no --model-provider override
+ * (langchain, vercel, `--type import`). Amazon Bedrock, Anthropic, OpenAI, and
+ * Gemini cannot be called from China regions; LiteLLM can route to a reachable
+ * provider and OpenAICompatible points the OpenAI client at a reachable endpoint.
  */
 export const MODEL_PROVIDER_RUNTIMES_CN_MESSAGE =
   "This template's model provider is not accessible from China regions (cn-north-1, " +
-  "cn-northwest-1): Amazon Bedrock, " +
-  "Anthropic, OpenAI, and Gemini cannot be used there. Either scaffold a provider-free runtime " +
-  "(--template agent-python-minimal or mcp-python-fastmcp) and bring your own model connectivity, " +
-  "or use --template agent-python-strands --model-provider litellm --model-id <model reachable " +
-  "from China>.";
+  "cn-northwest-1): Amazon Bedrock, Anthropic, OpenAI, and Gemini cannot be used there, and " +
+  "this template takes no --model-provider override. Pick a strands template " +
+  "(agent-python-strands, agent-python-strands-container, a2a-python-strands, " +
+  "agui-python-strands, or agent-typescript-strands) with --model-provider litellm " +
+  "--model-id <model reachable from China> (Python) or --model-provider openai_compatible " +
+  "--api-base <OpenAI-compatible endpoint reachable from China> --model-id <model>, or " +
+  "scaffold a provider-free " +
+  "runtime (--template agent-python-minimal or mcp-python-fastmcp) and bring your own model " +
+  "connectivity.";
+
+/**
+ * Shown when a template that DOES take --model-provider is left on (or set to)
+ * a provider unreachable from China: the template is fine, only the provider
+ * needs to change. TypeScript templates have no LiteLLM, so only the
+ * OpenAICompatible route is offered there.
+ */
+export function modelProviderOverridableCnMessage(
+  provider: string,
+  language: "Python" | "TypeScript" | undefined,
+): string {
+  const name = provider === "Bedrock" ? "Amazon Bedrock" : provider;
+  const others = ["Amazon Bedrock", "Anthropic", "OpenAI", "Gemini"]
+    .filter((p) => p !== name)
+    .join(", ");
+  const compatible =
+    "--model-provider openai_compatible --api-base <OpenAI-compatible endpoint reachable from " +
+    "China> --model-id <model>";
+  const routes =
+    language === "TypeScript"
+      ? compatible
+      : `--model-provider litellm --model-id <model reachable from China>, or ${compatible}`;
+  return (
+    `${name} is not accessible from China regions (cn-north-1, cn-northwest-1), and neither ` +
+    `are ${others}. To use this template, point it at a model reachable from China: ${routes}.`
+  );
+}
 
 /** Shown when a Bedrock Managed Agents environment targets the aws-cn partition. */
 export const BMA_CN_MESSAGE =
@@ -130,19 +164,41 @@ export const HARNESS_CN_MESSAGE =
   "instead (e.g. --template agent-python-minimal) or start from --template empty.";
 
 /**
- * The resource families whose CloudFormation types ARE registered in the
- * China regions (verified against cn-north-1's public registry): Runtime,
- * RuntimeEndpoint, Gateway (+Target/+RateLimit), and Identity credentials.
- * Declared as an allowlist so any family added later defaults to blocked in
- * China until its availability there is confirmed.
+ * What an `add` adds, as the China gate classifies it: the resource type,
+ * except that a connector-backed Gateway Target is its own kind, since it is
+ * refused where other Gateway Targets are allowed.
  */
-const CN_SUPPORTED_RESOURCE_TYPES = new Set<AddResourceInput["resourceType"]>([
+export type ChinaAddKind = AddResourceInput["resourceType"] | "gateway-connector";
+
+/**
+ * The `add` kinds available in China regions — the families whose
+ * CloudFormation types ARE registered there (verified against cn-north-1's
+ * public registry): Runtime, RuntimeEndpoint, Gateway (+Target/+RateLimit), and
+ * Identity credentials. The single source for the add gate below, for the
+ * "(not available in China regions)" note on each `add` subcommand's help, and
+ * for the add menu's China alert. Declared as an allowlist so any kind added
+ * later is blocked in China, and says so in its help, until its availability
+ * there is confirmed and it is added here.
+ */
+const CN_SUPPORTED_ADD_KINDS: ReadonlySet<ChinaAddKind> = new Set<ChinaAddKind>([
   "runtime",
   "runtime-endpoint",
   "credential",
   "gateway",
   "gateway-target",
 ]);
+
+/** The China kind of an `add` input (see {@link ChinaAddKind}). */
+export function chinaAddKind(input: AddResourceInput): ChinaAddKind {
+  return input.resourceType === "gateway-target" && input.resourceConfig.targetType === "connector"
+    ? "gateway-connector"
+    : input.resourceType;
+}
+
+/** Whether an `add` kind can be added to, and deployed from, a project with a China target. */
+export function isAddableInChina(kind: ChinaAddKind): boolean {
+  return CN_SUPPORTED_ADD_KINDS.has(kind);
+}
 
 /**
  * The project spec collections deployable to a China region — the spec-file
@@ -156,6 +212,25 @@ const CN_SUPPORTED_SPEC_COLLECTIONS = new Set([
   "agentCoreGateways",
   "toolRuntimes",
 ]);
+
+/**
+ * Shown when a Gateway Target of type `connector` is added to, or deployed from, a
+ * project with a China (aws-cn) target. The curated connectors are a static CLI
+ * list, not a regional catalog: `bedrock-knowledge-bases` needs Amazon Bedrock,
+ * which is not available there, and `web-search` has never been confirmed in
+ * China, so both stay blocked until the Gateway service confirms them.
+ */
+export function cnConnectorTargetMessage(connectorId: string | undefined): string {
+  const connector = connectorId ?? "unknown";
+  return (
+    `Gateway connector targets are not available in China regions (cn-north-1, cn-northwest-1): ` +
+    `the '${connector}' connector cannot be used there` +
+    (connector === "bedrock-knowledge-bases"
+      ? ", and Amazon Bedrock Knowledge Bases are not available in China"
+      : "") +
+    `. Add a Runtime-backed or MCP-server Target instead.`
+  );
+}
 
 /** Shown when an `add` targets a resource family that is unavailable in China regions. */
 export function cnUnsupportedResourceMessage(resourceType: string): string {
@@ -184,6 +259,34 @@ export const LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE =
   "cn-northwest-1): the default model id " +
   "routes to Amazon Bedrock, which is not available there. Pass a LiteLLM model id for a " +
   "provider reachable from China (see https://docs.litellm.ai/docs/providers).";
+
+/**
+ * The China (aws-cn) rule for a runtime scaffold's model wiring, shared by the
+ * create-time gate and the add-time gate so both give the same verdict:
+ * provider-free scaffolds pass; LiteLLM passes with an explicit, non-Bedrock
+ * model id; OpenAICompatible passes (the user chose the endpoint); everything
+ * else, OpenAI included, is unreachable from China. Returns the message to
+ * refuse with, or undefined.
+ */
+export function chinaModelProviderRestriction(scaffold: {
+  framework: string;
+  language?: "Python" | "TypeScript";
+  modelProvider?: string;
+  modelId?: string;
+  templateProfile?: { modelProviderOverride?: boolean };
+}): string | undefined {
+  if (scaffold.framework === "none") return undefined;
+  const provider = scaffold.modelProvider ?? "Bedrock";
+  if (provider === "OpenAICompatible") return undefined;
+  if (provider !== "LiteLLM") {
+    return scaffold.templateProfile?.modelProviderOverride === true
+      ? modelProviderOverridableCnMessage(provider, scaffold.language)
+      : MODEL_PROVIDER_RUNTIMES_CN_MESSAGE;
+  }
+  if (scaffold.modelId === undefined) return LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE;
+  if (scaffold.modelId.startsWith("bedrock/")) return LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE;
+  return undefined;
+}
 
 /**
  * Shown when a LiteLLM runtime explicitly targets LiteLLM's Bedrock route
@@ -377,9 +480,21 @@ export class FsProjectManager implements ProjectManager {
     return project;
   }
 
+  /**
+   * Whether `add`-time China (aws-cn) restrictions apply: a deployment target
+   * is in a China region, or no target exists yet and the CLI's resolved region
+   * (what deploy would make the default target) is one. See {@link AddResourceOptions}.
+   */
+  private async isChinaProject(project: Project, region: string | undefined): Promise<boolean> {
+    const targets = await this.listTargets(project);
+    if (targets.length > 0) return targets.some((target) => isChinaRegion(target.region));
+    return region !== undefined && isChinaRegion(region);
+  }
+
   public async *addResource(
     project: Project,
     input: AddResourceInput,
+    options: AddResourceOptions = {},
   ): AsyncGenerator<ProjectEvent, Project> {
     const agentCoreSpecPath = this.getProjectSpecPath(project);
     const projectSpecKey = toProjectSpecKey(input.resourceType);
@@ -447,38 +562,40 @@ export class FsProjectManager implements ProjectManager {
     let envFile: EnvLocalFile | undefined;
 
     // A project with a China (aws-cn) deployment target can only add the
-    // resource families whose CloudFormation types exist there (Runtime,
-    // Gateway, credential). Runtimes additionally gate on the model provider
+    // kinds in CN_SUPPORTED_ADD_KINDS (Runtime, Gateway, credential). Runtimes additionally gate on the model provider
     // — Bedrock/Anthropic/OpenAI/Gemini are unreachable, LiteLLM needs an
     // explicit model id (its default routes to Bedrock) — and the default
     // memory is dropped from the scaffold (see MEMORY_STRIPPED_CN_MESSAGE);
     // provider-free scaffolds (framework "none": minimal, MCP) stay available
     // as the bring-your-own-implementation path.
-    if ((await this.listTargets(project)).some((target) => isChinaRegion(target.region))) {
+    //
+    // Before the first deploy a project has no target, so the resolved region
+    // stands in — the same region deploy synthesizes the default target from.
+    // A defined target always wins over the ambient region.
+    if (await this.isChinaProject(project, options.region)) {
       if (input.resourceType === "harness") {
         throw new RegionUnsupportedFeatureError(HARNESS_CN_MESSAGE);
       }
-      if (!CN_SUPPORTED_RESOURCE_TYPES.has(input.resourceType)) {
-        throw new RegionUnsupportedFeatureError(cnUnsupportedResourceMessage(input.resourceType));
+      // One allowlist decides what is refused (CN_SUPPORTED_ADD_KINDS); the
+      // input decides which message: a connector-backed Gateway Target gets
+      // its own, every other blocked kind the generic one.
+      if (!isAddableInChina(chinaAddKind(input))) {
+        throw new RegionUnsupportedFeatureError(
+          input.resourceType === "gateway-target" && input.resourceConfig.targetType === "connector"
+            ? cnConnectorTargetMessage(input.resourceConfig.connectorId)
+            : cnUnsupportedResourceMessage(input.resourceType),
+        );
       }
       if (input.resourceType === "runtime") {
-        const { framework, modelProvider, modelId, memory } =
-          input.resourceConfig.scaffoldRuntimeInput;
-        if (framework === "bma") {
+        const scaffold = input.resourceConfig.scaffoldRuntimeInput;
+        if (scaffold.framework === "bma") {
           throw new RegionUnsupportedFeatureError(BMA_CN_MESSAGE);
         }
-        if (framework !== "none") {
-          if ((modelProvider ?? "Bedrock") !== "LiteLLM") {
-            throw new RegionUnsupportedFeatureError(MODEL_PROVIDER_RUNTIMES_CN_MESSAGE);
-          }
-          if (modelId === undefined) {
-            throw new RegionUnsupportedFeatureError(LITELLM_MODEL_ID_REQUIRED_CN_MESSAGE);
-          }
-          if (modelId.startsWith("bedrock/")) {
-            throw new RegionUnsupportedFeatureError(LITELLM_BEDROCK_MODEL_ID_CN_MESSAGE);
-          }
+        const restriction = chinaModelProviderRestriction(scaffold);
+        if (restriction !== undefined) {
+          throw new RegionUnsupportedFeatureError(restriction);
         }
-        if (memory !== undefined) {
+        if (scaffold.memory !== undefined) {
           input.resourceConfig.scaffoldRuntimeInput.memory = undefined;
           yield { type: "step", message: MEMORY_STRIPPED_CN_MESSAGE };
         }
@@ -1170,14 +1287,15 @@ export class FsProjectManager implements ProjectManager {
             `Bedrock Managed Agents. ${BMA_CN_MESSAGE}`,
         );
       }
-      const blocked = project.spec.runtimes.filter(
-        (runtime) =>
-          runtime.modelProvider !== undefined &&
-          (runtime.modelProvider !== "LiteLLM" ||
-            // LiteLLM's 'bedrock/' model id prefix routes to Amazon Bedrock —
-            // the default when a runtime was scaffolded without --model-id.
-            runtime.modelId?.startsWith("bedrock/")),
-      );
+      const blocked = project.spec.runtimes.filter((runtime) => {
+        if (runtime.modelProvider === undefined) return false;
+        // LiteLLM's 'bedrock/' model id prefix routes to Amazon Bedrock —
+        // the default when a runtime was scaffolded without --model-id.
+        if (runtime.modelProvider === "LiteLLM") return runtime.modelId?.startsWith("bedrock/");
+        // OpenAICompatible calls the endpoint the user chose, not api.openai.com.
+        if (runtime.modelProvider === "OpenAICompatible") return false;
+        return true;
+      });
       if (blocked.length > 0) {
         throw new RegionUnsupportedFeatureError(
           `Cannot deploy to China region ${target.region}: ` +
@@ -1191,6 +1309,8 @@ export class FsProjectManager implements ProjectManager {
               .join(", ") +
             ` scaffolded with a model provider that is not accessible from China regions. ` +
             `Re-scaffold with '--model-provider litellm --model-id <model reachable from China>' ` +
+            `or '--model-provider openai_compatible --api-base <OpenAI-compatible endpoint> ` +
+            `--model-id <model>', ` +
             `or bring your own model connectivity. If you have already replaced a runtime's ` +
             `model wiring in code, delete its 'modelProvider' field from agentcore.json.`,
         );
@@ -1215,6 +1335,18 @@ export class FsProjectManager implements ProjectManager {
               present.length === 1 ? "this entry" : "these entries"
             } before deploying to a China target.`,
         );
+      }
+      // The collection check lets Gateways through as a whole; connector-backed
+      // Targets inside them (hand-edited, or added before the China target) are
+      // refused here with the same message the add gate gives.
+      for (const gateway of project.spec.agentCoreGateways) {
+        const connector = gateway.targets.find((candidate) => candidate.targetType === "connector");
+        if (connector !== undefined) {
+          throw new RegionUnsupportedFeatureError(
+            `Cannot deploy to China region ${target.region}: gateway '${gateway.name}' target ` +
+              `'${connector.name}' is a connector. ${cnConnectorTargetMessage(connector.connectorId)}`,
+          );
+        }
       }
       const unclassified = project.spec.runtimes.filter(
         (runtime) =>
