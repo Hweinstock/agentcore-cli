@@ -165,8 +165,8 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
               collector = await config.startTraceCollector({
                 tracesDirectory,
                 // A container reaches the collector over the host bridge, which a
-                // 127.0.0.1 bind refuses, so bind all interfaces when any runtime is
-                // a container.
+                // 127.0.0.1 bind refuses, so bind all interfaces when any runtime
+                // is a container.
                 host: runtimes.some((runtime) => runtime.build === "Container")
                   ? "0.0.0.0"
                   : "127.0.0.1",

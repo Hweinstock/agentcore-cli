@@ -51,10 +51,11 @@ type AgentEntry = {
 };
 
 /**
- * Owns the lifecycle of dev runtimes: agents can start lazily from the Inspector
- * or eagerly in headless mode. Each runs in its own abort scope chained off the
- * command's signal, and runner events merge into one attributed stream. Restart-
- * on-edit stays inside the child (uvicorn --reload / tsx watch).
+ * Owns the lifecycle of every dev-able runtime for the Inspector: agents start
+ * lazily (triggered from the browser), each in its own abort scope chained off
+ * the command's signal, and every runner's events merge into one attributed
+ * stream the dev handler renders. Restart-on-edit stays inside the child
+ * (uvicorn --reload / tsx watch) — the supervisor never restarts processes.
  */
 export class DevSupervisor {
   private readonly agents = new Map<string, AgentEntry>();
@@ -195,21 +196,18 @@ export class DevSupervisor {
   private async launch(entry: AgentEntry): Promise<{ name: string; port: number }> {
     const name = entry.runtime.name;
     entry.phase = "starting";
-    delete entry.error;
+    entry.error = undefined;
     entry.completed = false;
 
     const controller = new AbortController();
     const onParentAbort = () => controller.abort(this.config.signal.reason);
     // Chained for the agent's whole lifetime (not just startup): the command's
     // Ctrl-C must tear down every running child. The pump removes it on exit.
-    if (this.config.signal.aborted) onParentAbort();
-    else this.config.signal.addEventListener("abort", onParentAbort, { once: true });
+    this.config.signal.addEventListener("abort", onParentAbort, { once: true });
     const unchain = () => this.config.signal.removeEventListener("abort", onParentAbort);
 
     try {
-      controller.signal.throwIfAborted();
       const port = await this.config.resolvePort(entry.runtime);
-      controller.signal.throwIfAborted();
       const env = await this.config.getDevEnvVarsForRuntime(entry.runtime);
       controller.signal.throwIfAborted();
       const runner = this.config.runners[entry.runtime.build];
@@ -250,7 +248,6 @@ export class DevSupervisor {
     } catch (error) {
       controller.abort();
       unchain(); // idempotent alongside the pump's cleanup; covers setup failures before the pump exists
-      await entry.running;
       entry.phase = "failed";
       const agentError =
         error instanceof Error ? error : new Error(String(error), { cause: error });

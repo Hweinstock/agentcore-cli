@@ -7,15 +7,10 @@ export async function withUserCancellation<T>(
 ): Promise<T> {
   const controller = new AbortController();
   const signals = ["SIGINT", "SIGTERM"] as const;
-  let interrupted = false;
   const interrupt = () => {
-    if (interrupted) return;
-    interrupted = true;
-    try {
-      options.onCancel?.();
-    } finally {
-      controller.abort(new UserCancellationError());
-    }
+    if (controller.signal.aborted) return;
+    options.onCancel?.();
+    controller.abort(new UserCancellationError());
   };
   // Ink's signal-exit handler must see our listener until cancellation cleanup settles.
   for (const signal of signals) process.on(signal, interrupt);
