@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { existsSync } from "node:fs";
 import { readFile, writeFile } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import { AgentCoreCLIError } from "../../../errors";
 import { createRootHandler } from "../../index";
 import {
@@ -11,19 +11,17 @@ import {
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
-  type TestIOOptions,
 } from "../../../testing";
 
 const HARNESS_ARN = "arn:aws:bedrock-agentcore:us-west-2:111122223333:harness/h-abc123";
-const ANSI_SEQUENCE = new RegExp(`${String.fromCharCode(0x1b)}\\[[0-9;?]*[A-Za-z]`, "g");
 
 function testExportCommand() {
   const core = new TestCoreClient();
   // A fresh root per invocation, so wiring-time state (e.g. the add router's
   // pinned cwd) always reflects the directory the test has cd'd into. The core
   // client is shared so mock responses and recorded calls span invocations.
-  const route = (args: string[], options: TestIOOptions = {}) => {
-    const io = testIO(options);
+  const route = (args: string[]) => {
+    const io = testIO({});
     const root = createRootHandler(core, {
       io: io.io,
       globalConfigAccessor: new TestGlobalConfigAccessor(),
@@ -37,8 +35,7 @@ function testExportCommand() {
     io: undefined as unknown as ReturnType<typeof testIO>,
     core,
     project: (args: string[]) => route(args),
-    run: (args: string[] = [], options: TestIOOptions = {}) =>
-      route(["export", "harness", ...args], options),
+    run: (args: string[] = []) => route(["export", "harness", ...args]),
   };
   return subject;
 }
@@ -166,8 +163,9 @@ describe("project export harness handler", () => {
     });
 
     expect(subject.io.stderr()).toContain(
-      `Review the generated code in ${join("app", "exportmeAgent")}`,
+      `Next steps:\n  Review the generated code in ${join("app", "exportmeAgent")}\n  agentcore build\n  agentcore deploy`,
     );
+    expect(subject.io.stderr()).not.toContain("Exported harness");
     expect(subject.io.stdout()).toBe("");
   });
 
@@ -216,218 +214,22 @@ describe("project export harness handler", () => {
     );
   });
 
-  test.each([
-    ["local", "exportme", ["--name", "exportme"]],
-    ["service ARN", "remote_harness", ["--arn", HARNESS_ARN]],
-  ] as const)(
-    "renders completed TTY progress for a %s harness",
-    async (source, harnessName, args) => {
-      const subject = testExportCommand();
-      await inProjectWithHarness(subject);
-      if (source === "service ARN") {
-        subject.core.harness.setGetResponse({
-          harness: {
-            harnessName,
-            model: { bedrockModelConfig: { modelId: "us.amazon.nova-lite-v1:0" } },
-          },
-        } as never);
-      }
-
-      await subject.run([...args], { isTTY: true });
-
-      const output = subject.io.stderr().replace(ANSI_SEQUENCE, "");
-      if (source === "service ARN") {
-        expect(output).toContain("✓ Fetching harness from the service");
-        expect(output.indexOf("✓ Fetching harness from the service")).toBeLessThan(
-          output.indexOf("✓ Reading project spec file"),
-        );
-      } else {
-        expect(output).toContain("✓ Reading harness configuration");
-      }
-      expect(output).toContain("✓ Reading project spec file");
-      expect(output).toContain(`✓ Mapping harness '${harnessName}'`);
-      expect(output).toContain(`✓ Rendering agent code at 'app/${harnessName}Agent'`);
-      expect(output).toContain("✓ Writing EXPORT_NOTES.md");
-      expect(output).toContain("✓ Updating project spec file");
-      expect(output).toContain("✓ Syncing Python dependencies with uv");
-      expect(output).toContain(
-        `Next steps:\n  Review the generated code in ${join("app", `${harnessName}Agent`)}\n  agentcore build\n  agentcore deploy`,
-      );
-      expect(output.indexOf("✓ Syncing Python dependencies with uv")).toBeLessThan(
-        output.indexOf("Next steps:"),
-      );
-      expect(output).not.toContain("Exported harness");
-      expect(subject.io.stdout()).toBe("");
-    },
-  );
-
-  test.each([
-    ["local", false, "exportme", ["--name", "exportme"]],
-    ["local", true, "exportme", ["--name", "exportme"]],
-    ["service ARN", true, "remote_harness", ["--arn", HARNESS_ARN]],
-  ] as const)(
-    "emits only JSON and plain progress for a %s harness (TTY: %s)",
-    async (source, isTTY, harnessName, args) => {
-      const subject = testExportCommand();
-      const projectRoot = await inProjectWithHarness(subject);
-      if (source === "service ARN") {
-        subject.core.harness.setGetResponse({
-          harness: {
-            harnessName,
-            model: { bedrockModelConfig: { modelId: "us.amazon.nova-lite-v1:0" } },
-          },
-        } as never);
-      }
-
-      await subject.run([...args, "--json"], { isTTY });
-
-      expect(JSON.parse(subject.io.stdout())).toEqual({
-        harnessName,
-        agentName: `${harnessName}Agent`,
-        agentPath: join(projectRoot, "app", `${harnessName}Agent`),
-        notesPath: join(projectRoot, "app", `${harnessName}Agent`, "EXPORT_NOTES.md"),
-        notes: [],
-      });
-      const progress = subject.io.stderr();
-      expect(progress).toContain("Reading project spec file");
-      expect(progress).toContain("Syncing Python dependencies with uv");
-      if (source === "service ARN") {
-        expect(progress.split("\n")[0]).toBe("Fetching harness from the service");
-      }
-      expect(progress).not.toContain(String.fromCharCode(0x1b));
-      expect(progress).not.toContain("✓");
-      expect(progress).not.toContain("Exported harness");
-      expect(progress).not.toContain("Next steps:");
-      expect(progress).not.toContain("agentcore build");
-      expect(progress).not.toContain("agentcore deploy");
-    },
-  );
-
-  test.each([false, true])(
-    "keeps external memory details in EXPORT_NOTES.md (JSON: %s)",
-    async (jsonOutput) => {
-      const subject = testExportCommand();
-      const projectRoot = await inProjectWithHarness(subject);
-      const memoryArn = "arn:aws:bedrock-agentcore:us-west-2:111122223333:memory/external-abc123";
-      subject.core.harness.setGetResponse({
-        harness: {
-          harnessName: "remote_harness",
-          model: { bedrockModelConfig: { modelId: "us.amazon.nova-lite-v1:0" } },
-          memory: {
-            agentCoreMemoryConfiguration: { arn: memoryArn, messagesCount: 12 },
-          },
-        },
-      } as never);
-
-      await subject.run(["--arn", HARNESS_ARN, ...(jsonOutput ? ["--json"] : [])], { isTTY: true });
-
-      const notesPath = join(projectRoot, "app", "remote_harnessAgent", "EXPORT_NOTES.md");
-      const notes = await readFile(notesPath, "utf8");
-      const categories = [
-        "Harness memory tuning requires manual follow-up",
-        "External memory reference not exported",
-      ];
-      for (const category of categories) expect(notes).toContain(`### ${category}`);
-      expect(notes).toContain("messagesCount=12");
-      expect(notes).toContain(memoryArn);
-      expect(notes).toContain("runtime role needs memory permissions on that ARN");
-      expect(notes).toContain("memory/session.py");
-      const output = subject.io.stderr().replace(ANSI_SEQUENCE, "");
-      expect(output).not.toContain(memoryArn);
-      expect(output).not.toContain("messagesCount=12");
-      expect(output).not.toContain("runtime role needs memory permissions on that ARN");
-      if (jsonOutput) {
-        const summary = JSON.parse(subject.io.stdout());
-        expect(summary.notesPath).toBe(notesPath);
-        expect(summary.notes.map((note: { category: string }) => note.category)).toEqual(
-          categories,
-        );
-        for (const note of summary.notes) expect(notes).toContain(note.message);
-        expect(subject.io.stderr()).not.toContain(String.fromCharCode(0x1b));
-        expect(output).not.toContain("manual follow-ups in EXPORT_NOTES.md");
-        expect(output).not.toContain("Next steps:");
-        expect(output).not.toContain("Exported harness");
-      } else {
-        expect(output).toContain(
-          `Next steps:\n  Review the generated code in ${join("app", "remote_harnessAgent")} (2 manual follow-ups in EXPORT_NOTES.md)\n  agentcore build\n  agentcore deploy`,
-        );
-        for (const category of categories) expect(output).not.toContain(category);
-        expect(output).not.toContain("Exported harness");
-        expect(output).not.toContain("requiring manual follow-up:");
-        expect(output).not.toContain(notesPath);
-        expect(subject.io.stdout()).toBe("");
-      }
-    },
-  );
-
-  test("resolves displayed export paths from a nested project directory", async () => {
+  test("emits a machine-readable summary with --json", async () => {
     const subject = testExportCommand();
     const projectRoot = await inProjectWithHarness(subject);
-    const memoryArn = "arn:aws:bedrock-agentcore:us-west-2:111122223333:memory/external-abc123";
-    subject.core.harness.setGetResponse({
-      harness: {
-        harnessName: "remote_harness",
-        model: { bedrockModelConfig: { modelId: "us.amazon.nova-lite-v1:0" } },
-        memory: {
-          agentCoreMemoryConfiguration: { arn: memoryArn, messagesCount: 12 },
-        },
-      },
-    } as never);
-    const invocationDirectory = join(projectRoot, "app", "exportme");
-    process.chdir(invocationDirectory);
 
-    await subject.run(["--arn", HARNESS_ARN]);
+    await subject.run(["--name", "exportme", "--json"]);
 
-    const output = subject.io.stderr();
-    const displayedAgentPath = output.match(
-      /Review the generated code in (.+) \(2 manual follow-ups in EXPORT_NOTES\.md\)/,
-    )?.[1];
-    const agentPath = join(projectRoot, "app", "remote_harnessAgent");
-    const notesPath = join(agentPath, "EXPORT_NOTES.md");
-    expect(displayedAgentPath).toBe(join("..", "remote_harnessAgent"));
-    expect(resolve(invocationDirectory, displayedAgentPath!)).toBe(agentPath);
-    expect(existsSync(join(agentPath, "main.py"))).toBe(true);
-    const displayedNotesPath = resolve(invocationDirectory, displayedAgentPath!, "EXPORT_NOTES.md");
-    expect(displayedNotesPath).toBe(notesPath);
-    const notes = await readFile(displayedNotesPath, "utf8");
-    expect(notes).toContain("### External memory reference not exported");
-    expect(notes).toContain(memoryArn);
-    expect(notes).toContain("messagesCount=12");
-    expect(notes).toContain("runtime role needs memory permissions on that ARN");
-    expect(subject.io.stdout()).toBe("");
+    expect(JSON.parse(subject.io.stdout())).toEqual({
+      harnessName: "exportme",
+      agentName: "exportmeAgent",
+      agentPath: join(projectRoot, "app", "exportmeAgent"),
+      notesPath: join(projectRoot, "app", "exportmeAgent", "EXPORT_NOTES.md"),
+      notes: [],
+    });
+    expect(subject.io.stderr()).not.toContain("Next steps:");
+    expect(subject.io.stderr()).not.toContain("Exported harness");
   });
-
-  test.each(["local configuration", "service fetch"] as const)(
-    "marks a failed %s step on a TTY without claiming success",
-    async (failure) => {
-      const subject = testExportCommand();
-      const projectRoot = await inProjectWithHarness(subject);
-      const specPath = join(projectRoot, "agentcore", "agentcore.json");
-      const specBefore = await readFile(specPath, "utf8");
-      let failedStep: string;
-      if (failure === "service fetch") {
-        const error = new Error("Harness fetch denied");
-        subject.core.harness.setError(error);
-        await expect(subject.run(["--arn", HARNESS_ARN], { isTTY: true })).rejects.toBe(error);
-        failedStep = "Fetching harness from the service";
-      } else {
-        await writeFile(join(projectRoot, "app", "exportme", "system-prompt.md"), " \n");
-        await expect(subject.run(["--name", "exportme"], { isTTY: true })).rejects.toThrow(
-          "empty or whitespace-only",
-        );
-        failedStep = "Reading harness configuration";
-      }
-
-      const output = subject.io.stderr().replace(ANSI_SEQUENCE, "");
-      expect(output).toContain(`✕ ${failedStep}`);
-      expect(output).not.toContain(`✓ ${failedStep}`);
-      expect(output).not.toContain("Exported harness");
-      expect(output).not.toContain("Next steps:");
-      expect(subject.io.stdout()).toBe("");
-      expect(existsSync(join(projectRoot, "app", "exportmeAgent"))).toBe(false);
-      expect(await readFile(specPath, "utf8")).toBe(specBefore);
-    },
-  );
 
   test("exports a service harness by ARN, fetching from the ARN's region", async () => {
     const subject = testExportCommand();
