@@ -8,7 +8,6 @@ import { projectSpecPath } from "../../../core/project/fsUtils";
 import { DevSupervisor, type SupervisorConfig } from "../../../core/dev/supervisor";
 import type { ProjectRuntime } from "../../../projectSchemas/runtime";
 import {
-  AgentCoreCLIError,
   ERROR_SOURCE,
   InputValidationError,
   NotImplementedError,
@@ -61,20 +60,7 @@ function supportsLocalDev(runtime: ProjectRuntime): boolean {
   return !isBmaRuntime(runtime);
 }
 
-function selectRuntimes(
-  project: Project,
-  {
-    name,
-    port,
-    io,
-    json,
-  }: {
-    name: string | undefined;
-    port: number | undefined;
-    io: AppIO;
-    json: JsonRenderer | undefined;
-  },
-): ProjectRuntime[] {
+function selectRuntimes(project: Project, name?: string): ProjectRuntime[] {
   if (project.spec.runtimes.length === 0) {
     throw new InputValidationError(
       "This project has no runtimes. Add a runtime to agentcore/agentcore.json and retry.",
@@ -96,20 +82,6 @@ function selectRuntimes(
         "Run agentcore deploy, then use client.py to connect through Bedrock Managed Agents.",
       { source: ERROR_SOURCE.USER },
     );
-  }
-  if (supportedRuntimes.length > 1 && port !== undefined) {
-    throw new InputValidationError(
-      "--port applies to a single runtime. Use --agent to select one.",
-    );
-  }
-  if (!name) {
-    for (const runtime of selectedRuntimes.filter((runtime) => !supportsLocalDev(runtime))) {
-      renderStatus(
-        io,
-        `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
-        json,
-      );
-    }
   }
   return supportedRuntimes;
 }
@@ -133,57 +105,6 @@ function renderStatus(io: AppIO, message: string, json?: JsonRenderer): void {
     return;
   }
   io.stderr.write(`${message}\n`);
-}
-
-async function startTraceCollector(
-  config: DevProjectHandlerConfig,
-  project: Project,
-  runtimes: ProjectRuntime[],
-  json?: JsonRenderer,
-): Promise<DevTraceCollector> {
-  const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
-  let tracePersistErrorReported = false;
-  const collector = await config.startTraceCollector({
-    tracesDirectory,
-    // A container reaches the collector over the host bridge, which a
-    // 127.0.0.1 bind refuses, so bind all interfaces when any runtime is
-    // a container.
-    host: runtimes.some((runtime) => runtime.build === "Container") ? "0.0.0.0" : "127.0.0.1",
-    // Persistence can fail after startup (disk, permissions). Warn once —
-    // exports are still acked, so without this the loss would be silent.
-    onError: (error) => {
-      if (tracePersistErrorReported) return;
-      tracePersistErrorReported = true;
-      const detail = error instanceof Error ? error.message : String(error);
-      renderStatus(
-        config.io,
-        `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
-        json,
-      );
-    },
-  });
-  renderStatus(
-    config.io,
-    `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
-    json,
-  );
-  return collector;
-}
-
-function createDevEnvironmentResolver(
-  loadDevEnvironment: DevEnvironmentLoader,
-  projectRoot: string,
-  region: string | undefined,
-  collector: DevTraceCollector | undefined,
-): (runtime: ProjectRuntime) => Promise<Record<string, string>> {
-  return async (runtime) => {
-    const { env } = await loadDevEnvironment({ projectRoot, runtime, region });
-    const otel =
-      collector && (runtime.instrumentation?.enableOtel ?? true)
-        ? otelEnvForRuntime(collector, runtime)
-        : {};
-    return { ...env, ...otel };
-  };
 }
 
 export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
@@ -218,26 +139,57 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
         async (signal) => {
           let collector: DevTraceCollector | undefined;
           try {
-            const runtimes = selectRuntimes(project, {
-              name: flags.agent,
-              port: flags.port,
-              io: config.io,
-              json,
-            });
+            const runtimes = selectRuntimes(project, flags.agent);
+            if (runtimes.length > 1 && flags.port !== undefined) {
+              throw new InputValidationError(
+                "--port applies to a single runtime. Use --agent to select one.",
+              );
+            }
+            if (!flags.agent) {
+              for (const runtime of project.spec.runtimes.filter(
+                (runtime) => !supportsLocalDev(runtime),
+              )) {
+                renderStatus(
+                  config.io,
+                  `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
+                  json,
+                );
+              }
+            }
             if (
               flags.traces &&
               runtimes.some((runtime) => runtime.instrumentation?.enableOtel ?? true)
             ) {
-              collector = await startTraceCollector(config, project, runtimes, json);
+              const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
+              let tracePersistErrorReported = false;
+              collector = await config.startTraceCollector({
+                tracesDirectory,
+                // A container reaches the collector over the host bridge, which a
+                // 127.0.0.1 bind refuses, so bind all interfaces when any runtime is
+                // a container.
+                host: runtimes.some((runtime) => runtime.build === "Container")
+                  ? "0.0.0.0"
+                  : "127.0.0.1",
+                // Persistence can fail after startup (disk, permissions). Warn once —
+                // exports are still acked, so without this the loss would be silent.
+                onError: (error) => {
+                  if (tracePersistErrorReported) return;
+                  tracePersistErrorReported = true;
+                  const detail = error instanceof Error ? error.message : String(error);
+                  renderStatus(
+                    config.io,
+                    `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
+                    json,
+                  );
+                },
+              });
+              renderStatus(
+                config.io,
+                `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
+                json,
+              );
             }
             signal.throwIfAborted();
-
-            const getDevEnvVarsForRuntime = createDevEnvironmentResolver(
-              config.loadDevEnvironment,
-              project.rootPath,
-              region,
-              collector,
-            );
 
             const assignedPorts =
               flags.mode === "headless" && !flags.agent
@@ -247,18 +199,19 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
               runtimes,
               projectRoot: project.rootPath,
               runners: config.runners,
-              getDevEnvVarsForRuntime,
+              getDevEnvVarsForRuntime: async (runtime) => {
+                const { env } = await config.loadDevEnvironment({
+                  projectRoot: project.rootPath,
+                  runtime,
+                  region,
+                });
+                return collector && (runtime.instrumentation?.enableOtel ?? true)
+                  ? { ...env, ...otelEnvForRuntime(collector, runtime) }
+                  : { ...env };
+              },
               // Runtime selection rejects an explicit port for multiple runtimes.
               resolvePort: async (runtime) => {
-                if (assignedPorts) {
-                  const assignedPort = assignedPorts.get(runtime.name);
-                  if (assignedPort === undefined) {
-                    throw new AgentCoreCLIError(
-                      `No port was assigned to runtime '${runtime.name}'.`,
-                    );
-                  }
-                  return assignedPort;
-                }
+                if (assignedPorts) return assignedPorts.get(runtime.name)!;
                 const resolved = await resolveDevPort(
                   runtime.protocol,
                   flags.port,
@@ -278,13 +231,15 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
                 }
                 return resolved.port;
               },
-              waitReady: config.waitReady,
+              // Selected headless dev streams the runner without a readiness deadline.
+              waitReady:
+                flags.mode === "headless" && flags.agent ? async () => {} : config.waitReady,
               signal,
             });
 
             if (flags.mode === "headless") {
               void Promise.allSettled(runtimes.map((runtime) => supervisor.start(runtime.name)));
-              for await (const { agentName, event } of supervisor.events()) {
+              for await (const { agentName, event } of supervisor.events({ untilStopped: true })) {
                 const message = event.type === "status" ? event.message : undefined;
                 const lifecycleStatus =
                   flags.agent !== undefined &&
@@ -293,19 +248,10 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
                     message?.startsWith(`Agent '${agentName}' failed to start: `) ||
                     message?.startsWith(`Agent '${agentName}' crashed: `));
                 if (!lifecycleStatus) renderAgentEvent(config.io, event, agentName, json);
-                const phases = supervisor.snapshot();
-                if (phases.every(({ phase }) => phase !== "starting" && phase !== "running")) {
-                  if (phases.some(({ phase }) => phase === "failed")) {
-                    const error = flags.agent
-                      ? supervisor.snapshot().find(({ name }) => name === flags.agent)?.error
-                      : undefined;
-                    if (error !== undefined) throw error;
-                    throw new SilentCLIError();
-                  }
-                  break;
-                }
               }
               signal.throwIfAborted();
+              const failure = supervisor.snapshot().find(({ phase }) => phase === "failed");
+              if (failure) throw flags.agent ? failure.error : new SilentCLIError();
               return;
             }
 

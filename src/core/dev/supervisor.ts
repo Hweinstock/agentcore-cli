@@ -152,16 +152,28 @@ export class DevSupervisor {
   /**
    * The merged event stream of every agent this supervisor has started. Ends
    * when the supervisor's signal aborts and all pending events are drained.
+   * Headless consumers can also finish after every agent stops.
    */
-  public async *events(): AsyncGenerator<SupervisedEvent, void> {
+  public async *events(
+    options: { untilStopped?: boolean } = {},
+  ): AsyncGenerator<SupervisedEvent, void> {
     while (true) {
       for (const event of this.queue.splice(0)) yield event;
       if (this.config.signal.aborted) {
         // Let every live child finish shutting down so its final spans reach the
         // collector before the caller closes it, then drain what they emitted.
-        const running = [...this.agents.values()].map((entry) => entry.running).filter(Boolean);
-        await Promise.allSettled(running);
+        const pending = [...this.agents.values()]
+          .flatMap((entry) => [entry.starting, entry.running])
+          .filter(Boolean);
+        await Promise.allSettled(pending);
         for (const event of this.queue.splice(0)) yield event;
+        return;
+      }
+      if (
+        options.untilStopped &&
+        [...this.agents.values()].every(({ phase }) => phase !== "starting" && phase !== "running")
+      ) {
+        if (this.queue.length > 0) continue;
         return;
       }
       await new Promise<void>((resolve) => {
@@ -190,12 +202,16 @@ export class DevSupervisor {
     const onParentAbort = () => controller.abort(this.config.signal.reason);
     // Chained for the agent's whole lifetime (not just startup): the command's
     // Ctrl-C must tear down every running child. The pump removes it on exit.
-    this.config.signal.addEventListener("abort", onParentAbort, { once: true });
+    if (this.config.signal.aborted) onParentAbort();
+    else this.config.signal.addEventListener("abort", onParentAbort, { once: true });
     const unchain = () => this.config.signal.removeEventListener("abort", onParentAbort);
 
     try {
+      controller.signal.throwIfAborted();
       const port = await this.config.resolvePort(entry.runtime);
+      controller.signal.throwIfAborted();
       const env = await this.config.getDevEnvVarsForRuntime(entry.runtime);
+      controller.signal.throwIfAborted();
       const runner = this.config.runners[entry.runtime.build];
 
       let ready = false;
@@ -218,6 +234,7 @@ export class DevSupervisor {
       readiness.catch(() => {});
       earlyExit.catch(() => {});
       await Promise.race([readiness, earlyExit]);
+      if (entry.error) throw entry.error;
 
       if (entry.completed) {
         entry.phase = "idle";
@@ -233,6 +250,7 @@ export class DevSupervisor {
     } catch (error) {
       controller.abort();
       unchain(); // idempotent alongside the pump's cleanup; covers setup failures before the pump exists
+      await entry.running;
       entry.phase = "failed";
       const agentError =
         error instanceof Error ? error : new Error(String(error), { cause: error });

@@ -179,9 +179,8 @@ describe("DevSupervisor", () => {
     expect(supervisor.snapshot()[0]).toMatchObject({
       name: "orders",
       phase: "failed",
+      error: { message: "boom" },
     });
-    expect(supervisor.snapshot()[0]?.error).toBeInstanceOf(Error);
-    expect(supervisor.snapshot()[0]?.error?.message).toBe("boom");
 
     // Retry hits the runner again rather than being stuck.
     await supervisor.start("orders").catch(() => {});
@@ -263,9 +262,8 @@ describe("DevSupervisor", () => {
     expect(supervisor.snapshot()[0]).toMatchObject({
       name: "orders",
       phase: "failed",
+      error: { message: "segfault" },
     });
-    expect(supervisor.snapshot()[0]?.error).toBeInstanceOf(Error);
-    expect(supervisor.snapshot()[0]?.error?.message).toBe("segfault");
     expect(supervisor.running("orders")).toBeUndefined();
     const events = await drain(supervisor, controller);
     expect(events).toContainEqual({
