@@ -21,7 +21,6 @@ import {
   MEMORY_NAME_NOT_FOUND_NOTE_CATEGORY,
   MODEL_API_KEY_NOTE_CATEGORY,
   buildExportNotesMarkdown,
-  formatExportNotes,
   mapHarnessToExportPlan,
   matchesAllowedTools,
   type HarnessExportInput,
@@ -794,22 +793,5 @@ describe("export notes rendering", () => {
   test("buildExportNotesMarkdown says when nothing is left to do", () => {
     const markdown = buildExportNotesMarkdown([], "assistant", "assistantAgent", "v");
     expect(markdown).toContain("No manual steps required.");
-  });
-
-  test("formatExportNotes renders a warning block or a quiet confirmation", () => {
-    expect(formatExportNotes([], "notes.md")).toEqual([
-      { text: "No manual follow-up required. (Details: notes.md)", tone: "dim" },
-    ]);
-    const lines = formatExportNotes(
-      [{ category: "Cat", message: "line one\nline two" }],
-      "notes.md",
-    );
-    expect(lines.map((line) => line.text)).toEqual([
-      "1 export note requiring manual follow-up:",
-      "  - Cat",
-      "    line one",
-      "    line two",
-      "These notes are also saved to notes.md",
-    ]);
   });
 });

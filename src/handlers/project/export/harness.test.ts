@@ -163,7 +163,10 @@ describe("project export harness handler", () => {
     });
 
     expect(subject.io.stderr()).toContain(
-      "Exported harness 'exportme' to runtime agent 'exportmeAgent'",
+      `Next steps:\n  Review the generated code in ${join("app", "exportmeAgent")}\n  agentcore build\n  agentcore deploy`,
+    );
+    expect(subject.io.stderr()).toContain(
+      `Exported harness 'exportme' to runtime agent 'exportmeAgent' (${join("app", "exportmeAgent")})\nNext steps:`,
     );
     expect(subject.io.stdout()).toBe("");
   });
@@ -226,6 +229,8 @@ describe("project export harness handler", () => {
       notesPath: join(projectRoot, "app", "exportmeAgent", "EXPORT_NOTES.md"),
       notes: [],
     });
+    expect(subject.io.stderr()).not.toContain("Next steps:");
+    expect(subject.io.stderr()).not.toContain("Exported harness");
   });
 
   test("exports a service harness by ARN, fetching from the ARN's region", async () => {
@@ -261,6 +266,9 @@ describe("project export harness handler", () => {
     const spec = await Bun.file(join(projectRoot, "agentcore", "agentcore.json")).json();
     expect(spec.runtimes.map((runtime: { name: string }) => runtime.name)).toContain(
       "exported_arn",
+    );
+    expect(subject.io.stderr()).toContain(
+      `Exported harness 'remote_harness' to runtime agent 'exported_arn' (${join("app", "exported_arn")})`,
     );
   });
 
