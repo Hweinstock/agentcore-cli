@@ -6,12 +6,14 @@ Recorded with VHS 0.11.0 against the compiled Linux CLI from PR #65.
 - [VHS tape](harness-export.tape)
 - [Final frame](harness-export-vhs-final.png)
 
-The recording includes the live progress spinner, real `uv sync` output, completed steps,
-and the compact review-code next step. The GIF uses the Catppuccin Mocha theme.
+The recording shows project creation, adding `helloWorld`, and exporting it. Export includes
+the live progress spinner, real `uv sync` output, completed steps, and the compact review-code
+next step. The GIF uses the Catppuccin Mocha theme.
 
 The tape creates a fresh temporary directory, an empty project, and the `helloWorld` harness
-before recording the export. Setup is hidden from the GIF and included in the tape. Each run
-uses a new directory, so it can be repeated without an existing project or harness.
+before exporting it. Only terminal initialization and entering the temporary directory are
+hidden; project and harness creation are visible. Each run uses a new directory, so it can be
+repeated without an existing project or harness.
 
 To reproduce, put the compiled CLI on `PATH` as `agentcore` and run:
 
