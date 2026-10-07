@@ -1,6 +1,6 @@
 # Harness export recorded with VHS
 
-Recorded with VHS 0.11.0 against the compiled Linux CLI from PR #65.
+Recorded with VHS 0.11.0 against the compiled Linux CLI from PR #2552 at `cb6d67f39`.
 
 - [GIF](harness-export-vhs.gif)
 - [VHS tape](harness-export.tape)
