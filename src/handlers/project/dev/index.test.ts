@@ -486,6 +486,15 @@ describe("project dev trace collection", () => {
     await expect(subject.run({ agent: "orders" })).rejects.toThrow("runner failed");
     expect(subject.collector.state.closed).toBe(1);
   });
+
+  test("the collector is closed when startup output fails", async () => {
+    const subject = harness();
+    subject.io.io.stderr.write = () => {
+      throw new Error("status output failed");
+    };
+    await expect(subject.run({ agent: "orders" })).rejects.toThrow("status output failed");
+    expect(subject.collector.state.closed).toBe(1);
+  });
 });
 
 // Return the pending command inside an object so awaiting startup does not wait for dev to exit.

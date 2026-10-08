@@ -525,12 +525,17 @@ async function startRuntimeTraceCollector({
       });
     },
   });
-  renderStatus({
-    io: config.io,
-    message: `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
-    json,
-  });
-  return collector;
+  try {
+    renderStatus({
+      io: config.io,
+      message: `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
+      json,
+    });
+    return collector;
+  } catch (error) {
+    await collector.close();
+    throw error;
+  }
 }
 
 /**
