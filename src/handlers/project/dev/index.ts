@@ -69,7 +69,17 @@ function supportsLocalDev(runtime: ProjectRuntime): boolean {
 }
 
 /** An agent's own output, always tagged with the agent that produced it. */
-function renderAgentEvent(io: AppIO, event: DevEvent, agent: string, json?: JsonRenderer): void {
+function renderAgentEvent({
+  io,
+  event,
+  agent,
+  json,
+}: {
+  io: AppIO;
+  event: DevEvent;
+  agent: string;
+  json?: JsonRenderer;
+}): void {
   if (json) {
     json.renderJsonLine({ agent, ...event });
     return;
@@ -81,24 +91,21 @@ function renderAgentEvent(io: AppIO, event: DevEvent, agent: string, json?: Json
 }
 
 /** A command-level status line, not attributed to any agent. */
-function renderStatus(io: AppIO, message: string, json?: JsonRenderer): void {
+function renderStatus({
+  io,
+  message,
+  json,
+}: {
+  io: AppIO;
+  message: string;
+  json?: JsonRenderer;
+}): void {
   if (json) {
     json.renderJsonLine({ type: "status", message });
     return;
   }
   io.stderr.write(`${message}\n`);
 }
-
-type DevFlags = {
-  agent?: string;
-  "ui-port"?: number;
-  mode: "browser" | "headless";
-  port?: number;
-  traces: boolean;
-  target?: string;
-  yes: boolean;
-  "skip-deploy": boolean;
-};
 
 export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
   createHandler({
@@ -158,7 +165,18 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
             `${unsupportedFlags.join(", ")} does not apply to harness dev.`,
           );
         }
-        await runHarnessDev(config, ctx, flags, selection.harnesses);
+        await runHarnessDev({
+          config,
+          ctx,
+          options: {
+            harnesses: selection.harnesses,
+            mode: flags.mode,
+            uiPort: flags["ui-port"],
+            deploymentTarget: flags.target ?? DEFAULT_TARGET_NAME,
+            yes: flags.yes,
+            skipDeploy: flags["skip-deploy"],
+          },
+        });
       } else {
         const unsupportedFlags = (["target", "yes", "skip-deploy"] as const).filter(
           (name) => flags[name],
@@ -168,7 +186,18 @@ export const createDevProjectHandler = (config: DevProjectHandlerConfig) =>
             `${unsupportedFlags.map((name) => `--${name}`).join(", ")} does not apply to runtime dev.`,
           );
         }
-        await runRuntimeDev(config, ctx, flags, selection.runtimes);
+        await runRuntimeDev({
+          config,
+          ctx,
+          options: {
+            runtimes: selection.runtimes,
+            agent: flags.agent,
+            port: flags.port,
+            traces: flags.traces,
+            mode: flags.mode,
+            uiPort: flags["ui-port"],
+          },
+        });
       }
     },
   });
@@ -208,24 +237,34 @@ function resolveAgentSelection(project: Project, agent?: string): AgentSelection
   return { type: "runtime", runtimes: supportedRuntimes };
 }
 
-async function runHarnessDev(
-  config: DevProjectHandlerConfig,
-  ctx: Context,
-  flags: DevFlags,
-  harnesses: Project["spec"]["harnesses"],
-): Promise<void> {
-  const deploymentTarget = flags.target ?? DEFAULT_TARGET_NAME;
-  if (!flags["skip-deploy"]) {
+async function runHarnessDev({
+  config,
+  ctx,
+  options,
+}: {
+  config: DevProjectHandlerConfig;
+  ctx: Context;
+  options: {
+    harnesses: Project["spec"]["harnesses"];
+    mode: "browser" | "headless";
+    uiPort?: number;
+    deploymentTarget: string;
+    yes: boolean;
+    skipDeploy: boolean;
+  };
+}): Promise<void> {
+  const { harnesses, deploymentTarget } = options;
+  if (!options.skipDeploy) {
     await createDeployProjectHandler(config).handle(
       ctx,
-      { target: deploymentTarget, yes: flags.yes },
+      { target: deploymentTarget, yes: options.yes },
       {},
     );
   }
-  if (flags.mode === "headless" && (flags["skip-deploy"] || ctx.require(JsonKey))) {
+  if (options.mode === "headless" && (options.skipDeploy || ctx.require(JsonKey))) {
     config.io.stderr.write(`Next step:\n  ${DEPLOY_NEXT_STEP}\n`);
   }
-  if (flags.mode === "headless") return;
+  if (options.mode === "headless") return;
   const project = ctx.require(ProjectKey);
 
   const inspectorProject = {
@@ -241,7 +280,7 @@ async function runHarnessDev(
       let server: Awaited<ReturnType<typeof config.startServer>> | undefined;
       try {
         const uiPort = (
-          await findFreePort(UI_DEFAULT_PORT, flags["ui-port"], config.checkPort, signal)
+          await findFreePort(UI_DEFAULT_PORT, options.uiPort, config.checkPort, signal)
         ).port;
         server = await config.startServer(
           createInspectorHandler({
@@ -279,7 +318,7 @@ async function runHarnessDev(
         );
         const json = ctx.require(JsonKey) ? ctx.require(JsonRendererKey) : undefined;
         const url = `http://127.0.0.1:${server.port}`;
-        renderStatus(config.io, `Agent Inspector running at ${url}`, json);
+        renderStatus({ io: config.io, message: `Agent Inspector running at ${url}`, json });
         if (config.isInteractive() && !json) await config.openBrowser(url);
         signal.throwIfAborted();
         await new Promise<void>((_resolve, reject) => {
@@ -295,12 +334,23 @@ async function runHarnessDev(
   );
 }
 
-async function runRuntimeDev(
-  config: DevProjectHandlerConfig,
-  ctx: Context,
-  flags: DevFlags,
-  runtimes: ProjectRuntime[],
-): Promise<void> {
+async function runRuntimeDev({
+  config,
+  ctx,
+  options,
+}: {
+  config: DevProjectHandlerConfig;
+  ctx: Context;
+  options: {
+    runtimes: ProjectRuntime[];
+    agent?: string;
+    port?: number;
+    traces: boolean;
+    mode: "browser" | "headless";
+    uiPort?: number;
+  };
+}): Promise<void> {
+  const { runtimes } = options;
   await withUserCancellation(
     async (signal) => {
       const json = ctx.require(JsonKey) ? ctx.require(JsonRendererKey) : undefined;
@@ -308,25 +358,25 @@ async function runRuntimeDev(
       try {
         const project = ctx.require(ProjectKey);
         const region = ctx.require(RegionKey);
-        if (runtimes.length > 1 && flags.port !== undefined) {
+        if (runtimes.length > 1 && options.port !== undefined) {
           throw new InputValidationError(
             "--port applies to a single runtime. Use --agent to select one.",
           );
         }
-        if (!flags.agent) {
+        if (!options.agent) {
           for (const runtime of project.spec.runtimes.filter(
             (runtime) => !supportsLocalDev(runtime),
           )) {
-            renderStatus(
-              config.io,
-              `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
+            renderStatus({
+              io: config.io,
+              message: `Skipping runtime '${runtime.name}': local dev is not supported for ${BMA_TEMPLATE_NAME}.`,
               json,
-            );
+            });
           }
         }
 
-        collector = flags.traces
-          ? await startRuntimeTraceCollector(config, project, runtimes, json)
+        collector = options.traces
+          ? await startRuntimeTraceCollector({ config, project, runtimes, json })
           : undefined;
         signal.throwIfAborted();
 
@@ -345,22 +395,21 @@ async function runRuntimeDev(
           return { ...env, ...otel };
         };
 
-        if (flags.mode === "headless" && flags.agent) {
-          await runWithoutUi(
+        if (options.mode === "headless" && options.agent) {
+          await runWithoutUi({
             config,
-            runtimes[0]!,
+            runtime: runtimes[0]!,
             project,
-            flags.port,
-            getDevEnvVarsForRuntime,
+            options: { port: options.port, environment: getDevEnvVarsForRuntime },
             signal,
             json,
-          );
+          });
           return;
         }
 
         const assignedPorts =
-          flags.mode === "headless"
-            ? await resolveDevPorts(runtimes, flags.port, config.checkPort, signal)
+          options.mode === "headless"
+            ? await resolveDevPorts(runtimes, options.port, config.checkPort, signal)
             : undefined;
         const supervisor = new DevSupervisor({
           runtimes,
@@ -368,7 +417,7 @@ async function runRuntimeDev(
           runners: config.runners,
           getDevEnvVarsForRuntime,
           // The --port guard above rejects an explicit port with more than one
-          // runtime, so passing flags.port here only ever applies to a lone one.
+          // runtime, so passing options.port here only ever applies to a lone one.
           resolvePort: async (runtime) => {
             if (assignedPorts) {
               const assignedPort = assignedPorts.get(runtime.name);
@@ -377,17 +426,17 @@ async function runRuntimeDev(
               }
               return assignedPort;
             }
-            return (await resolveDevPort(runtime.protocol, flags.port, config.checkPort, signal))
+            return (await resolveDevPort(runtime.protocol, options.port, config.checkPort, signal))
               .port;
           },
           waitReady: config.waitReady,
           signal,
         });
 
-        if (flags.mode === "headless") {
+        if (options.mode === "headless") {
           void Promise.allSettled(runtimes.map((runtime) => supervisor.start(runtime.name)));
           for await (const { agentName, event } of supervisor.events()) {
-            renderAgentEvent(config.io, event, agentName, json);
+            renderAgentEvent({ io: config.io, event, agent: agentName, json });
             const phases = supervisor.snapshot();
             if (phases.every(({ phase }) => phase !== "starting" && phase !== "running")) {
               if (phases.some(({ phase }) => phase === "failed")) throw new SilentCLIError();
@@ -399,7 +448,7 @@ async function runRuntimeDev(
         }
 
         const uiPort = (
-          await findFreePort(UI_DEFAULT_PORT, flags["ui-port"], config.checkPort, signal)
+          await findFreePort(UI_DEFAULT_PORT, options.uiPort, config.checkPort, signal)
         ).port;
         const server = await config.startServer(
           createInspectorHandler({
@@ -407,7 +456,7 @@ async function runRuntimeDev(
             traces: collector?.traces,
             assets: config.inspectorAssets,
             project: { ...project, spec: { ...project.spec, harnesses: [] } },
-            selectedAgent: flags.agent,
+            selectedAgent: options.agent,
           }),
           { port: uiPort, signal },
         );
@@ -418,9 +467,11 @@ async function runRuntimeDev(
             if (!reloaded) return;
             const runtimes = reloaded.spec.runtimes.filter(supportsLocalDev);
             supervisor.setRuntimes(
-              flags.agent ? runtimes.filter((runtime) => runtime.name === flags.agent) : runtimes,
+              options.agent
+                ? runtimes.filter((runtime) => runtime.name === options.agent)
+                : runtimes,
             );
-            renderStatus(config.io, "Reloaded agents from agentcore.json.", json);
+            renderStatus({ io: config.io, message: "Reloaded agents from agentcore.json.", json });
           } catch {
             // A half-saved config parses on the next change event.
           }
@@ -428,11 +479,11 @@ async function runRuntimeDev(
         config.watchFile(projectSpecPath(project.rootPath), () => void onConfigChange(), signal);
 
         const url = `http://127.0.0.1:${server.port}`;
-        renderStatus(config.io, `Agent Inspector running at ${url}`, json);
+        renderStatus({ io: config.io, message: `Agent Inspector running at ${url}`, json });
         if (config.isInteractive() && !json) await config.openBrowser(url);
 
         for await (const { agentName, event } of supervisor.events()) {
-          renderAgentEvent(config.io, event, agentName, json);
+          renderAgentEvent({ io: config.io, event, agent: agentName, json });
         }
         signal.throwIfAborted();
       } finally {
@@ -445,12 +496,17 @@ async function runRuntimeDev(
   );
 }
 
-async function startRuntimeTraceCollector(
-  config: DevProjectHandlerConfig,
-  project: Project,
-  runtimes: ProjectRuntime[],
-  json?: JsonRenderer,
-): Promise<DevTraceCollector | undefined> {
+async function startRuntimeTraceCollector({
+  config,
+  project,
+  runtimes,
+  json,
+}: {
+  config: DevProjectHandlerConfig;
+  project: Project;
+  runtimes: ProjectRuntime[];
+  json?: JsonRenderer;
+}): Promise<DevTraceCollector | undefined> {
   if (!runtimes.some((runtime) => runtime.instrumentation?.enableOtel ?? true)) return;
   const tracesDirectory = join(project.rootPath, "agentcore", ".cli", "traces", "otlp");
   let tracePersistErrorReported = false;
@@ -462,18 +518,18 @@ async function startRuntimeTraceCollector(
       if (tracePersistErrorReported) return;
       tracePersistErrorReported = true;
       const detail = error instanceof Error ? error.message : String(error);
-      renderStatus(
-        config.io,
-        `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
+      renderStatus({
+        io: config.io,
+        message: `Warning: failed to persist traces to ${tracesDirectory} (${detail}); collected traces may be incomplete.`,
         json,
-      );
+      });
     },
   });
-  renderStatus(
-    config.io,
-    `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
+  renderStatus({
+    io: config.io,
+    message: `OTEL collector listening on port ${collector.port}; traces persist to ${tracesDirectory}.`,
     json,
-  );
+  });
   return collector;
 }
 
@@ -481,25 +537,34 @@ async function startRuntimeTraceCollector(
  * Run one runtime directly. Unlike the supervised Inspector path, a crash here
  * fails the command (scripts and CI rely on the non-zero exit).
  */
-async function runWithoutUi(
-  config: DevProjectHandlerConfig,
-  runtime: ProjectRuntime,
-  project: Project,
-  explicitPort: number | undefined,
-  environment: (runtime: ProjectRuntime) => Promise<Record<string, string>>,
-  signal: AbortSignal,
-  json?: JsonRenderer,
-): Promise<void> {
-  const devPort = await resolveDevPort(runtime.protocol, explicitPort, config.checkPort, signal);
+async function runWithoutUi({
+  config,
+  runtime,
+  project,
+  options,
+  signal,
+  json,
+}: {
+  config: DevProjectHandlerConfig;
+  runtime: ProjectRuntime;
+  project: Project;
+  options: {
+    port?: number;
+    environment: (runtime: ProjectRuntime) => Promise<Record<string, string>>;
+  };
+  signal: AbortSignal;
+  json?: JsonRenderer;
+}): Promise<void> {
+  const devPort = await resolveDevPort(runtime.protocol, options.port, config.checkPort, signal);
   if (devPort.port !== devPort.requestedPort) {
-    renderStatus(
-      config.io,
-      `Port ${devPort.requestedPort} is in use; using ${devPort.port}.`,
+    renderStatus({
+      io: config.io,
+      message: `Port ${devPort.requestedPort} is in use; using ${devPort.port}.`,
       json,
-    );
+    });
   }
 
-  const env = await environment(runtime);
+  const env = await options.environment(runtime);
   signal.throwIfAborted();
 
   const runner = config.runners[runtime.build];
@@ -510,6 +575,6 @@ async function runWithoutUi(
     env,
     signal,
   })) {
-    renderAgentEvent(config.io, event, runtime.name, json);
+    renderAgentEvent({ io: config.io, event, agent: runtime.name, json });
   }
 }

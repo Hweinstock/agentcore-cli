@@ -23,7 +23,9 @@ export async function handleInvocations(
   request: HttpRequest,
 ): Promise<HttpResponse> {
   const parsed = parseJsonBody(request.body);
-  if (parsed && "harnessName" in parsed) return invokeHarness(deps, parsed, request.signal);
+  if (parsed && "harnessName" in parsed) {
+    return invokeHarness({ deps, body: parsed, signal: request.signal });
+  }
   const agentName = asString(parsed?.agentName);
   // Request header, agent body, and echoed x-session-id must agree, so one session id is computed once.
   const sessionId = asString(parsed?.sessionId) ?? randomUUID();
@@ -56,11 +58,15 @@ type HarnessOverrides = Partial<Omit<InvokeHarnessRequest, "systemPrompt">> & {
   systemPrompt?: string;
 };
 
-async function invokeHarness(
-  deps: InspectorDeps,
-  body: Record<string, unknown>,
-  signal: AbortSignal,
-): Promise<HttpResponse> {
+async function invokeHarness({
+  deps,
+  body,
+  signal,
+}: {
+  deps: InspectorDeps;
+  body: Record<string, unknown>;
+  signal: AbortSignal;
+}): Promise<HttpResponse> {
   const name = asString(body.harnessName);
   if (!name?.trim()) return apiError(400, "harnessName is required");
   const prompt = asString(body.prompt);

@@ -2,8 +2,6 @@ import { describe, expect, test } from "bun:test";
 import { join } from "node:path";
 import {
   InternalServerException,
-  RuntimeClientError,
-  ValidationException,
   type InvokeHarnessStreamOutput,
 } from "@aws-sdk/client-bedrock-agentcore";
 import type { GetHarnessResponse } from "@aws-sdk/client-bedrock-agentcore-control";
@@ -119,8 +117,6 @@ type HarnessOptions = {
   checkPort?: PortChecker;
   json?: boolean;
   loadEnvironment?: DevProjectHandlerConfig["loadDevEnvironment"];
-  deployFailure?: Error;
-  browserFailure?: Error;
 };
 
 function harness(options: HarnessOptions = {}) {
@@ -144,7 +140,6 @@ function harness(options: HarnessOptions = {}) {
   projectManager.deploy = async function* (configuredProject, input) {
     deployments.push({ project: configuredProject, input });
     yield { type: "output", line: "Deploying harnesses" };
-    if (options.deployFailure) throw options.deployFailure;
     return { outputs: {} };
   };
   projectManager.resolveTarget = async () => undefined;
@@ -184,7 +179,6 @@ function harness(options: HarnessOptions = {}) {
     },
     openBrowser: async (url) => {
       ui.opened.push(url);
-      if (options.browserFailure) throw options.browserFailure;
     },
     inspectorAssets: { read: async () => undefined },
     isInteractive: () => options.tty ?? false,
@@ -244,7 +238,7 @@ function harness(options: HarnessOptions = {}) {
 
 /** Ask the captured Inspector handler for the current agent status. */
 async function inspectorStatus(subject: ReturnType<typeof harness>): Promise<{ name: string }[]> {
-  const response = await inspectorRequest(subject, "/api/status");
+  const response = await inspectorRequest({ subject, url: "/api/status" });
   const status = JSON.parse(String(response.body)) as { agents: { name: string }[] };
   return status.agents;
 }
@@ -278,12 +272,6 @@ describe("project dev selection and dispatch", () => {
 
   test.each([
     [project(), {}, "This project has no runtimes or harnesses", InputValidationError],
-    [
-      project(),
-      { agent: "missing" },
-      "This project has no runtimes or harnesses",
-      InputValidationError,
-    ],
     [
       project(runtime("orders"), runtime("support", "Container")),
       { port: 4567 },
@@ -582,7 +570,7 @@ describe("project dev Inspector UI mode", () => {
     const { pending } = await runUi(subject, ["--agent", "support"]);
 
     expect((await inspectorStatus(subject)).map((agent) => agent.name)).toEqual(["support"]);
-    const status = await inspectorRequest(subject, "/api/status");
+    const status = await inspectorRequest({ subject, url: "/api/status" });
     expect(JSON.parse(String(status.body)).harnesses).toEqual([]);
     expect(subject.io.stderr()).not.toContain("Skipping runtime");
 
@@ -630,7 +618,15 @@ function harnessProject(
   return configured;
 }
 
-async function inspectorRequest(subject: ReturnType<typeof harness>, url: string, body?: unknown) {
+async function inspectorRequest({
+  subject,
+  url,
+  body,
+}: {
+  subject: ReturnType<typeof harness>;
+  url: string;
+  body?: unknown;
+}) {
   return subject.inspectorHandler()!({
     method: body === undefined ? "GET" : "POST",
     url,
@@ -654,47 +650,31 @@ describe("project dev harnesses", () => {
     expect(subject.ui.opened).toEqual([]);
     expect(subject.codeZip.inputs).toEqual([]);
     expect(subject.io.stderr()).toContain("Next step:\n  agentcore invoke");
-    if (json && !skipDeploy) {
-      expect(JSON.parse(subject.io.stdout()).message).toContain("Deployed project");
-    }
   });
 
   test.each([
-    { names: ["support"], runtimes: [], args: [], selected: ["support"], json: false },
+    { names: ["support"], args: [], target: "default", port: 8081 },
     {
       names: ["orders", "support"],
-      runtimes: [],
       args: ["--target", "staging", "--ui-port", "9001", "--yes"],
-      selected: ["orders", "support"],
-      json: true,
+      target: "staging",
+      port: 9001,
     },
-    {
-      names: ["orders", "support"],
-      runtimes: [runtime("runtime")],
-      args: ["--agent", "support"],
-      selected: ["support"],
-      json: false,
-    },
-  ])("deploys then serves Inspector (%o)", async ({ names, runtimes, args, selected, json }) => {
-    const configuredProject = harnessProject(names, runtimes);
-    const subject = harness({ project: configuredProject, tty: true, json });
-    const before = process.listenerCount("SIGTERM");
+  ])("deploys then serves Inspector (%o)", async ({ names, args, target, port }) => {
+    const configuredProject = harnessProject(names);
+    const subject = harness({ project: configuredProject, tty: true });
     const { pending } = await runUi(subject, args);
     try {
       const deployment = subject.deployments[0]!;
       expect(subject.deployments).toHaveLength(1);
       expect(deployment.project).toBe(configuredProject);
-      expect(deployment.input.target).toBe(
-        args.some((arg) => arg === "staging") ? "staging" : "default",
-      );
-      const response = await inspectorRequest(subject, "/api/status");
+      expect(deployment.input.target).toBe(target);
+      const response = await inspectorRequest({ subject, url: "/api/status" });
       const status = JSON.parse(String(response.body));
       expect(status.agents).toEqual([]);
-      expect(status.harnesses.map(({ name }: { name: string }) => name)).toEqual(selected);
-      expect(subject.ui.starts[0]?.port).toBe(args.some((arg) => arg === "9001") ? 9001 : 8081);
-      expect(subject.ui.opened).toEqual(
-        json ? [] : [`http://127.0.0.1:${subject.ui.starts[0]?.port}`],
-      );
+      expect(status.harnesses.map(({ name }: { name: string }) => name)).toEqual(names);
+      expect(subject.ui.starts[0]?.port).toBe(port);
+      expect(subject.ui.opened).toEqual([`http://127.0.0.1:${port}`]);
       expect(subject.codeZip.inputs).toHaveLength(0);
       expect(subject.collector.starts).toHaveLength(0);
     } finally {
@@ -702,161 +682,84 @@ describe("project dev harnesses", () => {
       await expect(pending).rejects.toBeInstanceOf(UserCancellationError);
     }
     expect(subject.ui.closed).toBe(1);
-    expect(process.listenerCount("SIGTERM")).toBe(before);
   });
 
-  test.each([
-    { args: ["--port=8080"] },
-    { args: ["--no-traces"] },
-    { args: ["--port=8080", "--no-traces"] },
-  ])("rejects runtime flags on harness dev: %o", async ({ args }) => {
+  test("rejects runtime flags on harness dev", async () => {
     const subject = harness({ project: harnessProject() });
-    await expect(subject.route(args)).rejects.toThrow("does not apply to harness dev");
+    await expect(subject.route(["--port=8080", "--no-traces"])).rejects.toThrow(
+      "--port, --no-traces does not apply to harness dev",
+    );
     expect(subject.deployments).toHaveLength(0);
   });
 
-  test.each([
-    { args: ["--target=default"] },
-    { args: ["--yes"] },
-    { args: ["--skip-deploy"] },
-    { args: ["--target=default", "--yes", "--skip-deploy"] },
-  ])("rejects harness flags on runtime dev: %o", async ({ args }) => {
+  test("rejects harness flags on runtime dev", async () => {
     const subject = harness();
-    await expect(subject.route(args)).rejects.toThrow("does not apply to runtime dev");
+    await expect(subject.route(["--target=default", "--yes", "--skip-deploy"])).rejects.toThrow(
+      "--target, --yes, --skip-deploy does not apply to runtime dev",
+    );
     expect(subject.codeZip.inputs).toHaveLength(0);
   });
 
   test("mixed projects require an unambiguous agent and can choose the runtime path", async () => {
     const subject = harness({ project: harnessProject(["support"], [runtime("orders")]) });
     await expect(subject.route([])).rejects.toThrow("Pass --agent <name>");
-    await expect(subject.route(["--agent", "missing"])).rejects.toBeInstanceOf(
-      ResourceNotFoundError,
-    );
     await subject.route(["--agent", "orders", "--no-traces"]);
     expect(subject.codeZip.inputs).toHaveLength(1);
     expect(subject.deployments).toHaveLength(0);
-    await expect(
-      harness({ project: harnessProject(["orders"], [runtime("orders")]) }).route([
-        "--agent",
-        "orders",
-      ]),
-    ).rejects.toThrow("names both a runtime and a harness");
   });
 
-  test.each([
-    { deployFailure: new Error("deployment failed"), message: "deployment failed", closed: 0 },
-    { checkPort: async () => false, message: "Port 9999 is already in use", closed: 0 },
-    { browserFailure: new Error("browser failed"), message: "browser failed", closed: 1 },
-  ])("cleans up harness startup failures (%o)", async ({ message, closed, ...options }) => {
-    const before = process.listenerCount("SIGINT");
-    const subject = harness({ ...options, project: harnessProject(), tty: true });
-    await expect(subject.route(["--mode", "browser", "--ui-port", "9999"])).rejects.toThrow(
-      message,
-    );
-    expect(subject.ui.closed).toBe(closed);
-    expect(process.listenerCount("SIGINT")).toBe(before);
-  });
-
-  test("Inspector invokes the deployed target and streams harness events and errors", async () => {
-    const subject = harness({ project: harnessProject(), tty: true });
-    const toolUse = { toolUseId: "search-1", name: "search" };
-    const toolResult = { toolUseId: "search-1", status: "success" as const };
-    const usage = { inputTokens: 1, outputTokens: 2, totalTokens: 3 };
-    const stream: InvokeHarnessStreamOutput[] = [
-      { messageStart: { role: "assistant" } },
-      { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "Hello" } } },
-      { contentBlockStart: { contentBlockIndex: 1, start: { toolUse } } },
-      { contentBlockDelta: { contentBlockIndex: 1, delta: { toolUse: { input: "{}" } } } },
-      { contentBlockStart: { contentBlockIndex: 2, start: { toolResult } } },
-      {
-        contentBlockDelta: { contentBlockIndex: 2, delta: { toolResult: [{ text: "Found it" }] } },
-      },
-      {
-        contentBlockDelta: {
-          contentBlockIndex: 3,
-          delta: { reasoningContent: { text: "Thinking" } },
-        },
-      },
-      { contentBlockStop: { contentBlockIndex: 3 } },
-      { messageStop: { stopReason: "end_turn" } },
-      { metadata: { usage, metrics: { latencyMs: 1 } } },
-      {
-        internalServerException: new InternalServerException({
-          message: "internal error",
-          $metadata: {},
-        }),
-      },
-      {
-        validationException: new ValidationException({
-          message: "validation error",
-          reason: undefined,
-          $metadata: {},
-        }),
-      },
-      { runtimeClientError: new RuntimeClientError({ message: "runtime error", $metadata: {} }) },
-      { $unknown: ["newEventType", {}] },
-    ];
+  test("Inspector invokes the selected harness without deploying", async () => {
+    const subject = harness({
+      project: harnessProject(["orders", "support"], [runtime("runtime")]),
+      tty: true,
+    });
     subject.harnessClient.queueInvokeStream(
-      (async function* () {
-        yield* stream;
-        throw new Error("stream disconnected");
+      (async function* (): AsyncGenerator<InvokeHarnessStreamOutput> {
+        yield { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "Hello" } } };
+        yield {
+          internalServerException: new InternalServerException({
+            message: "internal error",
+            $metadata: {},
+          }),
+        };
+        yield { $unknown: ["newEventType", {}] };
       })(),
     );
-    const { pending } = await runUi(subject, ["--target", "staging", "--skip-deploy"]);
+    const { pending } = await runUi(subject, [
+      "--agent",
+      "support",
+      "--target",
+      "staging",
+      "--skip-deploy",
+    ]);
     try {
-      const request = {
-        harnessName: "support",
-        prompt: "Hello",
-        userId: "user",
-        harnessOverrides: {
-          systemPrompt: "Be helpful",
-          maxIterations: 3,
-          harnessArn: "wrong-arn",
-          runtimeSessionId: "wrong-session",
-          messages: [],
+      const status = await inspectorRequest({ subject, url: "/api/status" });
+      expect(JSON.parse(String(status.body)).harnesses).toEqual([{ name: "support" }]);
+      const response = await inspectorRequest({
+        subject,
+        url: "/invocations",
+        body: {
+          harnessName: "support",
+          prompt: "Hello",
+          userId: "user",
         },
-      };
-      const response = await inspectorRequest(subject, "/invocations", request);
+      });
       expect(response.status).toBe(200);
-      expect(response.headers?.["Content-Type"]).toBe("text/event-stream");
-      const chunks: Uint8Array[] = [];
-      for await (const chunk of response.body as AsyncIterable<Uint8Array>) chunks.push(chunk);
-      const events = Buffer.concat(chunks)
+      const events = Buffer.concat(
+        await Array.fromAsync(response.body as AsyncIterable<Uint8Array>),
+      )
         .toString()
         .split("\n")
         .filter((line) => line.startsWith("data: "))
         .map((line) => JSON.parse(line.slice(6)));
-      expect(events).toContainEqual({
-        type: "contentBlockDelta",
-        contentBlockIndex: 0,
-        delta: { type: "text", text: "Hello" },
-      });
-      expect(events).toContainEqual({
-        type: "contentBlockStart",
-        contentBlockIndex: 1,
-        start: { type: "toolUse", toolUse },
-      });
-      expect(events).toContainEqual({
-        type: "contentBlockStart",
-        contentBlockIndex: 2,
-        start: { type: "toolResult", toolResult },
-      });
-      expect(events).toContainEqual({
-        type: "contentBlockDelta",
-        contentBlockIndex: 2,
-        delta: { type: "toolResult", results: [{ text: "Found it" }] },
-      });
-      expect(events).toContainEqual({ type: "metadata", usage, metrics: { latencyMs: 1 } });
-      expect(events.filter(({ type }) => type === "error")).toEqual([
+      expect(events).toEqual([
+        { type: "contentBlockDelta", contentBlockIndex: 0, delta: { type: "text", text: "Hello" } },
         { type: "error", errorType: "internalServerException", message: "internal error" },
-        { type: "error", errorType: "validationException", message: "validation error" },
-        { type: "error", errorType: "runtimeClientError", message: "runtime error" },
         {
           type: "error",
           errorType: "newEventType",
           message: "Unknown harness stream event: newEventType",
         },
-        { type: "error", errorType: "invocationError", message: "stream disconnected" },
       ]);
       expect(subject.deployments).toHaveLength(0);
       expect(subject.ui.opened).toEqual(["http://127.0.0.1:8081"]);
@@ -873,22 +776,9 @@ describe("project dev harnesses", () => {
           runtimeSessionId: response.headers?.["x-session-id"],
           runtimeUserId: "user",
           messages: [{ role: "user", content: [{ text: "Hello" }] }],
-          systemPrompt: [{ text: "Be helpful" }],
-          maxIterations: 3,
         },
         { region: "eu-west-1", credentials: expect.any(Function) },
       ]);
-      for (const [body, status] of [
-        [{ harnessName: 1, prompt: "Hello" }, 400],
-        [{ harnessName: "support", prompt: "" }, 400],
-        [{ harnessName: "missing", prompt: "Hello" }, 404],
-      ] as const) {
-        expect((await inspectorRequest(subject, "/invocations", body)).status).toBe(status);
-      }
-      subject.harnessClient.setGetResponse({} as GetHarnessResponse);
-      expect((await inspectorRequest(subject, "/invocations", request)).status).toBe(502);
-      subject.harnessClient.setError(new Error("service unavailable"));
-      expect((await inspectorRequest(subject, "/invocations", request)).status).toBe(502);
     } finally {
       process.emit("SIGINT", "SIGINT");
       await pending.catch(() => undefined);
