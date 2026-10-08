@@ -273,6 +273,12 @@ describe("project dev selection and dispatch", () => {
   test.each([
     [project(), {}, "This project has no runtimes or harnesses", InputValidationError],
     [
+      harnessProject(["orders"], [runtime("orders")]),
+      { agent: "orders" },
+      "names both a runtime and a harness",
+      InputValidationError,
+    ],
+    [
       project(runtime("orders"), runtime("support", "Container")),
       { port: 4567 },
       "--port applies to a single runtime. Use --agent to select one.",
@@ -570,11 +576,13 @@ describe("project dev Inspector UI mode", () => {
   });
 
   test("--agent narrows the supervised set", async () => {
+    const container = stayingRunner([{ type: "stdout", line: "support ready" }]);
     const subject = harness({
       project: harnessProject(
         ["harness"],
         [bmaRuntime(), runtime("orders"), runtime("support", "Container")],
       ),
+      container,
     });
     const { pending } = await runUi(subject, ["--agent", "support"]);
 
@@ -582,6 +590,14 @@ describe("project dev Inspector UI mode", () => {
     const status = await inspectorRequest({ subject, url: "/api/status" });
     expect(JSON.parse(String(status.body)).harnesses).toEqual([]);
     expect(subject.io.stderr()).not.toContain("Skipping runtime");
+    const started = await inspectorRequest({
+      subject,
+      url: "/api/start",
+      body: { agentName: "support" },
+    });
+    expect(started.status).toBe(200);
+    expect(container.inputs[0]?.port).toBe(8080);
+    expect(subject.io.stdout()).toContain("[support] support ready");
 
     process.emit("SIGINT", "SIGINT");
     await pending.catch(() => undefined);
@@ -722,12 +738,17 @@ describe("project dev harnesses", () => {
       project: harnessProject(["orders", "support"], [runtime("runtime")]),
       tty: true,
     });
+    const toolUse = { toolUseId: "search-1", name: "search" };
+    const toolResult = { toolUseId: "search-1", status: "success" as const };
     subject.harnessClient.queueInvokeStream(
       (async function* (): AsyncGenerator<InvokeHarnessStreamOutput> {
+        yield { contentBlockStart: { contentBlockIndex: 0, start: undefined } };
         yield { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "Hello" } } };
+        yield { contentBlockStart: { contentBlockIndex: 1, start: { toolUse } } };
+        yield { contentBlockStart: { contentBlockIndex: 2, start: { toolResult } } };
         yield {
           contentBlockDelta: {
-            contentBlockIndex: 1,
+            contentBlockIndex: 2,
             delta: {
               toolResult: [
                 { text: "before:" },
@@ -741,12 +762,19 @@ describe("project dev harnesses", () => {
           },
         };
         yield {
+          contentBlockDelta: {
+            contentBlockIndex: 3,
+            delta: { reasoningContent: { text: "Thinking" } },
+          },
+        };
+        yield {
           internalServerException: new InternalServerException({
             message: "internal error",
             $metadata: {},
           }),
         };
         yield { $unknown: ["newEventType", {}] };
+        throw new Error("stream failed");
       })(),
     );
     const { pending } = await runUi(subject, [
@@ -779,8 +807,18 @@ describe("project dev harnesses", () => {
       expect(events).toEqual([
         { type: "contentBlockDelta", contentBlockIndex: 0, delta: { type: "text", text: "Hello" } },
         {
-          type: "contentBlockDelta",
+          type: "contentBlockStart",
           contentBlockIndex: 1,
+          start: { type: "toolUse", toolUse },
+        },
+        {
+          type: "contentBlockStart",
+          contentBlockIndex: 2,
+          start: { type: "toolResult", toolResult },
+        },
+        {
+          type: "contentBlockDelta",
+          contentBlockIndex: 2,
           delta: {
             type: "toolResult",
             results: [
@@ -793,12 +831,18 @@ describe("project dev harnesses", () => {
             ],
           },
         },
+        {
+          type: "contentBlockDelta",
+          contentBlockIndex: 3,
+          delta: { type: "reasoningContent", text: "Thinking" },
+        },
         { type: "error", errorType: "internalServerException", message: "internal error" },
         {
           type: "error",
           errorType: "newEventType",
           message: "Unknown harness stream event: newEventType",
         },
+        { type: "error", errorType: "invocationError", message: "stream failed" },
       ]);
       expect(subject.deployments).toHaveLength(0);
       expect(subject.ui.opened).toEqual(["http://127.0.0.1:8081"]);
@@ -839,6 +883,24 @@ describe("project dev harnesses", () => {
     const signal = subject.harnessClient.calls.find(({ method }) => method === "invokeHarness")
       ?.args[2] as AbortSignal;
     expect(signal.aborted).toBe(true);
+  });
+
+  test.each([
+    ["/invocations", { harnessName: "missing", prompt: "hi" }, 404, 'Harness "missing" not found'],
+    ["/invocations", { harnessName: "support", prompt: "hi" }, 502, "lookup failed"],
+    ["/api/start", { agentName: "runtime" }, 404, "Runtime 'runtime' was not found"],
+  ] as const)("Inspector rejects %s %o", async (url, body, status, error) => {
+    const subject = harness({ project: harnessProject() });
+    subject.harnessClient.setError(new Error("lookup failed"));
+    const { pending } = await runUi(subject, ["--skip-deploy"]);
+    try {
+      const response = await inspectorRequest({ subject, url, body });
+      expect(response.status).toBe(status);
+      expect(JSON.parse(String(response.body)).error).toContain(error);
+    } finally {
+      process.emit("SIGINT", "SIGINT");
+      await pending.catch(() => undefined);
+    }
   });
 });
 

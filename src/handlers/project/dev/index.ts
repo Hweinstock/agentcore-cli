@@ -214,11 +214,10 @@ function resolveAgentSelection(project: Project, agent?: string): AgentSelection
   const selectedRuntimes = agent ? runtimes.filter(({ name }) => name === agent) : runtimes;
   const selectedHarnesses = agent ? harnesses.filter(({ name }) => name === agent) : harnesses;
   if (selectedRuntimes.length > 0 && selectedHarnesses.length > 0) {
-    throw new InputValidationError(
-      agent
-        ? `Agent '${agent}' names both a runtime and a harness. Give them distinct names in agentcore.json.`
-        : "This project has both runtimes and harnesses. Pass --agent <name> to choose which to run.",
-    );
+    const message = agent
+      ? `Agent '${agent}' names both a runtime and a harness. Give them distinct names in agentcore.json.`
+      : "This project has both runtimes and harnesses. Pass --agent <name> to choose which to run.";
+    throw new InputValidationError(message);
   }
   if (selectedHarnesses.length) return { type: "harness", harnesses: selectedHarnesses };
   if (!selectedRuntimes.length) {
