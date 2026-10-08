@@ -84,6 +84,7 @@ async function invokeHarness({
       name,
       {
         ...overrides,
+        qualifier: overrides?.qualifier ?? "DEFAULT",
         runtimeSessionId: sessionId,
         runtimeUserId: asString(body.userId),
         messages: [{ role: "user", content: [{ text: prompt }] }],

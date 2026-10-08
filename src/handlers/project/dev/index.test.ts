@@ -812,12 +812,26 @@ describe("project dev harnesses", () => {
       ).toMatchObject([
         {
           harnessArn: "arn:aws:bedrock-agentcore:eu-west-1:111122223333:harness/test",
+          qualifier: "DEFAULT",
           runtimeSessionId: response.headers?.["x-session-id"],
           runtimeUserId: "user",
           messages: [{ role: "user", content: [{ text: "Hello" }] }],
         },
         { region: "eu-west-1", credentials: expect.any(Function) },
       ]);
+      const overridden = await inspectorRequest({
+        subject,
+        url: "/invocations",
+        body: {
+          harnessName: "support",
+          prompt: "Hello",
+          harnessOverrides: { qualifier: "STAGING" },
+        },
+      });
+      expect(overridden.status).toBe(200);
+      expect(subject.harnessClient.calls.at(-1)?.args[0]).toMatchObject({
+        qualifier: "STAGING",
+      });
     } finally {
       process.emit("SIGINT", "SIGINT");
       await pending.catch(() => undefined);
