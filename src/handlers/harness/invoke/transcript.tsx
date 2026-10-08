@@ -213,10 +213,20 @@ export function applyEvent(turn: Turn, event: InvokeHarnessStreamOutput): void {
     return;
   }
 
-  const error =
-    event.validationException ?? event.internalServerException ?? event.runtimeClientError;
+  const error = harnessStreamError(event);
   if (error) {
-    turn.items.push({ kind: "error", message: error.message ?? String(error) });
+    turn.items.push({ kind: "error", message: error.message });
+  }
+}
+
+export function harnessStreamError(event: InvokeHarnessStreamOutput) {
+  for (const errorType of [
+    "validationException",
+    "internalServerException",
+    "runtimeClientError",
+  ] as const) {
+    const error = event[errorType];
+    if (error) return { errorType, message: error.message ?? String(error) };
   }
 }
 

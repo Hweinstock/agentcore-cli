@@ -235,7 +235,7 @@ function harness(options: HarnessOptions = {}) {
         { traces: true, yes: false, "skip-deploy": false, mode: "headless", ...flags },
         {},
       ),
-    route: (args: string[]) =>
+    route: (args: readonly string[]) =>
       new Router("agentcore", "test")
         .handler(handler)
         .route(["node", "agentcore", "dev", ...args], ctx),
@@ -705,23 +705,26 @@ describe("project dev harnesses", () => {
     expect(process.listenerCount("SIGTERM")).toBe(before);
   });
 
-  test.each(["--port=8080", "--no-traces"])(
-    "rejects runtime flags on harness dev: %s",
-    async (flag) => {
-      const subject = harness({ project: harnessProject() });
-      await expect(subject.route([flag])).rejects.toThrow("does not apply to harness dev");
-      expect(subject.deployments).toHaveLength(0);
-    },
-  );
+  test.each([
+    { args: ["--port=8080"] },
+    { args: ["--no-traces"] },
+    { args: ["--port=8080", "--no-traces"] },
+  ])("rejects runtime flags on harness dev: %o", async ({ args }) => {
+    const subject = harness({ project: harnessProject() });
+    await expect(subject.route(args)).rejects.toThrow("does not apply to harness dev");
+    expect(subject.deployments).toHaveLength(0);
+  });
 
-  test.each(["--target=default", "--yes", "--skip-deploy"])(
-    "rejects harness flags on runtime dev: %s",
-    async (flag) => {
-      const subject = harness();
-      await expect(subject.route([flag])).rejects.toThrow("does not apply to runtime dev");
-      expect(subject.codeZip.inputs).toHaveLength(0);
-    },
-  );
+  test.each([
+    { args: ["--target=default"] },
+    { args: ["--yes"] },
+    { args: ["--skip-deploy"] },
+    { args: ["--target=default", "--yes", "--skip-deploy"] },
+  ])("rejects harness flags on runtime dev: %o", async ({ args }) => {
+    const subject = harness();
+    await expect(subject.route(args)).rejects.toThrow("does not apply to runtime dev");
+    expect(subject.codeZip.inputs).toHaveLength(0);
+  });
 
   test("mixed projects require an unambiguous agent and can choose the runtime path", async () => {
     const subject = harness({ project: harnessProject(["support"], [runtime("orders")]) });
@@ -843,11 +846,11 @@ describe("project dev harnesses", () => {
         delta: { type: "toolResult", results: [{ text: "Found it" }] },
       });
       expect(events).toContainEqual({ type: "metadata", usage, metrics: { latencyMs: 1 } });
-      expect(events.filter(({ type }) => type === "error").map(({ message }) => message)).toEqual([
-        "internal error",
-        "validation error",
-        "runtime error",
-        "stream disconnected",
+      expect(events.filter(({ type }) => type === "error")).toEqual([
+        { type: "error", errorType: "internalServerException", message: "internal error" },
+        { type: "error", errorType: "validationException", message: "validation error" },
+        { type: "error", errorType: "runtimeClientError", message: "runtime error" },
+        { type: "error", errorType: "invocationError", message: "stream disconnected" },
       ]);
       expect(subject.deployments).toHaveLength(0);
       expect(subject.ui.opened).toEqual(["http://127.0.0.1:8081"]);
