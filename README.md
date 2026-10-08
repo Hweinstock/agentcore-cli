@@ -77,6 +77,10 @@ resources, and `agentcore/cdk/`, the AWS CDK app that deploys them. Deployment t
 and region each — live in `agentcore/aws-targets.json`. Project commands find the project by walking
 up from the current directory.
 
+`agentcore dev` runs runtimes locally or deploys harnesses and prints invoke guidance.
+Use `--mode browser` for Agent Inspector, `--skip-deploy` to reuse deployed harnesses,
+and `--agent <name>` to choose an agent in mixed projects.
+
 ## Commands
 
 | Command                                                          | Purpose                                                                  |

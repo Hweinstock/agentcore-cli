@@ -37,6 +37,7 @@ export function createProjectHandlers(core: Core, io: AppIO): Handler[] {
   const projectBoundHandlers = [
     createDevProjectHandler({
       projectManager,
+      harness: core.harness,
       io,
       middlewares: [withProjectMiddleware],
       runners: {
