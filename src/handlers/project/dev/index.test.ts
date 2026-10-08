@@ -794,6 +794,7 @@ describe("project dev harnesses", () => {
         }),
       },
       { runtimeClientError: new RuntimeClientError({ message: "runtime error", $metadata: {} }) },
+      { $unknown: ["newEventType", {}] },
     ];
     subject.harnessClient.queueInvokeStream(
       (async function* () {
@@ -850,6 +851,11 @@ describe("project dev harnesses", () => {
         { type: "error", errorType: "internalServerException", message: "internal error" },
         { type: "error", errorType: "validationException", message: "validation error" },
         { type: "error", errorType: "runtimeClientError", message: "runtime error" },
+        {
+          type: "error",
+          errorType: "newEventType",
+          message: "Unknown harness stream event: newEventType",
+        },
         { type: "error", errorType: "invocationError", message: "stream disconnected" },
       ]);
       expect(subject.deployments).toHaveLength(0);
