@@ -128,8 +128,14 @@ function harnessStreamEvent(event: InvokeHarnessStreamOutput): unknown {
     let payload: unknown;
     if (delta?.text !== undefined) payload = { type: "text", text: delta.text };
     else if (delta?.toolUse) payload = { type: "toolUse", ...delta.toolUse };
-    else if (delta?.toolResult) payload = { type: "toolResult", results: delta.toolResult };
-    else if (delta?.reasoningContent) {
+    else if (delta?.toolResult) {
+      payload = {
+        type: "toolResult",
+        results: delta.toolResult.map((chunk) =>
+          chunk.json !== undefined ? { text: JSON.stringify(chunk.json) } : chunk,
+        ),
+      };
+    } else if (delta?.reasoningContent) {
       payload = { type: "reasoningContent", ...delta.reasoningContent };
     }
     if (payload) return { type: "contentBlockDelta", contentBlockIndex, delta: payload };

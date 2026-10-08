@@ -717,6 +717,21 @@ describe("project dev harnesses", () => {
       (async function* (): AsyncGenerator<InvokeHarnessStreamOutput> {
         yield { contentBlockDelta: { contentBlockIndex: 0, delta: { text: "Hello" } } };
         yield {
+          contentBlockDelta: {
+            contentBlockIndex: 1,
+            delta: {
+              toolResult: [
+                { text: "before:" },
+                { json: null },
+                { json: false },
+                { json: 0 },
+                { json: { answer: 42 } },
+                { text: ":after" },
+              ],
+            },
+          },
+        };
+        yield {
           internalServerException: new InternalServerException({
             message: "internal error",
             $metadata: {},
@@ -754,6 +769,21 @@ describe("project dev harnesses", () => {
         .map((line) => JSON.parse(line.slice(6)));
       expect(events).toEqual([
         { type: "contentBlockDelta", contentBlockIndex: 0, delta: { type: "text", text: "Hello" } },
+        {
+          type: "contentBlockDelta",
+          contentBlockIndex: 1,
+          delta: {
+            type: "toolResult",
+            results: [
+              { text: "before:" },
+              { text: "null" },
+              { text: "false" },
+              { text: "0" },
+              { text: '{"answer":42}' },
+              { text: ":after" },
+            ],
+          },
+        },
         { type: "error", errorType: "internalServerException", message: "internal error" },
         {
           type: "error",
