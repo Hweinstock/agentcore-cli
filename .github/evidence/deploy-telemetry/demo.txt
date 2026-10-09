@@ -1,0 +1,661 @@
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> python3 verify.py agentcore-linux-x64
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> python3 verify.py agentcore-linux-x64
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> python3 verify.py agentcore-linux-x64
+> agentcore-linux-x64 create --name TelemetryDemo --template empty --skip-install --skip-git --region us-
+east-1
+Creating project tree
+Created project 'TelemetryDemo' in ./TelemetryDemo
+Next steps:
+  cd TelemetryDemo
+  agentcore deploy
+Empty project:
+> agentcore-linux-x64 deploy --target missing --json --region us-east-1
+{
+  "error": "Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-tar
+gets.json defines: default."
+}
+Error: Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-targets.
+json defines: default.
+{
+  "project_runtime_count": 0,
+  "project_memory_count": 0,
+  "project_knowledge_base_count": 0,
+  "project_credential_count": 0,
+  "project_evaluator_count": 0,
+  "project_online_eval_config_count": 0,
+  "project_gateway_count": 0,
+  "project_tool_runtime_count": 0,
+  "project_policy_engine_count": 0,
+  "project_config_bundle_count": 0,
+  "project_harness_count": 0,
+  "project_payment_manager_count": 0,
+  "project_gateway_target_count": 0,
+  "project_policy_count": 0,
+  "project_runtime_endpoint_count": 0,
+  "project_payment_connector_count": 0,
+  "project_memory_strategy_count": 0,
+  "project_knowledge_base_data_source_count": 0
+}
+Populated project with nested resources:
+> agentcore-linux-x64 deploy --target missing --json --region us-east-1
+{
+  "error": "Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-tar
+gets.json defines: default."
+}
+Error: Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-targets.
+json defines: default.
+{
+  "project_runtime_count": 1,
+  "project_memory_count": 1,
+  "project_knowledge_base_count": 1,
+  "project_credential_count": 0,
+  "project_evaluator_count": 0,
+  "project_online_eval_config_count": 0,
+  "project_gateway_count": 1,
+  "project_tool_runtime_count": 0,
+  "project_policy_engine_count": 1,
+  "project_config_bundle_count": 0,
+  "project_harness_count": 0,
+  "project_payment_manager_count": 1,
+  "project_gateway_target_count": 1,
+  "project_policy_count": 1,
+  "project_runtime_endpoint_count": 2,
+  "project_payment_connector_count": 1,
+  "project_memory_strategy_count": 1,
+  "project_knowledge_base_data_source_count": 1
+}
+PASS: compiled CLI emits all 18 counts, including explicit zeros.
+
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
+> python3 verify.py agentcore-linux-x64
+> agentcore-linux-x64 create --name TelemetryDemo --template empty --skip-install --skip-git --region us-
+east-1
+Creating project tree
+Created project 'TelemetryDemo' in ./TelemetryDemo
+Next steps:
+  cd TelemetryDemo
+  agentcore deploy
+Empty project:
+> agentcore-linux-x64 deploy --target missing --json --region us-east-1
+{
+  "error": "Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-tar
+gets.json defines: default."
+}
+Error: Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-targets.
+json defines: default.
+{
+  "project_runtime_count": 0,
+  "project_memory_count": 0,
+  "project_knowledge_base_count": 0,
+  "project_credential_count": 0,
+  "project_evaluator_count": 0,
+  "project_online_eval_config_count": 0,
+  "project_gateway_count": 0,
+  "project_tool_runtime_count": 0,
+  "project_policy_engine_count": 0,
+  "project_config_bundle_count": 0,
+  "project_harness_count": 0,
+  "project_payment_manager_count": 0,
+  "project_gateway_target_count": 0,
+  "project_policy_count": 0,
+  "project_runtime_endpoint_count": 0,
+  "project_payment_connector_count": 0,
+  "project_memory_strategy_count": 0,
+  "project_knowledge_base_data_source_count": 0
+}
+Populated project with nested resources:
+> agentcore-linux-x64 deploy --target missing --json --region us-east-1
+{
+  "error": "Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-tar
+gets.json defines: default."
+}
+Error: Project 'TelemetryDemo' has no deployment target named 'missing'. <fixture>/agentcore/aws-targets.
+json defines: default.
+{
+  "project_runtime_count": 1,
+  "project_memory_count": 1,
+  "project_knowledge_base_count": 1,
+  "project_credential_count": 0,
+  "project_evaluator_count": 0,
+  "project_online_eval_config_count": 0,
+  "project_gateway_count": 1,
+  "project_tool_runtime_count": 0,
+  "project_policy_engine_count": 1,
+  "project_config_bundle_count": 0,
+  "project_harness_count": 0,
+  "project_payment_manager_count": 1,
+  "project_gateway_target_count": 1,
+  "project_policy_count": 1,
+  "project_runtime_endpoint_count": 2,
+  "project_payment_connector_count": 1,
+  "project_memory_strategy_count": 1,
+  "project_knowledge_base_data_source_count": 1
+}
+PASS: compiled CLI emits all 18 counts, including explicit zeros.
+>
+
+
+
+
+
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────
