@@ -5,7 +5,6 @@ import type {
   InvokeHarnessStreamOutput,
 } from "@aws-sdk/client-bedrock-agentcore";
 import type { HttpRequest, HttpResponse } from "../../../io/httpServer";
-import { harnessStreamError } from "../../../handlers/harness/invoke/transcript";
 import {
   apiError,
   asString,
@@ -144,8 +143,18 @@ function harnessStreamEvent(event: InvokeHarnessStreamOutput): unknown {
   if (event.contentBlockStop) return { type: "contentBlockStop", ...event.contentBlockStop };
   if (event.messageStop) return { type: "messageStop", ...event.messageStop };
   if (event.metadata) return { type: "metadata", ...event.metadata };
-  const error = harnessStreamError(event);
-  if (error) return { type: "error", ...error };
+  for (const errorType of [
+    "validationException",
+    "internalServerException",
+    "runtimeClientError",
+  ] as const) {
+    const error = event[errorType];
+    if (error) return { type: "error", errorType, message: error.message ?? String(error) };
+  }
+  if (event.$unknown) {
+    const [errorType] = event.$unknown;
+    return { type: "error", errorType, message: `Unknown harness stream event: ${errorType}` };
+  }
 }
 
 async function forwardInvocation(

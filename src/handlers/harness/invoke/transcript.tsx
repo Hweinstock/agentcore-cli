@@ -133,7 +133,8 @@ function toolByUseId(turn: Turn, toolUseId: string): Extract<TranscriptItem, { k
 }
 
 // applyEvent folds one stream event into the turn, mutating it in place.
-// Irrelevant events are ignored; unknown variants surface as errors.
+// Unknown or irrelevant events are ignored; the stream's future growth must not
+// break rendering.
 export function applyEvent(turn: Turn, event: InvokeHarnessStreamOutput): void {
   if (event.messageStart) {
     // Content block indexes restart at 0 in each message; drop the old mapping
@@ -212,24 +213,10 @@ export function applyEvent(turn: Turn, event: InvokeHarnessStreamOutput): void {
     return;
   }
 
-  const error = harnessStreamError(event);
+  const error =
+    event.validationException ?? event.internalServerException ?? event.runtimeClientError;
   if (error) {
-    turn.items.push({ kind: "error", message: error.message });
-  }
-}
-
-export function harnessStreamError(event: InvokeHarnessStreamOutput) {
-  for (const errorType of [
-    "validationException",
-    "internalServerException",
-    "runtimeClientError",
-  ] as const) {
-    const error = event[errorType];
-    if (error) return { errorType, message: error.message ?? String(error) };
-  }
-  if (event.$unknown) {
-    const [errorType] = event.$unknown;
-    return { errorType, message: `Unknown harness stream event: ${errorType}` };
+    turn.items.push({ kind: "error", message: error.message ?? String(error) });
   }
 }
 

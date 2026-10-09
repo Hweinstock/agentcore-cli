@@ -303,17 +303,15 @@ describe("stream errors and unknown events", () => {
     ]);
   });
 
-  test("unknown variants surface as errors and irrelevant events are ignored", () => {
+  test("unknown events are ignored", () => {
     const turn = fold([
-      { $unknown: ["newEventType", {}] },
+      { $unknown: ["newEventType", {}] } as unknown as InvokeHarnessStreamOutput,
       {} as InvokeHarnessStreamOutput,
       // Deltas for a block index that was never started are dropped too.
       { contentBlockDelta: { contentBlockIndex: 9, delta: { toolUse: { input: "{}" } } } },
       blockStop(9),
     ]);
-    expect(turn.items).toEqual([
-      { kind: "error", message: "Unknown harness stream event: newEventType" },
-    ]);
+    expect(turn.items).toEqual([]);
   });
 });
 
