@@ -1,16 +1,22 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { QueryClient } from "@tanstack/react-query";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DeployBackendInput, ProjectBackend } from "../../core/project";
+import { CommandRunMetricEventKey, type Context } from "../../router";
+import { DefaultTelemetryClient } from "../../telemetry";
+import { FileSystemSink } from "../../telemetry/fileSystemSink";
 import {
   cleanupScreens,
+  createSilentLogger,
   flatFrame,
   initProject,
   inProjectContext,
   inTempDirectory,
   renderScreen,
   TestCoreClient,
+  TestGlobalConfigAccessor,
   waitForFlatText,
   waitForText,
 } from "../../testing";
@@ -67,6 +73,69 @@ function fakeBackend(options: FakeBackendOptions = {}) {
 const cleanups: Array<() => Promise<void>> = [];
 afterEach(cleanupScreens);
 afterEach(() => Promise.all(cleanups.splice(0).map((cleanup) => cleanup())));
+
+async function deployTelemetry() {
+  const directory = await mkdtemp(join(tmpdir(), "deploy-screen-telemetry-"));
+  cleanups.push(() => rm(directory, { recursive: true, force: true }));
+  const filePath = join(directory, "audit.jsonl");
+  const logger = createSilentLogger();
+  const client = new DefaultTelemetryClient({
+    logger,
+    globalConfigAccessor: new TestGlobalConfigAccessor(),
+    sessionId: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    currentVersion: "1.0.0",
+    metricSinks: [
+      new FileSystemSink({
+        logger,
+        filePath,
+        resourceAttributes: {
+          "service.name": "agentcore-cli",
+          "service.version": "1.0.0",
+          "agentcore-cli.installation_id": "00000000-0000-0000-0000-000000000000",
+          "agentcore-cli.session_id": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+          "os.type": "test",
+          "os.version": "test",
+          "host.arch": "test",
+          "node.version": process.version,
+        },
+      }),
+    ],
+  });
+  const event = client.createMetricEvent("cli.command_run", {
+    exit_reason: "success",
+    command_path: "/agentcore/deploy",
+    is_tui: true,
+  });
+  return {
+    withContext: (ctx: Context) => ctx.withValue(CommandRunMetricEventKey, event),
+    audit: async () => {
+      await event.emit(100);
+      await client.shutdown();
+      return JSON.parse(await readFile(filePath, "utf8"));
+    },
+  };
+}
+
+const EMPTY_RESOURCE_COUNTS = {
+  project_runtime_count: 0,
+  project_memory_count: 0,
+  project_knowledge_base_count: 0,
+  project_credential_count: 0,
+  project_evaluator_count: 0,
+  project_online_eval_config_count: 0,
+  project_gateway_count: 0,
+  project_tool_runtime_count: 0,
+  project_policy_engine_count: 0,
+  project_config_bundle_count: 0,
+  project_harness_count: 0,
+  project_payment_manager_count: 0,
+  project_gateway_target_count: 0,
+  project_policy_count: 0,
+  project_runtime_endpoint_count: 0,
+  project_payment_connector_count: 0,
+  project_memory_strategy_count: 0,
+  project_knowledge_base_data_source_count: 0,
+};
 
 /** Scaffolds project 'orders' with a default target and cds into it. */
 const STAGING = { name: "staging", account: "444455556666", region: "eu-west-1" } as const;
@@ -159,7 +228,8 @@ describe("project deploy screen", () => {
     const { backend, deploys } = fakeBackend();
     const core = new TestCoreClient({ backends: { CDK: backend } });
     await inProject(core);
-    const r = renderScreen("/agentcore/deploy", { core });
+    const telemetry = await deployTelemetry();
+    const r = renderScreen("/agentcore/deploy", { core, withContext: telemetry.withContext });
 
     // A project with resources is not asked anything, as on the command line.
     await waitForText(r.lastFrame, "✔ Deployed project 'orders' to target 'default'");
@@ -179,6 +249,15 @@ describe("project deploy screen", () => {
     expect(deploys).toHaveLength(1);
     expect(deploys[0]!.confirmed).toBe(false);
     expect(deploys[0]!.input.target.name).toBe("default");
+    expect(await telemetry.audit()).toMatchObject({
+      metricName: "cli.command_run",
+      attrs: {
+        command_path: "/agentcore/deploy",
+        is_tui: true,
+        ...EMPTY_RESOURCE_COUNTS,
+        project_harness_count: 1,
+      },
+    });
     r.unmount();
   });
 
@@ -324,7 +403,8 @@ describe("project deploy screen", () => {
     const { backend, deploys } = fakeBackend({ result: { outputs: {}, tornDown: true } });
     const core = new TestCoreClient({ backends: { CDK: backend } });
     await inProject(core, { empty: true });
-    const r = renderScreen("/agentcore/deploy", { core });
+    const telemetry = await deployTelemetry();
+    const r = renderScreen("/agentcore/deploy", { core, withContext: telemetry.withContext });
 
     await waitForFlatText(r.lastFrame, "declares no resources to deploy");
     // Confirm lays its (y/N) inline, so the question wraps around it.
@@ -335,6 +415,14 @@ describe("project deploy screen", () => {
 
     await waitForText(r.lastFrame, "✔ Removed project 'orders' from target 'default'");
     expect(deploys[0]!.confirmed).toBe(true);
+    expect(await telemetry.audit()).toMatchObject({
+      metricName: "cli.command_run",
+      attrs: {
+        command_path: "/agentcore/deploy",
+        is_tui: true,
+        ...EMPTY_RESOURCE_COUNTS,
+      },
+    });
     // Nothing is left to invoke.
     expect(r.lastFrame()).not.toContain("agentcore invoke");
     r.unmount();

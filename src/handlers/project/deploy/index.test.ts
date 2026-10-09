@@ -1,9 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import os, { tmpdir } from "node:os";
 import { join } from "node:path";
-import { UserCancellationError } from "../../../errors/errors";
+import { AgentCoreCLIError, UserCancellationError } from "../../../errors/errors";
+import { PACKAGE_VERSION } from "../../../constants";
 import { createRootHandler } from "../../index";
 import { DEFAULT_GLOBAL_CONFIG } from "../../../globalConfig";
+import { CommandRunMetricEventKey, ValueContext } from "../../../router";
+import { DefaultTelemetryClient } from "../../../telemetry";
+import { FileSystemSink } from "../../../telemetry/fileSystemSink";
 import {
   createSilentLogger,
   initProject,
@@ -36,6 +41,47 @@ const TEARDOWN: TeardownConfirmationRequest = {
 const TEARDOWN_PROMPT =
   "Deploying will delete everything deployed to target 'default' (111122223333/us-east-1). " +
   "Continue? (y/N)";
+const EMPTY_RESOURCE_COUNTS = {
+  project_runtime_count: 0,
+  project_memory_count: 0,
+  project_knowledge_base_count: 0,
+  project_credential_count: 0,
+  project_evaluator_count: 0,
+  project_online_eval_config_count: 0,
+  project_gateway_count: 0,
+  project_tool_runtime_count: 0,
+  project_policy_engine_count: 0,
+  project_config_bundle_count: 0,
+  project_harness_count: 0,
+  project_payment_manager_count: 0,
+  project_gateway_target_count: 0,
+  project_policy_count: 0,
+  project_runtime_endpoint_count: 0,
+  project_payment_connector_count: 0,
+  project_memory_strategy_count: 0,
+  project_knowledge_base_data_source_count: 0,
+};
+const DEFAULT_RESOURCE_COUNTS = { ...EMPTY_RESOURCE_COUNTS, project_harness_count: 1 };
+const POPULATED_RESOURCE_COUNTS = {
+  project_runtime_count: 3,
+  project_memory_count: 1,
+  project_knowledge_base_count: 2,
+  project_credential_count: 4,
+  project_evaluator_count: 5,
+  project_online_eval_config_count: 6,
+  project_gateway_count: 7,
+  project_tool_runtime_count: 8,
+  project_policy_engine_count: 9,
+  project_config_bundle_count: 10,
+  project_harness_count: 11,
+  project_payment_manager_count: 12,
+  project_gateway_target_count: 10,
+  project_policy_count: 13,
+  project_runtime_endpoint_count: 3,
+  project_payment_connector_count: 18,
+  project_memory_strategy_count: 2,
+  project_knowledge_base_data_source_count: 3,
+};
 
 /**
  * A ProjectBackend that deploys successfully, which CdkBackend cannot do until
@@ -98,25 +144,88 @@ function testDeployCommand(
     backends: { CDK: fake.backend },
     resolveAccount: options.resolveAccount,
   });
+  const logger = createSilentLogger();
+  const globalConfigAccessor = new TestGlobalConfigAccessor(
+    options.transactionSearch === undefined
+      ? undefined
+      : {
+          initialConfigData: {
+            ...DEFAULT_GLOBAL_CONFIG,
+            transactionSearch: options.transactionSearch,
+          },
+        },
+  );
+  const telemetryDirectory = mkdtemp(join(tmpdir(), "agentcore-deploy-telemetry-"));
+  cleanups.push(async () => {
+    await rm(await telemetryDirectory, { recursive: true, force: true });
+  });
+  const auditFilePath = telemetryDirectory.then((directory) => join(directory, "audit.jsonl"));
   const root = createRootHandler(core, {
     io: io.io,
-    globalConfigAccessor: new TestGlobalConfigAccessor(
-      options.transactionSearch === undefined
-        ? undefined
-        : {
-            initialConfigData: {
-              ...DEFAULT_GLOBAL_CONFIG,
-              transactionSearch: options.transactionSearch,
-            },
-          },
-    ),
-    logger: createSilentLogger(),
+    globalConfigAccessor,
+    logger,
   });
 
   return {
     ...fake,
     io,
-    run: (args: string[] = []) => root.route(["node", "agentcore", "deploy", ...args]),
+    run: async (args: string[] = []) => {
+      const sessionId = crypto.randomUUID();
+      const fileSystemSink = new FileSystemSink({
+        logger,
+        filePath: await auditFilePath,
+        resourceAttributes: {
+          "service.name": "agentcore-cli",
+          "service.version": PACKAGE_VERSION,
+          "agentcore-cli.installation_id": "00000000-0000-0000-0000-000000000000",
+          "agentcore-cli.session_id": sessionId,
+          "os.type": os.type(),
+          "os.version": os.release(),
+          "host.arch": os.arch(),
+          "node.version": process.version,
+        },
+      });
+      const telemetryClient = new DefaultTelemetryClient({
+        logger,
+        sessionId,
+        globalConfigAccessor,
+        currentVersion: PACKAGE_VERSION,
+        metricSinks: [fileSystemSink],
+      });
+      const metricEvent = telemetryClient.createMetricEvent("cli.command_run", {
+        exit_reason: "success",
+      });
+      const ctx = ValueContext.EmptyContext().withValue(CommandRunMetricEventKey, metricEvent);
+      const startTime = Date.now();
+      try {
+        await root.route(["node", "agentcore", "deploy", ...args], ctx);
+      } catch (cause) {
+        const error = AgentCoreCLIError.fromError(cause);
+        if (error.exitCode !== 0) {
+          metricEvent.setAttributes({
+            exit_reason: "failure",
+            error_name: error.name,
+            error_source: error.source,
+          });
+        }
+        throw cause;
+      } finally {
+        await metricEvent.emit(Date.now() - startTime);
+        await telemetryClient.shutdown();
+      }
+    },
+    telemetryAttributes: async () => {
+      const entries = (await readFile(await auditFilePath, "utf8"))
+        .trimEnd()
+        .split("\n")
+        .map((line) => JSON.parse(line));
+      expect(entries).toHaveLength(1);
+      expect(entries[0]).toMatchObject({
+        metricName: "cli.command_run",
+        value: expect.any(Number),
+      });
+      return entries[0].attrs;
+    },
   };
 }
 
@@ -142,6 +251,97 @@ async function emptyProjectSpec(projectRoot: string): Promise<void> {
   );
 }
 
+async function populatedProjectSpec(projectRoot: string): Promise<void> {
+  const resources = <T extends object>(
+    count: number,
+    namePrefix: string,
+    fields: (index: number) => T,
+  ) =>
+    Array.from({ length: count }, (_, index) => ({
+      name: `${namePrefix}${index}`,
+      ...fields(index),
+    }));
+  await writeFile(
+    join(projectRoot, "agentcore", "agentcore.json"),
+    JSON.stringify({
+      name: "orders",
+      version: 2,
+      runtimes: resources(3, "Runtime", (index) => ({
+        build: "CodeZip",
+        entrypoint: "main.py",
+        codeLocation: "app/agent",
+        runtimeVersion: "PYTHON_3_12",
+        endpoints:
+          index === 2
+            ? undefined
+            : {
+                LIVE: { version: 1 },
+                ...(index === 1 ? { STAGING: { version: 2 } } : {}),
+              },
+      })),
+      memories: resources(1, "Memory", () => ({
+        eventExpiryDuration: 30,
+        strategies: [{ type: "SEMANTIC" }, { type: "SUMMARIZATION" }],
+      })),
+      knowledgeBases: resources(2, "Knowledge", (index) => ({
+        dataSources: Array.from({ length: index + 1 }, (_, sourceIndex) => ({
+          type: "S3",
+          uri: `s3://test-bucket/documents${sourceIndex}`,
+        })),
+      })),
+      credentials: resources(4, "Credential", () => ({
+        authorizerType: "ApiKeyCredentialProvider",
+      })),
+      evaluators: resources(5, "Evaluator", () => ({
+        level: "SESSION",
+        config: {
+          codeBased: {
+            external: {
+              lambdaArn: "arn:aws:lambda:us-east-1:111122223333:function:evaluator",
+            },
+          },
+        },
+      })),
+      onlineEvalConfigs: resources(6, "Quality", () => ({
+        logGroupNames: ["/aws/agentcore/test"],
+        evaluators: ["Builtin.Helpfulness"],
+        samplingRate: 10,
+      })),
+      agentCoreGateways: resources(7, "Gateway", (index) => ({
+        protocolType: "None",
+        targets: resources((index % 2) + 1, "Target", () => ({
+          targetType: "httpRuntime",
+          httpRuntime: { runtime: "Runtime0" },
+        })),
+      })),
+      toolRuntimes: resources(8, "Tool", () => ({
+        toolDefinition: {
+          name: "search",
+          description: "Search catalog",
+          inputSchema: { type: "object" },
+        },
+        compute: {
+          host: "AgentCoreRuntime",
+          implementation: { language: "Python", path: "tools", handler: "handler.main" },
+        },
+      })),
+      policyEngines: resources(9, "PolicyEngine", (index) => ({
+        policies: resources((index % 2) + 1, "Policy", () => ({
+          statement: "permit(principal, action, resource);",
+        })),
+      })),
+      configBundles: resources(10, "Bundle", () => ({ components: {} })),
+      harnesses: resources(11, "Harness", () => ({ path: "app/harness" })),
+      payments: resources(12, "Payment", (index) => ({
+        connectors: resources((index % 2) + 1, "Connector", () => ({
+          provider: "CoinbaseCDP",
+          provisionMode: "QUICK_CREATE",
+        })),
+      })),
+    }),
+  );
+}
+
 describe("project deploy handler", () => {
   test("defaults to the default target and keeps progress off stdout", async () => {
     const subject = testDeployCommand(
@@ -152,10 +352,16 @@ describe("project deploy handler", () => {
         { type: "step", message: "Deploying stack" },
       ],
     );
-    await inProjectWithTargets();
+    const projectRoot = await inProjectWithTargets();
+    await populatedProjectSpec(projectRoot);
 
     await subject.run();
 
+    expect(await subject.telemetryAttributes()).toMatchObject({
+      command_path: "/agentcore/deploy",
+      exit_reason: "success",
+      ...POPULATED_RESOURCE_COUNTS,
+    });
     expect(subject.calls).toHaveLength(1);
     expect(subject.calls[0]?.input.target).toEqual(DEFAULT_TARGET);
     expect(subject.io.stderr()).toContain("Preparing deployment\nDeploying stack");
@@ -216,6 +422,11 @@ describe("project deploy handler", () => {
 
     await expect(subject.run(["--json"])).rejects.toThrow("ROLLBACK_COMPLETE");
 
+    expect(await subject.telemetryAttributes()).toMatchObject({
+      command_path: "/agentcore/deploy",
+      exit_reason: "failure",
+      ...DEFAULT_RESOURCE_COUNTS,
+    });
     expect(JSON.parse(subject.io.stdout())).toEqual({
       error: "The stack failed creation: ROLLBACK_COMPLETE",
     });
@@ -251,6 +462,11 @@ describe("project deploy handler", () => {
 
     await subject.run();
 
+    expect(await subject.telemetryAttributes()).toMatchObject({
+      command_path: "/agentcore/deploy",
+      exit_reason: "success",
+      ...EMPTY_RESOURCE_COUNTS,
+    });
     expect(subject.io.stderr()).toContain("Project 'orders' declares no resources to deploy.");
     expect(subject.io.stderr()).toContain(TEARDOWN_PROMPT);
     expect(subject.confirmations).toEqual([true]);
@@ -271,6 +487,11 @@ describe("project deploy handler", () => {
 
     await expect(subject.run()).rejects.toBeInstanceOf(UserCancellationError);
 
+    expect(await subject.telemetryAttributes()).toMatchObject({
+      command_path: "/agentcore/deploy",
+      exit_reason: "failure",
+      ...EMPTY_RESOURCE_COUNTS,
+    });
     expect(subject.io.stderr()).toContain("(y/N)");
     // Declined before the generator started: the backend never ran.
     expect(subject.calls).toEqual([]);
@@ -288,6 +509,11 @@ describe("project deploy handler", () => {
 
     await expect(subject.run()).rejects.toBeInstanceOf(UserCancellationError);
 
+    expect(await subject.telemetryAttributes()).toMatchObject({
+      command_path: "/agentcore/deploy",
+      exit_reason: "failure",
+      ...EMPTY_RESOURCE_COUNTS,
+    });
     expect(subject.calls).toEqual([]);
     expect(subject.io.stderr()).not.toContain("Removed project");
   });
