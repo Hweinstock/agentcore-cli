@@ -239,92 +239,52 @@ export class EvalClient implements CoreEvalClient {
     private readonly cloudWatch: CloudWatchClient = new CloudWatchClient(clients),
   ) {}
 
-  async resourceOnlineEvaluationLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource> {
-    const config = await this.onlineLogConfig(id, options, signal);
+  async resourceOnlineEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource> {
+    const config = await this.getOnlineEvaluationConfig(id, options);
     return this.evaluationLogSource({
       config,
       defaultLogGroup: `/aws/bedrock-agentcore/evaluations/results/${config.onlineEvaluationConfigId ?? serviceIdFromArn(id)}`,
       options,
-      signal,
     });
   }
 
-  async resourceOnlineInsightLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource> {
-    const config = await this.onlineLogConfig(id, options, signal);
-    if (!config.insights?.length) {
-      throw new InputValidationError(`"${id}" is not an online-insight config`);
-    }
+  async resourceOnlineInsightLogSource(id: string, options: CoreOptions): Promise<LogSource> {
+    const config = await this.getOnlineInsight(id, options);
     return this.evaluationLogSource({
       config,
       defaultLogGroup: `/aws/bedrock-agentcore/evaluations/results/${config.onlineEvaluationConfigId ?? serviceIdFromArn(id)}`,
       options,
-      signal,
     });
   }
 
-  async resourceBatchEvaluationLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource> {
-    const config = await this.batchLogConfig(id, options, signal);
+  async resourceBatchEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource> {
+    const { detail: config } = await this.getBatchEvaluation(id, options, {
+      includeResults: false,
+    });
     return this.evaluationLogSource({
       config,
       defaultLogGroup: "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default",
       options,
-      signal,
     });
   }
 
-  async resourceBatchInsightsLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource> {
-    const config = await this.batchLogConfig(id, options, signal);
-    if (!EvalClient.isBatchInsights(config)) {
-      throw new InputValidationError(`batch evaluation "${id}" is not a batch insights run`);
-    }
+  async resourceBatchInsightsLogSource(id: string, options: CoreOptions): Promise<LogSource> {
+    const config = await this.getBatchInsights(id, options);
     return this.evaluationLogSource({
       config,
       defaultLogGroup: "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default",
       options,
-      signal,
     });
-  }
-
-  private onlineLogConfig(id: string, options: CoreOptions, signal?: AbortSignal) {
-    return this.clients
-      .control(toClientConfig(options))
-      .send(new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }), {
-        abortSignal: signal,
-      });
-  }
-
-  private batchLogConfig(id: string, options: CoreOptions, signal?: AbortSignal) {
-    return this.clients
-      .data(toClientConfig(options))
-      .send(new GetBatchEvaluationCommand({ batchEvaluationId: id }), { abortSignal: signal });
   }
 
   private async evaluationLogSource({
     config,
     defaultLogGroup,
     options,
-    signal,
   }: {
     config: GetOnlineEvaluationConfigResponse | BatchEvaluationDetail;
     defaultLogGroup: string;
     options: CoreOptions;
-    signal?: AbortSignal;
   }): Promise<LogSource> {
     const output = config.outputConfig?.cloudWatchConfig;
     if (output?.logGroupName) return { logGroupName: output.logGroupName };
@@ -338,7 +298,7 @@ export class EvalClient implements CoreEvalClient {
     if (source && "onlineEvaluationConfigSource" in source) {
       const arn = source.onlineEvaluationConfigSource?.onlineEvaluationConfigArn;
       if (!arn) throw new MalformedServiceResponseError("Missing source online config ARN.");
-      source = (await this.onlineLogConfig(serviceIdFromArn(arn), options, signal))
+      source = (await this.getOnlineEvaluationConfig(serviceIdFromArn(arn), options))
         .dataSourceConfig;
     }
     const groups = source?.cloudWatchLogs;

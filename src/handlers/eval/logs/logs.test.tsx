@@ -41,7 +41,7 @@ function setup(
     batch?: Record<string, unknown>;
     logGroup?: string;
     onlineId?: string;
-    readMetadata?: (signal?: AbortSignal) => Promise<Record<string, unknown>>;
+    readLogs?: (signal?: AbortSignal) => Promise<Record<string, unknown>>;
   } = {},
 ) {
   const logGroup = options.logGroup ?? ONLINE_GROUP;
@@ -54,11 +54,7 @@ function setup(
   const core = new CoreClient({
     createControlClient: () =>
       ({
-        send: async (
-          command: GetOnlineEvaluationConfigCommand,
-          sendOptions?: { abortSignal?: AbortSignal },
-        ) => {
-          if (options.readMetadata) return options.readMetadata(sendOptions?.abortSignal);
+        send: async (command: GetOnlineEvaluationConfigCommand) => {
           if (command.input.onlineEvaluationConfigId !== onlineId) {
             throw new Error("Online evaluation configuration not found");
           }
@@ -81,8 +77,9 @@ function setup(
       }) as unknown as BedrockAgentCoreClient,
     createLogsClient: () =>
       ({
-        send: async (command: unknown) => {
+        send: async (command: unknown, sendOptions?: { abortSignal?: AbortSignal }) => {
           if (command instanceof FilterLogEventsCommand) {
+            if (options.readLogs) return options.readLogs(sendOptions?.abortSignal);
             const events = (command.input.logGroupName === logGroup ? EVENTS : []).filter(
               (event) =>
                 !command.input.logStreamNames ||
@@ -191,14 +188,14 @@ describe("evaluation logs", () => {
     expect(io.stderr()).toBe(`Streaming logs for online-eval ${ID}... (Ctrl+C to stop)`);
   });
 
-  test("Ctrl+C cancels a pending metadata lookup", async () => {
+  test("Ctrl+C cancels a pending log search", async () => {
     const started = Promise.withResolvers<void>();
-    const metadata = Promise.withResolvers<Record<string, unknown>>();
+    const search = Promise.withResolvers<Record<string, unknown>>();
     const { io, route } = setup({
-      readMetadata: (signal) => {
-        signal?.addEventListener("abort", () => metadata.reject(new Error("transport aborted")));
+      readLogs: (signal) => {
+        signal?.addEventListener("abort", () => search.reject(new Error("transport aborted")));
         started.resolve();
-        return metadata.promise;
+        return search.promise;
       },
     });
     const pending = route("online-eval", ["--id", ID, "--since", "1h"]);
@@ -208,7 +205,7 @@ describe("evaluation logs", () => {
       process.emit("SIGINT", "SIGINT");
       await expect(pending).rejects.toBeInstanceOf(UserCancellationError);
     } finally {
-      metadata.resolve({});
+      search.resolve({});
       await pending.catch(() => {});
     }
     expect(io.stdout()).toBe("");

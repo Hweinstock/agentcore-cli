@@ -11,10 +11,10 @@ export const createEvalLogsHandler = (
   io: AppIO,
   {
     resource,
-    logSource,
+    resolveLogSource,
   }: {
     resource: string;
-    logSource: CoreEvalClient["resourceBatchEvaluationLogSource"];
+    resolveLogSource: CoreEvalClient["resourceBatchEvaluationLogSource"];
   },
 ) =>
   createLogsHandler(io, {
@@ -23,7 +23,7 @@ export const createEvalLogsHandler = (
     flags: [flag("id", `the ID of the ${resource} resource`, z.string().min(1))] as const,
     read: async (ctx, flags, request, signal) => {
       const options = coreOptsFromCtx(ctx);
-      const source = await logSource(flags.id, options, signal);
+      const source = await resolveLogSource(flags.id, options);
 
       if (request.mode === "search") {
         return {

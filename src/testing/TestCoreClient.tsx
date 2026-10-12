@@ -1630,26 +1630,26 @@ export class TestEvalClient implements CoreEvalClient {
   readonly calls: RecordedCall[] = [];
   logSource: LogSource = { logGroupName: "/test/eval/results" };
 
-  async resourceOnlineEvaluationLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
-    this.calls.push({ method: "resourceOnlineEvaluationLogSource", args: [id, options, signal] });
+  async resourceOnlineEvaluationLogSource(id: string, options: CoreOptions) {
+    this.calls.push({ method: "resourceOnlineEvaluationLogSource", args: [id, options] });
     if (this.error) throw this.error;
     return this.logSource;
   }
 
-  async resourceOnlineInsightLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
-    this.calls.push({ method: "resourceOnlineInsightLogSource", args: [id, options, signal] });
+  async resourceOnlineInsightLogSource(id: string, options: CoreOptions) {
+    this.calls.push({ method: "resourceOnlineInsightLogSource", args: [id, options] });
     if (this.error) throw this.error;
     return this.logSource;
   }
 
-  async resourceBatchEvaluationLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
-    this.calls.push({ method: "resourceBatchEvaluationLogSource", args: [id, options, signal] });
+  async resourceBatchEvaluationLogSource(id: string, options: CoreOptions) {
+    this.calls.push({ method: "resourceBatchEvaluationLogSource", args: [id, options] });
     if (this.error) throw this.error;
     return this.logSource;
   }
 
-  async resourceBatchInsightsLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
-    this.calls.push({ method: "resourceBatchInsightsLogSource", args: [id, options, signal] });
+  async resourceBatchInsightsLogSource(id: string, options: CoreOptions) {
+    this.calls.push({ method: "resourceBatchInsightsLogSource", args: [id, options] });
     if (this.error) throw this.error;
     return this.logSource;
   }

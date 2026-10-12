@@ -389,26 +389,10 @@ export type DatasetUpdateProgressEvent = {
 // and implemented by src/core/eval.tsx (dependency inversion: handlers own the
 // abstraction).
 export interface CoreEvalClient {
-  resourceOnlineEvaluationLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource>;
-  resourceOnlineInsightLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource>;
-  resourceBatchEvaluationLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource>;
-  resourceBatchInsightsLogSource(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource>;
+  resourceOnlineEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource>;
+  resourceOnlineInsightLogSource(id: string, options: CoreOptions): Promise<LogSource>;
+  resourceBatchEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource>;
+  resourceBatchInsightsLogSource(id: string, options: CoreOptions): Promise<LogSource>;
   createEvaluator(
     request: CreateEvaluatorRequest,
     options: CoreOptions,

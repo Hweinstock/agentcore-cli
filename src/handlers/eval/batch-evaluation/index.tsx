@@ -27,7 +27,7 @@ export function createBatchEvaluationHandler(core: Core, io: AppIO): Router {
     .handler(
       createEvalLogsHandler(core, io, {
         resource: "batch-evaluation",
-        logSource: core.eval.resourceBatchEvaluationLogSource.bind(core.eval),
+        resolveLogSource: core.eval.resourceBatchEvaluationLogSource.bind(core.eval),
       }),
     );
 }

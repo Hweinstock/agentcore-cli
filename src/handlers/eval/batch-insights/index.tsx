@@ -21,7 +21,7 @@ export function createBatchInsightsHandler(core: Core, io: AppIO): Router {
     .handler(
       createEvalLogsHandler(core, io, {
         resource: "batch-insights",
-        logSource: core.eval.resourceBatchInsightsLogSource.bind(core.eval),
+        resolveLogSource: core.eval.resourceBatchInsightsLogSource.bind(core.eval),
       }),
     );
 }

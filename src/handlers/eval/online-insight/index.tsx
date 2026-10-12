@@ -27,7 +27,7 @@ export function createOnlineInsightHandler(core: Core, io: AppIO): Router {
     .handler(
       createEvalLogsHandler(core, io, {
         resource: "online-insight",
-        logSource: core.eval.resourceOnlineInsightLogSource.bind(core.eval),
+        resolveLogSource: core.eval.resourceOnlineInsightLogSource.bind(core.eval),
       }),
     );
 }

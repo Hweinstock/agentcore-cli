@@ -27,7 +27,7 @@ export function createOnlineEvalHandler(core: Core, io: AppIO): Router {
     .handler(
       createEvalLogsHandler(core, io, {
         resource: "online-eval",
-        logSource: core.eval.resourceOnlineEvaluationLogSource.bind(core.eval),
+        resolveLogSource: core.eval.resourceOnlineEvaluationLogSource.bind(core.eval),
       }),
     );
 }
