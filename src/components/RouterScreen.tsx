@@ -68,11 +68,6 @@ interface Option {
   section?: string;
 }
 
-export interface TuiOnlyCommand {
-  name: string;
-  description: string;
-}
-
 export interface RouterScreenProps extends ScreenProps {
   // banner is content shown above the standard screen header.
   banner?: React.ReactNode;
@@ -80,9 +75,6 @@ export interface RouterScreenProps extends ScreenProps {
   // segment is the app root; the last is the command whose subcommands are the
   // menu options.
   path: string[];
-  // tuiOnlyCommands are navigable informational flows that intentionally do
-  // not exist in the CLI command tree.
-  tuiOnlyCommands?: TuiOnlyCommand[];
   // optionHints adds short contextual guidance alongside selected menu options.
   optionHints?: Readonly<Record<string, string>>;
   // optionNotices adds warning-colored guidance alongside selected menu options.
@@ -98,8 +90,7 @@ export interface RouterScreenProps extends ScreenProps {
 // RouterScreen renders the interactive command menu for a Router node: a filter
 // input at the top and the node's subcommands (read straight off the Commander
 // Command) as navigable options below. Selecting an option routes to that
-// subcommand's screen. Subcommands without a screen are listed below a divider
-// and open their help instead (see CliOnlyScreen).
+// subcommand's screen. Commands without a TUI destination are omitted.
 export function RouterScreen(props: RouterScreenProps) {
   const command = resolveCommand(props.ctx.require(CommandKey), props.path);
   const resolvedPath = commandPath(command);
@@ -113,7 +104,6 @@ export function RouterScreen(props: RouterScreenProps) {
 function CommandMenu({
   banner,
   path,
-  tuiOnlyCommands = [],
   optionHints,
   optionNotices,
   cliSectionCommands = [],
@@ -132,11 +122,9 @@ function CommandMenu({
     pinRegion(undefined);
   }, [pinRegion]);
 
-  // Commands in registration order, then the command-line-only ones under their
-  // own divider. A section the router declared with menuSection covers the
-  // commands from where it was declared up to the next one. A command the
-  // router listed with listInMenu stays in place, styled like one with a
-  // screen; selecting it still opens its help.
+  // Commands with TUI destinations in registration order. A section the router
+  // declared with menuSection covers the commands from where it was declared up
+  // to the next one.
   const options: Option[] = useMemo(() => {
     // Each command's section is the nearest divider declared at or above it.
     const sectionOf = (index: number) =>
@@ -144,27 +132,23 @@ function CommandMenu({
         .slice(0, index + 1)
         .map(commandMenuSectionStart)
         .findLast((title) => title !== undefined);
-    const actual: Option[] = command.commands.map((c, index) => {
-      const cliOnly = !isTuiCommandSupported(c) && !isListedInMenu(c);
-      const belongsToCliSection = cliOnly || cliSectionCommands.includes(c.name());
-      return {
-        name: c.name(),
-        description: c.description(),
-        hint: optionHints?.[c.name()],
-        notice: optionNotices?.[c.name()],
-        section: belongsToCliSection ? CLI_ONLY_SECTION : sectionOf(index),
-      };
+    const actual: Option[] = command.commands.flatMap((c, index) => {
+      if (!isTuiCommandSupported(c) && !isListedInMenu(c)) return [];
+      return [
+        {
+          name: c.name(),
+          description: c.description(),
+          hint: optionHints?.[c.name()],
+          notice: optionNotices?.[c.name()],
+          section: cliSectionCommands.includes(c.name()) ? CLI_ONLY_SECTION : sectionOf(index),
+        },
+      ];
     });
-    const actualNames = new Set(actual.map((option) => option.name));
-    const tuiOnly = tuiOnlyCommands
-      .filter((option) => !actualNames.has(option.name))
-      .map((option): Option => ({ ...option, hint: optionHints?.[option.name] }));
     return [
-      ...tuiOnly,
       ...actual.filter((option) => option.section !== CLI_ONLY_SECTION),
       ...actual.filter((option) => option.section === CLI_ONLY_SECTION),
     ].filter((option) => !hiddenOptions?.includes(option.name));
-  }, [cliSectionCommands, command, hiddenOptions, optionHints, optionNotices, tuiOnlyCommands]);
+  }, [cliSectionCommands, command, hiddenOptions, optionHints, optionNotices]);
 
   const [query, setQuery] = useState("");
   const [index, setIndex] = useState(0);
