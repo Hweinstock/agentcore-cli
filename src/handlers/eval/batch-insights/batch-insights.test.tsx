@@ -42,7 +42,13 @@ describe("eval batch-insights command hierarchy", () => {
       ?.children()
       .find((child) => child.name() === "batch-insights");
 
-    expect(group?.children().map((child) => child.name())).toEqual(["run", "get", "list", "stop"]);
+    expect(group?.children().map((child) => child.name())).toEqual([
+      "run",
+      "get",
+      "list",
+      "stop",
+      "logs",
+    ]);
   });
 
   test("prints help for a bare invocation without a Core call", async () => {
