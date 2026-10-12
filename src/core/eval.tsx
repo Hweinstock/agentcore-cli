@@ -239,80 +239,78 @@ export class EvalClient implements CoreEvalClient {
     private readonly cloudWatch: CloudWatchClient = new CloudWatchClient(clients),
   ) {}
 
-  async resourceOnlineEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource> {
-    const config = await this.getOnlineEvaluationConfig(id, options);
+  async resourceOnlineEvaluationLogSource(
+    onlineEvaluationConfigId: string,
+    options: CoreOptions,
+  ): Promise<LogSource> {
+    const onlineEvaluationConfig = await this.getOnlineEvaluationConfig(
+      onlineEvaluationConfigId,
+      options,
+    );
     return this.evaluationLogSource({
-      config,
-      defaultLogGroup: `/aws/bedrock-agentcore/evaluations/results/${config.onlineEvaluationConfigId ?? serviceIdFromArn(id)}`,
+      evaluationMetadata: onlineEvaluationConfig,
+      defaultLogGroupName: `/aws/bedrock-agentcore/evaluations/results/${onlineEvaluationConfig.onlineEvaluationConfigId ?? serviceIdFromArn(onlineEvaluationConfigId)}`,
       options,
     });
   }
 
-  async resourceOnlineInsightLogSource(id: string, options: CoreOptions): Promise<LogSource> {
-    const config = await this.getOnlineInsight(id, options);
-    return this.evaluationLogSource({
-      config,
-      defaultLogGroup: `/aws/bedrock-agentcore/evaluations/results/${config.onlineEvaluationConfigId ?? serviceIdFromArn(id)}`,
-      options,
-    });
-  }
-
-  async resourceBatchEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource> {
-    const { detail: config } = await this.getBatchEvaluation(id, options, {
+  async resourceBatchEvaluationLogSource(
+    batchEvaluationId: string,
+    options: CoreOptions,
+  ): Promise<LogSource> {
+    const { detail: batchEvaluation } = await this.getBatchEvaluation(batchEvaluationId, options, {
       includeResults: false,
     });
     return this.evaluationLogSource({
-      config,
-      defaultLogGroup: "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default",
-      options,
-    });
-  }
-
-  async resourceBatchInsightsLogSource(id: string, options: CoreOptions): Promise<LogSource> {
-    const config = await this.getBatchInsights(id, options);
-    return this.evaluationLogSource({
-      config,
-      defaultLogGroup: "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default",
+      evaluationMetadata: batchEvaluation,
+      defaultLogGroupName: "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default",
       options,
     });
   }
 
   private async evaluationLogSource({
-    config,
-    defaultLogGroup,
+    evaluationMetadata,
+    defaultLogGroupName,
     options,
   }: {
-    config: GetOnlineEvaluationConfigResponse | BatchEvaluationDetail;
-    defaultLogGroup: string;
+    evaluationMetadata: GetOnlineEvaluationConfigResponse | BatchEvaluationDetail;
+    defaultLogGroupName: string;
     options: CoreOptions;
   }): Promise<LogSource> {
-    const output = config.outputConfig?.cloudWatchConfig;
-    if (output?.logGroupName) return { logGroupName: output.logGroupName };
-    if (config.outputConfig && !output) {
+    const cloudWatchOutputConfig = evaluationMetadata.outputConfig?.cloudWatchConfig;
+    if (cloudWatchOutputConfig?.logGroupName)
+      return { logGroupName: cloudWatchOutputConfig.logGroupName };
+    if (evaluationMetadata.outputConfig && !cloudWatchOutputConfig) {
       throw new InputValidationError("Logs require a CloudWatch output configuration.");
     }
-    if (output?.resultDestination !== "SOURCE_LOG_GROUP") {
-      return { logGroupName: defaultLogGroup };
+    if (cloudWatchOutputConfig?.resultDestination !== "SOURCE_LOG_GROUP") {
+      return { logGroupName: defaultLogGroupName };
     }
-    let source = config.dataSourceConfig;
-    if (source && "onlineEvaluationConfigSource" in source) {
-      const arn = source.onlineEvaluationConfigSource?.onlineEvaluationConfigArn;
-      if (!arn) throw new MalformedServiceResponseError("Missing source online config ARN.");
-      source = (await this.getOnlineEvaluationConfig(serviceIdFromArn(arn), options))
-        .dataSourceConfig;
+    let dataSourceConfig = evaluationMetadata.dataSourceConfig;
+    if (dataSourceConfig && "onlineEvaluationConfigSource" in dataSourceConfig) {
+      const onlineEvaluationConfigArn =
+        dataSourceConfig.onlineEvaluationConfigSource?.onlineEvaluationConfigArn;
+      if (!onlineEvaluationConfigArn)
+        throw new MalformedServiceResponseError("Missing source online config ARN.");
+      dataSourceConfig = (
+        await this.getOnlineEvaluationConfig(serviceIdFromArn(onlineEvaluationConfigArn), options)
+      ).dataSourceConfig;
     }
-    const groups = source?.cloudWatchLogs;
-    if (groups?.logGroupNamePrefixes?.length || (groups?.logGroupNames?.length ?? 0) > 1) {
+    const cloudWatchSourceConfig = dataSourceConfig?.cloudWatchLogs;
+    if (
+      cloudWatchSourceConfig?.logGroupNamePrefixes?.length ||
+      (cloudWatchSourceConfig?.logGroupNames?.length ?? 0) > 1
+    ) {
       throw new InputValidationError(
         "Results use multiple source log groups or prefixes. " +
           "Read them directly in CloudWatch Logs, or configure one explicit source log group.",
       );
     }
-    const logGroupName = groups?.logGroupNames?.[0];
-    if (!logGroupName) {
+    const sourceLogGroupName = cloudWatchSourceConfig?.logGroupNames?.[0];
+    if (!sourceLogGroupName) {
       throw new MalformedServiceResponseError("Missing source log group name.");
     }
-    return { logGroupName };
+    return { logGroupName: sourceLogGroupName };
   }
 
   async createEvaluator(

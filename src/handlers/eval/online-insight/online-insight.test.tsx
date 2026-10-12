@@ -103,7 +103,6 @@ describe("eval online-insight command hierarchy", () => {
       "pause",
       "resume",
       "delete",
-      "logs",
     ]);
   });
 });

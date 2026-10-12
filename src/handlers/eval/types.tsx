@@ -390,9 +390,7 @@ export type DatasetUpdateProgressEvent = {
 // abstraction).
 export interface CoreEvalClient {
   resourceOnlineEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource>;
-  resourceOnlineInsightLogSource(id: string, options: CoreOptions): Promise<LogSource>;
   resourceBatchEvaluationLogSource(id: string, options: CoreOptions): Promise<LogSource>;
-  resourceBatchInsightsLogSource(id: string, options: CoreOptions): Promise<LogSource>;
   createEvaluator(
     request: CreateEvaluatorRequest,
     options: CoreOptions,

@@ -1636,20 +1636,8 @@ export class TestEvalClient implements CoreEvalClient {
     return this.logSource;
   }
 
-  async resourceOnlineInsightLogSource(id: string, options: CoreOptions) {
-    this.calls.push({ method: "resourceOnlineInsightLogSource", args: [id, options] });
-    if (this.error) throw this.error;
-    return this.logSource;
-  }
-
   async resourceBatchEvaluationLogSource(id: string, options: CoreOptions) {
     this.calls.push({ method: "resourceBatchEvaluationLogSource", args: [id, options] });
-    if (this.error) throw this.error;
-    return this.logSource;
-  }
-
-  async resourceBatchInsightsLogSource(id: string, options: CoreOptions) {
-    this.calls.push({ method: "resourceBatchInsightsLogSource", args: [id, options] });
     if (this.error) throw this.error;
     return this.logSource;
   }

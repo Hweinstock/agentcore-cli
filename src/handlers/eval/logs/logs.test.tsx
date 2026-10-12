@@ -11,11 +11,11 @@ import {
   type CloudWatchLogsClient,
 } from "@aws-sdk/client-cloudwatch-logs";
 import { CoreClient } from "../../../core";
-import { InputValidationError, UserCancellationError } from "../../../errors";
+import { UserCancellationError } from "../../../errors";
 import { createSilentLogger, TestGlobalConfigAccessor, testIO } from "../../../testing";
 import { createRootHandler } from "../../index";
 
-type Resource = "online-eval" | "online-insight" | "batch-evaluation" | "batch-insights";
+type Resource = "online-eval" | "batch-evaluation";
 const SINCE = 1_709_391_000_000;
 const ID = "config-AbC123XyZ9";
 const ONLINE_GROUP = `/aws/bedrock-agentcore/evaluations/results/${ID}`;
@@ -46,7 +46,6 @@ function setup(
 ) {
   const logGroup = options.logGroup ?? ONLINE_GROUP;
   const onlineId = options.onlineId ?? ID;
-  const insights = [{ insightId: "Builtin.Insight.FailureAnalysis" }];
   const logGroupArn = `arn:aws:logs:us-west-2:123456789012:log-group:${logGroup}`;
   const unusedClient = () => {
     throw new Error("Unexpected AWS client");
@@ -60,7 +59,6 @@ function setup(
           }
           return {
             onlineEvaluationConfigId: onlineId,
-            insights,
             dataSourceConfig: { cloudWatchLogs: { logGroupNames: [SOURCE_GROUP] } },
             ...options.online,
           };
@@ -71,7 +69,6 @@ function setup(
         send: async () => ({
           batchEvaluationId: ID,
           status: "COMPLETED",
-          insights,
           ...options.batch,
         }),
       }) as unknown as BedrockAgentCoreClient,
@@ -139,9 +136,7 @@ function setup(
 describe("evaluation logs", () => {
   test.each([
     ["online-eval", "default", { logGroup: ONLINE_GROUP }],
-    ["online-insight", "default", { logGroup: ONLINE_GROUP }],
     ["batch-evaluation", "default", { logGroup: BATCH_GROUP }],
-    ["batch-insights", "default", { logGroup: BATCH_GROUP }],
     ["online-eval", "custom", { logGroup: "/custom/results", online: CUSTOM_CONFIG }],
     ["batch-evaluation", "custom", { logGroup: "/custom/results", batch: CUSTOM_CONFIG }],
     ["online-eval", "source", { logGroup: SOURCE_GROUP, online: { outputConfig: SOURCE_OUTPUT } }],
@@ -219,17 +214,6 @@ describe("evaluation logs", () => {
       "required option '--id' not specified",
     );
   });
-
-  test.each(["online-insight", "batch-insights"] as const)(
-    "%s rejects a resource without insights",
-    async (resource) => {
-      const { route } = setup({ online: { insights: [] }, batch: { insights: [] } });
-
-      await expect(route(resource, ["--id", ID, "--since", "1h"])).rejects.toBeInstanceOf(
-        InputValidationError,
-      );
-    },
-  );
 
   test("explains how to read results when the source has multiple groups", async () => {
     const { route } = setup({
