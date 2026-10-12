@@ -209,7 +209,9 @@ export class CdkBackend implements ProjectBackend {
   ): AsyncGenerator<ProjectEvent, void> {
     await this.ensureCdkDependencies(project);
 
-    const compatibilityWarning = await cdkCompatibilityWarning(this.cdkDirectory(project));
+    const compatibilityWarning = project.isV0
+      ? undefined
+      : await cdkCompatibilityWarning(this.cdkDirectory(project));
     if (compatibilityWarning) {
       yield { type: "warning", message: compatibilityWarning };
     }

@@ -10,6 +10,7 @@ import {
 } from "@aws-sdk/client-bedrock-agentcore-control";
 import type { Project, ProjectEvent } from "../../../../handlers/project/types";
 import { ProjectSpecSchema } from "../../../../projectSchemas/project";
+import { LegacyCompatibleProjectSpecSchema } from "../../../../projectSchemas/legacyProject";
 import type { CoreOptions } from "../../../types";
 import { EnvLocalFile } from "../../envLocal";
 import {
@@ -67,7 +68,7 @@ afterEach(async () => {
   );
 });
 
-async function project(credentials: unknown[], envLocal?: string): Promise<Project> {
+async function project(credentials: unknown[], envLocal?: string, isV0 = false): Promise<Project> {
   const rootPath = await mkdtemp(join(tmpdir(), "agentcore-credentials-"));
   tempDirectories.push(rootPath);
   const file = new EnvLocalFile(rootPath);
@@ -76,7 +77,12 @@ async function project(credentials: unknown[], envLocal?: string): Promise<Proje
   return {
     name: "example",
     rootPath,
-    spec: ProjectSpecSchema.parse({ name: "example", version: 2, credentials }),
+    spec: (isV0 ? LegacyCompatibleProjectSpecSchema : ProjectSpecSchema).parse({
+      name: "example",
+      version: isV0 ? 1 : 2,
+      credentials,
+    }),
+    ...(isV0 ? { isV0: true } : {}),
   };
 }
 
@@ -318,6 +324,73 @@ const recordedAs = (
 ): DeployedCredential => ({ ...arns, authorizerType });
 
 describe("createCredentialProvisioner", () => {
+  test.each([undefined, "AGENTCORE_CREDENTIAL_OPENAI_KEY='updated-key'\n"])(
+    "reuses the bare v0 provider name with local secret %j",
+    async (envLocal) => {
+      const existing = {
+        credentialProviderArn: "arn:apikey:openai-key",
+        clientSecretArn: "arn:secret:openai-key",
+      };
+      const subject = account({ [API_KEY.name]: existing });
+      const input = { ...(await project([API_KEY], envLocal)), isV0: true };
+
+      const { result } = await run(subject.provision, input);
+
+      expect(result[API_KEY.name]?.credentialProviderArn).toBe(existing.credentialProviderArn);
+      expect(Object.keys(subject.contents())).toEqual([API_KEY.name]);
+      expect(subject.contents()[API_KEY.name]?.operation).toBe(
+        envLocal === undefined ? undefined : "updated",
+      );
+    },
+  );
+
+  test.each(["CustomOauth2", "GithubOauth2"])(
+    "reuses an imported v0 %s provider even when a local secret is present",
+    async (vendor) => {
+      const name = "imported";
+      const existing = {
+        credentialProviderArn: `arn:oauth:${name}`,
+        clientSecretArn: `arn:secret:${name}`,
+        credentialProviderVendor: vendor,
+      };
+      const subject = account({ [name]: existing });
+      const input = await project(
+        [{ name, authorizerType: "OAuthCredentialProvider" }],
+        "AGENTCORE_CREDENTIAL_IMPORTED_CLIENT_SECRET='local-secret'\n",
+        true,
+      );
+
+      const { result } = await run(subject.provision, input);
+
+      expect(result[name]?.credentialProviderArn).toBe(existing.credentialProviderArn);
+      expect(subject.contents()).toEqual({ [name]: existing });
+    },
+  );
+
+  test("explains an imported v0 OAuth provider that does not exist", async () => {
+    const subject = account();
+    const input = await project(
+      [{ name: "imported", authorizerType: "OAuthCredentialProvider" }],
+      undefined,
+      true,
+    );
+
+    await expect(run(subject.provision, input)).rejects.toThrow(
+      "references an existing provider that was not found",
+    );
+    expect(subject.contents()).toEqual({});
+  });
+
+  test("creates a new v0 API key provider using its original name", async () => {
+    const subject = account();
+    const input = await project([API_KEY], "AGENTCORE_CREDENTIAL_OPENAI_KEY='sk-new'\n", true);
+
+    await run(subject.provision, input);
+
+    expect(subject.configFor(API_KEY.name)).toEqual({ name: API_KEY.name, apiKey: "sk-new" });
+    expect(Object.keys(subject.contents())).toEqual([API_KEY.name]);
+  });
+
   test("touches Identity not at all for a project without credentials", async () => {
     const subject = account();
 
@@ -906,6 +979,19 @@ describe("orphanedCredentials", () => {
 });
 
 describe("createCredentialRemover", () => {
+  test("preserves v0 providers which may be shared by other projects", async () => {
+    const existing = { credentialProviderArn: "arn:apikey:openai-key" };
+    const subject = account({ [API_KEY.name]: existing });
+    const input = { ...(await project([])), isV0: true };
+
+    const events = await collect(
+      createCredentialRemover(subject.client)(input, { ...INPUT, providers: [API_KEY] }),
+    );
+
+    expect(subject.contents()).toEqual({ [API_KEY.name]: existing });
+    expect(subject.deleted).toEqual([]);
+    expect(events.events).toEqual([]);
+  });
   async function remove(
     subject: ReturnType<typeof account>,
     providers: CredentialProviderRef[],

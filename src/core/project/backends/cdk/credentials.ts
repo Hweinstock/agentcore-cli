@@ -139,6 +139,8 @@ export function createCredentialRemover(identity: ProviderDeletes): CredentialRe
     project,
     { region, credentials, targetName, providers },
   ) {
+    // Legacy provider names can be shared by multiple projects.
+    if (project.isV0) return;
     const options: CoreOptions = { region, credentials };
     for (const { name, authorizerType } of providers) {
       const provider = providerName(project.name, targetName, name);
@@ -192,7 +194,9 @@ export function createCredentialProvisioner(
     // Every name is composed and checked before the first lookup, so one that is
     // too long fails the deploy before it touches Identity.
     const named: NamedCredential[] = declared.map((credential) => {
-      const provider = providerName(project.name, targetName, credential.name);
+      const provider = project.isV0
+        ? credential.name
+        : providerName(project.name, targetName, credential.name);
       if (provider.length > PROVIDER_NAME_MAX_LENGTH) {
         throw new ProjectStateError(
           `Credential '${credential.name}' would create a credential provider named ` +
@@ -209,6 +213,28 @@ export function createCredentialProvisioner(
     // first provider is written, not partway through the list.
     const plans: (NamedCredential & { provision: Provision })[] = [];
     for (const { credential, provider } of named) {
+      if (
+        project.isV0 &&
+        credential.authorizerType === "OAuthCredentialProvider" &&
+        !credential.discoveryUrl &&
+        !credential.providerConfig
+      ) {
+        const existing = await undefinedWhenAbsent(() =>
+          identity.getOauth2CredentialProvider(provider, options),
+        );
+        if (!existing) {
+          throw new ProjectStateError(
+            `v0 OAuth credential '${credential.name}' references an existing provider that was not found. ` +
+              "Create it with the v0 CLI before deploying.",
+          );
+        }
+        plans.push({
+          credential,
+          provider,
+          provision: { reuse: oauth2Provision(provider, existing) },
+        });
+        continue;
+      }
       plans.push({
         credential,
         provider,

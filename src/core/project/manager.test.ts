@@ -2035,6 +2035,87 @@ describe("FsProjectManager.deploy", () => {
 });
 
 describe("FsProjectManager.resolve", () => {
+  test("reads a v0 project without rewriting its configuration", async () => {
+    const root = await inTempDirectory();
+    const configPath = join(root, "agentcore", "agentcore.json");
+    await mkdir(join(root, "agentcore"), { recursive: true });
+    const contents = JSON.stringify(
+      {
+        name: "example",
+        version: 1,
+        $schema: "https://example.com/agentcore.json",
+        runtimes: [
+          {
+            name: "agent",
+            build: "CodeZip",
+            entrypoint: "main.py",
+            codeLocation: "app/agent",
+            runtimeVersion: "PYTHON_3_12",
+          },
+        ],
+        mcpRuntimeTools: [],
+        datasets: [],
+      },
+      null,
+      4,
+    );
+    await writeFile(configPath, contents);
+
+    const resolved = await manager().manager.resolve({ filePath: root });
+
+    expect(resolved).toMatchObject({
+      name: "example",
+      isV0: true,
+      spec: { version: 2, runtimes: [{ name: "agent" }], toolRuntimes: [] },
+    });
+    expect(await readFile(configPath, "utf8")).toBe(contents);
+  });
+
+  test.each(["add", "remove", "remove-all", "export"] as const)(
+    "rejects %s for a v0 project before changing any files",
+    async (operation) => {
+      const root = await inTempDirectory();
+      const configPath = join(root, "agentcore", "agentcore.json");
+      const envPath = join(root, "agentcore", ".env.local");
+      await mkdir(join(root, "agentcore"), { recursive: true });
+      const contents = JSON.stringify({
+        name: "example",
+        version: 1,
+        credentials: [{ name: "key", authorizerType: "ApiKeyCredentialProvider" }],
+      });
+      const envContents = "AGENTCORE_CREDENTIAL_KEY='existing-secret'\n";
+      await writeFile(configPath, contents);
+      await writeFile(envPath, envContents);
+      const subject = manager().manager;
+      const project = (await subject.resolve({ filePath: root }))!;
+      const files = await projectManifest(root);
+      const action = {
+        add: () =>
+          runAdd(subject, project, {
+            resourceType: "credential",
+            resourceConfig: { name: "newkey", authorizerType: "ApiKeyCredentialProvider" },
+            envEntries: [
+              { key: "AGENTCORE_CREDENTIAL_NEWKEY", value: "new-secret", comment: "New key" },
+            ],
+          }),
+        remove: () => subject.removeResource(project, { resourceType: "credential", name: "key" }),
+        "remove-all": () => subject.removeAllResources(project),
+        export: () =>
+          subject
+            .exportHarness(project, {
+              harnessName: "agent",
+              targetAgentName: "exported",
+            })
+            .next(),
+      }[operation];
+
+      await expect(action()).rejects.toThrow("v0 projects are read-only");
+      expect(await readFile(configPath, "utf8")).toBe(contents);
+      expect(await readFile(envPath, "utf8")).toBe(envContents);
+      expect(await projectManifest(root)).toEqual(files);
+    },
+  );
+
   test("round-trips a project it just created", async () => {
     const root = await inTempDirectory();
     const subject = manager().manager;

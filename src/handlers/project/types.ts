@@ -327,6 +327,8 @@ export type Project = {
   rootPath: string;
   /** The spec of the project (agentcore.json loaded into memory) */
   spec: z.infer<typeof ProjectSpecSchema>;
+  /** The project uses v0 configuration, which v1 can read but cannot edit. */
+  isV0?: boolean;
 };
 
 /** A line to add to agentcore/.env.local. Secret values travel here, never in the spec. */
