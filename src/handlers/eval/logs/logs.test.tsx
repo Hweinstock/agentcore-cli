@@ -1,6 +1,9 @@
 import { describe, expect, test } from "bun:test";
+import { join } from "node:path";
+import { CoreClient } from "../../../core";
 import {
   createSilentLogger,
+  fixtureFactories,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -85,3 +88,37 @@ test("requires an explicit resource ID", async () => {
 
   await expect(route(["--since", "1h"])).rejects.toThrow("required option '--id' not specified");
 });
+
+test.each([
+  [
+    "online configured output",
+    "online-eval",
+    "resourceOnlineEvaluationLogSource",
+    "agentcore_cli_online_eval_role_warn-tSVCZiBf4l",
+    "/aws/bedrock-agentcore/evaluations/results/agentcore_cli_online_eval_role_warn-tSVCZiBf4l",
+  ],
+  [
+    "online source output",
+    "online-eval",
+    "resourceOnlineEvaluationLogSource",
+    "agentcore_cli_online_eval_fixture-5gZw987afd",
+    "/aws/bedrock-agentcore/runtimes/testAgent_Agent-wm9hYBD93Y-DEFAULT",
+  ],
+  [
+    "batch configured output",
+    "batch-evaluation",
+    "resourceBatchEvaluationLogSource",
+    "GTProbe2_1786034545579-8ffefc851e",
+    "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default",
+  ],
+] as const)(
+  "%s resolves its recorded log group",
+  async (_name, resource, method, id, logGroupName) => {
+    const core = new CoreClient({
+      ...fixtureFactories(join(import.meta.dir, "..", resource, "__fixtures__")),
+      logger: createSilentLogger(),
+    });
+
+    expect(await core.eval[method](id, { region: "us-west-2" })).toEqual({ logGroupName });
+  },
+);
