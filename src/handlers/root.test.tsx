@@ -21,6 +21,7 @@ const WORKFLOW_ORDER = [
   "remove",
   "export",
   "build",
+  "migrate",
 ];
 const RESOURCES_ORDER = ["harness", "runtime", "gateway", "identity", "memory", "eval", "payment"];
 const SETTINGS_ORDER = ["feedback", "config", "update"];
@@ -74,7 +75,6 @@ describe("createRootHandler", () => {
       "memory",
       "evaluator",
       "online-eval",
-      "online-insight",
       "config-bundle",
       "payment-manager",
       "payment-connector",

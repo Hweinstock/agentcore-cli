@@ -8,7 +8,6 @@ import { createAddHarnessHandler } from "./harness";
 import { createAddMemoryHandler } from "./memory";
 import { createAddRuntimeHandler } from "./runtime";
 import { createAddOnlineEvalHandler } from "./online-eval";
-import { createAddOnlineInsightHandler } from "./online-insight";
 import { createAddEvaluatorHandler } from "./evaluator";
 import { createAddGatewayHandler } from "./gateway";
 import { createAddGatewayTargetHandler } from "./gateway-target";
@@ -24,9 +23,7 @@ export function createAddProjectResourceHandler(
   config: AddProjectResourceConfig,
   core: Core,
 ): Router {
-  // The resources with a wizard of their own. Every other resource is listed in
-  // the add menu as command line only and opens its help instead (see
-  // CliOnlyScreen).
+  // Only resources with a wizard of their own appear in the add menu.
   const projectAdd = new Router("add", "add project resources").supportedTuiCommands(
     "runtime",
     "runtime-endpoint",
@@ -35,7 +32,6 @@ export function createAddProjectResourceHandler(
     "gateway-target",
     "gateway-connector",
     "online-eval",
-    "online-insight",
     "harness",
     "config-bundle",
     "policy-engine",
@@ -69,7 +65,6 @@ export function createAddProjectResourceHandler(
   projectAdd.handler(createAddMemoryHandler(config));
   projectAdd.handler(createAddEvaluatorHandler(config, core));
   projectAdd.handler(createAddOnlineEvalHandler(config));
-  projectAdd.handler(createAddOnlineInsightHandler(config));
   projectAdd.handler(createAddConfigBundleHandler(config));
   projectAdd.handler(createAddPaymentManagerHandler(config));
   projectAdd.handler(createAddPaymentConnectorHandler(config));
