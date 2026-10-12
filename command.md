@@ -152,7 +152,6 @@ This reference was generated from `agentcore --help` for version `1.0.0-rc.5`.
       - [`agentcore eval online-eval pause`](#agentcore-eval-online-eval-pause)
       - [`agentcore eval online-eval resume`](#agentcore-eval-online-eval-resume)
       - [`agentcore eval online-eval delete`](#agentcore-eval-online-eval-delete)
-      - [`agentcore eval online-eval logs`](#agentcore-eval-online-eval-logs)
     - [`agentcore eval online-insight`](#agentcore-eval-online-insight)
       - [`agentcore eval online-insight create`](#agentcore-eval-online-insight-create)
       - [`agentcore eval online-insight get`](#agentcore-eval-online-insight-get)
@@ -161,7 +160,6 @@ This reference was generated from `agentcore --help` for version `1.0.0-rc.5`.
       - [`agentcore eval online-insight pause`](#agentcore-eval-online-insight-pause)
       - [`agentcore eval online-insight resume`](#agentcore-eval-online-insight-resume)
       - [`agentcore eval online-insight delete`](#agentcore-eval-online-insight-delete)
-      - [`agentcore eval online-insight logs`](#agentcore-eval-online-insight-logs)
     - [`agentcore eval dataset`](#agentcore-eval-dataset)
       - [`agentcore eval dataset create`](#agentcore-eval-dataset-create)
       - [`agentcore eval dataset get`](#agentcore-eval-dataset-get)
@@ -175,13 +173,11 @@ This reference was generated from `agentcore --help` for version `1.0.0-rc.5`.
       - [`agentcore eval batch-evaluation get`](#agentcore-eval-batch-evaluation-get)
       - [`agentcore eval batch-evaluation list`](#agentcore-eval-batch-evaluation-list)
       - [`agentcore eval batch-evaluation stop`](#agentcore-eval-batch-evaluation-stop)
-      - [`agentcore eval batch-evaluation logs`](#agentcore-eval-batch-evaluation-logs)
     - [`agentcore eval batch-insights`](#agentcore-eval-batch-insights)
       - [`agentcore eval batch-insights run`](#agentcore-eval-batch-insights-run)
       - [`agentcore eval batch-insights get`](#agentcore-eval-batch-insights-get)
       - [`agentcore eval batch-insights list`](#agentcore-eval-batch-insights-list)
       - [`agentcore eval batch-insights stop`](#agentcore-eval-batch-insights-stop)
-      - [`agentcore eval batch-insights logs`](#agentcore-eval-batch-insights-logs)
     - [`agentcore eval ondemand`](#agentcore-eval-ondemand)
       - [`agentcore eval ondemand evaluate`](#agentcore-eval-ondemand-evaluate)
       - [`agentcore eval ondemand simulate`](#agentcore-eval-ondemand-simulate)
@@ -2304,24 +2300,6 @@ delete an online evaluation config by ID
 
 - `--id <id>`: the ID of the online evaluation config to delete (required)
 
-##### `agentcore eval online-eval logs`
-
-```text
-agentcore eval online-eval logs [options]
-```
-
-stream or search online-eval logs
-
-**Options**
-
-- `--id <id>`: the ID of the online-eval resource (required)
-- `--since <since>`: search window start: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--until <until>`: search window end: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--tail`: tail new log records (default: false)
-- `--level <level>`: filter by log level (error, warn, info, debug)
-- `--query <query>`: CloudWatch Logs filter pattern
-- `--limit <limit>`: maximum number of log records to return in search mode
-
 #### `agentcore eval online-insight`
 
 ```text
@@ -2435,24 +2413,6 @@ delete an online insight config by ID
 **Options**
 
 - `--id <id>`: the ID of the online insight config to delete (required)
-
-##### `agentcore eval online-insight logs`
-
-```text
-agentcore eval online-insight logs [options]
-```
-
-stream or search online-insight logs
-
-**Options**
-
-- `--id <id>`: the ID of the online-insight resource (required)
-- `--since <since>`: search window start: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--until <until>`: search window end: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--tail`: tail new log records (default: false)
-- `--level <level>`: filter by log level (error, warn, info, debug)
-- `--query <query>`: CloudWatch Logs filter pattern
-- `--limit <limit>`: maximum number of log records to return in search mode
 
 #### `agentcore eval dataset`
 
@@ -2639,24 +2599,6 @@ stop a running batch evaluation
 
 - `--id <id>`: the ID of the batch evaluation to stop (required)
 
-##### `agentcore eval batch-evaluation logs`
-
-```text
-agentcore eval batch-evaluation logs [options]
-```
-
-stream or search batch-evaluation logs
-
-**Options**
-
-- `--id <id>`: the ID of the batch-evaluation resource (required)
-- `--since <since>`: search window start: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--until <until>`: search window end: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--tail`: tail new log records (default: false)
-- `--level <level>`: filter by log level (error, warn, info, debug)
-- `--query <query>`: CloudWatch Logs filter pattern
-- `--limit <limit>`: maximum number of log records to return in search mode
-
 #### `agentcore eval batch-insights`
 
 ```text
@@ -2724,24 +2666,6 @@ stop a running batch insights run
 **Options**
 
 - `--id <id>`: the ID of the batch insights run to stop (required)
-
-##### `agentcore eval batch-insights logs`
-
-```text
-agentcore eval batch-insights logs [options]
-```
-
-stream or search batch-insights logs
-
-**Options**
-
-- `--id <id>`: the ID of the batch-insights resource (required)
-- `--since <since>`: search window start: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--until <until>`: search window end: "5m", "1h", ISO 8601, epoch ms, or "now"
-- `--tail`: tail new log records (default: false)
-- `--level <level>`: filter by log level (error, warn, info, debug)
-- `--query <query>`: CloudWatch Logs filter pattern
-- `--limit <limit>`: maximum number of log records to return in search mode
 
 #### `agentcore eval ondemand`
 

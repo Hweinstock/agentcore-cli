@@ -24,7 +24,12 @@ export function createBatchEvaluationHandler(core: Core, io: AppIO): Router {
     .handler(createGetBatchEvaluationHandler(core, io))
     .handler(createListBatchEvaluationsHandler(core))
     .handler(createStopBatchEvaluationHandler(core))
-    .handler(createEvalLogsHandler(core, io, "batch-evaluation"));
+    .handler(
+      createEvalLogsHandler(core, io, {
+        resource: "batch-evaluation",
+        logSource: core.eval.resourceBatchEvaluationLogSource.bind(core.eval),
+      }),
+    );
 }
 
 export { BatchEvaluationScreen } from "./screen.tsx";

@@ -18,7 +18,12 @@ export function createBatchInsightsHandler(core: Core, io: AppIO): Router {
     .handler(createGetBatchInsightsHandler(core))
     .handler(createListBatchInsightsHandler(core))
     .handler(createStopBatchInsightsHandler(core))
-    .handler(createEvalLogsHandler(core, io, "batch-insights"));
+    .handler(
+      createEvalLogsHandler(core, io, {
+        resource: "batch-insights",
+        logSource: core.eval.resourceBatchInsightsLogSource.bind(core.eval),
+      }),
+    );
 }
 
 export { BatchInsightsScreen } from "./screen.tsx";

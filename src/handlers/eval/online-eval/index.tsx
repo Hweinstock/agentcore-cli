@@ -24,7 +24,12 @@ export function createOnlineEvalHandler(core: Core, io: AppIO): Router {
     .handler(createPauseOnlineEvalHandler(core))
     .handler(createResumeOnlineEvalHandler(core))
     .handler(createDeleteOnlineEvalHandler(core))
-    .handler(createEvalLogsHandler(core, io, "online-eval"));
+    .handler(
+      createEvalLogsHandler(core, io, {
+        resource: "online-eval",
+        logSource: core.eval.resourceOnlineEvaluationLogSource.bind(core.eval),
+      }),
+    );
 }
 
 export { OnlineEvalScreen } from "./screen.tsx";

@@ -24,7 +24,12 @@ export function createOnlineInsightHandler(core: Core, io: AppIO): Router {
     .handler(createPauseOnlineInsightHandler(core))
     .handler(createResumeOnlineInsightHandler(core))
     .handler(createDeleteOnlineInsightHandler(core))
-    .handler(createEvalLogsHandler(core, io, "online-insight"));
+    .handler(
+      createEvalLogsHandler(core, io, {
+        resource: "online-insight",
+        logSource: core.eval.resourceOnlineInsightLogSource.bind(core.eval),
+      }),
+    );
 }
 
 export { OnlineInsightScreen } from "./screen.tsx";

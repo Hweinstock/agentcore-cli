@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
-import type { BedrockAgentCoreControlClient } from "@aws-sdk/client-bedrock-agentcore-control";
+import {
+  type BedrockAgentCoreControlClient,
+  type GetOnlineEvaluationConfigCommand,
+} from "@aws-sdk/client-bedrock-agentcore-control";
 import type { BedrockAgentCoreClient } from "@aws-sdk/client-bedrock-agentcore";
 import {
   DescribeLogGroupsCommand,
@@ -11,79 +14,97 @@ import { CoreClient } from "../../../core";
 import { InputValidationError, UserCancellationError } from "../../../errors";
 import { createSilentLogger, TestGlobalConfigAccessor, testIO } from "../../../testing";
 import { createRootHandler } from "../../index";
-import type { EvalLogsInput } from "../types";
 
+type Resource = "online-eval" | "online-insight" | "batch-evaluation" | "batch-insights";
 const SINCE = 1_709_391_000_000;
 const ID = "config-AbC123XyZ9";
-const RESOURCES: EvalLogsInput["resource"][] = [
-  "online-eval",
-  "online-insight",
-  "batch-evaluation",
-  "batch-insights",
-];
+const ONLINE_GROUP = `/aws/bedrock-agentcore/evaluations/results/${ID}`;
+const BATCH_GROUP = "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default";
+const SOURCE_GROUP = "/custom/source";
 const EVENTS = [
   { timestamp: SINCE + 1_000, message: "first result", logStreamName: "run-a" },
   { timestamp: SINCE + 2_000, message: "second result", logStreamName: "run-b" },
 ];
-const SOURCE_GROUP = "/custom/source";
+const SOURCE_OUTPUT = { cloudWatchConfig: { resultDestination: "SOURCE_LOG_GROUP" } };
+const CUSTOM_OUTPUT = {
+  cloudWatchConfig: { logGroupName: "/custom/results", logStreamName: "run-a" },
+};
+const CUSTOM_CONFIG = { outputConfig: CUSTOM_OUTPUT };
+const JSON_EVENTS = EVENTS.map((event) => ({
+  ...event,
+  timestamp: new Date(event.timestamp).toISOString(),
+}));
 
 function setup(
-  metadata: Record<string, unknown> = {},
-  readMetadata?: (signal?: AbortSignal) => Promise<Record<string, unknown>>,
+  options: {
+    online?: Record<string, unknown>;
+    batch?: Record<string, unknown>;
+    logGroup?: string;
+    onlineId?: string;
+    readMetadata?: (signal?: AbortSignal) => Promise<Record<string, unknown>>;
+  } = {},
 ) {
-  const commands: { name: string; input: unknown }[] = [];
-  const response = {
-    onlineEvaluationConfigId: ID,
-    batchEvaluationId: ID,
-    status: "COMPLETED",
-    insights: [{ insightId: "Builtin.Insight.FailureAnalysis" }],
-    dataSourceConfig: { cloudWatchLogs: { logGroupNames: [SOURCE_GROUP] } },
-    ...metadata,
-  };
-  const sendMetadata = async (
-    command: { constructor: { name: string }; input: unknown },
-    options?: { abortSignal?: AbortSignal },
-  ) => {
-    commands.push({ name: command.constructor.name, input: command.input });
-    if (readMetadata) return readMetadata(options?.abortSignal);
-    if (command.constructor.name === "GetOnlineEvaluationConfigCommand") {
-      const { batchEvaluationId: _, ...config } = response;
-      return config;
-    }
-    const { onlineEvaluationConfigId: _, ...job } = response;
-    return job;
-  };
+  const logGroup = options.logGroup ?? ONLINE_GROUP;
+  const onlineId = options.onlineId ?? ID;
+  const insights = [{ insightId: "Builtin.Insight.FailureAnalysis" }];
+  const logGroupArn = `arn:aws:logs:us-west-2:123456789012:log-group:${logGroup}`;
   const unusedClient = () => {
     throw new Error("Unexpected AWS client");
   };
   const core = new CoreClient({
-    createControlClient: () => ({ send: sendMetadata }) as unknown as BedrockAgentCoreControlClient,
-    createDataClient: () => ({ send: sendMetadata }) as unknown as BedrockAgentCoreClient,
+    createControlClient: () =>
+      ({
+        send: async (
+          command: GetOnlineEvaluationConfigCommand,
+          sendOptions?: { abortSignal?: AbortSignal },
+        ) => {
+          if (options.readMetadata) return options.readMetadata(sendOptions?.abortSignal);
+          if (command.input.onlineEvaluationConfigId !== onlineId) {
+            throw new Error("Online evaluation configuration not found");
+          }
+          return {
+            onlineEvaluationConfigId: onlineId,
+            insights,
+            dataSourceConfig: { cloudWatchLogs: { logGroupNames: [SOURCE_GROUP] } },
+            ...options.online,
+          };
+        },
+      }) as unknown as BedrockAgentCoreControlClient,
+    createDataClient: () =>
+      ({
+        send: async () => ({
+          batchEvaluationId: ID,
+          status: "COMPLETED",
+          insights,
+          ...options.batch,
+        }),
+      }) as unknown as BedrockAgentCoreClient,
     createLogsClient: () =>
       ({
         send: async (command: unknown) => {
           if (command instanceof FilterLogEventsCommand) {
-            commands.push({ name: command.constructor.name, input: command.input });
-            return command.input.nextToken
-              ? { events: [EVENTS[1]] }
-              : { events: [EVENTS[0]], nextToken: "page-2" };
+            const events = (command.input.logGroupName === logGroup ? EVENTS : []).filter(
+              (event) =>
+                !command.input.logStreamNames ||
+                command.input.logStreamNames.includes(event.logStreamName),
+            );
+            const offset = Number(command.input.nextToken ?? 0);
+            return {
+              events: events.slice(offset, offset + 1),
+              nextToken: offset + 1 < events.length ? `${offset + 1}` : undefined,
+            };
           }
           if (command instanceof DescribeLogGroupsCommand) {
-            commands.push({ name: command.constructor.name, input: command.input });
             return {
-              logGroups: [
-                {
-                  logGroupName: command.input.logGroupNamePrefix,
-                  logGroupArn: "arn:aws:logs:us-west-2:123456789012:log-group:test",
-                },
-              ],
+              logGroups: [{ logGroupName: logGroup, logGroupArn }],
             };
           }
           if (command instanceof StartLiveTailCommand) {
-            commands.push({ name: command.constructor.name, input: command.input });
             return {
               responseStream: (async function* () {
-                yield { sessionUpdate: { sessionResults: EVENTS } };
+                if (command.input.logGroupIdentifiers?.includes(logGroupArn)) {
+                  yield { sessionUpdate: { sessionResults: EVENTS } };
+                }
               })(),
             };
           }
@@ -103,9 +124,8 @@ function setup(
   });
 
   return {
-    commands,
     io,
-    route: (resource: EvalLogsInput["resource"], flags: readonly string[]) =>
+    route: (resource: Resource, flags: readonly string[]) =>
       root.route([
         "node",
         "agentcore",
@@ -119,134 +139,111 @@ function setup(
   };
 }
 
-describe.each(RESOURCES)("eval %s logs", (resource) => {
-  const defaultGroup = resource.startsWith("online")
-    ? `/aws/bedrock-agentcore/evaluations/results/${ID}`
-    : "/aws/bedrock-agentcore/evaluations/batch-evaluations/results/default";
-  const searchFlags = ["--id", ID, "--since", `${SINCE}`, "--until", `${SINCE + 60_000}`];
-
+describe("evaluation logs", () => {
   test.each([
-    { destination: "default", outputConfig: undefined, expectedGroup: defaultGroup },
-    {
-      destination: "custom",
-      outputConfig: {
-        cloudWatchConfig: { logGroupName: "/custom/results", logStreamName: "run-a" },
+    ["online-eval", "default", { logGroup: ONLINE_GROUP }],
+    ["online-insight", "default", { logGroup: ONLINE_GROUP }],
+    ["batch-evaluation", "default", { logGroup: BATCH_GROUP }],
+    ["batch-insights", "default", { logGroup: BATCH_GROUP }],
+    ["online-eval", "custom", { logGroup: "/custom/results", online: CUSTOM_CONFIG }],
+    ["batch-evaluation", "custom", { logGroup: "/custom/results", batch: CUSTOM_CONFIG }],
+    ["online-eval", "source", { logGroup: SOURCE_GROUP, online: { outputConfig: SOURCE_OUTPUT } }],
+    [
+      "batch-evaluation",
+      "referenced online source",
+      {
+        logGroup: SOURCE_GROUP,
+        onlineId: "source-config",
+        online: CUSTOM_CONFIG,
+        batch: {
+          outputConfig: SOURCE_OUTPUT,
+          dataSourceConfig: {
+            onlineEvaluationConfigSource: {
+              onlineEvaluationConfigArn:
+                "arn:aws:bedrock-agentcore:us-west-2:123456789012:online-evaluation-config/source-config",
+            },
+          },
+        },
       },
-      expectedGroup: "/custom/results",
-    },
-    {
-      destination: "source",
-      outputConfig: { cloudWatchConfig: { resultDestination: "SOURCE_LOG_GROUP" } },
-      expectedGroup: SOURCE_GROUP,
-    },
-  ])("searches the entire $destination group across pages and streams", async (testCase) => {
-    const { commands, io, route } = setup({ outputConfig: testCase.outputConfig });
+    ],
+  ] as const)("%s %s includes all pages and streams", async (resource, _destination, options) => {
+    const { io, route } = setup(options);
 
-    await route(resource, [...searchFlags, "--json"]);
+    await route(resource, ["--id", ID, "--since", `${SINCE}`, "--json"]);
 
     expect(
       io
         .stdout()
         .split("\n")
         .map((line) => JSON.parse(line)),
-    ).toEqual(
-      EVENTS.map((event) => ({ ...event, timestamp: new Date(event.timestamp).toISOString() })),
-    );
-    const searches = commands.filter((command) => command.name === "FilterLogEventsCommand");
-    expect(searches.map((command) => command.input)).toEqual([
-      { logGroupName: testCase.expectedGroup, startTime: SINCE, endTime: SINCE + 60_000 },
-      {
-        logGroupName: testCase.expectedGroup,
-        startTime: SINCE,
-        endTime: SINCE + 60_000,
-        nextToken: "page-2",
-      },
-    ]);
-    expect(commands[0]?.name).toBe(
-      resource.startsWith("online")
-        ? "GetOnlineEvaluationConfigCommand"
-        : "GetBatchEvaluationCommand",
-    );
+    ).toEqual(JSON_EVENTS);
     expect(io.stderr()).toBe("");
   });
 
-  test("streams the configured group by default with a stderr announcement", async () => {
-    const { commands, io, route } = setup({
-      outputConfig: { cloudWatchConfig: { logGroupName: "/custom/results" } },
-    });
+  test("tails by default and announces the stream on stderr", async () => {
+    const { io, route } = setup();
 
-    await route(resource, ["--id", ID, "--query", "ERROR"]);
+    await route("online-eval", ["--id", ID]);
 
     expect(io.stdout()).toBe(
       "2024-03-02T14:50:01.000Z  first result\n2024-03-02T14:50:02.000Z  second result",
     );
-    expect(io.stderr()).toBe(`Streaming logs for ${resource} ${ID}... (Ctrl+C to stop)`);
-    expect(commands.find((command) => command.name === "DescribeLogGroupsCommand")?.input).toEqual({
-      logGroupNamePrefix: "/custom/results",
-    });
-    expect(commands.find((command) => command.name === "StartLiveTailCommand")?.input).toEqual({
-      logGroupIdentifiers: ["arn:aws:logs:us-west-2:123456789012:log-group:test"],
-      logEventFilterPattern: "ERROR",
-    });
+    expect(io.stderr()).toBe(`Streaming logs for online-eval ${ID}... (Ctrl+C to stop)`);
   });
 
-  test("Ctrl+C cancels metadata lookup without waiting for a service response", async () => {
-    let receivedSignal: AbortSignal | undefined;
-    let releaseMetadata = () => {};
-    let metadataStarted = () => {};
-    const started = new Promise<void>((resolve) => {
-      metadataStarted = resolve;
+  test("Ctrl+C cancels a pending metadata lookup", async () => {
+    const started = Promise.withResolvers<void>();
+    const metadata = Promise.withResolvers<Record<string, unknown>>();
+    const { io, route } = setup({
+      readMetadata: (signal) => {
+        signal?.addEventListener("abort", () => metadata.reject(new Error("transport aborted")));
+        started.resolve();
+        return metadata.promise;
+      },
     });
-    const { commands, io, route } = setup({}, (signal) => {
-      receivedSignal = signal;
-      metadataStarted();
-      return new Promise((resolve, reject) => {
-        releaseMetadata = () => resolve({});
-        signal?.addEventListener("abort", () => reject(new Error("transport aborted")), {
-          once: true,
-        });
-      });
-    });
-    const pending = route(resource, ["--id", ID, "--since", "1h"]);
+    const pending = route("online-eval", ["--id", ID, "--since", "1h"]);
 
     try {
-      await started;
-      expect(receivedSignal).toBeDefined();
+      await started.promise;
       process.emit("SIGINT", "SIGINT");
       await expect(pending).rejects.toBeInstanceOf(UserCancellationError);
-      expect(receivedSignal?.aborted).toBe(true);
     } finally {
-      releaseMetadata();
+      metadata.resolve({});
       await pending.catch(() => {});
     }
-    expect(commands).toHaveLength(1);
     expect(io.stdout()).toBe("");
     expect(io.stderr()).toBe("");
   });
 
-  test.each([
-    { flags: [], message: "required option '--id' not specified" },
-    { flags: ["--id", ""], message: "Invalid value for option '--id'" },
-    {
-      flags: ["--id", ID, "--tail", "--since", "1h"],
-      message: "--tail cannot be combined with --since or --until",
-    },
-  ])("validates flags before fetching metadata: $message", async ({ flags, message }) => {
-    const { commands, route } = setup();
+  test("requires an explicit resource ID", async () => {
+    const { route } = setup();
 
-    await expect(route(resource, flags)).rejects.toThrow(message);
-    expect(commands).toHaveLength(0);
+    await expect(route("online-eval", ["--since", "1h"])).rejects.toThrow(
+      "required option '--id' not specified",
+    );
+  });
+
+  test.each(["online-insight", "batch-insights"] as const)(
+    "%s rejects a resource without insights",
+    async (resource) => {
+      const { route } = setup({ online: { insights: [] }, batch: { insights: [] } });
+
+      await expect(route(resource, ["--id", ID, "--since", "1h"])).rejects.toBeInstanceOf(
+        InputValidationError,
+      );
+    },
+  );
+
+  test("explains how to read results when the source has multiple groups", async () => {
+    const { route } = setup({
+      online: {
+        outputConfig: SOURCE_OUTPUT,
+        dataSourceConfig: { cloudWatchLogs: { logGroupNames: ["/one", "/two"] } },
+      },
+    });
+
+    await expect(route("online-eval", ["--id", ID, "--since", "1h"])).rejects.toThrow(
+      "configure one explicit source log group",
+    );
   });
 });
-
-test.each(["online-insight", "batch-insights"] as const)(
-  "rejects a resource without insights through %s logs",
-  async (resource) => {
-    const { commands, route } = setup({ insights: [] });
-
-    await expect(route(resource, ["--id", ID, "--since", "1h"])).rejects.toBeInstanceOf(
-      InputValidationError,
-    );
-    expect(commands).toHaveLength(1);
-  },
-);

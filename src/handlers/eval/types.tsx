@@ -60,11 +60,6 @@ import type { CoreOptions } from "../../core/types";
 import type { LogSource } from "../../core/observability/types";
 import type { EvaluatorModelProvider } from "../../projectSchemas/evaluator";
 
-export type EvalLogsInput = {
-  resource: "online-eval" | "online-insight" | "batch-evaluation" | "batch-insights";
-  id: string;
-};
-
 // SessionWindow is the resolved explicit time filter for a batch evaluation's
 // session source (from --start-time/--end-time). Maps directly to the SDK's
 // SessionFilterConfig.
@@ -394,8 +389,23 @@ export type DatasetUpdateProgressEvent = {
 // and implemented by src/core/eval.tsx (dependency inversion: handlers own the
 // abstraction).
 export interface CoreEvalClient {
-  resolveLogSource(
-    input: EvalLogsInput,
+  resourceOnlineEvaluationLogSource(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<LogSource>;
+  resourceOnlineInsightLogSource(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<LogSource>;
+  resourceBatchEvaluationLogSource(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<LogSource>;
+  resourceBatchInsightsLogSource(
+    id: string,
     options: CoreOptions,
     signal?: AbortSignal,
   ): Promise<LogSource>;
@@ -443,13 +453,9 @@ export interface CoreEvalClient {
   getBatchEvaluation(
     id: string,
     options: CoreOptions,
-    opts?: { includeResults?: boolean; signal?: AbortSignal },
+    opts?: { includeResults?: boolean },
   ): Promise<GetBatchEvaluationResult>;
-  getBatchInsights(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<BatchEvaluationDetail>;
+  getBatchInsights(id: string, options: CoreOptions): Promise<BatchEvaluationDetail>;
   listBatchEvaluations(
     nextToken: string | undefined,
     maxResults: number | undefined,
@@ -524,7 +530,6 @@ export interface CoreEvalClient {
   getOnlineEvaluationConfig(
     id: string,
     options: CoreOptions,
-    signal?: AbortSignal,
   ): Promise<GetOnlineEvaluationConfigResponse>;
   listOnlineEvaluationConfigs(
     nextToken: string | undefined,
@@ -550,11 +555,7 @@ export interface CoreEvalClient {
     update: UpdateOnlineInsightInput,
     options: CoreOptions,
   ): Promise<UpdateOnlineInsightResponse>;
-  getOnlineInsight(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<GetOnlineInsightResponse>;
+  getOnlineInsight(id: string, options: CoreOptions): Promise<GetOnlineInsightResponse>;
   listOnlineInsights(
     nextToken: string | undefined,
     maxResults: number | undefined,

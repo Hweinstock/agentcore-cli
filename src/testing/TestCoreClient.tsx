@@ -189,7 +189,6 @@ import type {
   DatasetUpdateProgressEvent,
   EvaluateInput,
   EvaluateResult,
-  EvalLogsInput,
   InvokeDatasetInput,
   InvokeDatasetResult,
   GetBatchEvaluationResult,
@@ -203,7 +202,6 @@ import type {
   UpdateOnlineEvalInput,
 } from "../handlers/eval/types";
 import { isTerminalStatus } from "../core/batchEvaluationResults";
-import { resolveEvalLogSource } from "../core/evalLogSource";
 import { abortable } from "../core/abortable";
 import type { CoreFetch, CoreOptions, CreateCloudFormationClient } from "../core/types";
 import type { ProjectManager } from "../handlers/project/types";
@@ -1630,17 +1628,30 @@ export class TestPaymentClient implements CorePaymentClient {
 export class TestEvalClient implements CoreEvalClient {
   // calls records every invocation in order, for assertions.
   readonly calls: RecordedCall[] = [];
+  logSource: LogSource = { logGroupName: "/test/eval/results" };
 
-  async resolveLogSource(
-    input: EvalLogsInput,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<LogSource> {
-    this.calls.push({
-      method: "resolveLogSource",
-      args: signal ? [input, options, signal] : [input, options],
-    });
-    return resolveEvalLogSource({ client: this, input, options, signal });
+  async resourceOnlineEvaluationLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
+    this.calls.push({ method: "resourceOnlineEvaluationLogSource", args: [id, options, signal] });
+    if (this.error) throw this.error;
+    return this.logSource;
+  }
+
+  async resourceOnlineInsightLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
+    this.calls.push({ method: "resourceOnlineInsightLogSource", args: [id, options, signal] });
+    if (this.error) throw this.error;
+    return this.logSource;
+  }
+
+  async resourceBatchEvaluationLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
+    this.calls.push({ method: "resourceBatchEvaluationLogSource", args: [id, options, signal] });
+    if (this.error) throw this.error;
+    return this.logSource;
+  }
+
+  async resourceBatchInsightsLogSource(id: string, options: CoreOptions, signal?: AbortSignal) {
+    this.calls.push({ method: "resourceBatchInsightsLogSource", args: [id, options, signal] });
+    if (this.error) throw this.error;
+    return this.logSource;
   }
 
   // List responses are keyed by the nextToken that requests them (undefined =
@@ -2078,7 +2089,7 @@ export class TestEvalClient implements CoreEvalClient {
   async getBatchEvaluation(
     id: string,
     options: CoreOptions,
-    opts: { includeResults?: boolean; signal?: AbortSignal } = {},
+    opts: { includeResults?: boolean } = {},
   ): Promise<GetBatchEvaluationResult> {
     this.calls.push({ method: "getBatchEvaluation", args: [id, options, opts] });
     if (this.error) throw this.error;
@@ -2098,15 +2109,8 @@ export class TestEvalClient implements CoreEvalClient {
     return { detail };
   }
 
-  async getBatchInsights(
-    id: string,
-    options: CoreOptions,
-    signal?: AbortSignal,
-  ): Promise<BatchEvaluationDetail> {
-    this.calls.push({
-      method: "getBatchInsights",
-      args: signal ? [id, options, signal] : [id, options],
-    });
+  async getBatchInsights(id: string, options: CoreOptions): Promise<BatchEvaluationDetail> {
+    this.calls.push({ method: "getBatchInsights", args: [id, options] });
     if (this.error) throw this.error;
 
     const detail: BatchEvaluationDetail = { ...this.batchEvalGetResponse };
@@ -2288,12 +2292,8 @@ export class TestEvalClient implements CoreEvalClient {
   async getOnlineEvaluationConfig(
     id: string,
     options: CoreOptions,
-    signal?: AbortSignal,
   ): Promise<GetOnlineEvaluationConfigResponse> {
-    this.calls.push({
-      method: "getOnlineEvaluationConfig",
-      args: signal ? [id, options, signal] : [id, options],
-    });
+    this.calls.push({ method: "getOnlineEvaluationConfig", args: [id, options] });
     if (this.error) throw this.error;
     return this.onlineEvalGetResponse;
   }
@@ -2355,12 +2355,8 @@ export class TestEvalClient implements CoreEvalClient {
   async getOnlineInsight(
     id: string,
     options: CoreOptions,
-    signal?: AbortSignal,
   ): Promise<GetOnlineEvaluationConfigResponse> {
-    this.calls.push({
-      method: "getOnlineInsight",
-      args: signal ? [id, options, signal] : [id, options],
-    });
+    this.calls.push({ method: "getOnlineInsight", args: [id, options] });
     if (this.error) throw this.error;
     return this.onlineEvalGetResponse;
   }
