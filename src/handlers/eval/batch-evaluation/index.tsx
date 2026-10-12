@@ -8,6 +8,7 @@ import { createListBatchEvaluationsHandler } from "./list";
 import { createEvaluateBatchEvaluationHandler } from "./evaluate";
 import { createSimulateBatchEvaluationHandler } from "./simulate";
 import { createStopBatchEvaluationHandler } from "./stop";
+import { createEvalLogsHandler } from "../logs";
 
 // batch-evaluation supports evaluate + simulate (start jobs), get + list, and
 // stop. A bare invocation opens the interactive TUI (list → get), matching
@@ -22,7 +23,8 @@ export function createBatchEvaluationHandler(core: Core, io: AppIO): Router {
     .handler(createSimulateBatchEvaluationHandler(core, io))
     .handler(createGetBatchEvaluationHandler(core, io))
     .handler(createListBatchEvaluationsHandler(core))
-    .handler(createStopBatchEvaluationHandler(core));
+    .handler(createStopBatchEvaluationHandler(core))
+    .handler(createEvalLogsHandler(core, io, "batch-evaluation"));
 }
 
 export { BatchEvaluationScreen } from "./screen.tsx";

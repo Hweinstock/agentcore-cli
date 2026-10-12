@@ -141,6 +141,7 @@ import type {
   DeleteOnlineInsightResponse,
   EvaluateInput,
   EvaluateResult,
+  EvalLogsInput,
   GetBatchEvaluationResult,
   GetTracesInput,
   LlmAsAJudgeUpdate,
@@ -173,6 +174,8 @@ import { toClientConfig } from "./utils";
 import { grantOnlineEvalScope } from "./onlineEvalExecutionRole";
 import { accountIdFromArn, deleteAbTestRole, provisionAbTestRole } from "./abTestExecutionRole";
 import { harnessRuntimeFromResponse } from "./harness";
+import { resolveEvalLogSource } from "./evalLogSource";
+import type { LogSource } from "./observability/types";
 
 const DEFAULT_INGESTION_WAIT_MS = 180_000;
 const DATASET_EXAMPLES_BATCH_LIMIT = 1000;
@@ -236,6 +239,14 @@ export class EvalClient implements CoreEvalClient {
     private readonly now: () => number = () => Date.now(),
     private readonly cloudWatch: CloudWatchClient = new CloudWatchClient(clients),
   ) {}
+
+  resolveLogSource(
+    input: EvalLogsInput,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<LogSource> {
+    return resolveEvalLogSource({ client: this, input, options, signal });
+  }
 
   async createEvaluator(
     request: CreateEvaluatorRequest,
@@ -457,11 +468,14 @@ export class EvalClient implements CoreEvalClient {
   async getBatchEvaluation(
     id: string,
     options: CoreOptions,
-    { includeResults = true }: { includeResults?: boolean } = {},
+    { includeResults = true, signal }: { includeResults?: boolean; signal?: AbortSignal } = {},
   ): Promise<GetBatchEvaluationResult> {
     const job = await this.clients
       .data(toClientConfig(options))
-      .send(new GetBatchEvaluationCommand({ batchEvaluationId: id }));
+      .send(
+        new GetBatchEvaluationCommand({ batchEvaluationId: id }),
+        signal ? { abortSignal: signal } : undefined,
+      );
 
     const detail: BatchEvaluationDetail = { ...job };
     const cw = job.outputConfig?.cloudWatchConfig;
@@ -496,8 +510,15 @@ export class EvalClient implements CoreEvalClient {
     }
   }
 
-  async getBatchInsights(id: string, options: CoreOptions): Promise<BatchEvaluationDetail> {
-    const { detail } = await this.getBatchEvaluation(id, options, { includeResults: false });
+  async getBatchInsights(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<BatchEvaluationDetail> {
+    const { detail } = await this.getBatchEvaluation(id, options, {
+      includeResults: false,
+      ...(signal ? { signal } : {}),
+    });
     if (!EvalClient.isBatchInsights(detail)) {
       throw new InputValidationError(`batch evaluation "${id}" is not a batch insights run`);
     }
@@ -1167,10 +1188,15 @@ export class EvalClient implements CoreEvalClient {
     );
   }
 
-  async getOnlineInsight(id: string, options: CoreOptions): Promise<GetOnlineInsightResponse> {
+  async getOnlineInsight(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<GetOnlineInsightResponse> {
     const control = this.clients.control(toClientConfig(options));
     const config = await control.send(
       new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }),
+      signal ? { abortSignal: signal } : undefined,
     );
     if ((config.insights?.length ?? 0) === 0)
       throw new InputValidationError(`"${id}" is not an online-insight config`, {
@@ -1307,10 +1333,14 @@ export class EvalClient implements CoreEvalClient {
   async getOnlineEvaluationConfig(
     id: string,
     options: CoreOptions,
+    signal?: AbortSignal,
   ): Promise<GetOnlineEvaluationConfigResponse> {
     return this.clients
       .control(toClientConfig(options))
-      .send(new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }));
+      .send(
+        new GetOnlineEvaluationConfigCommand({ onlineEvaluationConfigId: id }),
+        signal ? { abortSignal: signal } : undefined,
+      );
   }
 
   async listOnlineEvaluationConfigs(

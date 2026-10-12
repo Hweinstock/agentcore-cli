@@ -7,6 +7,7 @@ import { createGetBatchInsightsHandler } from "./get";
 import { createListBatchInsightsHandler } from "./list";
 import { createRunBatchInsightsHandler } from "./run";
 import { createStopBatchInsightsHandler } from "./stop";
+import { createEvalLogsHandler } from "../logs";
 
 export function createBatchInsightsHandler(core: Core, io: AppIO): Router {
   return new Router("batch-insights", "run and inspect AgentCore batch insights")
@@ -16,7 +17,8 @@ export function createBatchInsightsHandler(core: Core, io: AppIO): Router {
     .handler(createRunBatchInsightsHandler(core, io))
     .handler(createGetBatchInsightsHandler(core))
     .handler(createListBatchInsightsHandler(core))
-    .handler(createStopBatchInsightsHandler(core));
+    .handler(createStopBatchInsightsHandler(core))
+    .handler(createEvalLogsHandler(core, io, "batch-insights"));
 }
 
 export { BatchInsightsScreen } from "./screen.tsx";

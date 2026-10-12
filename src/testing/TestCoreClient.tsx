@@ -189,6 +189,7 @@ import type {
   DatasetUpdateProgressEvent,
   EvaluateInput,
   EvaluateResult,
+  EvalLogsInput,
   InvokeDatasetInput,
   InvokeDatasetResult,
   GetBatchEvaluationResult,
@@ -202,6 +203,7 @@ import type {
   UpdateOnlineEvalInput,
 } from "../handlers/eval/types";
 import { isTerminalStatus } from "../core/batchEvaluationResults";
+import { resolveEvalLogSource } from "../core/evalLogSource";
 import { abortable } from "../core/abortable";
 import type { CoreFetch, CoreOptions, CreateCloudFormationClient } from "../core/types";
 import type { ProjectManager } from "../handlers/project/types";
@@ -1629,6 +1631,18 @@ export class TestEvalClient implements CoreEvalClient {
   // calls records every invocation in order, for assertions.
   readonly calls: RecordedCall[] = [];
 
+  async resolveLogSource(
+    input: EvalLogsInput,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<LogSource> {
+    this.calls.push({
+      method: "resolveLogSource",
+      args: signal ? [input, options, signal] : [input, options],
+    });
+    return resolveEvalLogSource({ client: this, input, options, signal });
+  }
+
   // List responses are keyed by the nextToken that requests them (undefined =
   // the first page), so tests can serve multi-page listings.
   private listResponses = new Map<string | undefined, ListEvaluatorsResponse>();
@@ -2064,7 +2078,7 @@ export class TestEvalClient implements CoreEvalClient {
   async getBatchEvaluation(
     id: string,
     options: CoreOptions,
-    opts: { includeResults?: boolean } = {},
+    opts: { includeResults?: boolean; signal?: AbortSignal } = {},
   ): Promise<GetBatchEvaluationResult> {
     this.calls.push({ method: "getBatchEvaluation", args: [id, options, opts] });
     if (this.error) throw this.error;
@@ -2084,8 +2098,15 @@ export class TestEvalClient implements CoreEvalClient {
     return { detail };
   }
 
-  async getBatchInsights(id: string, options: CoreOptions): Promise<BatchEvaluationDetail> {
-    this.calls.push({ method: "getBatchInsights", args: [id, options] });
+  async getBatchInsights(
+    id: string,
+    options: CoreOptions,
+    signal?: AbortSignal,
+  ): Promise<BatchEvaluationDetail> {
+    this.calls.push({
+      method: "getBatchInsights",
+      args: signal ? [id, options, signal] : [id, options],
+    });
     if (this.error) throw this.error;
 
     const detail: BatchEvaluationDetail = { ...this.batchEvalGetResponse };
@@ -2267,8 +2288,12 @@ export class TestEvalClient implements CoreEvalClient {
   async getOnlineEvaluationConfig(
     id: string,
     options: CoreOptions,
+    signal?: AbortSignal,
   ): Promise<GetOnlineEvaluationConfigResponse> {
-    this.calls.push({ method: "getOnlineEvaluationConfig", args: [id, options] });
+    this.calls.push({
+      method: "getOnlineEvaluationConfig",
+      args: signal ? [id, options, signal] : [id, options],
+    });
     if (this.error) throw this.error;
     return this.onlineEvalGetResponse;
   }
@@ -2330,8 +2355,12 @@ export class TestEvalClient implements CoreEvalClient {
   async getOnlineInsight(
     id: string,
     options: CoreOptions,
+    signal?: AbortSignal,
   ): Promise<GetOnlineEvaluationConfigResponse> {
-    this.calls.push({ method: "getOnlineInsight", args: [id, options] });
+    this.calls.push({
+      method: "getOnlineInsight",
+      args: signal ? [id, options, signal] : [id, options],
+    });
     if (this.error) throw this.error;
     return this.onlineEvalGetResponse;
   }

@@ -10,6 +10,7 @@ import { createUpdateOnlineInsightHandler } from "./update";
 import { createPauseOnlineInsightHandler } from "./pause";
 import { createResumeOnlineInsightHandler } from "./resume";
 import { createDeleteOnlineInsightHandler } from "./delete";
+import { createEvalLogsHandler } from "../logs";
 
 export function createOnlineInsightHandler(core: Core, io: AppIO): Router {
   return new Router("online-insight", "manage AgentCore online insight configs")
@@ -22,7 +23,8 @@ export function createOnlineInsightHandler(core: Core, io: AppIO): Router {
     .handler(createUpdateOnlineInsightHandler(core, io))
     .handler(createPauseOnlineInsightHandler(core))
     .handler(createResumeOnlineInsightHandler(core))
-    .handler(createDeleteOnlineInsightHandler(core));
+    .handler(createDeleteOnlineInsightHandler(core))
+    .handler(createEvalLogsHandler(core, io, "online-insight"));
 }
 
 export { OnlineInsightScreen } from "./screen.tsx";
