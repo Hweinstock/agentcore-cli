@@ -63,4 +63,5 @@ export const commandRunSchema = safeSchema({
   error_name: errorNameSchema.optional(),
   error_source: z.enum(Object.values(ERROR_SOURCE)).optional(),
   is_tui: z.boolean().default(false),
+  v0_project: z.boolean().default(false),
 });

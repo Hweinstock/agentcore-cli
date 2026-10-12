@@ -23,6 +23,7 @@ import { PACKAGE_VERSION } from "./constants";
 import { CommandRunMetricEventKey, ValueContext } from "./router";
 import { NpmCliVersionManager, printUpdateNotice } from "./cliVersionManager";
 import { CliVersionManagerKey } from "./handlers/keys";
+import { isV0Project } from "./core/project/isV0Project";
 
 // Suppress only the AWS SDK's Node.js version support warning before constructing clients.
 process.env.AWS_SDK_JS_NODE_VERSION_SUPPORT_WARNING_DISABLED = "true";
@@ -74,6 +75,7 @@ process.exit(
 
     const globalConfig = await globalConfigAccessor.get();
     try {
+      commandRunMetricEvent.setAttributes({ v0_project: await isV0Project(process.cwd()) });
       rootLogger.info(`running CLI`);
 
       // factories (rather than instances) lets CoreClient build one client per

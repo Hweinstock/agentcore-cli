@@ -77,6 +77,13 @@ resources, and `agentcore/cdk/`, the AWS CDK app that deploys them. Deployment t
 and region each — live in `agentcore/aws-targets.json`. Project commands find the project by walking
 up from the current directory.
 
+Projects created with the v0 CLI can be built, deployed, run locally, and inspected with v1.
+Their configuration and application files stay in the v0 format; builds and deployments still
+write generated output and deployment state. Use `@aws/agentcore@0` to add, remove, or export
+resources in these projects. Projects using datasets, A/B tests, unassigned gateway targets,
+HTTP gateways, or capacity providers require the v0 CLI. Legacy Container runtimes in a VPC
+must specify `networkConfig.vpcId`.
+
 `agentcore dev` runs runtimes locally or deploys harnesses and prints invoke guidance.
 Use `--mode browser` for Agent Inspector, `--skip-deploy` to reuse deployed harnesses,
 and `--agent <name>` to choose an agent in mixed projects.

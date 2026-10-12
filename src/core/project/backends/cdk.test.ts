@@ -309,6 +309,18 @@ function stepMessages(events: ProjectEvent[]): string[] {
 }
 
 describe("CdkBackend.build", () => {
+  test("uses the v0 CDK app without recommending a schema upgrade", async () => {
+    const input = { ...(await project()), isV0: true };
+    const packageDirectory = join(cdkDirectory(input), "node_modules", "@aws", "agentcore-cdk");
+    await mkdir(packageDirectory, { recursive: true });
+    await writeFile(join(packageDirectory, "package.json"), JSON.stringify({ version: "0.8.0" }));
+    const subject = harness();
+
+    expect(await collect(subject.backend.build(input))).toEqual([
+      { type: "step", message: "Synthesizing CloudFormation templates" },
+    ]);
+    expect(subject.commands).toEqual([{ command: synthCommand(input), cwd: cdkDirectory(input) }]);
+  });
   test("synthesizes into the assembly directory deploy reads", async () => {
     const input = await project();
     const subject = harness();

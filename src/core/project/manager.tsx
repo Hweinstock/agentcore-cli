@@ -59,6 +59,10 @@ import { HarnessSpecSchema, HarnessYamlSchema } from "../../projectSchemas/harne
 import { FsTreeNode } from "./templates/fsTree";
 import { getEvaluatorTemplateResolver } from "./templates/evaluator";
 import { ProjectSpecSchema, type ManagedBy } from "../../projectSchemas/project";
+import {
+  isV0ProjectSpec,
+  LegacyCompatibleProjectSpecSchema,
+} from "../../projectSchemas/legacyProject";
 import { ConfigBundleSchema } from "../../projectSchemas/config-bundle";
 import {
   CredentialSchema,
@@ -96,6 +100,7 @@ import {
   DEFAULT_TARGET_NAME,
   type AwsDeploymentTarget,
 } from "../../projectSchemas/aws-targets";
+import { LegacyAwsDeploymentTargetsSchema } from "../../projectSchemas/legacyTargets";
 import type { RuntimeResourceConfig } from "../../handlers/project/add/runtime/types";
 import type { TemplateRenderer } from "./templates/types";
 import { HandlebarsTemplateRenderer } from "./templates/renderer";
@@ -395,11 +400,20 @@ export class FsProjectManager implements ProjectManager {
     if (!rootPath) return undefined;
 
     const configPath = projectSpecPath(rootPath);
-    const spec = await this.json.read(configPath, ProjectSpecSchema);
+    const rawSpec = await this.json.read(configPath, z.unknown());
+    const parsed = LegacyCompatibleProjectSpecSchema.safeParse(rawSpec);
+    if (!parsed.success) {
+      throw new DeserializationError(configPath, {
+        cause: parsed.error,
+        details: z.prettifyError(parsed.error),
+      });
+    }
+    const spec = parsed.data;
     return {
       name: spec.name,
       rootPath,
       spec,
+      ...(isV0ProjectSpec(rawSpec) ? { isV0: true } : {}),
     };
   }
 
@@ -505,6 +519,7 @@ export class FsProjectManager implements ProjectManager {
     input: AddResourceInput,
     options: AddResourceOptions = {},
   ): AsyncGenerator<ProjectEvent, Project> {
+    this.requireEditableProject(project);
     const agentCoreSpecPath = this.getProjectSpecPath(project);
     const projectSpecKey = toProjectSpecKey(input.resourceType);
 
@@ -892,10 +907,19 @@ export class FsProjectManager implements ProjectManager {
     return projectSpecPath(project.rootPath);
   }
 
+  private requireEditableProject(project: Project): void {
+    if (project.isV0) {
+      throw new ProjectStateError(
+        "v0 projects are read-only in the v1 CLI. Use @aws/agentcore@0 to edit this project.",
+      );
+    }
+  }
+
   public async removeResource(
     project: Project,
     input: RemoveResourceInput,
   ): Promise<RemoveResourceResult> {
+    this.requireEditableProject(project);
     const agentCoreSpecPath = this.getProjectSpecPath(project);
     const existingProjectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
 
@@ -1021,6 +1045,7 @@ export class FsProjectManager implements ProjectManager {
   }
 
   public async removeAllResources(project: Project): Promise<RemoveResourcesResult> {
+    this.requireEditableProject(project);
     const agentCoreSpecPath = this.getProjectSpecPath(project);
     const existingProjectSpec = await this.json.read(agentCoreSpecPath, ProjectSpecSchema);
 
@@ -1091,6 +1116,7 @@ export class FsProjectManager implements ProjectManager {
     project: Project | undefined,
     input: ExportHarnessInput,
   ): AsyncGenerator<ProjectEvent, ExportHarnessResult> {
+    if (project) this.requireEditableProject(project);
     if (!project) {
       if (!input.prefetched) {
         throw new ProjectStateError(
@@ -1486,7 +1512,10 @@ export class FsProjectManager implements ProjectManager {
   public async listTargets(project: Project): Promise<AwsDeploymentTarget[]> {
     const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
     if (!existsSync(targetsPath)) return [];
-    return this.json.read(targetsPath, AwsDeploymentTargetsSchema);
+    return this.json.read(
+      targetsPath,
+      project.isV0 ? LegacyAwsDeploymentTargetsSchema : AwsDeploymentTargetsSchema,
+    );
   }
 
   public async resolveTarget(
@@ -1541,9 +1570,7 @@ export class FsProjectManager implements ProjectManager {
     name: string,
   ): Promise<AwsDeploymentTarget> {
     const targetsPath = join(project.rootPath, "agentcore", "aws-targets.json");
-    const targets = existsSync(targetsPath)
-      ? await this.json.read(targetsPath, AwsDeploymentTargetsSchema)
-      : [];
+    const targets = await this.listTargets(project);
     if (targets.length === 0) {
       throw new ProjectStateError(
         `No deployment targets are configured for project '${project.name}'. ` +

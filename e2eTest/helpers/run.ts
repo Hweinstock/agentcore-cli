@@ -24,7 +24,17 @@ function parseCommand(value: string): { executable: string; baseArgs: string[] }
 
 /** Minimal abstraction to handle the running of CLI commands **/
 export class CliRunner {
-  private readonly command = parseCommand(requireEnv("AGENTCORE_CLI_PATH"));
+  private readonly command: { executable: string; baseArgs: string[] };
+
+  constructor(command: string | readonly string[] = requireEnv("AGENTCORE_CLI_PATH")) {
+    if (typeof command === "string") {
+      this.command = parseCommand(command);
+      return;
+    }
+    const [executable, ...baseArgs] = command;
+    if (!executable) throw new Error("CLI command is empty");
+    this.command = { executable, baseArgs };
+  }
 
   /** Given arguments and a working directory, runs the CLI and captures its result. */
   run(args: string[], cwd: string): Promise<RunResult> {
