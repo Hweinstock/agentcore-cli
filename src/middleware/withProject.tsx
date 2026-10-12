@@ -1,6 +1,6 @@
 import type { Project, ProjectManager } from "../handlers/project/types";
 import { ProjectStateError } from "../errors/errors";
-import { ProjectKey, type Middleware } from "../router";
+import { CommandRunMetricEventKey, ProjectKey, type Middleware } from "../router";
 
 interface WithProjectConfig {
   projectManager: ProjectManager;
@@ -38,6 +38,9 @@ export function withProject(config: WithProjectConfig): Middleware {
       // actually ran in is the one searched.
       const from = config.cwd ?? process.cwd();
       const project = await config.projectManager.resolve({ filePath: from });
+      if (project) {
+        ctx.value(CommandRunMetricEventKey)?.setAttributes({ v0_project: project.isV0 ?? false });
+      }
       if (!project && !config.optional) {
         throw new ProjectStateError(projectNotFoundMessage(from));
       }

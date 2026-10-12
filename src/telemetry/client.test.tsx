@@ -89,6 +89,7 @@ describe("DefaultTelemetryClient", () => {
           exit_reason: "success",
           command_path: "/agentcore",
           is_tui: false,
+          v0_project: false,
         },
       },
       {
@@ -99,6 +100,7 @@ describe("DefaultTelemetryClient", () => {
           exit_reason: "failure",
           command_path: "/agentcore",
           is_tui: false,
+          v0_project: false,
         },
       },
     ]);
@@ -171,6 +173,7 @@ describe("DefaultTelemetryClient", () => {
         exit_reason: "success",
         command_path: "/agentcore",
         is_tui: true,
+        v0_project: false,
       },
     });
   });
