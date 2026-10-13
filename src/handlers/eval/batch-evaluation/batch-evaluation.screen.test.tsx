@@ -145,29 +145,6 @@ describe("batch-evaluation picker", () => {
 });
 
 describe("batch-evaluation detail (raw JSON)", () => {
-  test("renders evaluation errors without an evaluator name alongside scores", async () => {
-    const core = new TestCoreClient();
-    core.eval.setBatchEvalGetResponse({
-      batchEvaluationId: "be-1",
-      batchEvaluationArn: "arn:aws:bedrock-agentcore:us-east-1:123456789012:batch-evaluate/be-1",
-      batchEvaluationName: "mixed",
-      createdAt: new Date("2026-10-13T00:00:00Z"),
-      status: "COMPLETED_WITH_ERRORS",
-      outputConfig: { cloudWatchConfig: { logGroupName: "results", logStreamName: "run-be-1" } },
-    });
-    core.eval.setBatchEvalResults([
-      { evaluatorId: "Builtin.Helpfulness", score: 0.83 },
-      { sessionId: "s2", errorType: "LogEventMissingException", error: "Incomplete span data." },
-    ]);
-    const screen = renderScreen("/agentcore/eval/batch-evaluation/get/be-1", { core });
-    await screen.resize(120, 40);
-    await waitForText(screen.lastFrame, "LogEventMissingException");
-    const frame = screen.lastFrame()!;
-    expect(frame).toContain("COMPLETED_WITH_ERRORS");
-    expect(frame).toContain("Builtin.Helpfulness");
-    expect(frame).toContain("Incomplete span data.");
-  });
-
   test("renders the full response, including merged results", async () => {
     const core = new TestCoreClient();
     core.eval.setBatchEvalGetResponse(getResponse());

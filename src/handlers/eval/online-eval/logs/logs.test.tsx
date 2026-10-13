@@ -4,6 +4,7 @@ import { CoreClient } from "../../../../core";
 import {
   createSilentLogger,
   fixtureFactories,
+  matchGolden,
   TestCoreClient,
   TestGlobalConfigAccessor,
   testIO,
@@ -46,24 +47,47 @@ function setup() {
 }
 
 describe("online-eval logs", () => {
-  test("searches the resolved group and prints every record as JSON", async () => {
-    const { core, io, route } = setup();
-
-    await route(["--id", ID, "--since", `${SINCE}`, "--json"]);
-
-    expect(core.eval.calls[0]).toEqual({
-      method: "resourceOnlineEvaluationLogSource",
-      args: [ID, { region: "us-west-2" }],
+  // Pin a real online evaluation result and its search window. Re-recording
+  // requires the configuration and retained CloudWatch event to still exist.
+  // Redact account identifiers in recordings before publishing them.
+  test.each([
+    ["text", false],
+    ["json", true],
+  ] as const)("searches recorded online evaluation logs as %s", async (format, json) => {
+    const fixtures = join(import.meta.dir, "__fixtures__");
+    const core = new CoreClient({
+      ...fixtureFactories(fixtures),
+      logger: createSilentLogger(),
     });
-    expect(core.observability.calls[0]?.method).toBe("searchLogs");
-    expect(core.observability.calls[0]?.args[0]).toEqual(LOG_SOURCE);
-    expect(
-      io
-        .stdout()
-        .split("\n")
-        .map((line) => JSON.parse(line)),
-    ).toEqual(EVENTS.map((event) => ({ ...event, timestamp: event.timestamp.toISOString() })));
+    const io = testIO();
+    const root = createRootHandler(core, {
+      io: io.io,
+      logger: createSilentLogger(),
+      globalConfigAccessor: new TestGlobalConfigAccessor(),
+    });
+
+    await root.route([
+      "node",
+      "agentcore",
+      "eval",
+      "online-eval",
+      "logs",
+      "--id",
+      "bugbash725_MyOnlineEval-x7cbMK8W2z",
+      "--since",
+      "1781115098000",
+      "--until",
+      "1781115100000",
+      "--limit",
+      "1",
+      "--region",
+      "us-east-1",
+      ...(json ? ["--json"] : []),
+    ]);
+
     expect(io.stderr()).toBe("");
+    expect(io.stdout()).toContain("Builtin.Correctness");
+    matchGolden(fixtures, `logs-search-${format}.golden.txt`, io.stdout());
   });
 
   test("tails the resolved group by default and announces it on stderr", async () => {
