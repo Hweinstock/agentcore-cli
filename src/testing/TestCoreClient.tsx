@@ -1633,12 +1633,6 @@ export class TestEvalClient implements CoreEvalClient {
     return this.logSource;
   }
 
-  async resourceBatchEvaluationLogSource(id: string, options: CoreOptions) {
-    this.calls.push({ method: "resourceBatchEvaluationLogSource", args: [id, options] });
-    if (this.error) throw this.error;
-    return this.logSource;
-  }
-
   // List responses are keyed by the nextToken that requests them (undefined =
   // the first page), so tests can serve multi-page listings.
   private listResponses = new Map<string | undefined, ListEvaluatorsResponse>();

@@ -153,6 +153,7 @@ This reference was generated from `agentcore --help` for version `1.0.0-rc.5`.
       - [`agentcore eval online-eval pause`](#agentcore-eval-online-eval-pause)
       - [`agentcore eval online-eval resume`](#agentcore-eval-online-eval-resume)
       - [`agentcore eval online-eval delete`](#agentcore-eval-online-eval-delete)
+      - [`agentcore eval online-eval logs`](#agentcore-eval-online-eval-logs)
     - [`agentcore eval online-insight`](#agentcore-eval-online-insight)
       - [`agentcore eval online-insight create`](#agentcore-eval-online-insight-create)
       - [`agentcore eval online-insight get`](#agentcore-eval-online-insight-get)
@@ -2309,6 +2310,24 @@ delete an online evaluation config by ID
 
 - `--id <id>`: the ID of the online evaluation config to delete (required)
 
+##### `agentcore eval online-eval logs`
+
+```text
+agentcore eval online-eval logs [options]
+```
+
+stream or search online-eval logs
+
+**Options**
+
+- `--id <id>`: the ID of the online-eval resource (required)
+- `--since <since>`: search window start: "5m", "1h", ISO 8601, epoch ms, or "now"
+- `--until <until>`: search window end: "5m", "1h", ISO 8601, epoch ms, or "now"
+- `--tail`: tail new log records (default: false)
+- `--level <level>`: filter by log level (error, warn, info, debug)
+- `--query <query>`: CloudWatch Logs filter pattern
+- `--limit <limit>`: maximum number of log records to return in search mode
+
 #### `agentcore eval online-insight`
 
 ```text
@@ -2576,7 +2595,7 @@ replay a dataset against a Runtime, then batch-evaluate the resulting sessions
 agentcore eval batch-evaluation get [options]
 ```
 
-get a batch evaluation by ID, with CloudWatch-backed results when available
+get a batch evaluation by ID, with CloudWatch-backed results and errors when available
 
 **Options**
 

@@ -71,7 +71,6 @@ describe("eval batch-evaluation command hierarchy", () => {
       "get",
       "list",
       "stop",
-      "logs",
     ]);
   });
 

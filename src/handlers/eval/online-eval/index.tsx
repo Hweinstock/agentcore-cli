@@ -10,7 +10,7 @@ import { createUpdateOnlineEvalHandler } from "./update";
 import { createPauseOnlineEvalHandler } from "./pause";
 import { createResumeOnlineEvalHandler } from "./resume";
 import { createDeleteOnlineEvalHandler } from "./delete";
-import { createEvalLogsHandler } from "../logs";
+import { createOnlineEvalLogsHandler } from "./logs";
 
 export function createOnlineEvalHandler(core: Core, io: AppIO): Router {
   return new Router("online-eval", "manage AgentCore online evaluation configs")
@@ -24,12 +24,7 @@ export function createOnlineEvalHandler(core: Core, io: AppIO): Router {
     .handler(createPauseOnlineEvalHandler(core))
     .handler(createResumeOnlineEvalHandler(core))
     .handler(createDeleteOnlineEvalHandler(core))
-    .handler(
-      createEvalLogsHandler(core, io, {
-        resource: "online-eval",
-        resolveLogSource: core.eval.resourceOnlineEvaluationLogSource.bind(core.eval),
-      }),
-    );
+    .handler(createOnlineEvalLogsHandler(core, io));
 }
 
 export { OnlineEvalScreen } from "./screen.tsx";
